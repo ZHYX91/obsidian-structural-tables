@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-08-22
+last_synced: 2026-08-23
 ---
 
 [English](product-requirements.en.md)
@@ -29,7 +29,7 @@ last_synced: 2026-08-22
 <!-- section: capabilities -->
 ## 首版能力
 
-阅读视图与实时预览渲染；插入、格式化、向左/向上合并、拆分和整篇检查命令；原生双语设置；明确诊断。格式化是显式命令，普通渲染不改源码。
+阅读视图与实时预览渲染；插入、格式化、向左/向上合并、矩形选区合并、拆分、设置表头和整篇检查；接入 Obsidian 原生表格选区与编辑器右键菜单；原生双语设置；明确诊断。格式化和结构编辑均为显式操作，普通渲染不改源码。
 
 <!-- section: exclusions -->
 ## 非目标

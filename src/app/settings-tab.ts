@@ -3,10 +3,10 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 import { createTranslator } from "../config/i18n";
 import type { StructuralTablesPlugin } from "./plugin";
 
-type TabId = "views" | "appearance";
+type TabId = "general" | "views" | "appearance";
 
 export class StructuralTablesSettingTab extends PluginSettingTab {
-  private activeTab: TabId = "views";
+  private activeTab: TabId = "general";
 
   constructor(app: App, private readonly structuralPlugin: StructuralTablesPlugin) {
     super(app, structuralPlugin);
@@ -18,35 +18,49 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.addClass("structural-tables-settings");
     new Setting(containerEl).setName(t("settings.title")).setHeading();
-    new Setting(containerEl)
-      .setName(t("settings.language"))
-      .addDropdown((dropdown) => dropdown
-        .addOption("auto", t("settings.language.auto"))
-        .addOption("en", t("settings.language.en"))
-        .addOption("zh-CN", t("settings.language.zh"))
-        .setValue(this.structuralPlugin.settings.language)
-        .onChange(async (value) => {
-          await this.structuralPlugin.updateSettings({ language: value === "zh-CN" ? "zh-CN" : value === "en" ? "en" : "auto" });
-          this.display();
-        }));
-    const tabs = containerEl.createDiv({ cls: "structural-tables-settings-tabs", attr: { role: "tablist" } });
-    const panels = containerEl.createDiv({ cls: "structural-tables-settings-panel" });
+    const tabs = containerEl.createDiv({
+      cls: "structural-tables-settings-tabs",
+      attr: { role: "tablist", "aria-label": t("settings.title") },
+    });
+    const panels = containerEl.createDiv({
+      cls: "structural-tables-settings-panel",
+      attr: { id: "structural-tables-settings-panel", role: "tabpanel" },
+    });
     const definitions: { id: TabId; label: string }[] = [
+      { id: "general", label: t("settings.general") },
       { id: "views", label: t("settings.behavior") },
       { id: "appearance", label: t("settings.appearance") },
     ];
     for (const definition of definitions) {
       const button = tabs.createEl("button", { text: definition.label, cls: "structural-tables-settings-tab" });
       button.type = "button";
+      button.id = `structural-tables-settings-tab-${definition.id}`;
       button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", "structural-tables-settings-panel");
       button.setAttribute("aria-selected", String(this.activeTab === definition.id));
+      button.tabIndex = this.activeTab === definition.id ? 0 : -1;
       button.toggleClass("is-active", this.activeTab === definition.id);
       button.addEventListener("click", () => {
         this.activeTab = definition.id;
         this.display();
+        this.containerEl.querySelector<HTMLElement>(`#structural-tables-settings-tab-${definition.id}`)?.focus();
       });
     }
-    if (this.activeTab === "views") {
+    panels.setAttribute("aria-labelledby", `structural-tables-settings-tab-${this.activeTab}`);
+    if (this.activeTab === "general") {
+      new Setting(panels)
+        .setName(t("settings.language"))
+        .setDesc(t("settings.language.desc"))
+        .addDropdown((dropdown) => dropdown
+          .addOption("auto", t("settings.language.auto"))
+          .addOption("en", t("settings.language.en"))
+          .addOption("zh-CN", t("settings.language.zh"))
+          .setValue(this.structuralPlugin.settings.language)
+          .onChange(async (value) => {
+            await this.structuralPlugin.updateSettings({ language: value === "zh-CN" ? "zh-CN" : value === "en" ? "en" : "auto" });
+            this.display();
+          }));
+    } else if (this.activeTab === "views") {
       new Setting(panels).setName(t("settings.reading")).setDesc(t("settings.reading.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.enableReadingView)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ enableReadingView: value })));

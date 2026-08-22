@@ -11,7 +11,7 @@ Structural Tables adds merged cells, multi-row column headers, and row headers t
 - Use consecutive header rows before the delimiter for multi-row column headers.
 - Put one adjacent `||` inside the delimiter row to mark row-header columns.
 - Render semantic, accessible tables in Reading view and Live Preview.
-- Format, merge, split, insert, and validate tables with commands.
+- Format, merge, split, set headers, insert, and validate tables with commands and the native editor context menu.
 - Diagnose invalid structures without rewriting the note.
 
 <!-- section: requirements-and-compatibility -->
@@ -42,7 +42,7 @@ Once a table uses any structural feature, every row must have exactly the delimi
 <!-- section: settings -->
 ## Settings
 
-The settings page follows Obsidian's native controls and has Views and Appearance tabs. It controls Reading view, Live Preview, diagnostics, content/full width, comfortable/compact density, alternating rows, and automatic/English/Simplified Chinese UI language.
+The settings page follows Obsidian's native controls and has General, Views, and Appearance tabs. It controls Reading view, Live Preview, diagnostics, content/full width, comfortable/compact density, alternating rows, and Follow Obsidian/English/Simplified Chinese UI language.
 
 <!-- section: limitations -->
 ## Limitations

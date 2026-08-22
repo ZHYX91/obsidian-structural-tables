@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-22
+last_synced: 2026-08-23
 translation_of: product-requirements.zh-CN.md
 ---
 
@@ -30,7 +30,7 @@ Every structural row has exactly the delimiter width. A merge resolves to one to
 <!-- section: capabilities -->
 ## Initial capabilities
 
-Reading view and Live Preview rendering; insert, format, merge left/up, split, and note validation commands; native bilingual settings; and explicit diagnostics. Formatting is an explicit command. Rendering never changes source.
+Reading view and Live Preview rendering; insert, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native table selection and editor context menu; native bilingual settings; and explicit diagnostics. Formatting and structural edits are explicit actions. Rendering never changes source.
 
 <!-- section: exclusions -->
 ## Exclusions

@@ -1,5 +1,6 @@
 import { getLanguage } from "obsidian";
 
+import type { OperationCode } from "../core/operations";
 import type { InterfaceLanguage } from "./settings";
 
 const en = {
@@ -13,6 +14,29 @@ const en = {
   "notice.inserted": "Structural table inserted.",
   "notice.noTable": "Place the cursor inside a structural table.",
   "notice.valid": "All structural tables are valid.",
+  "menu.mergeSelection": "Merge selected cells",
+  "menu.removeRowHeaders": "Remove row-header columns",
+  "menu.setHeaderRows": "Set first {count} rows as column headers",
+  "menu.setRowHeaderColumns": "Set first {count} columns as row headers",
+  "menu.splitCell": "Split merged cell",
+  "operation.alreadyMerged": "The selected cells are already merged.",
+  "operation.cellUnavailable": "The selected cell is unavailable.",
+  "operation.contentWouldBeLost": "Clear every selected cell except the top-left cell before merging so no content is lost.",
+  "operation.headerCountInvalid": "Column headers must use one or more rows from the top of the table.",
+  "operation.headerRowsSet": "Column-header rows updated.",
+  "operation.invalidResult": "That operation would create an invalid structural table.",
+  "operation.mergeCrossesRole": "A merge cannot cross a header or data-region boundary.",
+  "operation.mergeInvalidSelection": "Select a rectangular range of at least two cells.",
+  "operation.mergePartialExisting": "The selection must include each existing merged cell in full.",
+  "operation.merged": "Cells merged.",
+  "operation.noAdjacentCell": "There is no cell in that direction.",
+  "operation.notMerged": "The selected cell is not merged.",
+  "operation.rowHeaderCountInvalid": "Row headers must start at the left and leave at least one data column.",
+  "operation.rowHeadersSet": "Row-header columns updated.",
+  "operation.rowUnavailable": "The selected row is unavailable.",
+  "operation.split": "Merged cell split.",
+  "operation.splitUnsafe": "The split could not be represented safely.",
+  "operation.tableInvalid": "The table must be valid before changing its structure.",
   "settings.appearance": "Appearance",
   "settings.behavior": "Views",
   "settings.density": "Table density",
@@ -21,8 +45,10 @@ const en = {
   "settings.density.compact": "Compact",
   "settings.diagnostics": "Show diagnostics",
   "settings.diagnostics.desc": "Mark invalid structural tables without changing their Markdown.",
+  "settings.general": "General",
   "settings.language": "Interface language",
-  "settings.language.auto": "Automatic",
+  "settings.language.desc": "Choose Follow Obsidian to use Obsidian's interface language.",
+  "settings.language.auto": "Follow Obsidian",
   "settings.language.en": "English",
   "settings.language.zh": "简体中文",
   "settings.live": "Live Preview",
@@ -49,6 +75,29 @@ const zh: Record<TranslationKey, string> = {
   "notice.inserted": "已插入结构表格。",
   "notice.noTable": "请将光标放在结构表格内。",
   "notice.valid": "所有结构表格均有效。",
+  "menu.mergeSelection": "合并所选单元格",
+  "menu.removeRowHeaders": "取消行标题列",
+  "menu.setHeaderRows": "将前 {count} 行设为列标题",
+  "menu.setRowHeaderColumns": "将前 {count} 列设为行标题",
+  "menu.splitCell": "拆分合并单元格",
+  "operation.alreadyMerged": "所选单元格已经合并。",
+  "operation.cellUnavailable": "所选单元格不可用。",
+  "operation.contentWouldBeLost": "请先清空所选区域内除左上角以外的内容，以免合并时丢失内容。",
+  "operation.headerCountInvalid": "列标题必须使用表格顶部连续的一行或多行。",
+  "operation.headerRowsSet": "已更新列标题行。",
+  "operation.invalidResult": "该操作会产生无效的结构表格。",
+  "operation.mergeCrossesRole": "合并不能跨越表头或数据区域边界。",
+  "operation.mergeInvalidSelection": "请选择至少两个单元格组成的矩形区域。",
+  "operation.mergePartialExisting": "选区必须完整包含其中已有的合并单元格。",
+  "operation.merged": "已合并单元格。",
+  "operation.noAdjacentCell": "该方向没有可合并的单元格。",
+  "operation.notMerged": "所选单元格没有合并。",
+  "operation.rowHeaderCountInvalid": "行标题必须从最左列开始，并至少保留一列数据。",
+  "operation.rowHeadersSet": "已更新行标题列。",
+  "operation.rowUnavailable": "所选行不可用。",
+  "operation.split": "已拆分合并单元格。",
+  "operation.splitUnsafe": "无法安全地表示拆分结果。",
+  "operation.tableInvalid": "请先修复表格错误，再修改其结构。",
   "settings.appearance": "外观",
   "settings.behavior": "视图",
   "settings.density": "表格密度",
@@ -57,8 +106,10 @@ const zh: Record<TranslationKey, string> = {
   "settings.density.compact": "紧凑",
   "settings.diagnostics": "显示诊断",
   "settings.diagnostics.desc": "标记无效结构表格，但不改动 Markdown。",
+  "settings.general": "常规",
   "settings.language": "界面语言",
-  "settings.language.auto": "自动",
+  "settings.language.desc": "选择“跟随 Obsidian”可使用 Obsidian 的界面语言。",
+  "settings.language.auto": "跟随 Obsidian",
   "settings.language.en": "English",
   "settings.language.zh": "简体中文",
   "settings.live": "实时预览",
@@ -78,4 +129,33 @@ export type Translate = (key: TranslationKey) => string;
 export function createTranslator(language: InterfaceLanguage): Translate {
   const selected = language === "auto" ? (getLanguage().toLowerCase().startsWith("zh") ? zh : en) : language === "zh-CN" ? zh : en;
   return (key) => selected[key];
+}
+
+const operationKeys: Record<OperationCode, TranslationKey> = {
+  "already-merged": "operation.alreadyMerged",
+  "cell-unavailable": "operation.cellUnavailable",
+  "content-would-be-lost": "operation.contentWouldBeLost",
+  "header-count-invalid": "operation.headerCountInvalid",
+  "header-rows-set": "operation.headerRowsSet",
+  "invalid-result": "operation.invalidResult",
+  "merge-crosses-role": "operation.mergeCrossesRole",
+  "merge-invalid-selection": "operation.mergeInvalidSelection",
+  "merge-partial-existing": "operation.mergePartialExisting",
+  merged: "operation.merged",
+  "no-adjacent-cell": "operation.noAdjacentCell",
+  "not-merged": "operation.notMerged",
+  "row-header-count-invalid": "operation.rowHeaderCountInvalid",
+  "row-headers-set": "operation.rowHeadersSet",
+  "row-unavailable": "operation.rowUnavailable",
+  split: "operation.split",
+  "split-unsafe": "operation.splitUnsafe",
+  "table-invalid": "operation.tableInvalid",
+};
+
+export function operationNotice(t: Translate, code: OperationCode): string {
+  return t(operationKeys[code]);
+}
+
+export function withCount(template: string, count: number): string {
+  return template.replace("{count}", String(count));
 }

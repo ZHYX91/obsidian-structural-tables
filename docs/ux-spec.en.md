@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-22
+last_synced: 2026-08-23
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -32,6 +32,13 @@ Render with `thead`, `tbody`, `th`, `td`, `rowspan`, `colspan`, and suitable `sc
 
 Insert template, format, merge left, merge up, split, and validate are available in the command palette. A merge from a non-empty cell explains the refusal and preserves source.
 
+<!-- section: table-selection -->
+## Table selection and context menu
+
+Use Obsidian's native Markdown-table cell selection, whole-row/whole-column handles, and editor context menu without showing a second set of handles at the same time. A rectangular multi-cell selection offers Merge selected cells; a single merged cell offers Split merged cell. Refuse a merge and preserve source when cells other than the top-left contain content, the selection crosses role boundaries, or it includes only part of an existing merged region.
+
+A whole-row selection starting at the top of the table can set column-header rows. A whole-column selection starting at the left and covering every table row can set or remove row-header columns. Refuse a boundary change that would make a merge cross role regions. Dragging Obsidian's native handles continues to reorder rows and columns.
+
 <!-- section: diagnostics -->
 ## Diagnostics
 
@@ -40,4 +47,4 @@ Invalid structures get a red edge and a readable reason. Reading view keeps its 
 <!-- section: settings -->
 ## Settings
 
-Use native Obsidian controls and top tabs for Views and Appearance. Labels and descriptions support automatic, English, and Simplified Chinese languages.
+Use native Obsidian controls and top tabs for General, Views, and Appearance. Language is in the first General tab; automatic language is labeled Follow Obsidian and includes a description. Labels and descriptions support English and Simplified Chinese.

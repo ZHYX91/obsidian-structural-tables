@@ -57,7 +57,7 @@ Structural Tables 完全在本地工作，不发起网络请求、不加载远�
 <!-- section: development -->
 ## 开发
 
-使用 Node 24.18.0 与 npm 11.16.0。
+使用 Node 24.19.0 与 npm 11.17.0。
 
 ```bash
 npm ci

@@ -57,7 +57,7 @@ Structural Tables works locally. It does not make network requests, load remote 
 <!-- section: development -->
 ## Development
 
-Use Node 24.18.0 and npm 11.16.0.
+Use Node 24.19.0 and npm 11.17.0.
 
 ```bash
 npm ci

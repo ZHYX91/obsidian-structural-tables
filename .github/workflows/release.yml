@@ -1,0 +1,377 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]*.[0-9]*.[0-9]*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable x.y.z version to verify before tagging
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Check out proposed source without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify read-only preflight source identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || {
+            echo "Release preflight must run from the repository default branch." >&2
+            exit 1
+          }
+          remote_default_ref="refs/heads/$DEFAULT_BRANCH"
+          remote_default_commit="$(git ls-remote --exit-code origin "$remote_default_ref" | awk 'NR == 1 { print $1 }')"
+          test "$remote_default_commit" = "$GITHUB_SHA" || {
+            echo "Release preflight must run at the current remote default-branch HEAD." >&2
+            exit 1
+          }
+          test -z "$(git ls-remote --tags origin "refs/tags/$RELEASE_VERSION" "refs/tags/$RELEASE_VERSION^{}")" || {
+            echo "Release preflight requires a version whose remote tag does not exist." >&2
+            exit 1
+          }
+          release_status="$(curl --silent --show-error --output "$RUNNER_TEMP/preflight-release.json" \
+            --write-out "%{http_code}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'X-GitHub-Api-Version: 2026-03-10' \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_VERSION}")"
+          test "$release_status" = "404" || {
+            echo "Release preflight requires a version whose published Release does not exist (HTTP ${release_status})." >&2
+            exit 1
+          }
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          cache: npm
+          node-version: 24.18.0
+
+      - name: Install exact npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.16.0
+          test "$(npm --version)" = "11.16.0"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify release version
+        run: node scripts/check-release-version.mjs "$RELEASE_VERSION"
+
+      - name: Run release gates
+        run: npm run release:check
+
+      - name: Build and verify manual installation archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/release-assets.mjs handoff \
+            --version "$RELEASE_VERSION" \
+            --output-dir "$RUNNER_TEMP/release-preflight"
+
+  verify:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      attestations: read
+      contents: read
+    outputs:
+      artifact_digest: ${{ steps.record_handoff.outputs.artifact_digest }}
+      artifact_id: ${{ steps.record_handoff.outputs.artifact_id }}
+      artifact_name: ${{ steps.record_handoff.outputs.artifact_name }}
+      release_exists: ${{ steps.release_state.outputs.exists }}
+    steps:
+      - name: Check out tagged source without persistent credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          cache: npm
+          node-version: 24.18.0
+
+      - name: Install exact npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.16.0
+          test "$(npm --version)" = "11.16.0"
+
+      - name: Verify release source and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
+          test "$(git rev-list -n 1 "$GITHUB_REF")" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/${{ github.event.repository.default_branch }}"
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run canonical release gates
+        run: npm run release:check
+
+      - name: Build deterministic release handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/release-assets.mjs handoff \
+            --version "$GITHUB_REF_NAME" \
+            --output-dir "$RUNNER_TEMP/release"
+
+      - name: Accept an exact existing immutable Release under read-only permissions
+        id: release_state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          response="$RUNNER_TEMP/tagged-release.json"
+          release_status="$(curl --silent --show-error --output "$response" \
+            --write-out "%{http_code}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'X-GitHub-Api-Version: 2026-03-10' \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}")"
+          case "$release_status" in
+            "404")
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+              ;;
+            "200")
+              archive="structural-tables-${GITHUB_REF_NAME}.zip"
+              jq --exit-status --arg archive "$archive" --arg tag "$GITHUB_REF_NAME" '
+                .tag_name == $tag and .immutable == true and .draft == false and .prerelease == false and
+                ([.assets[].name] | sort) == ([$archive, "main.js", "manifest.json", "styles.css"] | sort) and
+                ([.assets[].name] | unique | length) == 4 and
+                all(.assets[]; .state == "uploaded" and .size > 0 and (.digest | test("^sha256:[0-9a-f]{64}$")))
+              ' "$response" >/dev/null || {
+                echo "The tagged Release is not the exact immutable stable contract; publish a new version." >&2
+                exit 1
+              }
+              existing="$RUNNER_TEMP/existing-release"
+              mkdir "$existing"
+              gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir "$existing" \
+                --pattern main.js --pattern manifest.json --pattern styles.css --pattern "$archive"
+              for asset in main.js manifest.json styles.css "$archive"; do
+                cmp --silent "$RUNNER_TEMP/release/$asset" "$existing/$asset"
+                gh attestation verify "$existing/$asset" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+                  --source-ref "$GITHUB_REF" \
+                  --source-digest "$GITHUB_SHA" \
+                  --deny-self-hosted-runners
+              done
+              remote_tag_commit="$(git ls-remote --exit-code origin "$GITHUB_REF" "${GITHUB_REF}^{}" | awk -v peeled="${GITHUB_REF}^{}" '$2 == peeled { print $1; found = 1 } END { if (!found) print $1 }')"
+              test "$remote_tag_commit" = "$GITHUB_SHA" || {
+                echo "The release tag changed while the existing Release was verified." >&2
+                exit 1
+              }
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Could not query the tagged Release (HTTP ${release_status})." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload exact verified handoff
+        if: steps.release_state.outputs.exists == 'false'
+        id: upload_candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          compression-level: 0
+          if-no-files-found: error
+          include-hidden-files: false
+          name: structural-tables-release-${{ github.run_id }}-${{ github.run_attempt }}
+          overwrite: false
+          path: ${{ runner.temp }}/release
+          retention-days: 7
+
+      - name: Record exact server handoff identity
+        if: steps.release_state.outputs.exists == 'false'
+        id: record_handoff
+        shell: bash
+        env:
+          ARTIFACT_DIGEST: ${{ steps.upload_candidate.outputs.artifact-digest }}
+          ARTIFACT_ID: ${{ steps.upload_candidate.outputs.artifact-id }}
+          ARTIFACT_NAME: structural-tables-release-${{ github.run_id }}-${{ github.run_attempt }}
+          ARTIFACT_URL: ${{ steps.upload_candidate.outputs.artifact-url }}
+        run: |
+          set -euo pipefail
+          [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$ARTIFACT_URL" == "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts/${ARTIFACT_ID}" ]]
+          echo "artifact_digest=$ARTIFACT_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$ARTIFACT_ID" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+
+  publish:
+    if: github.event_name == 'push' && needs.verify.outputs.release_exists == 'false'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      attestations: write
+      contents: write
+      id-token: write
+    env:
+      EXPECTED_ARTIFACT_DIGEST: ${{ needs.verify.outputs.artifact_digest }}
+      EXPECTED_ARTIFACT_ID: ${{ needs.verify.outputs.artifact_id }}
+      EXPECTED_ARTIFACT_NAME: ${{ needs.verify.outputs.artifact_name }}
+    steps:
+      - name: Reverify release identity before using write credentials
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag_ref="refs/tags/$GITHUB_REF_NAME"
+          remote_tag_commit="$(git ls-remote --exit-code "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "$tag_ref" "${tag_ref}^{}" | awk -v peeled="${tag_ref}^{}" '$2 == peeled { print $1; found = 1 } END { if (!found) print $1 }')"
+          test "$remote_tag_commit" = "$GITHUB_SHA" || {
+            echo "The remote release tag no longer points to the pushed event commit." >&2
+            exit 1
+          }
+          release_status="$(curl --silent --show-error --output "$RUNNER_TEMP/tagged-release.json" \
+            --write-out "%{http_code}" \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'X-GitHub-Api-Version: 2026-03-10' \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}")"
+          test "$release_status" = "404" || {
+            echo "The tagged Release appeared after verification (HTTP ${release_status}); refusing mutation." >&2
+            exit 1
+          }
+
+      - name: Download and verify exact release candidate handoff
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_ARTIFACT_NAME" == "structural-tables-release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" ]]
+          [[ "$EXPECTED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$EXPECTED_ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          artifact_json="$RUNNER_TEMP/artifact.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$EXPECTED_ARTIFACT_ID" > "$artifact_json"
+          jq --exit-status \
+            --arg digest "sha256:$EXPECTED_ARTIFACT_DIGEST" \
+            --arg name "$EXPECTED_ARTIFACT_NAME" \
+            --arg sha "$GITHUB_SHA" \
+            --argjson artifact_id "$EXPECTED_ARTIFACT_ID" \
+            --argjson run_id "$GITHUB_RUN_ID" '
+              .id == $artifact_id and .name == $name and .expired == false and
+              .digest == $digest and .workflow_run.id == $run_id and .workflow_run.head_sha == $sha
+            ' "$artifact_json" >/dev/null
+          transport_zip="$RUNNER_TEMP/release-handoff.zip"
+          curl --fail --location --silent --show-error \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'X-GitHub-Api-Version: 2026-03-10' \
+            "$(jq --raw-output '.archive_download_url' "$artifact_json")" \
+            --output "$transport_zip"
+          test "$(sha256sum "$transport_zip" | cut -d' ' -f1)" = "$EXPECTED_ARTIFACT_DIGEST"
+          expected_names="$(printf '%s\n' SHA256SUMS "structural-tables-$GITHUB_REF_NAME.zip" main.js manifest.json styles.css | LC_ALL=C sort)"
+          actual_names="$(unzip -Z1 "$transport_zip" | LC_ALL=C sort)"
+          test "$actual_names" = "$expected_names"
+          mkdir "$RUNNER_TEMP/release"
+          unzip -qq "$transport_zip" -d "$RUNNER_TEMP/release"
+          (cd "$RUNNER_TEMP/release" && sha256sum --check SHA256SUMS)
+          test "$(jq --raw-output '.version' "$RUNNER_TEMP/release/manifest.json")" = "$GITHUB_REF_NAME"
+
+      - name: Attest public release assets
+        uses: actions/attest@36051bcae73b7c2a8a6945a48cbf80953c6baa35 # v4
+        with:
+          subject-path: |
+            ${{ runner.temp }}/release/main.js
+            ${{ runner.temp }}/release/manifest.json
+            ${{ runner.temp }}/release/styles.css
+            ${{ runner.temp }}/release/structural-tables-${{ github.ref_name }}.zip
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            "$RUNNER_TEMP/release/main.js" \
+            "$RUNNER_TEMP/release/manifest.json" \
+            "$RUNNER_TEMP/release/styles.css" \
+            "$RUNNER_TEMP/release/structural-tables-$GITHUB_REF_NAME.zip" \
+            --generate-notes \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --verify-tag
+
+      - name: Verify published bytes and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="structural-tables-$GITHUB_REF_NAME.zip"
+          for attempt in 1 2 3 4 5; do
+            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" \
+              > "$RUNNER_TEMP/published-release.json" && \
+              jq --exit-status --arg archive "$archive" '
+                select(.draft == false and .prerelease == false and .immutable == true) |
+                select(([.assets[].name] | sort) == ([$archive, "main.js", "manifest.json", "styles.css"] | sort)) |
+                select(all(.assets[]; .state == "uploaded" and .size > 0 and (.digest | test("^sha256:[0-9a-f]{64}$")))) |
+                .id
+              ' "$RUNNER_TEMP/published-release.json" >/dev/null; then
+              break
+            fi
+            test "$attempt" -lt 5
+            sleep "$attempt"
+          done
+          mkdir "$RUNNER_TEMP/published"
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/published"
+          expected=(main.js manifest.json styles.css "structural-tables-$GITHUB_REF_NAME.zip")
+          for name in "${expected[@]}"; do
+            cmp --silent "$RUNNER_TEMP/release/$name" "$RUNNER_TEMP/published/$name"
+            for attempt in 1 2 3 4 5; do
+              if gh attestation verify "$RUNNER_TEMP/published/$name" \
+                --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+                --source-ref "$GITHUB_REF" \
+                --source-digest "$GITHUB_SHA" \
+                --deny-self-hosted-runners; then
+                break
+              fi
+              test "$attempt" -lt 5
+              sleep "$attempt"
+            done
+          done

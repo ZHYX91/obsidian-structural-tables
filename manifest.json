@@ -1,0 +1,10 @@
+{
+  "id": "structural-tables",
+  "name": "Structural Tables",
+  "version": "0.1.0",
+  "minAppVersion": "1.12.7",
+  "description": "Merged cells, multi-row headers, and row headers for readable Markdown tables.",
+  "author": "ZhengYX",
+  "authorUrl": "https://github.com/ZHYX91",
+  "isDesktopOnly": true
+}

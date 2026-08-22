@@ -1,0 +1,53 @@
+{
+  "name": "obsidian-structural-tables",
+  "version": "0.1.0",
+  "description": "Render semantic Markdown tables with merged cells, multi-row headers, and row headers in Obsidian.",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "npm run typecheck && npm run build:bundle && npm run check:release",
+    "build:bundle": "node esbuild.config.mjs production",
+    "check:runtime": "node scripts/check-runtime.mjs",
+    "format:check": "node scripts/check-format.mjs",
+    "check:readme-i18n": "node scripts/check-readme-i18n.mjs",
+    "check:docs-i18n": "node scripts/check-docs-i18n.mjs",
+    "lint": "eslint main.ts src tests scripts esbuild.config.mjs eslint.config.mjs vitest.config.mts --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "check:release": "node scripts/check-release.mjs",
+    "check": "npm run check:runtime && npm run format:check && npm run check:readme-i18n && npm run check:docs-i18n && npm run lint && npm run typecheck && npm run test:coverage && npm run build:bundle && npm run check:release",
+    "release:check": "npm run check && node scripts/check-release-version.mjs"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "markdown",
+    "tables",
+    "rowspan",
+    "colspan"
+  ],
+  "author": "ZhengYX",
+  "license": "MIT",
+  "packageManager": "npm@11.16.0",
+  "engines": {
+    "node": "24.18.0"
+  },
+  "devDependencies": {
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6",
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.3",
+    "@vitest/coverage-v8": "4.1.10",
+    "esbuild": "0.28.1",
+    "eslint": "10.7.0",
+    "eslint-plugin-obsidianmd": "0.4.1",
+    "happy-dom": "20.10.6",
+    "obsidian": "1.13.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  }
+}

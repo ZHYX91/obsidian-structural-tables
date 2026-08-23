@@ -71,11 +71,14 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         .setValue(this.structuralPlugin.settings.showDiagnostics)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ showDiagnostics: value })));
     } else {
-      new Setting(panels).setName(t("settings.width")).addDropdown((dropdown) => dropdown
-        .addOption("content", t("settings.width.content"))
-        .addOption("full", t("settings.width.full"))
-        .setValue(this.structuralPlugin.settings.width)
-        .onChange(async (value) => this.structuralPlugin.updateSettings({ width: value === "full" ? "full" : "content" })));
+      new Setting(panels).setName(t("settings.layout")).setDesc(t("settings.layout.desc")).addDropdown((dropdown) => dropdown
+        .addOption("content-left", t("settings.layout.contentLeft"))
+        .addOption("content-center", t("settings.layout.contentCenter"))
+        .addOption("pane", t("settings.layout.pane"))
+        .setValue(this.structuralPlugin.settings.layout)
+        .onChange(async (value) => this.structuralPlugin.updateSettings({
+          layout: value === "content-center" || value === "pane" ? value : "content-left",
+        })));
       new Setting(panels).setName(t("settings.density")).setDesc(t("settings.density.desc")).addDropdown((dropdown) => dropdown
         .addOption("comfortable", t("settings.density.comfortable"))
         .addOption("compact", t("settings.density.compact"))

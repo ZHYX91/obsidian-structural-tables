@@ -42,7 +42,7 @@ Once a table uses any structural feature, every row must have exactly the delimi
 <!-- section: settings -->
 ## Settings
 
-The settings page follows Obsidian's native controls and has General, Views, and Appearance tabs. It controls Reading view, Live Preview, diagnostics, content/full width, comfortable/compact density, alternating rows, and Follow Obsidian/English/Simplified Chinese UI language.
+The settings page follows Obsidian's native controls and has General, Views, and Appearance tabs. Table layout can fit content on the left, fit content in the center, or fit the current note pane. The page also controls Reading view, Live Preview, diagnostics, comfortable/compact density, alternating rows, and Follow Obsidian/English/Simplified Chinese UI language.
 
 <!-- section: limitations -->
 ## Limitations

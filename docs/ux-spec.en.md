@@ -47,4 +47,4 @@ Invalid structures get a red edge and a readable reason. Reading view keeps its 
 <!-- section: settings -->
 ## Settings
 
-Use native Obsidian controls and top tabs for General, Views, and Appearance. Language is in the first General tab; automatic language is labeled Follow Obsidian and includes a description. Labels and descriptions support English and Simplified Chinese.
+Use native Obsidian controls and top tabs for General, Views, and Appearance. Language is in the first General tab; automatic language is labeled Follow Obsidian and includes a description. Appearance offers table layouts for content-aligned left, content-aligned center, and current-pane width. Table layout changes the table box, never cell-content alignment. Labels and descriptions support English and Simplified Chinese.

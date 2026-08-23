@@ -4,16 +4,30 @@
   overflow-x: auto;
 }
 
-.structural-tables-container[data-width="full"],
-.structural-tables-live-preview[data-width="full"],
-.structural-tables-container[data-width="full"] .structural-tables-table,
-.structural-tables-live-preview[data-width="full"] .structural-tables-table {
+.structural-tables-container[data-layout="pane"],
+.structural-tables-live-preview[data-layout="pane"],
+.structural-tables-container[data-layout="pane"] .structural-tables-table,
+.structural-tables-live-preview[data-layout="pane"] .structural-tables-table {
   width: 100%;
 }
 
 .structural-tables-table {
   border-collapse: collapse;
   margin-block: var(--size-4-3);
+}
+
+:is(
+  .structural-tables-container,
+  .structural-tables-live-preview
+)[data-layout="content-left"] .structural-tables-table {
+  margin-inline: 0;
+}
+
+:is(
+  .structural-tables-container,
+  .structural-tables-live-preview
+)[data-layout="content-center"] .structural-tables-table {
+  margin-inline: auto;
 }
 
 .structural-tables-table th,

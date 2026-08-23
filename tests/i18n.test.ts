@@ -8,6 +8,11 @@ describe("i18n", () => {
     expect(createTranslator("zh-CN")("settings.language.auto")).toBe("跟随 Obsidian");
   });
 
+  it("distinguishes table layout from cell-content alignment", () => {
+    expect(createTranslator("en")("settings.layout.contentCenter")).toBe("Fit content — Center");
+    expect(createTranslator("zh-CN")("settings.layout.pane")).toBe("适应窗格宽度");
+  });
+
   it("localizes operation notices and count templates", () => {
     const t = createTranslator("zh-CN");
     expect(operationNotice(t, "merged")).toBe("已合并单元格。");

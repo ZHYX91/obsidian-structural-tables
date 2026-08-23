@@ -1,6 +1,6 @@
 export type InterfaceLanguage = "auto" | "en" | "zh-CN";
 export type TableDensity = "comfortable" | "compact";
-export type TableWidth = "content" | "full";
+export type TableLayout = "content-left" | "content-center" | "pane";
 
 export interface StructuralTablesSettings {
   language: InterfaceLanguage;
@@ -8,7 +8,7 @@ export interface StructuralTablesSettings {
   enableLivePreview: boolean;
   showDiagnostics: boolean;
   density: TableDensity;
-  width: TableWidth;
+  layout: TableLayout;
   zebraRows: boolean;
 }
 
@@ -18,9 +18,16 @@ export const DEFAULT_SETTINGS: StructuralTablesSettings = {
   enableLivePreview: true,
   showDiagnostics: true,
   density: "comfortable",
-  width: "content",
+  layout: "content-left",
   zebraRows: false,
 };
+
+function sanitizeLayout(source: Record<string, unknown>): TableLayout {
+  if (source.layout === "content-left" || source.layout === "content-center" || source.layout === "pane") {
+    return source.layout;
+  }
+  return source.width === "full" ? "pane" : "content-left";
+}
 
 export function sanitizeSettings(data: unknown): StructuralTablesSettings {
   const source = typeof data === "object" && data !== null ? data as Record<string, unknown> : {};
@@ -30,7 +37,7 @@ export function sanitizeSettings(data: unknown): StructuralTablesSettings {
     enableLivePreview: source.enableLivePreview !== false,
     showDiagnostics: source.showDiagnostics !== false,
     density: source.density === "compact" ? "compact" : "comfortable",
-    width: source.width === "full" ? "full" : "content",
+    layout: sanitizeLayout(source),
     zebraRows: source.zebraRows === true,
   };
 }

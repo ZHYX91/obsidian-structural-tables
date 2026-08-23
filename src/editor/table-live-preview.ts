@@ -32,7 +32,7 @@ class StructuralTableWidget extends WidgetType {
     return this.table.source === other.table.source
       && this.sourcePath === other.sourcePath
       && this.settings.density === other.settings.density
-      && this.settings.width === other.settings.width
+      && this.settings.layout === other.settings.layout
       && this.settings.zebraRows === other.settings.zebraRows;
   }
 
@@ -41,7 +41,7 @@ class StructuralTableWidget extends WidgetType {
     this.component.load();
     const host = view.dom.ownerDocument.createElement("div");
     host.className = "structural-tables-live-preview";
-    host.dataset.width = this.settings.width;
+    host.dataset.layout = this.settings.layout;
     host.dataset.density = this.settings.density;
     host.dataset.zebra = String(this.settings.zebraRows);
     renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);

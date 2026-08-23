@@ -43,7 +43,7 @@ export class StructuralTableReadingProcessor {
         component.unload();
         return;
       }
-      wrapper.dataset.width = settings.width;
+      wrapper.dataset.layout = settings.layout;
       wrapper.dataset.density = settings.density;
       wrapper.dataset.zebra = String(settings.zebraRows);
       existing.replaceWith(wrapper);

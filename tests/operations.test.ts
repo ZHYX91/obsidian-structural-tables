@@ -48,6 +48,7 @@ describe("table operations", () => {
     expect(cellColumnAt("| A | B |", 2)).toBe(0);
     expect(cellColumnAt("| A | B |", 7)).toBe(1);
     expect(cellColumnAt(String.raw`| a\|b | c |`, 6)).toBe(0);
+    expect(cellColumnAt("| A | ``x|y`` |  |", 11)).toBe(1);
   });
 
   it("merges a rectangular selection without discarding its top-left content", () => {

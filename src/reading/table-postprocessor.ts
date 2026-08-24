@@ -3,6 +3,7 @@ import { App, MarkdownRenderChild, type MarkdownPostProcessorContext } from "obs
 import type { StructuralTablesSettings } from "../config/settings";
 import { parseStructuralTables } from "../core/parser";
 import { diagnosticText, renderStructuralTable } from "../rendering/table-renderer";
+import { renderedTableFor } from "./table-mapping";
 
 function renderedTables(container: HTMLElement): HTMLTableElement[] {
   const tables = Array.from(container.querySelectorAll<HTMLTableElement>("table"));
@@ -24,8 +25,8 @@ export class StructuralTableReadingProcessor {
     const parsed = parseStructuralTables(section.text).tables;
     if (parsed.length === 0) return;
     const candidates = renderedTables(container);
-    parsed.forEach((table, index) => {
-      const existing = candidates[index];
+    parsed.forEach((table) => {
+      const existing = renderedTableFor(candidates, table);
       if (existing === undefined) return;
       if (!table.valid) {
         if (settings.showDiagnostics) {

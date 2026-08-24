@@ -33,6 +33,26 @@ describe("parseStructuralTables", () => {
     expect(parseStructuralTables(source).tables).toEqual([]);
   });
 
+  it("requires a matching fence character and a closing run at least as long as the opening run", () => {
+    const source = "````md\n```\n~~~\n| A | < |\n| --- | --- |\n````";
+    expect(parseStructuralTables(source).tables).toEqual([]);
+  });
+
+  it("does not close a fence when the marker has trailing non-whitespace", () => {
+    const source = "~~~md\n~~~ still-code\n| A | < |\n| --- | --- |\n~~~";
+    expect(parseStructuralTables(source).tables).toEqual([]);
+  });
+
+  it("does not treat an indented marker or a backtick-bearing info string as a fence", () => {
+    const source = "    ```md\n\n```bad`info\n| A | < |\n| --- | --- |";
+    expect(parseStructuralTables(source).tables).toHaveLength(1);
+  });
+
+  it("records the source-table index when an ordinary GFM table comes first", () => {
+    const source = "| Plain | Table |\n| --- | --- |\n| 1 | 2 |\n\n| A | < |\n| --- | --- |";
+    expect(parseStructuralTables(source).tables[0]?.sourceTableIndex).toBe(1);
+  });
+
   it("respects pipes in code spans and escaped pipes", () => {
     const source = "| Group | < |\n| `a|b` | a\\|b |\n| --- | --- |\n| X | Y |";
     const table = parseStructuralTables(source).tables[0];

@@ -14,6 +14,7 @@ import {
 } from "../core/operations";
 import { parseStructuralTables } from "../core/parser";
 import { serializeStructuralTable } from "../core/serializer";
+import { reparseUnchangedTable } from "../core/table-snapshot";
 import type { StructuralTable } from "../core/model";
 import { StructuralTableEditorController } from "../editor/table-live-preview";
 import { selectedStructuralTableCells, type StructuralTableSelection } from "../editor/table-selection";
@@ -112,8 +113,8 @@ export class StructuralTablesPlugin extends Plugin {
         .setSection("structural-tables")
         .setIcon("combine")
         .setTitle(t("menu.mergeSelection"))
-        .onClick(() => this.applyOperation(editor, table, mergeCellRange(
-          table,
+        .onClick(() => this.applyMenuOperation(editor, table, (current) => mergeCellRange(
+          current,
           selection.minRow,
           selection.minColumn,
           selection.maxRow,
@@ -128,7 +129,11 @@ export class StructuralTablesPlugin extends Plugin {
           .setSection("structural-tables")
           .setIcon("split")
           .setTitle(t("menu.splitCell"))
-          .onClick(() => this.applyOperation(editor, table, splitCell(table, cell?.row ?? -1, cell?.column ?? -1))));
+          .onClick(() => this.applyMenuOperation(
+            editor,
+            table,
+            (current) => splitCell(current, cell?.row ?? -1, cell?.column ?? -1),
+          )));
       }
     }
     const selectsWholeRows = selection.minRow === 0
@@ -140,7 +145,7 @@ export class StructuralTablesPlugin extends Plugin {
         .setSection("structural-tables")
         .setIcon("rows-3")
         .setTitle(withCount(t("menu.setHeaderRows"), count))
-        .onClick(() => this.applyOperation(editor, table, setHeaderRowCount(table, count))));
+        .onClick(() => this.applyMenuOperation(editor, table, (current) => setHeaderRowCount(current, count))));
     }
     const selectsWholeColumns = selection.minColumn === 0
       && selection.minRow === 0
@@ -151,14 +156,22 @@ export class StructuralTablesPlugin extends Plugin {
         .setSection("structural-tables")
         .setIcon("columns-3")
         .setTitle(withCount(t("menu.setRowHeaderColumns"), count))
-        .onClick(() => this.applyOperation(editor, table, setRowHeaderColumnCount(table, count))));
+        .onClick(() => this.applyMenuOperation(
+          editor,
+          table,
+          (current) => setRowHeaderColumnCount(current, count),
+        )));
     }
     if (selectsWholeColumns && table.rowHeaderColumnCount > 0) {
       menu.addItem((item) => item
         .setSection("structural-tables")
         .setIcon("columns-2")
         .setTitle(t("menu.removeRowHeaders"))
-        .onClick(() => this.applyOperation(editor, table, setRowHeaderColumnCount(table, 0))));
+        .onClick(() => this.applyMenuOperation(
+          editor,
+          table,
+          (current) => setRowHeaderColumnCount(current, 0),
+        )));
     }
   }
 
@@ -205,6 +218,19 @@ export class StructuralTablesPlugin extends Plugin {
   private applyOperation(editor: Editor, table: StructuralTable, result: OperationResult): void {
     if (result.changed) this.replaceTable(editor, table, result.source);
     new Notice(operationNotice(createTranslator(this.settings.language), result.code));
+  }
+
+  private applyMenuOperation(
+    editor: Editor,
+    expected: StructuralTable,
+    operation: (table: StructuralTable) => OperationResult,
+  ): void {
+    const current = reparseUnchangedTable(editor.getValue(), expected);
+    if (current === null) {
+      new Notice(createTranslator(this.settings.language)("notice.staleTable"));
+      return;
+    }
+    this.applyOperation(editor, current, operation(current));
   }
 
   private noTable(): void {

@@ -228,7 +228,7 @@ function lineOffsets(source: string): { lines: string[]; offsets: number[] } {
 
 function ignoredLines(lines: string[]): Set<number> {
   const ignored = new Set<number>();
-  let fence: string | null = null;
+  let fence: { character: "`" | "~"; length: number } | null = null;
   let frontmatter = lines[0]?.trim() === "---";
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
@@ -237,15 +237,22 @@ function ignoredLines(lines: string[]): Set<number> {
       if (index > 0 && line.trim() === "---") frontmatter = false;
       continue;
     }
-    const match = /^\s*(```+|~~~+)/u.exec(line);
-    if (match !== null) {
-      const marker = match[1]?.[0] ?? "";
-      if (fence === null) fence = marker;
-      else if (fence === marker) fence = null;
+    if (fence !== null) {
+      ignored.add(index);
+      const closing = /^ {0,3}(`{3,}|~{3,})[\t ]*$/u.exec(line);
+      const run = closing?.[1];
+      if (run?.[0] === fence.character && run.length >= fence.length) fence = null;
+      continue;
+    }
+    const opening = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
+    const run = opening?.[1];
+    const info = opening?.[2] ?? "";
+    if (run !== undefined && (run[0] === "~" || !info.includes("`"))) {
+      fence = { character: run[0] as "`" | "~", length: run.length };
       ignored.add(index);
       continue;
     }
-    if (fence !== null || /^(?: {4}|\t)/u.test(line)) ignored.add(index);
+    if (/^(?: {4}|\t)/u.test(line)) ignored.add(index);
   }
   return ignored;
 }
@@ -255,6 +262,7 @@ export function parseStructuralTables(source: string): ParseResult {
   const ignored = ignoredLines(lines);
   const tables: StructuralTable[] = [];
   const consumed = new Set<number>();
+  let sourceTableIndex = 0;
   for (let delimiterLine = 0; delimiterLine < lines.length; delimiterLine += 1) {
     if (ignored.has(delimiterLine) || consumed.has(delimiterLine)) continue;
     const delimiter = parseDelimiter(lines[delimiterLine] ?? "", delimiterLine);
@@ -287,6 +295,11 @@ export function parseStructuralTables(source: string): ParseResult {
       || delimiter.rowHeaderColumnCount > 0
       || headerRows.length > 1
       || delimiter.diagnostics.length > 0;
+    const startLine = headerRows[0]?.line ?? delimiterLine;
+    const endLine = bodyRows[bodyRows.length - 1]?.line ?? delimiterLine;
+    for (let line = startLine; line <= endLine; line += 1) consumed.add(line);
+    const tableIndex = sourceTableIndex;
+    sourceTableIndex += 1;
     if (!structural) continue;
     const diagnostics = [...delimiter.diagnostics];
     const rows: StructuralRow[] = rowSources.map(({ line, parsed }, row) => {
@@ -316,14 +329,12 @@ export function parseStructuralTables(source: string): ParseResult {
       return { sourceLine: line, cells };
     });
     if (rows.every((row) => row.cells.length === delimiter.columnCount)) resolveMerges(rows, diagnostics);
-    const startLine = headerRows[0]?.line ?? delimiterLine;
-    const endLine = bodyRows[bodyRows.length - 1]?.line ?? delimiterLine;
     const from = offsets[startLine] ?? 0;
     const lastLine = lines[endLine] ?? "";
     const to = (offsets[endLine] ?? from) + lastLine.length;
-    for (let line = startLine; line <= endLine; line += 1) consumed.add(line);
     tables.push({
       range: { from, to },
+      sourceTableIndex: tableIndex,
       startLine,
       endLine,
       delimiterLine,

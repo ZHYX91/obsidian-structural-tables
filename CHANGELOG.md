@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0
+## 0.1.0 - 2026-08-25
 
 - Add Live Preview in-place cell editing with Enter/Escape/Tab, IME protection, and table-safe Wiki-link pipe escaping.
 - Add whole-row and whole-column handles plus safe insert, delete, move, and alignment menu actions for rendered structural tables.

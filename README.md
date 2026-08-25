@@ -36,12 +36,12 @@ Reading view, Live Preview, and diagnostics are separate, clearly described cont
 <!-- section: requirements-and-compatibility -->
 ## Requirements and compatibility
 
-The initial release requires Obsidian 1.12.7 or later. Desktop availability is enabled first; mobile availability will follow recorded physical-device acceptance. Structural Tables owns the meaning of exact `<`, `^`, and delimiter `||` tokens inside a structural table, so avoid enabling another table plugin that assigns different meanings to those same tokens.
+Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidian only. It owns the meaning of exact `<`, `^`, and delimiter `||` tokens inside a structural table, so avoid enabling another table plugin that assigns different meanings to those same tokens.
 
 <!-- section: installation -->
 ## Installation
 
-Until the plugin is listed in Community plugins, download `structural-tables-<version>.zip` from the [latest release](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest) and extract it into `Vault/.obsidian/plugins/`. The archive contains the `structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`. Reload Obsidian, then enable Structural Tables under Community plugins.
+Open **Settings → Community plugins → Browse**, search for **Structural Tables**, install it, and enable it. For a manual installation, download `structural-tables-<version>.zip` from the [latest release](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest) and extract it into `Vault/.obsidian/plugins/`. The archive contains the `structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`. Reload Obsidian, then enable Structural Tables under Community plugins.
 
 <!-- section: usage -->
 ## Usage
@@ -75,7 +75,7 @@ The settings page follows Obsidian's native controls and has General, Views, and
 <!-- section: limitations -->
 ## Limitations
 
-Version 0.1 does not add formulas, per-cell styling, block-level or multiline cell content, captions, numbering, or source attributes for repeated headers. Export and conversion to plain GFM are planned but are not part of the first release. The parser deliberately refuses ambiguous or nonrectangular merges.
+Structural Tables does not support formulas, per-cell styling, block-level or multiline cell content, captions, numbering, source attributes for repeated headers, HTML export, or conversion to plain GFM. The parser deliberately refuses ambiguous or nonrectangular merges.
 
 <!-- section: privacy-and-security -->
 ## Privacy and security

@@ -36,12 +36,12 @@ Structural Tables 在普通 Markdown 管道表格上增加合并单元格、多�
 <!-- section: requirements-and-compatibility -->
 ## 要求与兼容性
 
-首版要求 Obsidian 1.12.7 或更高版本。现阶段先开放桌面端；完成真机验收并留存记录后再开放移动端。Structural Tables 会解释结构表格中严格匹配的 `<`、`^` 与分隔行 `||`，因此不要让其他表格插件同时赋予这些记号不同含义。
+Structural Tables 要求 Obsidian 1.12.7 或更高版本，且仅支持桌面版 Obsidian。它会解释结构表格中严格匹配的 `<`、`^` 与分隔行 `||`，因此不要让其他表格插件同时赋予这些记号不同含义。
 
 <!-- section: installation -->
 ## 安装
 
-在进入社区插件市场之前，可从[最新版本](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest)下载 `structural-tables-<version>.zip`，解压到 `Vault/.obsidian/plugins/`。压缩包包含 `structural-tables/` 目录及其中的 `main.js`、`manifest.json` 和 `styles.css`。重新加载 Obsidian，再在社区插件中启用 Structural Tables。
+打开**设置 → 第三方插件 → 浏览**，搜索 **Structural Tables**，安装并启用。手动安装时，从[最新版本](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest)下载 `structural-tables-<version>.zip`，解压到 `Vault/.obsidian/plugins/`。压缩包包含 `structural-tables/` 目录及其中的 `main.js`、`manifest.json` 和 `styles.css`。重新加载 Obsidian，再在第三方插件中启用 Structural Tables。
 
 <!-- section: usage -->
 ## 用法
@@ -75,7 +75,7 @@ Structural Tables 在普通 Markdown 管道表格上增加合并单元格、多�
 <!-- section: limitations -->
 ## 局限
 
-0.1 版不包含公式、单元格样式、块级或多行单元格内容、标题、编号和重复表头源码属性。导出与展开为普通 GFM 已列入后续计划，但不属于首版。解析器会主动拒绝有歧义或非矩形的合并。
+Structural Tables 不支持公式、单元格样式、块级或多行单元格内容、标题、编号、重复表头源码属性、HTML 导出或展开为普通 GFM。解析器会主动拒绝有歧义或非矩形的合并。
 
 <!-- section: privacy-and-security -->
 ## 隐私与安全

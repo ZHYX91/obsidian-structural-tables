@@ -28,14 +28,14 @@ An exact `<` merges left, `^` merges up, and `\<` or `\^` is literal text. Every
 Every structural row has exactly the delimiter width. A merge resolves to one top-left content anchor, forms a complete rectangle, stays in bounds, and cannot cross corner-header, column-header, row-header, or data regions. Invalid source is retained without guessing or automatic repair.
 
 <!-- section: capabilities -->
-## Initial capabilities
+## Capabilities
 
 Reading view and Live Preview rendering; in-place cell editing with table-safe Wiki-link pipe escaping; row/column handles; insert, safe delete, move, align, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native ordinary-table selection and menu; native bilingual settings; and explicit diagnostics. Formatting and structural edits are explicit actions. Rendering never changes source.
 
 <!-- section: exclusions -->
 ## Exclusions
 
-The first release excludes formulas, styling, block or multiline content, captions and numbering, repeated-header source attributes, HTML export, and plain-GFM expansion.
+The plugin excludes formulas, styling, block or multiline content, captions and numbering, repeated-header source attributes, HTML export, and plain-GFM expansion.
 
 <!-- section: success -->
 ## Acceptance

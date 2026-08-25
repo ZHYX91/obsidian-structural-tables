@@ -24,4 +24,12 @@ describe("serializeStructuralTable", () => {
     const table = parseStructuralTables("| < | B |\n| --- | --- |\n| 1 | 2 |").tables[0];
     expect(() => serializeStructuralTable(table!)).toThrow("invalid");
   });
+
+  it("preserves CRLF when formatting a structural table", () => {
+    const source = "| Group | < |\r\n| Name | Value |\r\n| --- | --- |\r\n| A | B |";
+    const table = parseStructuralTables(source).tables[0];
+
+    expect(serializeStructuralTable(table!)).toBe(source);
+    expect(serializeStructuralTable(table!)).not.toMatch(/(?<!\r)\n/u);
+  });
 });

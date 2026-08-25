@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { parseStructuralTables } from "../src/core/parser";
+import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 
 describe("parseStructuralTables", () => {
   it("does not take ownership of an ordinary GFM table", () => {
     const source = "| A | B |\n| --- | --- |\n| 1 | 2 |";
     expect(parseStructuralTables(source).tables).toEqual([]);
+    expect(parseEditableTables(source).tables[0]).toMatchObject({
+      structural: false,
+      valid: true,
+      headerRowCount: 1,
+      columnCount: 2,
+    });
+  });
+
+  it("rejects delimiter cells shorter than the GFM minimum", () => {
+    const source = "| A | < |\n| - | -- |\n| 1 | 2 |";
+    expect(parseStructuralTables(source).tables).toEqual([]);
+    expect(parseEditableTables(source).tables).toEqual([]);
   });
 
   it("parses multi-row and row headers with rectangular merges", () => {
@@ -31,6 +43,15 @@ describe("parseStructuralTables", () => {
   it("ignores structural-looking source in protected Markdown regions", () => {
     const source = "---\ntable: | --- || --- |\n---\n\n```md\n| A | < |\n| --- | --- |\n```\n\n    | A | < |\n    | --- | --- |";
     expect(parseStructuralTables(source).tables).toEqual([]);
+  });
+
+  it("recognizes BOM frontmatter and both YAML closing delimiters", () => {
+    const bomSource = "\uFEFF---\nvalue: table\n| A | < |\n| --- | --- |\n---";
+    const explicitEnd = "---\nvalue: table\n...\n| A | < |\n| --- | --- |";
+
+    expect(parseStructuralTables(bomSource).tables).toEqual([]);
+    expect(parseStructuralTables(explicitEnd).tables).toHaveLength(1);
+    expect(parseStructuralTables(explicitEnd).tables[0]?.startLine).toBe(3);
   });
 
   it("requires a matching fence character and a closing run at least as long as the opening run", () => {

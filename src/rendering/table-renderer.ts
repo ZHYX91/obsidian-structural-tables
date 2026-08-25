@@ -20,6 +20,8 @@ export function renderStructuralTable(
       if (cell.covered) return;
       const header = cell.role !== "data";
       const element = rowElement.createEl(header ? "th" : "td");
+      element.dataset.structuralRow = String(cell.row);
+      element.dataset.structuralColumn = String(cell.column);
       if (cell.rowSpan > 1) element.rowSpan = cell.rowSpan;
       if (cell.columnSpan > 1) element.colSpan = cell.columnSpan;
       const alignment = table.alignments[cell.column] ?? "default";

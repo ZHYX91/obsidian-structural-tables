@@ -1,25 +1,26 @@
-import { MarkdownView, Notice, Plugin, type Command, type Editor, type Menu } from "obsidian";
+import { MarkdownView, Notice, Plugin, type Command, type Editor } from "obsidian";
 
-import { createTranslator, operationNotice, withCount } from "../config/i18n";
+import { createTranslator, operationNotice } from "../config/i18n";
 import { DEFAULT_SETTINGS, sanitizeSettings, type StructuralTablesSettings } from "../config/settings";
 import {
   cellColumnAt,
   mergeCell,
-  mergeCellRange,
-  setHeaderRowCount,
-  setRowHeaderColumnCount,
   splitCell,
   type MergeDirection,
   type OperationResult,
 } from "../core/operations";
-import { parseStructuralTables } from "../core/parser";
+import { parseEditableTables, parseStructuralTables } from "../core/parser";
 import { serializeStructuralTable } from "../core/serializer";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import type { StructuralTable } from "../core/model";
+import { NativeTableMenuBridge } from "../editor/native-table-menu";
 import { StructuralTableEditorController } from "../editor/table-live-preview";
-import { selectedStructuralTableCells, type StructuralTableSelection } from "../editor/table-selection";
+import { addSelectionMenuItems, hasSelectionMenuItems, type TableOperation } from "../editor/table-menu";
+import { replaceTableSource } from "../editor/table-replacement";
+import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
 import { StructuralTablesSettingTab } from "./settings-tab";
+import { SettingsSaveCoordinator } from "./settings-save-coordinator";
 
 const TEMPLATE = `| Region | Sales | < |
 | Quarter | Q1 | Q2 |
@@ -31,6 +32,9 @@ export class StructuralTablesPlugin extends Plugin {
   override settings: StructuralTablesSettings = { ...DEFAULT_SETTINGS };
   private editorController: StructuralTableEditorController | null = null;
   private readonly localizedCommands: Command[] = [];
+  private readonly settingsSaver = new SettingsSaveCoordinator<StructuralTablesSettings>(
+    (snapshot) => this.saveData(snapshot),
+  );
 
   override async onload(): Promise<void> {
     this.settings = sanitizeSettings(await this.loadData());
@@ -38,6 +42,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.registerEditorExtension(this.editorController.createExtension());
     const reading = new StructuralTableReadingProcessor(this.app, () => this.settings);
     this.registerMarkdownPostProcessor((element, context) => reading.process(element, context));
+    new NativeTableMenuBridge(this.app, () => this.settings).register(this);
     this.addSettingTab(new StructuralTablesSettingTab(this.app, this));
     this.registerCommands();
     this.registerEditorMenu();
@@ -45,7 +50,7 @@ export class StructuralTablesPlugin extends Plugin {
 
   async updateSettings(update: Partial<StructuralTablesSettings>): Promise<void> {
     this.settings = sanitizeSettings({ ...this.settings, ...update });
-    await this.saveData(this.settings);
+    await this.settingsSaver.save(this.settings);
     this.refreshCommandNames();
     this.editorController?.refresh();
     this.app.workspace.iterateAllLeaves((leaf) => {
@@ -100,85 +105,20 @@ export class StructuralTablesPlugin extends Plugin {
   private registerEditorMenu(): void {
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor) => {
       const selection = selectedStructuralTableCells(editor);
-      if (selection === null || !selection.table.valid || !selection.rectangular) return;
-      this.addSelectionMenuItems(menu, editor, selection);
+      if (selection === null || !selection.table.valid || !selection.rectangular || !hasSelectionMenuItems(selection)) return;
+      addSelectionMenuItems(
+        menu,
+        createTranslator(this.settings.language),
+        selection,
+        (operation) => this.applyMenuOperation(editor, selection.table, operation),
+      );
     }));
-  }
-
-  private addSelectionMenuItems(menu: Menu, editor: Editor, selection: StructuralTableSelection): void {
-    const t = createTranslator(this.settings.language);
-    const { table } = selection;
-    if (selection.cells.length > 1) {
-      menu.addItem((item) => item
-        .setSection("structural-tables")
-        .setIcon("combine")
-        .setTitle(t("menu.mergeSelection"))
-        .onClick(() => this.applyMenuOperation(editor, table, (current) => mergeCellRange(
-          current,
-          selection.minRow,
-          selection.minColumn,
-          selection.maxRow,
-          selection.maxColumn,
-        ))));
-    }
-    if (selection.cells.length === 1) {
-      const cell = selection.cells[0];
-      const anchor = cell === undefined ? undefined : table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
-      if (anchor !== undefined && (anchor.rowSpan > 1 || anchor.columnSpan > 1)) {
-        menu.addItem((item) => item
-          .setSection("structural-tables")
-          .setIcon("split")
-          .setTitle(t("menu.splitCell"))
-          .onClick(() => this.applyMenuOperation(
-            editor,
-            table,
-            (current) => splitCell(current, cell?.row ?? -1, cell?.column ?? -1),
-          )));
-      }
-    }
-    const selectsWholeRows = selection.minRow === 0
-      && selection.minColumn === 0
-      && selection.maxColumn === table.columnCount - 1;
-    if (selectsWholeRows) {
-      const count = selection.maxRow + 1;
-      menu.addItem((item) => item
-        .setSection("structural-tables")
-        .setIcon("rows-3")
-        .setTitle(withCount(t("menu.setHeaderRows"), count))
-        .onClick(() => this.applyMenuOperation(editor, table, (current) => setHeaderRowCount(current, count))));
-    }
-    const selectsWholeColumns = selection.minColumn === 0
-      && selection.minRow === 0
-      && selection.maxRow === table.rows.length - 1;
-    if (selectsWholeColumns && selection.maxColumn < table.columnCount - 1) {
-      const count = selection.maxColumn + 1;
-      menu.addItem((item) => item
-        .setSection("structural-tables")
-        .setIcon("columns-3")
-        .setTitle(withCount(t("menu.setRowHeaderColumns"), count))
-        .onClick(() => this.applyMenuOperation(
-          editor,
-          table,
-          (current) => setRowHeaderColumnCount(current, count),
-        )));
-    }
-    if (selectsWholeColumns && table.rowHeaderColumnCount > 0) {
-      menu.addItem((item) => item
-        .setSection("structural-tables")
-        .setIcon("columns-2")
-        .setTitle(t("menu.removeRowHeaders"))
-        .onClick(() => this.applyMenuOperation(
-          editor,
-          table,
-          (current) => setRowHeaderColumnCount(current, 0),
-        )));
-    }
   }
 
   private currentTable(editor: Editor): { table: StructuralTable; row: number; column: number } | null {
     const cursor = editor.getCursor();
     const offset = editor.posToOffset(cursor);
-    const table = parseStructuralTables(editor.getValue()).tables.find((candidate) => offset >= candidate.range.from && offset <= candidate.range.to);
+    const table = parseEditableTables(editor.getValue()).tables.find((candidate) => offset >= candidate.range.from && offset <= candidate.range.to);
     if (table === undefined) return null;
     const row = table.rows.findIndex((candidate) => candidate.sourceLine === cursor.line);
     if (row < 0) return { table, row: -1, column: -1 };
@@ -187,7 +127,7 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private replaceTable(editor: Editor, table: StructuralTable, source: string): void {
-    editor.replaceRange(source, editor.offsetToPos(table.range.from), editor.offsetToPos(table.range.to));
+    replaceTableSource(editor, table, source);
   }
 
   private formatCurrent(editor: Editor): void {
@@ -223,7 +163,7 @@ export class StructuralTablesPlugin extends Plugin {
   private applyMenuOperation(
     editor: Editor,
     expected: StructuralTable,
-    operation: (table: StructuralTable) => OperationResult,
+    operation: TableOperation,
   ): void {
     const current = reparseUnchangedTable(editor.getValue(), expected);
     if (current === null) {

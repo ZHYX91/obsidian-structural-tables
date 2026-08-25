@@ -12,7 +12,7 @@ describe("sanitizeSettings", () => {
       language: "zh-CN", density: "compact", layout: "content-center", zebraRows: true,
     });
     expect(sanitizeSettings({ language: "fr", density: "dense", layout: "wide" })).toMatchObject({
-      language: "auto", density: "comfortable", layout: "content-left",
+      language: "auto", density: "comfortable", layout: "pane",
     });
   });
 

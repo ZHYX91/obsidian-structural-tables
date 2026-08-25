@@ -33,5 +33,11 @@ export function serializeStructuralTable(table: StructuralTable): string {
     lines.push(`| ${cells.join(" | ")} |`);
   }
   if (table.rows.length === table.headerRowCount) lines.push(delimiter);
-  return lines.join("\n");
+  return lines.join(sourceLineEnding(table.source));
+}
+
+function sourceLineEnding(source: string): "\r\n" | "\r" | "\n" {
+  if (source.includes("\r\n")) return "\r\n";
+  if (source.includes("\r")) return "\r";
+  return "\n";
 }

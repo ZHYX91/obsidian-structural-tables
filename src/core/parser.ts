@@ -21,7 +21,7 @@ interface ParsedDelimiter {
   rowHeaderColumnCount: number;
 }
 
-const DELIMITER_CELL = /^:?-+:?$/u;
+const DELIMITER_CELL = /^:?-{3,}:?$/u;
 
 function parsePipeRow(line: string): ParsedRow | null {
   if (!line.includes("|")) return null;
@@ -229,12 +229,14 @@ function lineOffsets(source: string): { lines: string[]; offsets: number[] } {
 function ignoredLines(lines: string[]): Set<number> {
   const ignored = new Set<number>();
   let fence: { character: "`" | "~"; length: number } | null = null;
-  let frontmatter = lines[0]?.trim() === "---";
+  let frontmatter = lines[0]?.replace(/^\uFEFF/u, "").trim() === "---";
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
     if (frontmatter) {
       ignored.add(index);
-      if (index > 0 && line.trim() === "---") frontmatter = false;
+      if (index > 0 && (line.trim() === "---" || line.trim() === "...")) {
+        frontmatter = false;
+      }
       continue;
     }
     if (fence !== null) {
@@ -257,7 +259,7 @@ function ignoredLines(lines: string[]): Set<number> {
   return ignored;
 }
 
-export function parseStructuralTables(source: string): ParseResult {
+function parseTables(source: string, includeOrdinary: boolean): ParseResult {
   const { lines, offsets } = lineOffsets(source);
   const ignored = ignoredLines(lines);
   const tables: StructuralTable[] = [];
@@ -300,7 +302,7 @@ export function parseStructuralTables(source: string): ParseResult {
     for (let line = startLine; line <= endLine; line += 1) consumed.add(line);
     const tableIndex = sourceTableIndex;
     sourceTableIndex += 1;
-    if (!structural) continue;
+    if (!structural && !includeOrdinary) continue;
     const diagnostics = [...delimiter.diagnostics];
     const rows: StructuralRow[] = rowSources.map(({ line, parsed }, row) => {
       if (parsed.cells.length !== delimiter.columnCount) {
@@ -350,4 +352,12 @@ export function parseStructuralTables(source: string): ParseResult {
     });
   }
   return { tables };
+}
+
+export function parseStructuralTables(source: string): ParseResult {
+  return parseTables(source, false);
+}
+
+export function parseEditableTables(source: string): ParseResult {
+  return parseTables(source, true);
 }

@@ -4,6 +4,13 @@
   overflow-x: auto;
 }
 
+.structural-tables-live-preview {
+  position: relative;
+  box-sizing: border-box;
+  padding-block-start: 1.5rem;
+  padding-inline-start: 1.5rem;
+}
+
 .structural-tables-container[data-layout="pane"],
 .structural-tables-live-preview[data-layout="pane"],
 .structural-tables-container[data-layout="pane"] .structural-tables-table,
@@ -32,9 +39,77 @@
 
 .structural-tables-table th,
 .structural-tables-table td {
+  position: relative;
+  min-inline-size: 5rem;
   border: var(--table-border-width) solid var(--table-border-color);
   padding: var(--size-4-2) var(--size-4-3);
   vertical-align: middle;
+}
+
+.structural-tables-row-handle,
+.structural-tables-column-handle {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.structural-tables-row-handle:hover,
+.structural-tables-column-handle:hover,
+.structural-tables-row-handle:focus-visible,
+.structural-tables-column-handle:focus-visible,
+.structural-tables-row-handle.is-selected,
+.structural-tables-column-handle.is-selected {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.structural-tables-row-handle {
+  inset-inline-start: 0;
+  width: 1.25rem;
+  height: 1.5rem;
+  transform: translateY(-50%);
+}
+
+.structural-tables-column-handle {
+  inset-block-start: 0;
+  width: 1.5rem;
+  height: 1.25rem;
+  transform: translateX(-50%);
+}
+
+.structural-tables-cell-editor {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 4rem;
+  min-height: 2rem;
+  margin: 0;
+  padding: var(--size-2-1) var(--size-4-1);
+  resize: vertical;
+  border: 1px solid var(--interactive-accent);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font: inherit;
+  line-height: inherit;
+}
+
+.structural-tables-live-preview .structural-tables-table.is-interactive :is(th, td) {
+  cursor: default;
+}
+
+.structural-tables-live-preview .structural-tables-table :is(th, td).is-selected {
+  background: var(--text-selection);
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
 }
 
 [data-density="compact"] .structural-tables-table th,
@@ -74,19 +149,66 @@
 
 .structural-tables-settings-tabs {
   display: flex;
-  gap: var(--size-4-1);
-  margin-block: var(--size-4-3);
-  border-bottom: 1px solid var(--background-modifier-border);
+  max-inline-size: 100%;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--size-2-1);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  margin: 0;
+  padding: 0;
+  border-block-end: 1px solid var(--background-modifier-border);
+  scrollbar-width: thin;
 }
 
-.structural-tables-settings-tab {
-  border: 0;
-  border-radius: var(--button-radius) var(--button-radius) 0 0;
-  background: transparent;
-  box-shadow: none;
+.structural-tables-settings-tabs > button.structural-tables-settings-tab {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-block-end: 2px solid transparent !important;
+  border-radius: 0 !important;
+  box-sizing: border-box;
+  box-shadow: none !important;
+  color: var(--text-muted) !important;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-family: inherit !important;
+  font-size: var(--font-ui-small) !important;
+  font-weight: inherit;
+  block-size: auto;
+  min-block-size: 34px;
+  margin: 0 0 -1px !important;
+  padding: 7px 12px !important;
+  white-space: nowrap;
 }
 
-.structural-tables-settings-tab.is-active {
-  color: var(--text-accent);
-  box-shadow: inset 0 -2px var(--interactive-accent);
+.structural-tables-settings-tabs > button.structural-tables-settings-tab:hover {
+  background: transparent !important;
+  color: var(--text-normal) !important;
+}
+
+.structural-tables-settings-tabs > button.structural-tables-settings-tab.is-active,
+.structural-tables-settings-tabs > button.structural-tables-settings-tab.is-active:hover {
+  background: transparent !important;
+  border-block-end-color: var(--interactive-accent) !important;
+  color: var(--text-normal) !important;
+  font-weight: var(--font-semibold) !important;
+}
+
+.structural-tables-settings-tabs > button.structural-tables-settings-tab:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+.structural-tables-settings-panel {
+  margin-block-start: var(--size-4-5);
+  min-inline-size: 0;
+}
+
+@media (pointer: coarse) {
+  .structural-tables-settings-tabs > button.structural-tables-settings-tab {
+    min-block-size: 44px;
+  }
 }

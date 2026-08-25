@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS: StructuralTablesSettings = {
   enableLivePreview: true,
   showDiagnostics: true,
   density: "comfortable",
-  layout: "content-left",
+  layout: "pane",
   zebraRows: false,
 };
 
@@ -26,7 +26,7 @@ function sanitizeLayout(source: Record<string, unknown>): TableLayout {
   if (source.layout === "content-left" || source.layout === "content-center" || source.layout === "pane") {
     return source.layout;
   }
-  return source.width === "full" ? "pane" : "content-left";
+  return source.width === "content" ? "content-left" : "pane";
 }
 
 export function sanitizeSettings(data: unknown): StructuralTablesSettings {

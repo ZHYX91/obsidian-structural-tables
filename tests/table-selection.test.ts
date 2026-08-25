@@ -1,7 +1,11 @@
 import type { Editor, EditorSelection } from "obsidian";
 import { describe, expect, it } from "vitest";
 
-import { selectedStructuralTableCells } from "../src/editor/table-selection";
+import {
+  selectedStructuralTableCells,
+  structuralTableSelectionFromBounds,
+} from "../src/editor/table-selection";
+import { parseStructuralTables } from "../src/core/parser";
 
 const source = "| Group | Value |\n| Name | Amount |\n| --- | --- |\n| A |  |\n|  |  |";
 
@@ -61,5 +65,36 @@ describe("selectedStructuralTableCells", () => {
     expect(selectedStructuralTableCells(editorWith([
       { anchor: { line: 0, ch: 2 }, head: { line: 1, ch: 2 } },
     ]))).toBeNull();
+  });
+
+  it("maps selections in an ordinary GFM table so an edit can bootstrap structural syntax", () => {
+    const plain = "| A | B |\n| --- | --- |\n| 1 |  |";
+    const lines = plain.split("\n");
+    const editor = {
+      getLine: (line: number) => lines[line] ?? "",
+      getValue: () => plain,
+      listSelections: () => [
+        { anchor: { line: 2, ch: 2 }, head: { line: 2, ch: 2 } },
+        { anchor: { line: 2, ch: 6 }, head: { line: 2, ch: 6 } },
+      ],
+    } as unknown as Editor;
+    expect(selectedStructuralTableCells(editor)).toMatchObject({
+      rectangular: true,
+      minRow: 1,
+      maxRow: 1,
+      minColumn: 0,
+      maxColumn: 1,
+    });
+  });
+
+  it("expands a rendered-cell drag to include an existing merged cell in full", () => {
+    const table = parseStructuralTables("| A | < | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |").tables[0]!;
+    expect(structuralTableSelectionFromBounds(table, { row: 0, column: 0 }, { row: 1, column: 0 })).toMatchObject({
+      rectangular: true,
+      minRow: 0,
+      maxRow: 1,
+      minColumn: 0,
+      maxColumn: 1,
+    });
   });
 });

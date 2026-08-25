@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-22
+last_synced: 2026-08-24
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -20,7 +20,7 @@ Pure-core unit tests, DOM rendering tests, plugin wiring tests, packaged-candida
 <!-- section: parser-cases -->
 ## Parser cases
 
-Cover ordinary GFM non-ownership, horizontal and vertical merges, multi-row headers, row headers, escaped markers and pipes, code spans, code blocks, and frontmatter.
+Cover ordinary GFM non-ownership, the three-hyphen delimiter minimum, horizontal and vertical merges, multi-row headers, row headers, escaped markers and pipes, code spans, code blocks, BOM-prefixed frontmatter with both valid closing markers, and LF/CRLF/CR preservation.
 
 <!-- section: invalid-cases -->
 ## Negative cases
@@ -30,12 +30,12 @@ Cover missing anchors, nonrectangles, role crossing, edge/multiple/spaced `||`, 
 <!-- section: commands -->
 ## Commands
 
-Cover safe merges, non-empty refusal, splitting, and canonical formatting. Every candidate edit is parsed again.
+Cover safe merges, non-empty refusal, splitting, insert/delete/move/alignment transformations, merged-anchor migration, Wiki-link pipe escaping without double escapes, and canonical formatting. Every candidate edit is parsed again. DOM tests cover handles, menus, in-place editing, one-transaction Tab commit, and IME composition. Settings tests overlap writes and verify immutable snapshots and deterministic final state.
 
 <!-- section: host -->
 ## Host acceptance
 
-In an explicitly named disposable Vault, test minimum and current Obsidian, light and dark themes, Live Preview cursor transitions, Reading view, settings persistence, and disable cleanup.
+In an explicitly named disposable Vault, test minimum and current Obsidian, light and dark themes, Live Preview note opening and cursor transitions, cell edit/paste/Tab/IME behavior, row/column handles and every menu operation, ordinary-table native behavior, Reading view native-table and raw row-header rendering, settings persistence, undo/redo, and disable cleanup. Repository documentation screenshots use an English disposable Vault, exclude the mouse pointer, and do not count as production deployment evidence.
 
 <!-- section: mobile -->
 ## Mobile

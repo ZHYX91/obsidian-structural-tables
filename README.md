@@ -1,8 +1,26 @@
 # Structural Tables
 
-[简体中文](docs/i18n/README.zh-CN.md)
+[English](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/README.md) · [简体中文](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-CN.md)
 
 Structural Tables adds merged cells, multi-row column headers, and row headers to ordinary pipe-table Markdown while keeping the source readable and portable.
+
+## Screenshots
+
+### Reading view
+
+Structural semantics render as a clean, accessible table while the note remains ordinary pipe-table Markdown.
+
+![Structural Tables merged cells, multi-row headers, and row headers in Reading view](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-reading-view-en.png)
+
+### Live Preview
+
+Leave the table to see its rendered structure; double-click a cell to edit it in place.
+
+![Structural Tables rendered in Live Preview](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-live-preview-en.png)
+
+### Settings
+
+Reading view, Live Preview, and diagnostics are separate, clearly described controls.
 
 <!-- section: features -->
 ## Features
@@ -11,7 +29,8 @@ Structural Tables adds merged cells, multi-row column headers, and row headers t
 - Use consecutive header rows before the delimiter for multi-row column headers.
 - Put one adjacent `||` inside the delimiter row to mark row-header columns.
 - Render semantic, accessible tables in Reading view and Live Preview.
-- Format, merge, split, set headers, insert, and validate tables with commands and the native editor context menu.
+- Edit cells in place, including automatic `|` escaping for pasted Wiki links.
+- Select complete rows or columns with handles, then insert, delete, move, align, merge, split, or set headers from the context menu.
 - Diagnose invalid structures without rewriting the note.
 
 <!-- section: requirements-and-compatibility -->
@@ -22,10 +41,17 @@ The initial release requires Obsidian 1.12.7 or later. Desktop availability is e
 <!-- section: installation -->
 ## Installation
 
-Until the plugin is listed in Community plugins, download `main.js`, `manifest.json`, and `styles.css` from a GitHub Release and place them in `.obsidian/plugins/structural-tables/`. Reload Obsidian, then enable Structural Tables under Community plugins.
+Until the plugin is listed in Community plugins, download `structural-tables-<version>.zip` from the [latest release](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest) and extract it into `Vault/.obsidian/plugins/`. The archive contains the `structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`. Reload Obsidian, then enable Structural Tables under Community plugins.
 
 <!-- section: usage -->
 ## Usage
+
+1. Create or paste an ordinary pipe table in a Markdown note.
+2. Use an exact `<` cell to merge left, an exact `^` cell to merge up, or one adjacent `||` inside the delimiter row to mark the columns on its left as row headers.
+3. Leave the table in Live Preview, or switch to Reading view, to see the rendered structure.
+4. Double-click a rendered cell, or select it and press Enter/F2, to edit it in place. Enter commits, Escape cancels, and Tab commits and advances.
+5. Use the row/column handles or drag across cells, then right-click to insert, safely delete, move, align, merge, split, or set headers.
+6. Open the command palette for insertion, formatting, validation, and structural editing actions.
 
 ```markdown
 | Region | Sales | < |
@@ -39,10 +65,12 @@ All equal-width rows immediately before the delimiter are column-header rows. Th
 
 Once a table uses any structural feature, every row must have exactly the delimiter width. Invalid structures keep their Markdown and show a diagnostic. Use **Format current structural table** for the canonical representation: the top-left cell stores content, the rest of the top row uses `<`, and covered cells below use `^`.
 
+In Live Preview, ordinary Markdown tables remain entirely in Obsidian's native editor. A rendered structural table has its own row/column handles, cell selection, in-place editor, and context menu because Obsidian's native widget cannot represent row spans, column spans, or multi-row headers. Pasting `[[Target|Alias]]` or `![[Image|Size]]` into a structural cell automatically stores the table-safe forms `[[Target\|Alias]]` and `![[Image\|Size]]`; existing escapes are not doubled. Operations that would discard non-empty content or break a merged rectangle are refused.
+
 <!-- section: settings -->
 ## Settings
 
-The settings page follows Obsidian's native controls and has General, Views, and Appearance tabs. Table layout can fit content on the left, fit content in the center, or fit the current note pane. The page also controls Reading view, Live Preview, diagnostics, comfortable/compact density, alternating rows, and Follow Obsidian/English/Simplified Chinese UI language.
+The settings page follows Obsidian's native controls and has General, Views, and Appearance tabs. New installations fit tables to the current note pane by default; content-left and content-center layouts remain available. The page also controls Reading view, Live Preview, diagnostics, comfortable/compact density, alternating rows, and Follow Obsidian/English/Simplified Chinese UI language.
 
 <!-- section: limitations -->
 ## Limitations
@@ -52,7 +80,7 @@ Version 0.1 does not add formulas, per-cell styling, block-level or multiline ce
 <!-- section: privacy-and-security -->
 ## Privacy and security
 
-Structural Tables works locally. It does not make network requests, load remote assets, collect analytics, or send note content anywhere. Rendering never changes source Markdown; command edits are explicit and validated before replacement.
+Structural Tables works locally. It does not make network requests, load remote assets, collect analytics, or send note content anywhere. Rendering never changes source Markdown; in-place and menu edits are explicit and validated before replacement.
 
 <!-- section: development -->
 ## Development
@@ -64,18 +92,28 @@ npm ci
 npm run check
 ```
 
-Repository contracts are documented in the [product requirements](docs/product-requirements.en.md),
-[UX specification](docs/ux-spec.en.md), [architecture](docs/architecture.en.md),
-[testing strategy](docs/testing-strategy.en.md), and [release guide](docs/release.en.md). See also
-the [changelog](CHANGELOG.md), [contribution guide](CONTRIBUTING.md), and
-[security policy](SECURITY.md).
+Developer references:
+
+- [Product requirements](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/product-requirements.en.md)
+- [UX specification](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/ux-spec.en.md)
+- [Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.en.md)
+- [Testing strategy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/testing-strategy.en.md)
+- [Release procedure](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/release.en.md)
+- [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+- [Contributing guide](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md)
+- [Security policy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/SECURITY.md)
 
 <!-- section: support -->
 ## Support
 
-Report reproducible issues with Obsidian version, editing mode, theme, relevant table Markdown, expected result, and actual result. Remove private note content before sharing a sample.
+- Use [General](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/general) for workflow ideas and general feedback.
+- Use [Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) for usage and configuration questions.
+- Use the structured [GitHub issue forms](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) for reproducible bugs and concrete feature requests. Include the Obsidian version, editing mode, theme, relevant table Markdown, expected result, and actual result.
+- Report vulnerabilities only through GitHub's [private vulnerability reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new); see the [security policy](https://github.com/ZHYX91/obsidian-structural-tables/security/policy) for details.
+
+Never post real private Vault paths, note content, credentials, or personal information publicly.
 
 <!-- section: license -->
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX

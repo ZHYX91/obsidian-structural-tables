@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-23
+last_synced: 2026-08-24
 translation_of: product-requirements.zh-CN.md
 ---
 
@@ -20,7 +20,7 @@ Let users express merged cells, multi-row column headers, and row headers with r
 <!-- section: syntax -->
 ## Syntax contract
 
-An exact `<` merges left, `^` merges up, and `\<` or `\^` is literal text. Contiguous equal-width rows before the delimiter are column headers. At most one whitespace-free `||` inside the delimiter marks columns to its left as row headers and does not add a column.
+An exact `<` merges left, `^` merges up, and `\<` or `\^` is literal text. Every delimiter cell follows GFM and contains at least three hyphens. Contiguous equal-width rows before the delimiter are column headers. At most one whitespace-free `||` inside the delimiter marks columns to its left as row headers and does not add a column.
 
 <!-- section: validity -->
 ## Validity
@@ -30,7 +30,7 @@ Every structural row has exactly the delimiter width. A merge resolves to one to
 <!-- section: capabilities -->
 ## Initial capabilities
 
-Reading view and Live Preview rendering; insert, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native table selection and editor context menu; native bilingual settings; and explicit diagnostics. Formatting and structural edits are explicit actions. Rendering never changes source.
+Reading view and Live Preview rendering; in-place cell editing with table-safe Wiki-link pipe escaping; row/column handles; insert, safe delete, move, align, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native ordinary-table selection and menu; native bilingual settings; and explicit diagnostics. Formatting and structural edits are explicit actions. Rendering never changes source.
 
 <!-- section: exclusions -->
 ## Exclusions

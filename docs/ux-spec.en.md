@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-23
+last_synced: 2026-08-24
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -20,7 +20,7 @@ Source remains visible and recoverable; rendering interprets but never rewrites;
 <!-- section: live-preview -->
 ## Live Preview
 
-Show the semantic table while every cursor and selection is outside it. Reveal raw Markdown immediately on entry. Do not switch rendering during IME composition.
+Show the semantic table while every CodeMirror cursor and selection is outside it. In the rendered widget, double-click or Enter/F2 opens a one-line in-place cell editor; Enter commits, Escape cancels, and Tab commits and advances. Pasted unescaped table pipes are escaped immediately outside code spans without doubling existing escapes. Do not commit or switch rendering during IME composition.
 
 <!-- section: reading-view -->
 ## Reading view
@@ -35,9 +35,9 @@ Insert template, format, merge left, merge up, split, and validate are available
 <!-- section: table-selection -->
 ## Table selection and context menu
 
-Use Obsidian's native Markdown-table cell selection, whole-row/whole-column handles, and editor context menu without showing a second set of handles at the same time. A rectangular multi-cell selection offers Merge selected cells; a single merged cell offers Split merged cell. Refuse a merge and preserve source when cells other than the top-left contain content, the selection crosses role boundaries, or it includes only part of an existing merged region.
+Use Obsidian's native Markdown-table cell selection, whole-row/whole-column handles, and shared event menu to bootstrap structural syntax from an ordinary GFM table. Because Obsidian's native widget cannot represent merged or multi-row/row-header structure, an already-rendered structural table supplies its own cell drag selection, whole-row/whole-column handles, keyboard-accessible in-place editor, and context-menu contribution. A rectangular multi-cell selection offers Merge selected cells; a single merged cell offers Split merged cell. Refuse a merge and preserve source when cells other than the top-left contain content, the selection crosses role boundaries, or it includes only part of an existing merged region.
 
-A whole-row selection starting at the top of the table can set column-header rows. A whole-column selection starting at the left and covering every table row can set or remove row-header columns. Refuse a boundary change that would make a merge cross role regions. Dragging Obsidian's native handles continues to reorder rows and columns.
+A whole-row selection starting at the top can set column-header rows. A whole-column selection starting at the left and covering every row can set or remove row-header columns. Structural-table menus also insert, safely delete, move, and align selected rows or columns. Insertion inside a merge expands it; deletion migrates a surviving anchor; any edit that would discard non-empty content, split a merged rectangle, or cross a header boundary is refused. Ordinary tables retain Obsidian's native menus and handle behavior.
 
 <!-- section: diagnostics -->
 ## Diagnostics
@@ -47,4 +47,4 @@ Invalid structures get a red edge and a readable reason. Reading view keeps its 
 <!-- section: settings -->
 ## Settings
 
-Use native Obsidian controls and top tabs for General, Views, and Appearance. Language is in the first General tab; automatic language is labeled Follow Obsidian and includes a description. Appearance offers table layouts for content-aligned left, content-aligned center, and current-pane width. Table layout changes the table box, never cell-content alignment. Labels and descriptions support English and Simplified Chinese.
+Use native Obsidian controls and top tabs for General, Views, and Appearance. The active tab combines an accent underline with a semibold label, and stable space separates the baseline from the content panel. Language is in the first General tab; automatic language is labeled Follow Obsidian and includes a description. Appearance defaults new installations to current-pane width and also offers content-aligned left and center. Table layout changes the table box, never cell-content alignment. Labels and descriptions support English and Simplified Chinese.

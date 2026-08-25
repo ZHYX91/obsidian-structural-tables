@@ -25,10 +25,12 @@ function sectionMarkers(source, file) {
 
 sectionMarkers(english, englishPath);
 sectionMarkers(chinese, chinesePath);
-assert.match(english, /^# Structural Tables\n\n\[简体中文\]\(docs\/i18n\/README\.zh-CN\.md\)/u,
-  "English README must link to the Simplified Chinese README");
-assert.match(chinese, /^# Structural Tables\n\n\[English\]\(\.\.\/\.\.\/README\.md\)/u,
-  "Chinese README must link to the canonical English README");
+assert.match(english,
+  /^# Structural Tables\n\n\[English\]\(https:\/\/github\.com\/ZHYX91\/obsidian-structural-tables\/blob\/main\/README\.md\) · \[简体中文\]\(https:\/\/github\.com\/ZHYX91\/obsidian-structural-tables\/blob\/main\/docs\/i18n\/README\.zh-CN\.md\)/u,
+  "English README must link to both canonical language documents");
+assert.match(chinese,
+  /^# Structural Tables\n\n\[English\]\(\.\.\/\.\.\/README\.md\) · \[简体中文\]\(README\.zh-CN\.md\)/u,
+  "Chinese README must link to both canonical language documents");
 assert.match(english, /## Features/u, "Root README must be the English canonical document");
 assert.match(chinese, /## 功能/u, "Chinese README must contain translated content");
 for (const [file, source] of [[englishPath, english], [chinesePath, chinese]]) {

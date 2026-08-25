@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-22
+last_synced: 2026-08-24
 translation_of: architecture.zh-CN.md
 ---
 
@@ -20,7 +20,7 @@ translation_of: architecture.zh-CN.md
 <!-- section: parser -->
 ## Parser
 
-The parser scans delimiter candidates, skips frontmatter, fenced code, and indented code, respects escaped pipes and code spans, and emits source ranges, role grids, merge anchors, and diagnostics.
+The parser scans GFM delimiter candidates with at least three hyphens, skips BOM-prefixed frontmatter closed by either `---` or `...`, fenced code, and indented code, respects escaped pipes and code spans, and emits source ranges, role grids, merge anchors, and diagnostics.
 
 <!-- section: validation -->
 ## Validation
@@ -30,12 +30,17 @@ Merges resolve only left or up, preventing directional cycles. Validation then c
 <!-- section: rendering -->
 ## Rendering
 
-One shared DOM renderer serves the Reading view postprocessor and CodeMirror widget. Cell content uses Obsidian MarkdownRenderer, with component lifecycle cleanup.
+One shared DOM renderer serves the Reading view postprocessor and CodeMirror widget. Live Preview stores block decorations in a CodeMirror `StateField`, while a separate view plugin owns composition and view lifecycle. The structural widget adds cell selection, row/column handles, and a focused textarea editor without moving the CodeMirror cursor into the replaced range. Reading view can map either an Obsidian-native table or the exact raw source block emitted for row-header syntax; recursive renderer callbacks are ignored. Cell content uses Obsidian MarkdownRenderer, with component lifecycle cleanup.
 
 <!-- section: editing -->
 ## Editing
 
-Commands produce candidate source from an in-memory grid and parse it again. They replace the current table range only when the result is valid and no content is lost.
+Commands and in-place edits produce candidate source from a pure in-memory ownership grid and parse it again. Row/column transformations rebuild rectangular merge ownership, migrate surviving anchors, and refuse content loss or invalid boundaries. Cell input escapes unescaped pipes outside code spans before one whole-table CodeMirror transaction. Serialization preserves the note's existing LF, CRLF, or CR line ending.
+
+<!-- section: settings -->
+## Settings
+
+Settings saves pass through one serialized coordinator. Each queued save owns an immutable snapshot, so overlapping changes cannot persist a later mutable object under an earlier request.
 
 <!-- section: release -->
 ## Release

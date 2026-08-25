@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 
 import { createTranslator } from "../config/i18n";
+import { moveSettingsTabIndex } from "./settings-tab-navigation";
 import type { StructuralTablesPlugin } from "./plugin";
 
 type TabId = "general" | "views" | "appearance";
@@ -17,36 +18,55 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     const t = createTranslator(this.structuralPlugin.settings.language);
     containerEl.empty();
     containerEl.addClass("structural-tables-settings");
-    new Setting(containerEl).setName(t("settings.title")).setHeading();
     const tabs = containerEl.createDiv({
       cls: "structural-tables-settings-tabs",
-      attr: { role: "tablist", "aria-label": t("settings.title") },
-    });
-    const panels = containerEl.createDiv({
-      cls: "structural-tables-settings-panel",
-      attr: { id: "structural-tables-settings-panel", role: "tabpanel" },
+      attr: {
+        role: "tablist",
+        "aria-label": t("settings.title"),
+        "aria-orientation": "horizontal",
+      },
     });
     const definitions: { id: TabId; label: string }[] = [
       { id: "general", label: t("settings.general") },
       { id: "views", label: t("settings.behavior") },
       { id: "appearance", label: t("settings.appearance") },
     ];
-    for (const definition of definitions) {
+    for (const [index, definition] of definitions.entries()) {
       const button = tabs.createEl("button", { text: definition.label, cls: "structural-tables-settings-tab" });
       button.type = "button";
       button.id = `structural-tables-settings-tab-${definition.id}`;
       button.setAttribute("role", "tab");
-      button.setAttribute("aria-controls", "structural-tables-settings-panel");
+      button.setAttribute("aria-controls", `structural-tables-settings-panel-${definition.id}`);
       button.setAttribute("aria-selected", String(this.activeTab === definition.id));
       button.tabIndex = this.activeTab === definition.id ? 0 : -1;
       button.toggleClass("is-active", this.activeTab === definition.id);
       button.addEventListener("click", () => {
         this.activeTab = definition.id;
         this.display();
-        this.containerEl.querySelector<HTMLElement>(`#structural-tables-settings-tab-${definition.id}`)?.focus();
+        this.focusAndRevealTab(definition.id);
+      });
+      button.addEventListener("keydown", (event) => {
+        const direction = containerEl.ownerDocument.defaultView
+          ?.getComputedStyle(containerEl).direction === "rtl" ? "rtl" : "ltr";
+        const targetIndex = moveSettingsTabIndex(index, event.key, definitions.length, direction);
+        if (targetIndex === null || targetIndex === index) return;
+        const target = definitions[targetIndex];
+        if (target === undefined) return;
+        event.preventDefault();
+        this.activeTab = target.id;
+        this.display();
+        this.focusAndRevealTab(target.id);
       });
     }
-    panels.setAttribute("aria-labelledby", `structural-tables-settings-tab-${this.activeTab}`);
+    const panels = containerEl.createDiv({
+      cls: "structural-tables-settings-panel",
+      attr: {
+        id: `structural-tables-settings-panel-${this.activeTab}`,
+        role: "tabpanel",
+        "aria-labelledby": `structural-tables-settings-tab-${this.activeTab}`,
+        tabindex: "0",
+      },
+    });
     if (this.activeTab === "general") {
       new Setting(panels)
         .setName(t("settings.language"))
@@ -88,5 +108,11 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         .setValue(this.structuralPlugin.settings.zebraRows)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ zebraRows: value })));
     }
+  }
+
+  private focusAndRevealTab(id: TabId): void {
+    const button = this.containerEl.querySelector<HTMLElement>(`#structural-tables-settings-tab-${id}`);
+    button?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    button?.focus();
   }
 }

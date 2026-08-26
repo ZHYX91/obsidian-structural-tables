@@ -40,15 +40,15 @@
     "@codemirror/view": "6.38.6",
     "@eslint/js": "10.0.1",
     "@types/node": "24.13.3",
-    "@vitest/coverage-v8": "4.1.10",
-    "esbuild": "0.28.1",
-    "eslint": "10.7.0",
+    "@vitest/coverage-v8": "4.1.11",
+    "esbuild": "0.28.2",
+    "eslint": "10.9.0",
     "eslint-plugin-obsidianmd": "0.4.1",
-    "happy-dom": "20.10.6",
+    "happy-dom": "20.11.6",
     "obsidian": "1.13.1",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.65.0",
-    "vitest": "4.1.10"
+    "typescript-eslint": "8.67.0",
+    "vitest": "4.1.11"
   },
   "allowScripts": {
     "esbuild": true

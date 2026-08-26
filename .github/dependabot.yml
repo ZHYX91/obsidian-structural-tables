@@ -3,13 +3,29 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "09:00"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
+    # Major upgrades are deliberate maintenance work. These filters apply to
+    # routine version updates; Dependabot security updates remain eligible.
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@codemirror/state"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
+      - dependency-name: "@codemirror/view"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
     groups:
       non-major:
+        applies-to: version-updates
         patterns:
           - "*"
         update-types:
@@ -19,13 +35,17 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "09:00"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
     groups:
       non-major:
+        applies-to: version-updates
         patterns:
           - "*"
         update-types:

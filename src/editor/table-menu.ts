@@ -21,6 +21,19 @@ import type { StructuralTableSelection } from "./table-selection";
 export type TableOperation = (table: StructuralTable) => OperationResult;
 export type TableOperationApplier = (operation: TableOperation) => void;
 
+export function addBasePromotionMenuItem(
+  menu: Menu,
+  t: Translate,
+  table: StructuralTable,
+  promote: () => void,
+): void {
+  menu.addItem((item) => item
+    .setSection("structural-tables-base")
+    .setIcon("database")
+    .setTitle(t(table.structural ? "menu.flattenAndPromoteBase" : "menu.promoteBase"))
+    .onClick(promote));
+}
+
 interface SelectionMenuState {
   canMerge: boolean;
   canRemoveRowHeaders: boolean;
@@ -30,7 +43,14 @@ interface SelectionMenuState {
   fullEditor: boolean;
 }
 
-function selectionMenuState(selection: StructuralTableSelection): SelectionMenuState {
+export interface SelectionMenuOptions {
+  fullEditor?: boolean;
+}
+
+function selectionMenuState(
+  selection: StructuralTableSelection,
+  options: SelectionMenuOptions = {},
+): SelectionMenuState {
   const { table } = selection;
   const cell = selection.cells.length === 1 ? selection.cells[0] : undefined;
   const anchor = cell === undefined ? undefined : table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
@@ -44,12 +64,15 @@ function selectionMenuState(selection: StructuralTableSelection): SelectionMenuS
     canSetHeaderRows: selectsWholeRows && selection.minRow === 0,
     canSetRowHeaderColumns: selectsWholeColumns && selection.minColumn === 0 && selection.maxColumn < table.columnCount - 1,
     canSplit: anchor !== undefined && (anchor.rowSpan > 1 || anchor.columnSpan > 1),
-    fullEditor: table.structural,
+    fullEditor: options.fullEditor ?? table.structural,
   };
 }
 
-export function hasSelectionMenuItems(selection: StructuralTableSelection): boolean {
-  const state = selectionMenuState(selection);
+export function hasSelectionMenuItems(
+  selection: StructuralTableSelection,
+  options: SelectionMenuOptions = {},
+): boolean {
+  const state = selectionMenuState(selection, options);
   return state.canMerge
     || state.canRemoveRowHeaders
     || state.canSetHeaderRows
@@ -63,8 +86,9 @@ export function addSelectionMenuItems(
   t: Translate,
   selection: StructuralTableSelection,
   apply: TableOperationApplier,
+  options: SelectionMenuOptions = {},
 ): void {
-  const state = selectionMenuState(selection);
+  const state = selectionMenuState(selection, options);
   if (state.fullEditor) {
     menu.addItem((item) => item
       .setSection("structural-tables-row")

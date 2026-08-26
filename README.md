@@ -20,7 +20,15 @@ Leave the table to see its rendered structure; double-click a cell to edit it in
 
 ### Settings
 
-Reading view, Live Preview, and diagnostics are separate, clearly described controls.
+General, Views, and Appearance keep import, rendering, ordinary-table takeover, diagnostics, layout, and styling controls clearly separated.
+
+![Structural Tables settings with ordinary Markdown table takeover](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-settings-en.png)
+
+### Upgrade to Base
+
+Review the record folder, property mapping, structural flattening rules, and any blocking merged data cells before files are created.
+
+![Structural Tables Base upgrade preview](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-base-upgrade-en.png)
 
 <!-- section: features -->
 ## Features
@@ -30,18 +38,24 @@ Reading view, Live Preview, and diagnostics are separate, clearly described cont
 - Put one adjacent `||` inside the delimiter row to mark row-header columns.
 - Render semantic, accessible tables in Reading view and Live Preview.
 - Edit cells in place, including automatic `|` escaping for pasted Wiki links.
-- Select complete rows or columns with handles, then insert, delete, move, align, merge, split, or set headers from the context menu.
+- Select complete rows or columns with handles, then insert, delete, move, align, merge, split, or set headers from the context menu. Only the hovered, keyboard-focused, or selected row/column handle is shown.
+- Paste HTML tables from browsers and spreadsheets while preserving row and column spans.
+- Copy valid tables as semantic HTML, portable GFM, TSV, or CSV, and preview before flattening a table to GFM.
+- Convert unambiguous Sheets Extended separator columns into canonical row-header syntax.
+- Upgrade a valid ordinary or structural table into an embedded Obsidian Base whose rows are independent Markdown notes, directly from the table context menu or command palette.
+- Keep promoted membership in `structural_table_ids`, keep record identity in `structural_record_id`, and allow record notes to move or be renamed without leaving the Base.
+- Preview every promotion, create a schema-versioned recovery manifest, roll back failed file creation to trash, restore the original table without deleting generated notes, and organize later records created by either the native Base New action or the plugin command under the host note's current folder.
 - Diagnose invalid structures without rewriting the note.
 
 <!-- section: requirements-and-compatibility -->
 ## Requirements and compatibility
 
-Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidian only. It owns the meaning of exact `<`, `^`, and delimiter `||` tokens inside a structural table, so avoid enabling another table plugin that assigns different meanings to those same tokens.
+Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidian only. Upgrade to Base additionally requires Obsidian's Bases core plugin to be enabled. Structural Tables owns the meaning of exact `<`, `^`, and delimiter `||` tokens inside a structural table. By default it warns once when an enabled table plugin is known to assign overlapping meanings to those tokens.
 
 <!-- section: installation -->
 ## Installation
 
-Open **Settings → Community plugins → Browse**, search for **Structural Tables**, install it, and enable it. For a manual installation, download `structural-tables-<version>.zip` from the [latest release](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest) and extract it into `Vault/.obsidian/plugins/`. The archive contains the `structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`. Reload Obsidian, then enable Structural Tables under Community plugins.
+Until the plugin is listed in the Obsidian Community directory, download `structural-tables-<version>.zip` from the [latest release](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest) and extract it into `Vault/.obsidian/plugins/`. The archive contains the `structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`. Reload Obsidian, then enable Structural Tables under Community plugins.
 
 <!-- section: usage -->
 ## Usage
@@ -51,7 +65,9 @@ Open **Settings → Community plugins → Browse**, search for **Structural Tabl
 3. Leave the table in Live Preview, or switch to Reading view, to see the rendered structure.
 4. Double-click a rendered cell, or select it and press Enter/F2, to edit it in place. Enter commits, Escape cancels, and Tab commits and advances.
 5. Use the row/column handles or drag across cells, then right-click to insert, safely delete, move, align, merge, split, or set headers.
-6. Open the command palette for insertion, formatting, validation, and structural editing actions.
+6. Paste an HTML table from a browser, Excel, or Google Sheets to preserve supported row and column spans.
+7. Open the command palette to copy the current valid table as HTML, GFM, TSV, or CSV; preview a flatten-to-GFM conversion; or migrate a Sheets Extended row-header separator.
+8. Right-click a table and choose **Upgrade to Base…**. Structural tables use **Expand structure and upgrade to Base…**, whose preview explains flattened header paths, ordinary row-header properties, repeated merged row-header values, and any blocking merged data cell before files can be created.
 
 ```markdown
 | Region | Sales | < |
@@ -63,24 +79,26 @@ Open **Settings → Community plugins → Browse**, search for **Structural Tabl
 
 All equal-width rows immediately before the delimiter are column-header rows. The `||` divider is internal, appears at most once, does not add a column, and makes columns to its left row headers. A merge must resolve to one top-left content cell, form a complete rectangle, and stay inside one header/data role region. Write `\<` or `\^` for literal marker text.
 
-Once a table uses any structural feature, every row must have exactly the delimiter width. Invalid structures keep their Markdown and show a diagnostic. Use **Format current structural table** for the canonical representation: the top-left cell stores content, the rest of the top row uses `<`, and covered cells below use `^`.
+Once a table uses any structural feature, every row must have exactly the delimiter width. Invalid structures keep their Markdown and show a diagnostic. Use **Format current structural table** for the canonical representation: the top-left cell stores content, the rest of the top row uses `<`, and covered cells below use `^`. GFM, TSV, and CSV conversion repeats merged values and joins multi-row column-header paths with ` / ` so the flattened result remains explicit.
 
-In Live Preview, ordinary Markdown tables remain entirely in Obsidian's native editor. A rendered structural table has its own row/column handles, cell selection, in-place editor, and context menu because Obsidian's native widget cannot represent row spans, column spans, or multi-row headers. Pasting `[[Target|Alias]]` or `![[Image|Size]]` into a structural cell automatically stores the table-safe forms `[[Target\|Alias]]` and `![[Image\|Size]]`; existing escapes are not doubled. Operations that would discard non-empty content or break a merged rectangle are refused.
+In Live Preview, ordinary Markdown tables remain in Obsidian's native editor by default. Enable **Take over ordinary Markdown tables** to give unchanged GFM tables the same rendered widget, row/column handles, cell selection, in-place editor, context menu, layout, density, and alternating-row appearance as structural tables; disabling it restores native behavior immediately. Rendered tables use theme-aware semantic backgrounds: column and corner headers are stronger than row headers. Handles reveal individually for the hovered, keyboard-focused, or selected row or column instead of appearing as a full grid. Pasting `[[Target|Alias]]` or `![[Image|Size]]` into an owned cell automatically stores the table-safe forms `[[Target\|Alias]]` and `![[Image\|Size]]`; existing escapes are not doubled. Operations that would discard non-empty content or break a merged rectangle are refused.
+
+Promotion creates records under `<host-folder>/_structural-table-records/<table-id>/`. That directory is a creation inbox, not a membership boundary: moving or renaming a record note does not change its `structural_table_ids` membership. Existing records stay where the user placed them when the host note moves. The generated Base's native **New** action registers the just-created note with `structural_record_id` and moves it into the inbox beside the host note; a note that the user has already moved stays at its chosen location. **Create record for current promoted Base** remains available from the command palette and context menu. Use **Restore table from current promoted Base** to recover the original table from `_promotion.json`; generated notes are deliberately kept. The operation stores imported cell values as strings so leading zeroes and identifiers remain unchanged.
 
 <!-- section: settings -->
 ## Settings
 
-The settings page follows Obsidian's native controls and has General, Views, and Appearance tabs. New installations fit tables to the current note pane by default; content-left and content-center layouts remain available. The page also controls Reading view, Live Preview, diagnostics, comfortable/compact density, alternating rows, and Follow Obsidian/English/Simplified Chinese UI language.
+The settings page follows Obsidian's native controls and has General, Views, and Appearance tabs. General controls HTML-table paste conversion and startup conflict warnings. Views includes the default-off ordinary-table takeover alongside Reading view, Live Preview, and diagnostics. New installations fit tables to their content and align them left by default; content-center and pane-width layouts remain available. Appearance also controls comfortable/compact density and alternating rows; language can Follow Obsidian or use English/Simplified Chinese.
 
 <!-- section: limitations -->
 ## Limitations
 
-Structural Tables does not support formulas, per-cell styling, block-level or multiline cell content, captions, numbering, source attributes for repeated headers, HTML export, or conversion to plain GFM. The parser deliberately refuses ambiguous or nonrectangular merges.
+Structural Tables does not support formulas, per-cell styling, block-level or multiline cell content, captions, numbering, source attributes for repeated headers, or automatic rich-text-to-Markdown conversion inside imported HTML cells. Imported cell content is plain text. Base upgrade flattens layout structure into properties: multi-row header paths are joined with ` / `, row headers become ordinary properties, and merged row-header values repeat per record. A merged data cell blocks confirmation and identifies its location until it is split. Native-New adoption is deliberately limited to just-created notes that match exactly one Structural Tables Base; ambiguous notes are left in place. Recovery requires the generated `_promotion.json` to remain at the path recorded in the Base block. The parser deliberately refuses ambiguous or nonrectangular merges.
 
 <!-- section: privacy-and-security -->
 ## Privacy and security
 
-Structural Tables works locally. It does not make network requests, load remote assets, collect analytics, or send note content anywhere. Rendering never changes source Markdown; in-place and menu edits are explicit and validated before replacement.
+Structural Tables works locally. It does not make network requests, load remote assets, collect analytics, or send note content anywhere. Rendering never changes source Markdown; in-place and menu edits are explicit and validated before replacement. Promotion creates only the previewed local record notes and recovery manifest. A failed promotion moves its newly created table-specific directory to the configured Obsidian trash.
 
 <!-- section: development -->
 ## Development

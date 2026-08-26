@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.2.0 - 2026-08-26
+
+- Preserve supported HTML table row and column spans when pasting from browsers and spreadsheets.
+- Copy valid tables as semantic HTML, portable GFM, TSV, or CSV.
+- Preview and explicitly confirm flattening a structural table to ordinary GFM.
+- Flatten multi-row header paths deterministically and repeat merged values in portable tabular output.
+- Convert one unambiguous Sheets Extended separator column into canonical row-header syntax.
+- Warn once when enabled table plugins are known to own overlapping structural syntax.
+- Add settings for HTML-table paste conversion and startup conflict warnings.
+- Promote a valid table into an embedded Obsidian Base backed by one Markdown note per data row.
+- Keep Base membership and record identity independent of note paths and file names.
+- Preview Base property flattening, target files, warnings, and blockers before changing the note.
+- Create records and a schema-versioned recovery manifest before replacing the table, with cleanup on failed promotion.
+- Restore the original table without deleting generated, moved, renamed, or edited record notes.
+- Create later Base records beside the host note's current folder.
+- Register records created with a generated Base's native New action and organize them under the host note's current record inbox.
+- Offer Base upgrade from ordinary-table and structural-table context menus while refusing ambiguous merged data cells.
+- Default to content-aligned tables, theme-aware borders and header backgrounds, and handles visible only for the active row or column.
+- Add an opt-in setting that gives ordinary GFM tables the Structural Tables editor and appearance without changing their Markdown.
+- Restore Obsidian's native ordinary-table behavior immediately when ordinary-table takeover is disabled.
+- Keep Upgrade to Base available in Obsidian's native table menu when ordinary-table takeover is disabled.
+- Keep schema-version 1 recovery manifests readable regardless of the plugin version that created them.
+
 ## 0.1.0 - 2026-08-25
 
 - Add Live Preview in-place cell editing with Enter/Escape/Tab, IME protection, and table-safe Wiki-link pipe escaping.

@@ -23,6 +23,7 @@ describe("settings tab UI", () => {
     expect(source).toContain('"aria-orientation": "horizontal"');
     expect(source).toContain('role: "tabpanel"');
     expect(source).toContain('tabindex: "0"');
+    expect(source).toContain('t("settings.takeoverOrdinary")');
     expect(source).not.toContain('setName(t("settings.title")).setHeading()');
   });
 
@@ -38,5 +39,16 @@ describe("settings tab UI", () => {
     expect(styles).toContain("font-weight: var(--font-semibold) !important");
     expect(styles).toContain("margin-block-start: var(--size-4-5)");
     expect(styles).toMatch(/@media \(pointer: coarse\)[\s\S]*min-block-size: 44px/u);
+  });
+
+  it("uses distinct theme-aware backgrounds for column and row headers", () => {
+    const styles = readFileSync(
+      fileURLToPath(new URL("../styles.css", import.meta.url)),
+      "utf8",
+    );
+    expect(styles).toContain("--structural-table-column-header-background");
+    expect(styles).toContain("--structural-table-row-header-background");
+    expect(styles).toMatch(/th:is\(\[scope="row"\], \[scope="rowgroup"\]\)[\s\S]*background: var\(--structural-table-row-header-background\)/u);
+    expect(styles).toMatch(/\[data-zebra="true"\][\s\S]*tbody tr:nth-child\(even\) td/u);
   });
 });

@@ -1,5 +1,5 @@
 import { EditorView } from "@codemirror/view";
-import { MarkdownView, Menu, Notice, type App, type Component, type Editor } from "obsidian";
+import { MarkdownView, Menu, Notice, type App, type Component, type Editor, type TFile } from "obsidian";
 
 import { createTranslator, operationNotice } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -7,17 +7,24 @@ import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { nativeTableDomSelection } from "./native-table-selection";
-import { addSelectionMenuItems, hasSelectionMenuItems, type TableOperation } from "./table-menu";
+import {
+  addBasePromotionMenuItem,
+  addSelectionMenuItems,
+  hasSelectionMenuItems,
+  type TableOperation,
+} from "./table-menu";
 import { replaceTableSource } from "./table-replacement";
 import { structuralTableSelectionFromCoordinates } from "./table-selection";
 
 export class NativeTableMenuBridge {
   private readonly contributedEvents = new WeakSet<Event>();
   private readonly registeredDocuments = new WeakSet<Document>();
+  private readonly registeredTargets = new WeakSet<HTMLElement>();
 
   constructor(
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
+    private readonly promote: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
   ) {}
 
   register(component: Component): void {
@@ -30,16 +37,33 @@ export class NativeTableMenuBridge {
   private registerDocument(component: Component, targetDocument: Document): void {
     if (this.registeredDocuments.has(targetDocument)) return;
     this.registeredDocuments.add(targetDocument);
-    component.registerDomEvent(targetDocument, "contextmenu", (event) => {
-      const target = event.target;
-      if (target !== null && "closest" in target
-        && (target as Element).closest(".table-row-drag-handle, .table-col-drag-handle") !== null) {
-        this.contribute(event);
+    this.registerNativeTargets(component, targetDocument);
+    const Observer = targetDocument.defaultView?.MutationObserver;
+    if (Observer === undefined || targetDocument.body === null) return;
+    const observer = new Observer((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node.nodeType === 1) this.registerNativeTargets(component, node as Element);
+        }
       }
-    }, { capture: true });
-    component.registerDomEvent(targetDocument, "contextmenu", (event) => {
-      this.contribute(event);
     });
+    observer.observe(targetDocument.body, { childList: true, subtree: true });
+    component.register(() => observer.disconnect());
+  }
+
+  private registerNativeTargets(component: Component, root: ParentNode): void {
+    // Obsidian builds this menu in each cell's own listener instead of emitting editor-menu.
+    // Registering after the native listener lets Menu.forEvent reuse that menu without replacing it.
+    const selector = ".cm-table-widget th, .cm-table-widget td";
+    const targets = [
+      ...(("matches" in root && (root as Element).matches(selector)) ? [root as HTMLElement] : []),
+      ...root.querySelectorAll<HTMLElement>(selector),
+    ];
+    for (const target of targets) {
+      if (this.registeredTargets.has(target)) continue;
+      this.registeredTargets.add(target);
+      component.registerDomEvent(target, "contextmenu", (event) => this.contribute(event));
+    }
   }
 
   private contribute(event: MouseEvent): void {
@@ -51,16 +75,19 @@ export class NativeTableMenuBridge {
     const table = this.tableForWidget(markdownView.editor, domSelection.widget);
     if (table === null || !table.valid || domSelection.tableElement.rows.length !== table.rows.length) return;
     const selection = structuralTableSelectionFromCoordinates(table, domSelection.coordinates);
-    if (selection === null || !selection.rectangular || !hasSelectionMenuItems(selection)) return;
-
+    if (selection === null || !selection.rectangular) return;
     this.contributedEvents.add(event);
     const menu = Menu.forEvent(event);
-    addSelectionMenuItems(
-      menu,
-      createTranslator(this.getSettings().language),
-      selection,
-      (operation) => this.applyMenuOperation(markdownView.editor, table, operation),
-    );
+    const t = createTranslator(this.getSettings().language);
+    addBasePromotionMenuItem(menu, t, table, () => this.promote(markdownView.editor, markdownView.file, table));
+    if (hasSelectionMenuItems(selection)) {
+      addSelectionMenuItems(
+        menu,
+        t,
+        selection,
+        (operation) => this.applyMenuOperation(markdownView.editor, table, operation),
+      );
+    }
   }
 
   private markdownViewFor(target: Node): MarkdownView | null {

@@ -4,12 +4,12 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-08-22
+last_synced: 2026-08-26
 ---
 
 [English](release.en.md)
 
-# 发布契约
+# Structural Tables — 发布流程
 
 <!-- section: versioning -->
 ## 版本

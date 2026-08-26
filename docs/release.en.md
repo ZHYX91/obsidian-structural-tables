@@ -4,13 +4,13 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-22
+last_synced: 2026-08-26
 translation_of: release.zh-CN.md
 ---
 
 [简体中文](release.zh-CN.md)
 
-# Release contract
+# Structural Tables — Release procedure
 
 <!-- section: versioning -->
 ## Versioning

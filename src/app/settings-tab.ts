@@ -6,6 +6,8 @@ import type { StructuralTablesPlugin } from "./plugin";
 
 type TabId = "general" | "views" | "appearance";
 
+// Declarative settings are intentionally absent: non-empty definitions would
+// bypass display() and remove the established three-tab settings surface.
 export class StructuralTablesSettingTab extends PluginSettingTab {
   private activeTab: TabId = "general";
 
@@ -80,6 +82,12 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
             await this.structuralPlugin.updateSettings({ language: value === "zh-CN" ? "zh-CN" : value === "en" ? "en" : "auto" });
             this.display();
           }));
+      new Setting(panels).setName(t("settings.htmlPaste")).setDesc(t("settings.htmlPaste.desc")).addToggle((toggle) => toggle
+        .setValue(this.structuralPlugin.settings.convertHtmlTablePaste)
+        .onChange(async (value) => this.structuralPlugin.updateSettings({ convertHtmlTablePaste: value })));
+      new Setting(panels).setName(t("settings.warnConflicts")).setDesc(t("settings.warnConflicts.desc")).addToggle((toggle) => toggle
+        .setValue(this.structuralPlugin.settings.warnPluginConflicts)
+        .onChange(async (value) => this.structuralPlugin.updateSettings({ warnPluginConflicts: value })));
     } else if (this.activeTab === "views") {
       new Setting(panels).setName(t("settings.reading")).setDesc(t("settings.reading.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.enableReadingView)
@@ -87,6 +95,9 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       new Setting(panels).setName(t("settings.live")).setDesc(t("settings.live.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.enableLivePreview)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ enableLivePreview: value })));
+      new Setting(panels).setName(t("settings.takeoverOrdinary")).setDesc(t("settings.takeoverOrdinary.desc")).addToggle((toggle) => toggle
+        .setValue(this.structuralPlugin.settings.takeOverOrdinaryTables)
+        .onChange(async (value) => this.structuralPlugin.updateSettings({ takeOverOrdinaryTables: value })));
       new Setting(panels).setName(t("settings.diagnostics")).setDesc(t("settings.diagnostics.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.showDiagnostics)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ showDiagnostics: value })));

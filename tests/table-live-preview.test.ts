@@ -2,10 +2,11 @@
 
 import { EditorState, Prec, StateField, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
-import { editorInfoField, editorLivePreviewField, type App } from "obsidian";
+import { editorInfoField, editorLivePreviewField, type App, type Editor, type TFile } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { DEFAULT_SETTINGS } from "../src/config/settings";
+import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
+import type { StructuralTable } from "../src/core/model";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
 import { lastMenu } from "./mocks/obsidian";
 
@@ -53,10 +54,18 @@ function mountEditor(
   source: string,
   selection: { anchor: number; head?: number },
   extensions: Extension[] = [],
-): { parent: HTMLElement; view: EditorView } {
+  promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
+  settingsOverride: Partial<StructuralTablesSettings> = {},
+): {
+    parent: HTMLElement;
+    view: EditorView;
+    updateSettings: (update: Partial<StructuralTablesSettings>) => void;
+  } {
+  let settings = { ...DEFAULT_SETTINGS, ...settingsOverride, enableLivePreview: true };
   const controller = new StructuralTableEditorController(
     {} as App,
-    () => ({ ...DEFAULT_SETTINGS, enableLivePreview: true }),
+    () => settings,
+    promote,
   );
   const state = EditorState.create({
     doc: source,
@@ -69,7 +78,14 @@ function mountEditor(
     ],
   });
   const parent = document.body.appendChild(document.createElement("div"));
-  return { parent, view: new EditorView({ state, parent }) };
+  return {
+    parent,
+    view: new EditorView({ state, parent }),
+    updateSettings: (update) => {
+      settings = { ...settings, ...update };
+      controller.refresh();
+    },
+  };
 }
 
 describe("StructuralTableEditorController", () => {
@@ -141,6 +157,35 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it("takes over ordinary GFM tables only while the opt-in setting is enabled", () => {
+    const source = "| Name | Status |\n| --- | --- |\n| Alice | Doing |";
+    const disabled = mountEditor(source, { anchor: source.length });
+    expect(disabled.parent.querySelector(".structural-tables-live-preview")).toBeNull();
+    disabled.view.destroy();
+
+    const requested: StructuralTable[] = [];
+    const enabled = mountEditor(
+      source,
+      { anchor: source.length },
+      [],
+      (_editor, _sourceFile, table) => { requested.push(table); },
+      { takeOverOrdinaryTables: true },
+    );
+    const host = enabled.parent.querySelector<HTMLElement>(".structural-tables-live-preview");
+    expect(host?.dataset.tableKind).toBe("ordinary");
+    const cell = host?.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']");
+    cell?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(lastMenu?.items.map((item) => item.title)).toContain("Upgrade to Base…");
+    expect(lastMenu?.items.map((item) => item.title)).toContain("Insert row above");
+    lastMenu?.items.find((item) => item.title === "Upgrade to Base…")?.callback?.();
+    expect(requested[0]?.structural).toBe(false);
+
+    enabled.updateSettings({ takeOverOrdinaryTables: false });
+    expect(enabled.parent.querySelector(".structural-tables-live-preview")).toBeNull();
+    expect(enabled.view.state.doc.toString()).toBe(source);
+    enabled.view.destroy();
+  });
+
   it("provides row and column handles with the full structural-table menu", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const rows = parent.querySelectorAll<HTMLElement>("[data-structural-row-handle]");
@@ -150,9 +195,43 @@ describe("StructuralTableEditorController", () => {
 
     rows[2]?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
     expect(rows[2]?.classList.contains("is-selected")).toBe(true);
+    expect(Array.from(rows).filter((handle) => handle.classList.contains("is-selected"))).toEqual([rows[2]]);
+    expect(Array.from(columns).some((handle) => handle.classList.contains("is-selected"))).toBe(false);
     expect(lastMenu?.items.map((item) => item.title)).toContain("Insert row above");
     expect(lastMenu?.items.map((item) => item.title)).toContain("Delete selected rows");
 
+    columns[1]?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+    expect(Array.from(columns).filter((handle) => handle.classList.contains("is-selected"))).toEqual([columns[1]]);
+    expect(Array.from(rows).some((handle) => handle.classList.contains("is-selected"))).toBe(false);
+
+    view.destroy();
+  });
+
+  it("does not select every handle when a structural cell is selected", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+    cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+
+    expect(parent.querySelector(".structural-tables-row-handle.is-selected")).toBeNull();
+    expect(parent.querySelector(".structural-tables-column-handle.is-selected")).toBeNull();
+    view.destroy();
+  });
+
+  it("offers structural expansion and Base upgrade from the owned context menu", () => {
+    const requested: StructuralTable[] = [];
+    const { parent, view } = mountEditor(
+      screenshotTable,
+      { anchor: screenshotTable.length },
+      [],
+      (_editor, _sourceFile, table) => { requested.push(table); },
+    );
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+    cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+
+    const item = lastMenu?.items.find((candidate) => candidate.title === "Expand structure and upgrade to Base…");
+    expect(item).toBeDefined();
+    item?.callback?.();
+    expect(requested[0]?.structural).toBe(true);
     view.destroy();
   });
 

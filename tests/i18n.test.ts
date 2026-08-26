@@ -13,6 +13,12 @@ describe("i18n", () => {
     expect(createTranslator("zh-CN")("settings.layout.pane")).toBe("适应窗格宽度");
   });
 
+  it("localizes interchange commands and settings", () => {
+    expect(createTranslator("en")("command.copyHtml")).toBe("Copy current table as HTML");
+    expect(createTranslator("zh-CN")("settings.htmlPaste")).toBe("保留粘贴 HTML 表格的合并结构");
+    expect(createTranslator("zh-CN")("menu.flattenAndPromoteBase")).toBe("展开结构并升级为 Base…");
+  });
+
   it("localizes operation notices and count templates", () => {
     const t = createTranslator("zh-CN");
     expect(operationNotice(t, "merged")).toBe("已合并单元格。");

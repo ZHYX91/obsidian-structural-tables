@@ -1,5 +1,15 @@
 import { StateField } from "@codemirror/state";
 
+let mockUuid = 0;
+export const activeWindow = {
+  crypto: {
+    randomUUID: () => {
+      mockUuid += 1;
+      return `00000000-0000-4000-8000-${String(mockUuid).padStart(12, "0")}`;
+    },
+  },
+} as unknown as Window;
+
 export class Component {
   load(): void {}
   unload(): void {}
@@ -11,13 +21,21 @@ export class MarkdownRenderChild extends Component {
   }
 }
 
+export class MarkdownView {
+  containerEl!: HTMLElement;
+  editor!: object;
+  file: TFile | null = null;
+}
+
 export let lastMenu: Menu | null = null;
+const menusByEvent = new WeakMap<Event, Menu>();
 
 export class Menu {
   readonly items: MenuItem[] = [];
 
-  static forEvent(): Menu {
-    const menu = new Menu();
+  static forEvent(event: Event): Menu {
+    const menu = menusByEvent.get(event) ?? new Menu();
+    menusByEvent.set(event, menu);
     lastMenu = menu;
     return menu;
   }
@@ -45,6 +63,54 @@ export class Notice {
   constructor(_message: string) {}
 }
 
+export class TAbstractFile {
+  name: string;
+  parent: TFolder | null = null;
+
+  constructor(public path: string) {
+    this.name = path.split("/").pop() ?? "";
+  }
+}
+
+export class TFile extends TAbstractFile {
+  extension: string;
+  basename: string;
+
+  constructor(path: string) {
+    super(path);
+    const dot = this.name.lastIndexOf(".");
+    this.extension = dot < 0 ? "" : this.name.slice(dot + 1);
+    this.basename = dot < 0 ? this.name : this.name.slice(0, dot);
+  }
+}
+
+export class TFolder extends TAbstractFile {
+  children: TAbstractFile[] = [];
+}
+
+export function normalizePath(path: string): string {
+  return path.replace(/\\/gu, "/").replace(/\/{2,}/gu, "/").replace(/^\/+|\/+$/gu, "");
+}
+
+function yamlScalar(value: unknown): string {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "null";
+}
+
+export function stringifyYaml(value: Record<string, unknown>): string {
+  const lines: string[] = [];
+  for (const [key, item] of Object.entries(value)) {
+    if (Array.isArray(item)) {
+      lines.push(`${key}:`);
+      for (const entry of item) lines.push(`  - ${yamlScalar(entry)}`);
+    } else {
+      lines.push(`${key}: ${yamlScalar(item)}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 export const MarkdownRenderer = {
   render: async (): Promise<void> => {},
 };
@@ -54,8 +120,8 @@ export const editorLivePreviewField = StateField.define<boolean>({
   update: (value) => value,
 });
 
-export const editorInfoField = StateField.define<{ file?: { path: string } }>({
-  create: () => ({ file: { path: "Test.md" } }),
+export const editorInfoField = StateField.define<{ file?: { path: string }; editor?: object }>({
+  create: () => ({ file: { path: "Test.md" }, editor: {} }),
   update: (value) => value,
 });
 

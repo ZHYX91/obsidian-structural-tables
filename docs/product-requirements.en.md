@@ -4,13 +4,13 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-24
+last_synced: 2026-08-26
 translation_of: product-requirements.zh-CN.md
 ---
 
 [简体中文](product-requirements.zh-CN.md)
 
-# Product requirements
+# Structural Tables — Product requirements
 
 <!-- section: purpose -->
 ## Purpose
@@ -30,12 +30,12 @@ Every structural row has exactly the delimiter width. A merge resolves to one to
 <!-- section: capabilities -->
 ## Capabilities
 
-Reading view and Live Preview rendering; in-place cell editing with table-safe Wiki-link pipe escaping; row/column handles; insert, safe delete, move, align, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native ordinary-table selection and menu; native bilingual settings; and explicit diagnostics. Formatting and structural edits are explicit actions. Rendering never changes source.
+Reading view and Live Preview rendering; default-native ordinary GFM tables with an opt-in, reversible takeover mode that changes no Markdown; in-place cell editing with table-safe Wiki-link pipe escaping; theme-aware column/corner and lighter row-header backgrounds; native-looking table borders plus row/column handles revealed individually for the hovered, keyboard-focused, or selected row/column; insert, safe delete, move, align, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native ordinary-table selection and context menu; HTML-table paste with rowspan/colspan preservation; semantic HTML, plain GFM, TSV, and CSV output; Sheets Extended separator migration and conflict warnings; right-click Base upgrade for ordinary and structural tables; an explicit preview that flattens multi-row/merged column headers into property paths, turns row headers into properties, and blocks merged data cells before any file is written; path-independent list membership, stable record IDs, a recovery manifest, table restoration that keeps records, and later-record creation beside the host's current folder; native bilingual settings; and explicit diagnostics. Formatting and structural edits are explicit actions. Rendering never changes source.
 
 <!-- section: exclusions -->
 ## Exclusions
 
-The plugin excludes formulas, styling, block or multiline content, captions and numbering, repeated-header source attributes, HTML export, and plain-GFM expansion.
+The plugin excludes formulas, styling, block or multiline content, captions and numbering, repeated-header source attributes, and automatic rich-text-to-Markdown conversion inside imported HTML cells. Base promotion does not guess record semantics for merged data cells, replace the native Bases New button, or delete generated or later-moved record notes during restoration.
 
 <!-- section: success -->
 ## Acceptance

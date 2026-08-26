@@ -14,16 +14,30 @@ import {
   WidgetType,
   type DecorationSet,
 } from "@codemirror/view";
-import { App, Component, Menu, Notice, editorInfoField, editorLivePreviewField } from "obsidian";
+import {
+  App,
+  Component,
+  Menu,
+  Notice,
+  editorInfoField,
+  editorLivePreviewField,
+  type Editor,
+  type TFile,
+} from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { editCellContent, normalizeTableCellInput } from "../core/operations";
-import { parseStructuralTables } from "../core/parser";
+import { parseEditableTables, parseStructuralTables } from "../core/parser";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { diagnosticText, renderStructuralTable } from "../rendering/table-renderer";
-import { addSelectionMenuItems, hasSelectionMenuItems, type TableOperation } from "./table-menu";
+import {
+  addBasePromotionMenuItem,
+  addSelectionMenuItems,
+  hasSelectionMenuItems,
+  type TableOperation,
+} from "./table-menu";
 import {
   structuralTableSelectionFromBounds,
   structuralTableSelectionFromCoordinates,
@@ -50,6 +64,7 @@ class StructuralTableWidget extends WidgetType {
     private readonly sourcePath: string,
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
+    private readonly promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
   ) {
     super();
   }
@@ -59,7 +74,9 @@ class StructuralTableWidget extends WidgetType {
       && this.sourcePath === other.sourcePath
       && this.settings.density === other.settings.density
       && this.settings.layout === other.settings.layout
-      && this.settings.zebraRows === other.settings.zebraRows;
+      && this.settings.zebraRows === other.settings.zebraRows
+      && this.settings.takeOverOrdinaryTables === other.settings.takeOverOrdinaryTables
+      && this.promote === other.promote;
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -70,6 +87,7 @@ class StructuralTableWidget extends WidgetType {
     host.dataset.layout = this.settings.layout;
     host.dataset.density = this.settings.density;
     host.dataset.zebra = String(this.settings.zebraRows);
+    host.dataset.tableKind = this.table.structural ? "structural" : "ordinary";
     host.dataset.structuralSourceTableIndex = String(this.table.sourceTableIndex);
     this.host = host;
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
@@ -195,6 +213,8 @@ class StructuralTableWidget extends WidgetType {
   private openContextMenu(event: MouseEvent, view: EditorView): void {
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
+    event.preventDefault();
+    event.stopPropagation();
     const selected = this.selection?.cells.some((cell) => (
       cell.anchorRow === coordinate.row && cell.anchorColumn === coordinate.column
     )) ?? false;
@@ -208,13 +228,21 @@ class StructuralTableWidget extends WidgetType {
 
   private showSelectionMenu(event: MouseEvent, view: EditorView): void {
     const selection = this.selection;
-    if (selection === null || !hasSelectionMenuItems(selection)) return;
+    if (selection === null) return;
     const menu = Menu.forEvent(event);
+    const t = createTranslator(this.getSettings().language);
+    const info = view.state.field(editorInfoField, false);
+    if (this.promote !== undefined && info?.editor !== undefined) {
+      addBasePromotionMenuItem(menu, t, this.table, () => this.promote?.(info.editor!, info.file, this.table));
+    }
+    const menuOptions = { fullEditor: true } as const;
+    if (!hasSelectionMenuItems(selection, menuOptions)) return;
     addSelectionMenuItems(
       menu,
-      createTranslator(this.getSettings().language),
+      t,
       selection,
       (operation) => this.applyMenuOperation(view, operation),
+      menuOptions,
     );
   }
 
@@ -476,11 +504,13 @@ export class StructuralTableEditorController {
   constructor(
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
+    private readonly promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
   ) {}
 
   createExtension(): Extension {
     const app = this.app;
     const settingsProvider = this.getSettings;
+    const promote = this.promote;
     const views = this.views;
     const buildDecorations = (state: EditorState): DecorationSet => {
       const settings = settingsProvider();
@@ -490,7 +520,10 @@ export class StructuralTableEditorController {
       const sourcePath = state.field(editorInfoField, false)?.file?.path ?? "";
       const selections = state.selection.ranges;
       const entries: DecorationEntry[] = [];
-      for (const table of parseStructuralTables(source).tables) {
+      const tables = settings.takeOverOrdinaryTables
+        ? parseEditableTables(source).tables
+        : parseStructuralTables(source).tables;
+      for (const table of tables) {
         const active = selections.some((selection) => selection.empty
           ? selection.from >= table.range.from && selection.from < table.range.to
           : selection.from < table.range.to && selection.to > table.range.from);
@@ -500,7 +533,7 @@ export class StructuralTableEditorController {
             from: table.range.from,
             to: table.range.to,
             decoration: Decoration.replace({
-              widget: new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider),
+              widget: new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote),
               block: true,
             }),
           });

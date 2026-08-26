@@ -4,13 +4,13 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-24
+last_synced: 2026-08-26
 translation_of: architecture.zh-CN.md
 ---
 
 [简体中文](architecture.zh-CN.md)
 
-# Architecture
+# Structural Tables — Architecture
 
 <!-- section: boundaries -->
 ## Boundaries
@@ -30,12 +30,24 @@ Merges resolve only left or up, preventing directional cycles. Validation then c
 <!-- section: rendering -->
 ## Rendering
 
-One shared DOM renderer serves the Reading view postprocessor and CodeMirror widget. Live Preview stores block decorations in a CodeMirror `StateField`, while a separate view plugin owns composition and view lifecycle. The structural widget adds cell selection, row/column handles, and a focused textarea editor without moving the CodeMirror cursor into the replaced range. Reading view can map either an Obsidian-native table or the exact raw source block emitted for row-header syntax; recursive renderer callbacks are ignored. Cell content uses Obsidian MarkdownRenderer, with component lifecycle cleanup.
+One shared DOM renderer serves the Reading view postprocessor and CodeMirror widget. Live Preview stores block decorations in a CodeMirror `StateField`, while a separate view plugin owns composition and view lifecycle. Structural tables always enter this path; ordinary GFM tables enter it only while the opt-in takeover setting is enabled. Refreshing that setting rebuilds editor decorations and Reading views without changing source. The owned widget adds cell selection, row/column handles, and a focused textarea editor without moving the CodeMirror cursor into the replaced range. Reading view can map either an Obsidian-native table or the exact raw source block emitted for row-header syntax; recursive renderer callbacks are ignored. Cell content uses Obsidian MarkdownRenderer, with component lifecycle cleanup.
 
 <!-- section: editing -->
 ## Editing
 
 Commands and in-place edits produce candidate source from a pure in-memory ownership grid and parse it again. Row/column transformations rebuild rectangular merge ownership, migrate surviving anchors, and refuse content loss or invalid boundaries. Cell input escapes unescaped pipes outside code spans before one whole-table CodeMirror transaction. Serialization preserves the note's existing LF, CRLF, or CR line ending.
+
+<!-- section: interchange -->
+## Interchange
+
+A pure-core projection expands a valid structural table into stable column paths and two-dimensional data. GFM, TSV, CSV, and later record migrations share that projection; semantic HTML uses the validated rowspan, colspan, roles, and scope directly. Clipboard wiring only normalizes an HTML DOM into cells, spans, and th/td roles before the pure core generates and reparses structural Markdown. Sheets Extended migration accepts only one non-edge pseudo-separator column whose cells are all exact `-` tokens.
+
+<!-- section: base-promotion -->
+## Base promotion
+
+The pure core derives stable unique property keys, record values, filename candidates, list-valued `structural_table_ids` membership, `structural_record_id`, and embedded Base source from the shared table projection. Column-header merges flatten into column paths, and merged row-header values repeat per record; data-region merges must be split first. The app layer allocates a unique directory and IDs per promotion, creates every record plus `_promotion.json`, reparses the unchanged source table, and then performs one editor replacement. Any creation or snapshot failure sends that promotion-specific directory through Obsidian's trash policy.
+
+The recovery manifest records the original table, generated Base, source file, and initial record paths. Restoration replaces only the current plugin Base with the matching ID and never deletes records. Membership does not query paths, so record rename and move need no event listener. The plugin's new-record command computes an inbox from the host note's current folder; moving the host never moves existing records.
 
 <!-- section: settings -->
 ## Settings

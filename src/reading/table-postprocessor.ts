@@ -32,7 +32,7 @@ export class StructuralTableReadingProcessor {
       const rawSource = rawStructuralTableElement(container, table);
       const existing = rawSource ?? candidates[candidateIndex];
       if (rawSource === undefined) candidateIndex += 1;
-      if (!table.structural || existing === undefined) return;
+      if ((!table.structural && !settings.takeOverOrdinaryTables) || existing === undefined) return;
       existing.dataset.structuralTablesProcessed = "true";
       if (!table.valid) {
         if (settings.showDiagnostics) {
@@ -53,6 +53,7 @@ export class StructuralTableReadingProcessor {
       wrapper.dataset.layout = settings.layout;
       wrapper.dataset.density = settings.density;
       wrapper.dataset.zebra = String(settings.zebraRows);
+      wrapper.dataset.tableKind = table.structural ? "structural" : "ordinary";
       existing.replaceWith(wrapper);
     });
   }

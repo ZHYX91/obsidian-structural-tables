@@ -8,6 +8,23 @@
 - A green `npm run check` is not real Obsidian runtime acceptance; use `docs/ACCEPTANCE.md`.
 - Use Conventional Commit subjects and normal Git identity; do not add agent attribution.
 
+## Settings surface policy
+
+Declarative settings are intentionally disabled because non-empty definitions would bypass
+Structural Tables' three-tab `PluginSettingTab.display()` layout on Obsidian 1.13 and degrade the
+user experience. Keep `getSettingDefinitions()` absent or empty. Do not flag the `display()`
+deprecation, absent or empty definitions, or missing settings search, and do not propose a
+declarative migration unless the user explicitly asks to revisit this decision.
+
+## Manual installation release policy
+
+The versioned `structural-tables-<version>.zip` is an intentional required public release asset for
+users who install without the Obsidian Community marketplace. Community ignores it during plugin
+ingestion, so the automated-review `extra unsupported files` recommendation is expected and must
+not be treated as a defect or a reason to remove the archive. The deterministic ZIP contains one
+`structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`, byte-identical to
+the three loose release assets. Release checks must preserve and verify all four public assets.
+
 ## Public documentation
 
 `CHANGELOG.md` is the only public document that records release history. README and user help

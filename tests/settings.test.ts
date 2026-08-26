@@ -8,12 +8,32 @@ describe("sanitizeSettings", () => {
   });
 
   it("accepts supported values and rejects unsupported ones", () => {
-    expect(sanitizeSettings({ language: "zh-CN", density: "compact", layout: "content-center", zebraRows: true })).toMatchObject({
-      language: "zh-CN", density: "compact", layout: "content-center", zebraRows: true,
+    expect(sanitizeSettings({
+      language: "zh-CN",
+      density: "compact",
+      layout: "content-center",
+      zebraRows: true,
+      takeOverOrdinaryTables: true,
+      convertHtmlTablePaste: false,
+      warnPluginConflicts: false,
+    })).toMatchObject({
+      language: "zh-CN",
+      density: "compact",
+      layout: "content-center",
+      zebraRows: true,
+      takeOverOrdinaryTables: true,
+      convertHtmlTablePaste: false,
+      warnPluginConflicts: false,
     });
     expect(sanitizeSettings({ language: "fr", density: "dense", layout: "wide" })).toMatchObject({
-      language: "auto", density: "comfortable", layout: "pane",
+      language: "auto", density: "comfortable", layout: "content-left",
     });
+  });
+
+  it("keeps ordinary-table takeover opt-in", () => {
+    expect(DEFAULT_SETTINGS.takeOverOrdinaryTables).toBe(false);
+    expect(sanitizeSettings({ takeOverOrdinaryTables: true }).takeOverOrdinaryTables).toBe(true);
+    expect(sanitizeSettings({ takeOverOrdinaryTables: "true" }).takeOverOrdinaryTables).toBe(false);
   });
 
   it("migrates legacy width values to table layouts", () => {

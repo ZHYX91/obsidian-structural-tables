@@ -57,6 +57,32 @@ describe("StructuralTableReadingProcessor", () => {
     expect(raw.parentElement).toBeNull();
     expect(container.querySelector(".structural-tables-container table")).not.toBeNull();
     expect((container.querySelector("tbody th") as HTMLTableCellElement | null)?.scope).toBe("row");
+    expect((container.querySelector("tbody th") as HTMLElement | null)?.dataset.structuralRole).toBe("row_header");
+    expect(addChild).toHaveBeenCalledOnce();
+  });
+
+  it("replaces an ordinary Reading view table only when takeover is enabled", () => {
+    const source = "| Name | Status |\n| --- | --- |\n| Alice | Doing |";
+    const native = document.createElement("table");
+    native.innerHTML = "<thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Alice</td><td>Doing</td></tr></tbody>";
+    const container = document.createElement("div");
+    container.appendChild(native);
+    const addChild = vi.fn();
+    const context = {
+      addChild,
+      getSectionInfo: () => ({ lineStart: 0, lineEnd: 2, text: source }),
+      sourcePath: "People.md",
+    } as unknown as MarkdownPostProcessorContext;
+    const processor = new StructuralTableReadingProcessor(
+      {} as App,
+      () => ({ ...DEFAULT_SETTINGS, takeOverOrdinaryTables: true }),
+    );
+
+    processor.process(container, context);
+
+    expect(native.parentElement).toBeNull();
+    expect(container.querySelector<HTMLElement>(".structural-tables-container")?.dataset.tableKind).toBe("ordinary");
+    expect(container.querySelector("thead th")?.getAttribute("data-structural-role")).toBe("column_header");
     expect(addChild).toHaveBeenCalledOnce();
   });
 

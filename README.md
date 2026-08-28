@@ -24,12 +24,6 @@ General, Views, and Appearance keep import, rendering, ordinary-table takeover, 
 
 ![Structural Tables settings with ordinary Markdown table takeover](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-settings-en.png)
 
-### Upgrade to Base
-
-Review the record folder, property mapping, structural flattening rules, and any blocking merged data cells before files are created.
-
-![Structural Tables Base upgrade preview](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-base-upgrade-en.png)
-
 <!-- section: features -->
 ## Features
 

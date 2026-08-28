@@ -5,7 +5,7 @@
 - Support Android Obsidian while retaining the existing desktop interaction model.
 - Add two-tap rectangular selection on touch screens without suppressing horizontal scrolling or long-press menus.
 - Keep row and column handles visible at a 44-pixel touch target on coarse-pointer devices.
-- Separate current-candidate emulator evidence from the physical Android gate required for touch and IME changes.
+- Use current-candidate emulator evidence as the mobile release gate while reporting physical Android separately.
 
 ## 0.2.0 - 2026-08-26
 

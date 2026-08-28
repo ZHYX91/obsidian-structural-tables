@@ -50,4 +50,4 @@ In an explicitly named disposable Vault, test minimum and current Obsidian, ligh
 <!-- section: mobile -->
 ## Mobile
 
-Every mobile release candidate requires current Android-emulator evidence for startup, Reading view, Live Preview, two-tap rectangular selection, long-press menus, touch-sized handles, in-place editing, and Chinese/English IME composition. Emulator and physical-device claims remain separate. A physical Android run is additionally required when touch, IME, storage, or another platform boundary changes; record the device, OS, Obsidian version, candidate identity, and scenario result.
+Every mobile release candidate requires current Android-emulator evidence for startup, Reading view, Live Preview, two-tap rectangular selection, long-press menus, touch-sized handles, in-place editing, and Chinese/English IME composition. Emulator and physical-device claims remain separate. A physical Android run is optional enhanced evidence when touch, IME, storage, or another platform boundary changes; its absence does not block the shared release closure. When run, record the device, OS, Obsidian version, candidate identity, and scenario result.

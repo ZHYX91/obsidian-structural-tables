@@ -40,4 +40,4 @@ The plugin excludes formulas, styling, block or multiline content, captions and 
 <!-- section: success -->
 ## Acceptance
 
-Pure-core tests cover positive, negative, and canonical serialization cases; packages are reproducible and offline; real Obsidian acceptance stays distinct from automation. Every mobile candidate requires current Android-emulator evidence, while physical-device evidence remains a separate release gate for touch, IME, storage, or platform-boundary changes.
+Pure-core tests cover positive, negative, and canonical serialization cases; packages are reproducible and offline; real Obsidian acceptance stays distinct from automation. Every mobile candidate requires current Android-emulator evidence, while physical-device evidence remains an optional, separately reported claim for touch, IME, storage, or platform-boundary behavior and never becomes a plugin-specific release prerequisite.

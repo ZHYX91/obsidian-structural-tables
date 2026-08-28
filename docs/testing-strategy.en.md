@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-26
+last_synced: 2026-08-28
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -50,4 +50,4 @@ In an explicitly named disposable Vault, test minimum and current Obsidian, ligh
 <!-- section: mobile -->
 ## Mobile
 
-Before enabling mobile availability, retain physical device, OS, Obsidian version, touch-selection, and Chinese/English IME composition evidence.
+Every mobile release candidate requires current Android-emulator evidence for startup, Reading view, Live Preview, two-tap rectangular selection, long-press menus, touch-sized handles, in-place editing, and Chinese/English IME composition. Emulator and physical-device claims remain separate. A physical Android run is additionally required when touch, IME, storage, or another platform boundary changes; record the device, OS, Obsidian version, candidate identity, and scenario result.

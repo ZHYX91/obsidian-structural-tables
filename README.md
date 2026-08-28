@@ -32,7 +32,7 @@ General, Views, and Appearance keep import, rendering, ordinary-table takeover, 
 - Put one adjacent `||` inside the delimiter row to mark row-header columns.
 - Render semantic, accessible tables in Reading view and Live Preview.
 - Edit cells in place, including automatic `|` escaping for pasted Wiki links.
-- Select complete rows or columns with handles, then insert, delete, move, align, merge, split, or set headers from the context menu. Only the hovered, keyboard-focused, or selected row/column handle is shown.
+- Select complete rows or columns with handles, then insert, delete, move, align, merge, split, or set headers from the context menu. Desktop reveals the hovered, keyboard-focused, or selected handle; coarse-pointer devices keep touch-sized handles visible.
 - Paste HTML tables from browsers and spreadsheets while preserving row and column spans.
 - Copy valid tables as semantic HTML, portable GFM, TSV, or CSV, and preview before flattening a table to GFM.
 - Convert unambiguous Sheets Extended separator columns into canonical row-header syntax.
@@ -44,7 +44,7 @@ General, Views, and Appearance keep import, rendering, ordinary-table takeover, 
 <!-- section: requirements-and-compatibility -->
 ## Requirements and compatibility
 
-Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidian only. Upgrade to Base additionally requires Obsidian's Bases core plugin to be enabled. Structural Tables owns the meaning of exact `<`, `^`, and delimiter `||` tokens inside a structural table. By default it warns once when an enabled table plugin is known to assign overlapping meanings to those tokens.
+Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidian and Android. Upgrade to Base additionally requires Obsidian's Bases core plugin to be enabled. Structural Tables owns the meaning of exact `<`, `^`, and delimiter `||` tokens inside a structural table. By default it warns once when an enabled table plugin is known to assign overlapping meanings to those tokens.
 
 <!-- section: installation -->
 ## Installation
@@ -57,8 +57,8 @@ Until the plugin is listed in the Obsidian Community directory, download `struct
 1. Create or paste an ordinary pipe table in a Markdown note.
 2. Use an exact `<` cell to merge left, an exact `^` cell to merge up, or one adjacent `||` inside the delimiter row to mark the columns on its left as row headers.
 3. Leave the table in Live Preview, or switch to Reading view, to see the rendered structure.
-4. Double-click a rendered cell, or select it and press Enter/F2, to edit it in place. Enter commits, Escape cancels, and Tab commits and advances.
-5. Use the row/column handles or drag across cells, then right-click to insert, safely delete, move, align, merge, split, or set headers.
+4. Double-click or double-tap a rendered cell, or select it and press Enter/F2, to edit it in place. Enter commits, Escape cancels, and Tab commits and advances.
+5. Use the row/column handles, drag across cells with a mouse, or tap the first and last cell of a rectangle on Android. Then right-click or long-press to insert, safely delete, move, align, merge, split, or set headers.
 6. Paste an HTML table from a browser, Excel, or Google Sheets to preserve supported row and column spans.
 7. Open the command palette to copy the current valid table as HTML, GFM, TSV, or CSV; preview a flatten-to-GFM conversion; or migrate a Sheets Extended row-header separator.
 8. Right-click a table and choose **Upgrade to Base…**. Structural tables use **Expand structure and upgrade to Base…**, whose preview explains flattened header paths, ordinary row-header properties, repeated merged row-header values, and any blocking merged data cell before files can be created.

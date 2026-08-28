@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-26
+last_synced: 2026-08-28
 translation_of: architecture.zh-CN.md
 ---
 
@@ -30,7 +30,7 @@ Merges resolve only left or up, preventing directional cycles. Validation then c
 <!-- section: rendering -->
 ## Rendering
 
-One shared DOM renderer serves the Reading view postprocessor and CodeMirror widget. Live Preview stores block decorations in a CodeMirror `StateField`, while a separate view plugin owns composition and view lifecycle. Structural tables always enter this path; ordinary GFM tables enter it only while the opt-in takeover setting is enabled. Refreshing that setting rebuilds editor decorations and Reading views without changing source. The owned widget adds cell selection, row/column handles, and a focused textarea editor without moving the CodeMirror cursor into the replaced range. Reading view can map either an Obsidian-native table or the exact raw source block emitted for row-header syntax; recursive renderer callbacks are ignored. Cell content uses Obsidian MarkdownRenderer, with component lifecycle cleanup.
+One shared DOM renderer serves the Reading view postprocessor and CodeMirror widget. Live Preview stores block decorations in a CodeMirror `StateField`, while a separate view plugin owns composition and view lifecycle. Structural tables always enter this path; ordinary GFM tables enter it only while the opt-in takeover setting is enabled. Refreshing that setting rebuilds editor decorations and Reading views without changing source. The owned widget adds cell selection, row/column handles, and a focused textarea editor without moving the CodeMirror cursor into the replaced range. Mouse pointers own drag selection; touch pointers use a two-tap range state and deliberately preserve the host's initial pointer event for scrolling and long press. Reading view can map either an Obsidian-native table or the exact raw source block emitted for row-header syntax; recursive renderer callbacks are ignored. Cell content uses Obsidian MarkdownRenderer, with component lifecycle cleanup.
 
 <!-- section: editing -->
 ## Editing

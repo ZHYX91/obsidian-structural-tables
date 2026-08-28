@@ -250,6 +250,28 @@
 }
 
 @media (pointer: coarse) {
+  .structural-tables-live-preview {
+    padding-block-start: 2.75rem;
+    padding-inline-start: 2.75rem;
+  }
+
+  .structural-tables-row-handle,
+  .structural-tables-column-handle {
+    width: 2.75rem;
+    height: 2.75rem;
+    opacity: 1;
+  }
+
+  .structural-tables-table th,
+  .structural-tables-table td,
+  .structural-tables-cell-editor {
+    min-block-size: 2.75rem;
+  }
+
+  .structural-tables-cell-editor {
+    font-size: max(1rem, 16px);
+  }
+
   .structural-tables-settings-tabs > button.structural-tables-settings-tab {
     min-block-size: 44px;
   }

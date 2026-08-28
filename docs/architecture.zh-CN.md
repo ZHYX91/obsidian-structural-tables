@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-08-26
+last_synced: 2026-08-28
 ---
 
 [English](architecture.en.md)
@@ -29,7 +29,7 @@ last_synced: 2026-08-26
 <!-- section: rendering -->
 ## 渲染
 
-一个共享 DOM 渲染器被阅读视图后处理器和 CodeMirror 组件调用。实时预览把块级装饰保存在 CodeMirror `StateField` 中，由独立的视图插件管理输入法组合输入和视图生命周期。结构表格始终进入该路径；普通 GFM 仅在启用可选接管设置时进入。设置刷新会重建编辑器装饰和阅读视图，但不改变源码。插件接管的表格组件增加单元格选区、行列把手和聚焦的文本编辑框，而不会把 CodeMirror 光标移入被替换范围。阅读视图既可映射 Obsidian 原生表格，也可映射行表头语法产生的精确源码块，并忽略递归渲染回调。单元格内容交给 Obsidian MarkdownRenderer，组件生命周期负责清理。
+一个共享 DOM 渲染器被阅读视图后处理器和 CodeMirror 组件调用。实时预览把块级装饰保存在 CodeMirror `StateField` 中，由独立的视图插件管理输入法组合输入和视图生命周期。结构表格始终进入该路径；普通 GFM 仅在启用可选接管设置时进入。设置刷新会重建编辑器装饰和阅读视图，但不改变源码。插件接管的表格组件增加单元格选区、行列把手和聚焦的文本编辑框，而不会把 CodeMirror 光标移入被替换范围。鼠标指针由插件接管拖动选区；触摸指针使用两次点选的范围状态，并刻意保留宿主对首次指针事件的处理，以支持滚动和长按。阅读视图既可映射 Obsidian 原生表格，也可映射行表头语法产生的精确源码块，并忽略递归渲染回调。单元格内容交给 Obsidian MarkdownRenderer，组件生命周期负责清理。
 
 <!-- section: editing -->
 ## 编辑

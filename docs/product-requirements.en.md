@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-26
+last_synced: 2026-08-28
 translation_of: product-requirements.zh-CN.md
 ---
 
@@ -30,7 +30,7 @@ Every structural row has exactly the delimiter width. A merge resolves to one to
 <!-- section: capabilities -->
 ## Capabilities
 
-Reading view and Live Preview rendering; default-native ordinary GFM tables with an opt-in, reversible takeover mode that changes no Markdown; in-place cell editing with table-safe Wiki-link pipe escaping; theme-aware column/corner and lighter row-header backgrounds; native-looking table borders plus row/column handles revealed individually for the hovered, keyboard-focused, or selected row/column; insert, safe delete, move, align, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native ordinary-table selection and context menu; HTML-table paste with rowspan/colspan preservation; semantic HTML, plain GFM, TSV, and CSV output; Sheets Extended separator migration and conflict warnings; right-click Base upgrade for ordinary and structural tables; an explicit preview that flattens multi-row/merged column headers into property paths, turns row headers into properties, and blocks merged data cells before any file is written; path-independent list membership, stable record IDs, a recovery manifest, table restoration that keeps records, and later-record creation beside the host's current folder; native bilingual settings; and explicit diagnostics. Formatting and structural edits are explicit actions. Rendering never changes source.
+Reading view and Live Preview rendering on desktop and Android; default-native ordinary GFM tables with an opt-in, reversible takeover mode that changes no Markdown; in-place cell editing with table-safe Wiki-link pipe escaping and IME protection; mouse drag selection plus two-tap rectangular selection on touch screens; touch-sized coarse-pointer row/column handles that remain visible without hover; theme-aware column/corner and lighter row-header backgrounds; native-looking table borders; insert, safe delete, move, align, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native ordinary-table selection and context menu; HTML-table paste with rowspan/colspan preservation; semantic HTML, plain GFM, TSV, and CSV output; Sheets Extended separator migration and conflict warnings; right-click Base upgrade for ordinary and structural tables; an explicit preview that flattens multi-row/merged column headers into property paths, turns row headers into properties, and blocks merged data cells before any file is written; path-independent list membership, stable record IDs, a recovery manifest, table restoration that keeps records, and later-record creation beside the host's current folder; native bilingual settings; and explicit diagnostics. Formatting and structural edits are explicit actions. Rendering never changes source.
 
 <!-- section: exclusions -->
 ## Exclusions
@@ -40,4 +40,4 @@ The plugin excludes formulas, styling, block or multiline content, captions and 
 <!-- section: success -->
 ## Acceptance
 
-Pure-core tests cover positive, negative, and canonical serialization cases; packages are reproducible and offline; real Obsidian acceptance stays distinct from automation; mobile availability is not claimed before device evidence.
+Pure-core tests cover positive, negative, and canonical serialization cases; packages are reproducible and offline; real Obsidian acceptance stays distinct from automation. Every mobile candidate requires current Android-emulator evidence, while physical-device evidence remains a separate release gate for touch, IME, storage, or platform-boundary changes.

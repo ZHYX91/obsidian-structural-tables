@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-08-26
+last_synced: 2026-08-28
 ---
 
 [English](testing-strategy.en.md)
@@ -49,4 +49,4 @@ last_synced: 2026-08-26
 <!-- section: mobile -->
 ## 移动端
 
-移动端开放前必须保留物理设备、系统版本、Obsidian 版本、触摸选择和中英文输入法组合输入证据。
+每个移动端发布候选都必须保留当前 Android 模拟器证据，覆盖启动、阅读视图、实时预览、两点矩形选区、长按菜单、触摸尺寸把手、原位编辑和中英文输入法组合输入。模拟器与物理设备声明分开；涉及触控、输入法、存储或其他平台边界的变更还必须运行物理 Android，并记录设备、系统、Obsidian 版本、候选身份和场景结果。

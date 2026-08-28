@@ -19,8 +19,8 @@ if (versions[version] !== manifest.minAppVersion) {
 if (manifest.id !== "structural-tables" || manifest.name !== "Structural Tables") {
   throw new Error("Manifest identity changed unexpectedly.");
 }
-if (manifest.isDesktopOnly !== true) {
-  throw new Error("Mobile availability requires recorded physical-device acceptance before release.");
+if (manifest.isDesktopOnly !== false) {
+  throw new Error("Structural Tables must remain available on supported Android hosts.");
 }
 const expectedFiles = ["main.js", "manifest.json", "styles.css"];
 const actualFiles = (await readdir(path.join(root, "dist"))).sort();

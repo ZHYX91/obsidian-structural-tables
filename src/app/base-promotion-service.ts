@@ -144,7 +144,7 @@ export class BasePromotionService {
     const records = uniqueRecordPaths(directoryPath, plan);
     const manifest: PromotionManifest = {
       version: 1,
-      pluginVersion: "0.2.0",
+      pluginVersion: "0.3.0",
       tableId,
       sourceFilePath: sourceFile.path,
       originalTableSource: table.source,

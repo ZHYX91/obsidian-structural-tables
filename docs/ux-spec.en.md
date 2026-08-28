@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-26
+last_synced: 2026-08-28
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -47,7 +47,7 @@ Metadata comments in the generated Base retain the stable table ID and recovery-
 <!-- section: table-selection -->
 ## Table selection and context menu
 
-By default, use Obsidian's native Markdown-table cell selection, whole-row/whole-column handles, and shared event menu to bootstrap structural syntax from an ordinary GFM table. When Take over ordinary Markdown tables is enabled, inactive ordinary GFM tables use the same plugin widget, handles, drag selection, in-place editor, full editing menu, layout, density, and alternating-row appearance as structural tables without changing their source; disabling the setting refreshes open views back to native behavior. Both ordinary and owned structural table menus expose the appropriate Base-upgrade action without requiring whole-table selection. Each plugin handle remains hidden until that specific row or column control is hovered, keyboard-focused, or selected; cell focus must not reveal every handle. The existing native-like column selection treatment is preserved. A rectangular multi-cell selection offers Merge selected cells; a single merged cell offers Split merged cell. Refuse a merge and preserve source when cells other than the top-left contain content, the selection crosses role boundaries, or it includes only part of an existing merged region.
+By default, use Obsidian's native Markdown-table cell selection, whole-row/whole-column handles, and shared event menu to bootstrap structural syntax from an ordinary GFM table. When Take over ordinary Markdown tables is enabled, inactive ordinary GFM tables use the same plugin widget, handles, in-place editor, full editing menu, layout, density, and alternating-row appearance as structural tables without changing their source; disabling the setting refreshes open views back to native behavior. A mouse drags across cells. On touch screens, tap the first and last cells to select a rectangle; the initial pointer event remains available to the host so horizontal scrolling and long-press menus are not suppressed. Both ordinary and owned structural table menus expose the appropriate Base-upgrade action without requiring whole-table selection. Fine-pointer handles remain hidden until that specific row or column control is hovered, keyboard-focused, or selected; coarse-pointer handles remain visible and at least 44 CSS pixels. Cell focus must not reveal every desktop handle. The existing native-like column selection treatment is preserved. A rectangular multi-cell selection offers Merge selected cells; a single merged cell offers Split merged cell. Refuse a merge and preserve source when cells other than the top-left contain content, the selection crosses role boundaries, or it includes only part of an existing merged region.
 
 A whole-row selection starting at the top can set column-header rows. A whole-column selection starting at the left and covering every row can set or remove row-header columns. Plugin-owned table menus also insert, safely delete, move, and align selected rows or columns. Insertion inside a merge expands it; deletion migrates a surviving anchor; any edit that would discard non-empty content, split a merged rectangle, or cross a header boundary is refused. Ordinary tables retain Obsidian's native menus and handles while takeover is disabled.
 

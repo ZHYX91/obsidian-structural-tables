@@ -88,6 +88,18 @@ function mountEditor(
   };
 }
 
+function dispatchPointerDown(target: HTMLElement, pointerType: "mouse" | "touch"): Event {
+  const event = new Event("pointerdown", { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    pointerType: { value: pointerType },
+    isPrimary: { value: true },
+    button: { value: 0 },
+    shiftKey: { value: false },
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
 describe("StructuralTableEditorController", () => {
   it("provides block replacements through editor state so opening a Markdown view succeeds", () => {
     const source = [
@@ -214,6 +226,35 @@ describe("StructuralTableEditorController", () => {
 
     expect(parent.querySelector(".structural-tables-row-handle.is-selected")).toBeNull();
     expect(parent.querySelector(".structural-tables-column-handle.is-selected")).toBeNull();
+    view.destroy();
+  });
+
+  it("uses two touch taps for a rectangular selection without suppressing native long press", () => {
+    const source = "| A | B |\n| --- || --- |\n| C | D |\n| E | F |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    const first = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+    const last = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+
+    const firstTap = dispatchPointerDown(first, "touch");
+    expect(firstTap.defaultPrevented).toBe(false);
+    expect(first.getAttribute("aria-selected")).toBe("true");
+
+    const secondTap = dispatchPointerDown(last, "touch");
+    expect(secondTap.defaultPrevented).toBe(false);
+    expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+
+    last.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(lastMenu?.items.map((item) => item.title)).toContain("Merge selected cells");
+    view.destroy();
+  });
+
+  it("keeps desktop pointer drag ownership separate from touch selection", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+
+    const pointerDown = dispatchPointerDown(cell, "mouse");
+    expect(pointerDown.defaultPrevented).toBe(true);
+    expect(cell.getAttribute("aria-selected")).toBe("true");
     view.destroy();
   });
 

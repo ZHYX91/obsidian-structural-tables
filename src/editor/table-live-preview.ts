@@ -54,6 +54,8 @@ class StructuralTableWidget extends WidgetType {
   private selection: StructuralTableSelection | null = null;
   private selectionAnchor: TableCellCoordinate | null = null;
   private selectionHead: TableCellCoordinate | null = null;
+  private touchRangeAnchor: TableCellCoordinate | null = null;
+  private touchRangeArmed = false;
   private pointerWindow: Window | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private host: HTMLElement | null = null;
@@ -160,14 +162,38 @@ class StructuralTableWidget extends WidgetType {
       && (event.target as Element).closest("textarea, input, a") !== null) return;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
+    if (event.pointerType === "touch") {
+      this.startTouchSelection(coordinate);
+      const cell = this.cellElement(coordinate);
+      cell?.focus({ preventScroll: true });
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
+    this.touchRangeAnchor = null;
+    this.touchRangeArmed = false;
     if (!event.shiftKey || this.selectionAnchor === null) this.selectionAnchor = coordinate;
     this.selectionHead = coordinate;
     this.dragging = true;
     this.updateSelection();
     const cell = this.cellElement(coordinate);
     cell?.focus({ preventScroll: true });
+  }
+
+  private startTouchSelection(coordinate: TableCellCoordinate): void {
+    if (!this.touchRangeArmed || this.touchRangeAnchor === null) {
+      this.touchRangeAnchor = coordinate;
+      this.touchRangeArmed = true;
+      this.selectionAnchor = coordinate;
+      this.selectionHead = coordinate;
+    } else {
+      this.selectionAnchor = this.touchRangeAnchor;
+      this.selectionHead = coordinate;
+      this.touchRangeAnchor = null;
+      this.touchRangeArmed = false;
+    }
+    this.dragging = false;
+    this.updateSelection();
   }
 
   private extendPointerSelection(event: PointerEvent): void {
@@ -215,6 +241,8 @@ class StructuralTableWidget extends WidgetType {
     if (coordinate === null) return;
     event.preventDefault();
     event.stopPropagation();
+    this.touchRangeAnchor = null;
+    this.touchRangeArmed = false;
     const selected = this.selection?.cells.some((cell) => (
       cell.anchorRow === coordinate.row && cell.anchorColumn === coordinate.column
     )) ?? false;
@@ -392,8 +420,10 @@ class StructuralTableWidget extends WidgetType {
       handle.textContent = "⋮";
       handle.setAttribute("aria-label", withCount(t("handle.row"), row + 1));
       handle.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+        if (event.pointerType !== "touch") {
+          event.preventDefault();
+          event.stopPropagation();
+        }
         this.selectBounds({ row, column: 0 }, { row, column: this.table.columnCount - 1 });
         handle.focus({ preventScroll: true });
       });
@@ -415,8 +445,10 @@ class StructuralTableWidget extends WidgetType {
       handle.textContent = "⋯";
       handle.setAttribute("aria-label", withCount(t("handle.column"), column + 1));
       handle.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+        if (event.pointerType !== "touch") {
+          event.preventDefault();
+          event.stopPropagation();
+        }
         this.selectBounds({ row: 0, column }, { row: this.table.rows.length - 1, column });
         handle.focus({ preventScroll: true });
       });
@@ -462,6 +494,8 @@ class StructuralTableWidget extends WidgetType {
   }
 
   private selectBounds(first: TableCellCoordinate, last: TableCellCoordinate): void {
+    this.touchRangeAnchor = null;
+    this.touchRangeArmed = false;
     this.selectionAnchor = first;
     this.selectionHead = last;
     this.updateSelection();

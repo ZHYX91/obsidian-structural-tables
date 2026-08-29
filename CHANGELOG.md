@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-08-28
+
 - Support Android Obsidian while retaining the existing desktop interaction model.
 - Add two-tap rectangular selection on touch screens without suppressing horizontal scrolling or long-press menus.
 - Keep row and column handles visible at a 44-pixel touch target on coarse-pointer devices.

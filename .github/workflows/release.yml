@@ -1,13 +1,51 @@
 name: Release
+run-name: release ${{ inputs.release_run_id }}
 
 on:
-  push:
-    tags:
-      - "[0-9]*.[0-9]*.[0-9]*"
   workflow_dispatch:
     inputs:
-      version:
-        description: Stable x.y.z version to verify before tagging
+      release_run_id:
+        description: Stable workspace release-run UUID
+        required: true
+        type: string
+      mode:
+        description: Explicit release operation
+        required: true
+        default: verify
+        type: choice
+        options:
+          - verify
+          - publish
+      candidate_commit:
+        description: Exact accepted candidate commit
+        required: true
+        type: string
+      candidate_digest:
+        description: SHA-256 of the exact core candidate.json
+        required: true
+        type: string
+      candidate_envelope_digest:
+        description: SHA-256 of the workspace candidate envelope
+        required: true
+        type: string
+      acceptance_closure_digest:
+        description: SHA-256 of the decoded acceptance-closure bytes
+        required: true
+        type: string
+      acceptance_closure_b64:
+        description: Base64 of the portable acceptance-closure JSON bytes
+        required: true
+        type: string
+      release_authorization:
+        description: Exact core publication authorization phrase
+        required: true
+        type: string
+      authorization_b64:
+        description: Base64 of the exact publication-authorization JSON bytes
+        required: true
+        type: string
+      authorization_digest:
+        description: SHA-256 of the decoded publication-authorization bytes
         required: true
         type: string
 
@@ -19,359 +57,459 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  preflight:
+  verify:
+    name: Verify exact candidate
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
-    env:
-      RELEASE_VERSION: ${{ inputs.version }}
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-    steps:
-      - name: Check out proposed source without persistent credentials
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Verify read-only preflight source identity
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          [[ "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-          test "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" || {
-            echo "Release preflight must run from the repository default branch." >&2
-            exit 1
-          }
-          remote_default_ref="refs/heads/$DEFAULT_BRANCH"
-          remote_default_commit="$(git ls-remote --exit-code origin "$remote_default_ref" | awk 'NR == 1 { print $1 }')"
-          test "$remote_default_commit" = "$GITHUB_SHA" || {
-            echo "Release preflight must run at the current remote default-branch HEAD." >&2
-            exit 1
-          }
-          test -z "$(git ls-remote --tags origin "refs/tags/$RELEASE_VERSION" "refs/tags/$RELEASE_VERSION^{}")" || {
-            echo "Release preflight requires a version whose remote tag does not exist." >&2
-            exit 1
-          }
-          release_status="$(curl --silent --show-error --output "$RUNNER_TEMP/preflight-release.json" \
-            --write-out "%{http_code}" \
-            --header 'Accept: application/vnd.github+json' \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header 'X-GitHub-Api-Version: 2026-03-10' \
-            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_VERSION}")"
-          test "$release_status" = "404" || {
-            echo "Release preflight requires a version whose published Release does not exist (HTTP ${release_status})." >&2
-            exit 1
-          }
-
-      - name: Set up exact Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          cache: npm
-          node-version: 24.19.0
-
-      - name: Install exact npm
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --global npm@11.17.0
-          test "$(npm --version)" = "11.17.0"
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Verify release version
-        run: node scripts/check-release-version.mjs "$RELEASE_VERSION"
-
-      - name: Run release gates
-        run: npm run release:check
-
-      - name: Build and verify manual installation archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release-assets.mjs handoff \
-            --version "$RELEASE_VERSION" \
-            --output-dir "$RUNNER_TEMP/release-preflight"
-
-  verify:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      attestations: read
-      contents: read
     outputs:
-      artifact_digest: ${{ steps.record_handoff.outputs.artifact_digest }}
-      artifact_id: ${{ steps.record_handoff.outputs.artifact_id }}
-      artifact_name: ${{ steps.record_handoff.outputs.artifact_name }}
-      release_exists: ${{ steps.release_state.outputs.exists }}
+      candidate_artifact_id: ${{ steps.handoff.outputs.artifact-id }}
+      candidate_artifact_digest: ${{ steps.handoff.outputs.artifact-digest }}
     steps:
-      - name: Check out tagged source without persistent credentials
+      - name: Validate dispatch identifiers
+        shell: bash
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+          CANDIDATE_ENVELOPE_DIGEST: ${{ inputs.candidate_envelope_digest }}
+          ACCEPTANCE_CLOSURE_DIGEST: ${{ inputs.acceptance_closure_digest }}
+          AUTHORIZATION_DIGEST: ${{ inputs.authorization_digest }}
+        run: |
+          set -euo pipefail
+          [[ "$MODE" == "verify" || "$MODE" == "publish" ]]
+          [[ "$RELEASE_RUN_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]
+          [[ "$CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
+          [[ "$CANDIDATE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$CANDIDATE_ENVELOPE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$ACCEPTANCE_CLOSURE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$AUTHORIZATION_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          test "$CANDIDATE_COMMIT" = "$GITHUB_SHA"
+          [[ "$GITHUB_REF_TYPE" == "tag" ]]
+          [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+
+      - name: Check out the exact candidate without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ inputs.candidate_commit }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify tagged source identity
+        shell: bash
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --verify HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse --verify "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Set up exact Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
+          node-version-file: .node-version
           cache: npm
-          node-version: 24.19.0
 
       - name: Install exact npm
         shell: bash
         run: |
           set -euo pipefail
-          npm install --global npm@11.17.0
+          npm install --global npm@11.17.0 --no-audit --no-fund
           test "$(npm --version)" = "11.17.0"
 
-      - name: Verify release source and version
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
-          test "$(git rev-list -n 1 "$GITHUB_REF")" = "$GITHUB_SHA"
-          git merge-base --is-ancestor "$GITHUB_SHA" "origin/${{ github.event.repository.default_branch }}"
-
       - name: Install locked dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
-      - name: Run canonical release gates
+      - name: Run complete repository release gates
         run: npm run release:check
 
-      - name: Build deterministic release handoff
-        shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/release-assets.mjs handoff \
-            --version "$GITHUB_REF_NAME" \
-            --output-dir "$RUNNER_TEMP/release"
+      - name: Build deterministic candidate handoff
+        run: >-
+          node scripts/release.mjs candidate
+          --version "$GITHUB_REF_NAME"
+          --output "$RUNNER_TEMP/release-candidate"
 
-      - name: Accept an exact existing immutable Release under read-only permissions
-        id: release_state
+      - name: Verify candidate identity and handoff
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
         run: |
           set -euo pipefail
-          response="$RUNNER_TEMP/tagged-release.json"
-          release_status="$(curl --silent --show-error --output "$response" \
-            --write-out "%{http_code}" \
-            --header 'Accept: application/vnd.github+json' \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header 'X-GitHub-Api-Version: 2026-03-10' \
-            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}")"
-          case "$release_status" in
-            "404")
-              echo "exists=false" >> "$GITHUB_OUTPUT"
-              ;;
-            "200")
-              archive="structural-tables-${GITHUB_REF_NAME}.zip"
-              jq --exit-status --arg archive "$archive" --arg tag "$GITHUB_REF_NAME" '
-                .tag_name == $tag and .immutable == true and .draft == false and .prerelease == false and
-                ([.assets[].name] | sort) == ([$archive, "main.js", "manifest.json", "styles.css"] | sort) and
-                ([.assets[].name] | unique | length) == 4 and
-                all(.assets[]; .state == "uploaded" and .size > 0 and (.digest | test("^sha256:[0-9a-f]{64}$")))
-              ' "$response" >/dev/null || {
-                echo "The tagged Release is not the exact immutable stable contract; publish a new version." >&2
-                exit 1
-              }
-              existing="$RUNNER_TEMP/existing-release"
-              mkdir "$existing"
-              gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir "$existing" \
-                --pattern main.js --pattern manifest.json --pattern styles.css --pattern "$archive"
-              for asset in main.js manifest.json styles.css "$archive"; do
-                cmp --silent "$RUNNER_TEMP/release/$asset" "$existing/$asset"
-                gh attestation verify "$existing/$asset" \
-                  --repo "$GITHUB_REPOSITORY" \
-                  --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
-                  --source-ref "$GITHUB_REF" \
-                  --source-digest "$GITHUB_SHA" \
-                  --deny-self-hosted-runners
-              done
-              remote_tag_commit="$(git ls-remote --exit-code origin "$GITHUB_REF" "${GITHUB_REF}^{}" | awk -v peeled="${GITHUB_REF}^{}" '$2 == peeled { print $1; found = 1 } END { if (!found) print $1 }')"
-              test "$remote_tag_commit" = "$GITHUB_SHA" || {
-                echo "The release tag changed while the existing Release was verified." >&2
-                exit 1
-              }
-              echo "exists=true" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "Could not query the tagged Release (HTTP ${release_status})." >&2
-              exit 1
-              ;;
-          esac
+          test "$(sha256sum "$RUNNER_TEMP/release-candidate/candidate.json" | cut -d ' ' -f 1)" = "$CANDIDATE_DIGEST"
+          node scripts/release.mjs verify-handoff --candidate-dir "$RUNNER_TEMP/release-candidate"
 
-      - name: Upload exact verified handoff
-        if: steps.release_state.outputs.exists == 'false'
-        id: upload_candidate
+      - name: Upload fixed candidate handoff
+        id: handoff
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          compression-level: 0
+          name: release-candidate-${{ inputs.release_run_id }}
+          path: ${{ runner.temp }}/release-candidate/
           if-no-files-found: error
-          include-hidden-files: false
-          name: structural-tables-release-${{ github.run_id }}-${{ github.run_attempt }}
+          compression-level: 0
           overwrite: false
-          path: ${{ runner.temp }}/release
-          retention-days: 7
-
-      - name: Record exact server handoff identity
-        if: steps.release_state.outputs.exists == 'false'
-        id: record_handoff
-        shell: bash
-        env:
-          ARTIFACT_DIGEST: ${{ steps.upload_candidate.outputs.artifact-digest }}
-          ARTIFACT_ID: ${{ steps.upload_candidate.outputs.artifact-id }}
-          ARTIFACT_NAME: structural-tables-release-${{ github.run_id }}-${{ github.run_attempt }}
-          ARTIFACT_URL: ${{ steps.upload_candidate.outputs.artifact-url }}
-        run: |
-          set -euo pipefail
-          [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
-          [[ "$ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$ARTIFACT_URL" == "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts/${ARTIFACT_ID}" ]]
-          echo "artifact_digest=$ARTIFACT_DIGEST" >> "$GITHUB_OUTPUT"
-          echo "artifact_id=$ARTIFACT_ID" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+          retention-days: 1
 
   publish:
-    if: github.event_name == 'push' && needs.verify.outputs.release_exists == 'false'
+    name: Publish explicitly authorized candidate
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
     needs: verify
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
+    environment: release
     permissions:
       actions: read
       attestations: write
       contents: write
       id-token: write
-    env:
-      EXPECTED_ARTIFACT_DIGEST: ${{ needs.verify.outputs.artifact_digest }}
-      EXPECTED_ARTIFACT_ID: ${{ needs.verify.outputs.artifact_id }}
-      EXPECTED_ARTIFACT_NAME: ${{ needs.verify.outputs.artifact_name }}
     steps:
-      - name: Reverify release identity before using write credentials
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          tag_ref="refs/tags/$GITHUB_REF_NAME"
-          remote_tag_commit="$(git ls-remote --exit-code "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "$tag_ref" "${tag_ref}^{}" | awk -v peeled="${tag_ref}^{}" '$2 == peeled { print $1; found = 1 } END { if (!found) print $1 }')"
-          test "$remote_tag_commit" = "$GITHUB_SHA" || {
-            echo "The remote release tag no longer points to the pushed event commit." >&2
-            exit 1
-          }
-          release_status="$(curl --silent --show-error --output "$RUNNER_TEMP/tagged-release.json" \
-            --write-out "%{http_code}" \
-            --header 'Accept: application/vnd.github+json' \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header 'X-GitHub-Api-Version: 2026-03-10' \
-            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}")"
-          test "$release_status" = "404" || {
-            echo "The tagged Release appeared after verification (HTTP ${release_status}); refusing mutation." >&2
-            exit 1
-          }
+      - name: Check out the exact candidate without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.candidate_commit }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Download and verify exact release candidate handoff
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+
+      - name: Download fixed candidate handoff by artifact ID
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.verify.outputs.candidate_artifact_id }}
+          path: ${{ runner.temp }}/release-candidate
+          digest-mismatch: error
+
+      - name: Verify transported acceptance and authorization evidence
+        shell: bash
+        env:
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+          CANDIDATE_ENVELOPE_DIGEST: ${{ inputs.candidate_envelope_digest }}
+          ACCEPTANCE_CLOSURE_B64: ${{ inputs.acceptance_closure_b64 }}
+          ACCEPTANCE_CLOSURE_DIGEST: ${{ inputs.acceptance_closure_digest }}
+          AUTHORIZATION_B64: ${{ inputs.authorization_b64 }}
+          RELEASE_AUTHORIZATION: ${{ inputs.release_authorization }}
+          AUTHORIZATION_DIGEST: ${{ inputs.authorization_digest }}
+          CANDIDATE_DIRECTORY: ${{ runner.temp }}/release-candidate
+          EVIDENCE_DIRECTORY: ${{ runner.temp }}/release-evidence
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { createHash } from "node:crypto";
+          import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+          import path from "node:path";
+
+          const SHA256 = /^[0-9a-f]{64}$/u;
+          const GIT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+          const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+          const exactKeys = (value, keys, label) => {
+            assert.ok(value !== null && typeof value === "object" && !Array.isArray(value), label);
+            assert.deepEqual(Object.keys(value).sort(), [...keys].sort(), `${label} fields`);
+          };
+          const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
+          const decode = (encoded, maximumCharacters, maximumBytes, label) => {
+            assert.ok(typeof encoded === "string" && encoded.length > 0, `${label} missing`);
+            assert.ok(encoded.length <= maximumCharacters, `${label} exceeds input limit`);
+            assert.match(encoded, /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u);
+            const bytes = Buffer.from(encoded, "base64");
+            assert.ok(bytes.length > 0 && bytes.length <= maximumBytes, `${label} decoded size`);
+            assert.equal(bytes.toString("base64"), encoded, `${label} must be canonical base64`);
+            return bytes;
+          };
+          const assertPortable = (value) => {
+            if (typeof value === "string") {
+              assert.ok(!/^(?:[A-Za-z]:[\\/]|\\\\|\/)/u.test(value), "portable evidence contains an absolute path");
+              return;
+            }
+            if (Array.isArray(value)) {
+              for (const item of value) assertPortable(item);
+              return;
+            }
+            if (value !== null && typeof value === "object") {
+              for (const item of Object.values(value)) assertPortable(item);
+            }
+          };
+
+          const runId = process.env.RELEASE_RUN_ID ?? "";
+          const candidateCommit = process.env.CANDIDATE_COMMIT ?? "";
+          const candidateDigest = process.env.CANDIDATE_DIGEST ?? "";
+          const candidateEnvelopeDigest = process.env.CANDIDATE_ENVELOPE_DIGEST ?? "";
+          const closureDigest = process.env.ACCEPTANCE_CLOSURE_DIGEST ?? "";
+          const authorizationDigest = process.env.AUTHORIZATION_DIGEST ?? "";
+          assert.match(runId, UUID);
+          assert.match(candidateCommit, GIT_ID);
+          assert.match(candidateDigest, SHA256);
+          assert.match(candidateEnvelopeDigest, SHA256);
+          assert.match(closureDigest, SHA256);
+          assert.match(authorizationDigest, SHA256);
+
+          const closureBytes = decode(
+            process.env.ACCEPTANCE_CLOSURE_B64,
+            60_000,
+            45_000,
+            "acceptance closure",
+          );
+          const authorizationBytes = decode(
+            process.env.AUTHORIZATION_B64,
+            16_000,
+            12_000,
+            "publication authorization",
+          );
+          assert.equal(digest(closureBytes), closureDigest, "acceptance closure digest");
+          assert.equal(digest(authorizationBytes), authorizationDigest, "authorization digest");
+
+          const candidateBytes = readFileSync(
+            path.join(process.env.CANDIDATE_DIRECTORY, "candidate.json"),
+          );
+          assert.equal(digest(candidateBytes), candidateDigest, "candidate digest");
+          const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
+
+          const closure = JSON.parse(closureBytes.toString("utf8"));
+          exactKeys(closure, [
+            "authorizesPublication",
+            "candidate",
+            "candidateEnvelopeSha256",
+            "closedAt",
+            "evidence",
+            "gatePassed",
+            "kind",
+            "policy",
+            "receipt",
+            "releaseCandidate",
+            "runId",
+            "schemaVersion",
+            "status",
+            "surfaces",
+          ], "acceptance closure");
+          assert.equal(closure.schemaVersion, 1);
+          assert.equal(closure.kind, "obsidian-plugin-workspace/release-acceptance-closure-v1");
+          assert.equal(closure.runId, runId);
+          assert.equal(closure.status, "passed");
+          assert.equal(closure.gatePassed, true);
+          assert.equal(closure.authorizesPublication, false);
+          assert.equal(closure.candidateEnvelopeSha256, candidateEnvelopeDigest);
+          exactKeys(closure.receipt, ["sha256", "size"], "acceptance closure receipt");
+          assert.match(closure.receipt.sha256, SHA256);
+          assert.notEqual(closure.receipt.sha256, candidateDigest);
+          assert.ok(Number.isSafeInteger(closure.receipt.size) && closure.receipt.size > 0);
+          exactKeys(
+            closure.releaseCandidate,
+            ["candidateJsonSha256", "candidateJsonSize"],
+            "acceptance closure release candidate",
+          );
+          assert.equal(closure.releaseCandidate.candidateJsonSha256, candidateDigest);
+          assert.equal(closure.releaseCandidate.candidateJsonSize, candidateBytes.length);
+          assert.ok(Array.isArray(closure.evidence) && closure.evidence.length > 0);
+          exactKeys(closure.candidate, [
+            "assets",
+            "commit",
+            "identitySha256",
+            "pluginId",
+            "projectId",
+            "tree",
+            "version",
+          ], "acceptance closure candidate");
+          assert.equal(closure.candidate.pluginId, manifest.id);
+          assert.equal(closure.candidate.version, manifest.version);
+          assert.equal(closure.candidate.version, process.env.GITHUB_REF_NAME);
+          assert.equal(closure.candidate.commit, candidateCommit);
+          assert.match(closure.candidate.tree, GIT_ID);
+          assert.match(closure.candidate.identitySha256, SHA256);
+          assertPortable(closure);
+
+          const authorization = JSON.parse(authorizationBytes.toString("utf8"));
+          exactKeys(authorization, [
+            "authorizedAt",
+            "authorizesPublication",
+            "bindings",
+            "confirmation",
+            "kind",
+            "runId",
+            "schemaVersion",
+            "singleCandidate",
+          ], "publication authorization");
+          exactKeys(authorization.bindings, [
+            "candidateEnvelopeSha256",
+            "candidateSha256",
+            "closureSha256",
+            "planSha256",
+          ], "publication authorization bindings");
+          assert.equal(authorization.schemaVersion, 1);
+          assert.equal(authorization.kind, "obsidian-plugin-workspace/release-authorization-v1");
+          assert.equal(authorization.runId, runId);
+          assert.equal(authorization.singleCandidate, true);
+          assert.equal(authorization.authorizesPublication, true);
+          assert.match(authorization.bindings.planSha256, SHA256);
+          assert.equal(authorization.bindings.candidateEnvelopeSha256, candidateEnvelopeDigest);
+          assert.equal(authorization.bindings.candidateSha256, candidateDigest);
+          assert.equal(authorization.bindings.closureSha256, closureDigest);
+
+          const expectedPhrase = `publish ${process.env.GITHUB_REPOSITORY}@${process.env.GITHUB_REF_NAME} commit=${candidateCommit} candidate=${candidateDigest} acceptance=${closureDigest}`;
+          assert.equal(process.env.RELEASE_AUTHORIZATION, expectedPhrase);
+          assert.equal(authorization.confirmation, expectedPhrase);
+          assertPortable(authorization);
+
+          mkdirSync(process.env.EVIDENCE_DIRECTORY, { recursive: false });
+          writeFileSync(path.join(process.env.EVIDENCE_DIRECTORY, "acceptance-closure.json"), closureBytes, { flag: "wx", mode: 0o600 });
+          writeFileSync(path.join(process.env.EVIDENCE_DIRECTORY, "authorization.json"), authorizationBytes, { flag: "wx", mode: 0o600 });
+          NODE
+
+      - name: Verify fixed handoff before publication
+        shell: bash
+        env:
+          ARTIFACT_DIGEST: ${{ needs.verify.outputs.candidate_artifact_digest }}
+        run: |
+          set -euo pipefail
+          [[ "$ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          node scripts/release.mjs verify-handoff --candidate-dir "$RUNNER_TEMP/release-candidate"
+
+      - name: Verify publication boundary before attestation
+        env:
+          RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
+        run: >-
+          node scripts/release.mjs publication-boundary
+          --candidate-dir "$RUNNER_TEMP/release-candidate"
+          --candidate-digest "${{ inputs.candidate_digest }}"
+          --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
+          --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"
+
+      - name: Preflight immutable GitHub Release
+        id: publication_preflight
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
         run: |
           set -euo pipefail
-          [[ "$EXPECTED_ARTIFACT_NAME" == "structural-tables-release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" ]]
-          [[ "$EXPECTED_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
-          [[ "$EXPECTED_ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          artifact_json="$RUNNER_TEMP/artifact.json"
-          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$EXPECTED_ARTIFACT_ID" > "$artifact_json"
-          jq --exit-status \
-            --arg digest "sha256:$EXPECTED_ARTIFACT_DIGEST" \
-            --arg name "$EXPECTED_ARTIFACT_NAME" \
-            --arg sha "$GITHUB_SHA" \
-            --argjson artifact_id "$EXPECTED_ARTIFACT_ID" \
-            --argjson run_id "$GITHUB_RUN_ID" '
-              .id == $artifact_id and .name == $name and .expired == false and
-              .digest == $digest and .workflow_run.id == $run_id and .workflow_run.head_sha == $sha
-            ' "$artifact_json" >/dev/null
-          transport_zip="$RUNNER_TEMP/release-handoff.zip"
-          curl --fail --location --silent --show-error \
-            --header 'Accept: application/vnd.github+json' \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header 'X-GitHub-Api-Version: 2026-03-10' \
-            "$(jq --raw-output '.archive_download_url' "$artifact_json")" \
-            --output "$transport_zip"
-          test "$(sha256sum "$transport_zip" | cut -d' ' -f1)" = "$EXPECTED_ARTIFACT_DIGEST"
-          expected_names="$(printf '%s\n' SHA256SUMS "structural-tables-$GITHUB_REF_NAME.zip" main.js manifest.json styles.css | LC_ALL=C sort)"
-          actual_names="$(unzip -Z1 "$transport_zip" | LC_ALL=C sort)"
-          test "$actual_names" = "$expected_names"
-          mkdir "$RUNNER_TEMP/release"
-          unzip -qq "$transport_zip" -d "$RUNNER_TEMP/release"
-          (cd "$RUNNER_TEMP/release" && sha256sum --check SHA256SUMS)
-          test "$(jq --raw-output '.version' "$RUNNER_TEMP/release/manifest.json")" = "$GITHUB_REF_NAME"
+          result_path="$RUNNER_TEMP/publication-preflight.json"
+          test ! -e "$result_path"
+          node scripts/release.mjs publication-preflight \
+            --candidate-dir "$RUNNER_TEMP/release-candidate" \
+            --candidate-digest "${{ inputs.candidate_digest }}" \
+            --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json" \
+            --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}" \
+            > "$result_path"
+          status="$(
+            node --input-type=module - "$result_path" <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+
+          const result = JSON.parse(readFileSync(process.argv[2], "utf8"));
+          assert.ok(result !== null && typeof result === "object" && !Array.isArray(result));
+          assert.ok(result.status === "missing" || result.status === "exact");
+          process.stdout.write(result.status);
+          NODE
+          )"
+          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+
+      - name: Stage exact public asset inventory for attestation
+        if: steps.publication_preflight.outputs.status == 'missing'
+        env:
+          CANDIDATE_DIRECTORY: ${{ runner.temp }}/release-candidate
+          PUBLIC_ASSET_DIRECTORY: ${{ runner.temp }}/release-public-assets
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { constants, copyFileSync, lstatSync, mkdirSync, readFileSync } from "node:fs";
+          import path from "node:path";
+
+          const candidate = JSON.parse(readFileSync(
+            path.join(process.env.CANDIDATE_DIRECTORY, "candidate.json"),
+            "utf8",
+          ));
+          assert.ok(Array.isArray(candidate.productionAssets));
+          const names = [
+            ...candidate.productionAssets.map((record) => record.name),
+            candidate.archive?.name,
+          ];
+          assert.ok(names.length >= 3);
+          assert.equal(new Set(names).size, names.length);
+          mkdirSync(process.env.PUBLIC_ASSET_DIRECTORY, { recursive: false });
+          for (const name of names) {
+            assert.ok(
+              typeof name === "string" &&
+              name.length > 0 &&
+              path.posix.basename(name) === name &&
+              !name.includes("\\"),
+            );
+            const source = path.join(process.env.CANDIDATE_DIRECTORY, name);
+            const status = lstatSync(source);
+            assert.ok(status.isFile() && !status.isSymbolicLink());
+            copyFileSync(
+              source,
+              path.join(process.env.PUBLIC_ASSET_DIRECTORY, name),
+              constants.COPYFILE_EXCL,
+            );
+          }
+          NODE
 
       - name: Attest public release assets
-        uses: actions/attest@36051bcae73b7c2a8a6945a48cbf80953c6baa35 # v4
+        if: steps.publication_preflight.outputs.status == 'missing'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: |
-            ${{ runner.temp }}/release/main.js
-            ${{ runner.temp }}/release/manifest.json
-            ${{ runner.temp }}/release/styles.css
-            ${{ runner.temp }}/release/structural-tables-${{ github.ref_name }}.zip
+          subject-path: ${{ runner.temp }}/release-public-assets/*
 
-      - name: Publish GitHub Release
+      - name: Create or prove the exact GitHub Release
+        if: steps.publication_preflight.outputs.status == 'missing'
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" \
-            "$RUNNER_TEMP/release/main.js" \
-            "$RUNNER_TEMP/release/manifest.json" \
-            "$RUNNER_TEMP/release/styles.css" \
-            "$RUNNER_TEMP/release/structural-tables-$GITHUB_REF_NAME.zip" \
-            --generate-notes \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "$GITHUB_REF_NAME" \
-            --verify-tag
+          RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
+        run: >-
+          node scripts/release.mjs publish-github
+          --candidate-dir "$RUNNER_TEMP/release-candidate"
+          --candidate-digest "${{ inputs.candidate_digest }}"
+          --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
+          --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"
 
-      - name: Verify published bytes and provenance
+  post_verify:
+    name: Verify hosted release state
+    if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
+    needs:
+      - verify
+      - publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    steps:
+      - name: Check out the exact candidate without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.candidate_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+
+      - name: Download the same fixed candidate handoff
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.verify.outputs.candidate_artifact_id }}
+          path: ${{ runner.temp }}/release-candidate
+          digest-mismatch: error
+
+      - name: Reverify fixed handoff
+        run: >-
+          node scripts/release.mjs verify-handoff
+          --candidate-dir "$RUNNER_TEMP/release-candidate"
+
+      - name: Verify immutable hosted bytes and provenance
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          archive="structural-tables-$GITHUB_REF_NAME.zip"
-          for attempt in 1 2 3 4 5; do
-            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" \
-              > "$RUNNER_TEMP/published-release.json" && \
-              jq --exit-status --arg archive "$archive" '
-                select(.draft == false and .prerelease == false and .immutable == true) |
-                select(([.assets[].name] | sort) == ([$archive, "main.js", "manifest.json", "styles.css"] | sort)) |
-                select(all(.assets[]; .state == "uploaded" and .size > 0 and (.digest | test("^sha256:[0-9a-f]{64}$")))) |
-                .id
-              ' "$RUNNER_TEMP/published-release.json" >/dev/null; then
-              break
-            fi
-            test "$attempt" -lt 5
-            sleep "$attempt"
-          done
-          mkdir "$RUNNER_TEMP/published"
-          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/published"
-          expected=(main.js manifest.json styles.css "structural-tables-$GITHUB_REF_NAME.zip")
-          for name in "${expected[@]}"; do
-            cmp --silent "$RUNNER_TEMP/release/$name" "$RUNNER_TEMP/published/$name"
-            for attempt in 1 2 3 4 5; do
-              if gh attestation verify "$RUNNER_TEMP/published/$name" \
-                --repo "$GITHUB_REPOSITORY" \
-                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
-                --source-ref "$GITHUB_REF" \
-                --source-digest "$GITHUB_SHA" \
-                --deny-self-hosted-runners; then
-                break
-              fi
-              test "$attempt" -lt 5
-              sleep "$attempt"
-            done
-          done
+        run: >-
+          node scripts/release.mjs post-verify
+          --candidate-dir "$RUNNER_TEMP/release-candidate"

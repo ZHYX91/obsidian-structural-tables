@@ -16,6 +16,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "clean": "node scripts/clean.mjs",
+    "clean:deps": "node scripts/clean.mjs --deps",
     "check:production": "node scripts/check-production-bundle.mjs",
     "release:validate": "node scripts/release.mjs validate",
     "release:validate-tag": "node scripts/release.mjs validate-tag",

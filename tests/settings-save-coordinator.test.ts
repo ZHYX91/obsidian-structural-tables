@@ -51,5 +51,41 @@ describe("SettingsSaveCoordinator", () => {
     await expect(failed).rejects.toThrow("disk unavailable");
     await expect(next).resolves.toBeUndefined();
     expect(persist).toHaveBeenNthCalledWith(2, { density: "compact" });
+    expect(coordinator.snapshot()).toEqual({ state: "saved", error: null });
+  });
+
+  it("exposes the latest failed snapshot and retries it explicitly", async () => {
+    const persist = vi.fn()
+      .mockRejectedValueOnce(new Error("disk unavailable"))
+      .mockResolvedValueOnce(undefined);
+    const coordinator = new SettingsSaveCoordinator<{ density: string }>(persist);
+    const statuses = vi.fn();
+    coordinator.subscribe(statuses);
+
+    await expect(coordinator.save({ density: "compact" })).rejects.toThrow("disk unavailable");
+    expect(coordinator.snapshot()).toMatchObject({
+      state: "pending",
+      error: expect.any(Error),
+    });
+    await coordinator.retry();
+
+    expect(persist).toHaveBeenNthCalledWith(2, { density: "compact" });
+    expect(coordinator.snapshot()).toEqual({ state: "saved", error: null });
+    expect(statuses).toHaveBeenCalledWith({ state: "saving", error: null });
+    expect(statuses).toHaveBeenLastCalledWith({ state: "saved", error: null });
+  });
+
+  it("flushes queued work and retries the last failed snapshot once", async () => {
+    const persist = vi.fn()
+      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockResolvedValueOnce(undefined);
+    const coordinator = new SettingsSaveCoordinator<{ density: string }>(persist);
+
+    await expect(coordinator.save({ density: "compact" })).rejects.toThrow("temporary failure");
+    await coordinator.flush();
+
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenLastCalledWith({ density: "compact" });
+    expect(coordinator.snapshot()).toEqual({ state: "saved", error: null });
   });
 });

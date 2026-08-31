@@ -249,6 +249,28 @@
   min-inline-size: 0;
 }
 
+.structural-tables-settings-save-status {
+  align-items: center;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  display: flex;
+  gap: var(--size-4-2);
+  justify-content: space-between;
+  margin-block-end: var(--size-4-3);
+  padding: var(--size-4-2) var(--size-4-3);
+}
+
+.structural-tables-settings-save-status[role="alert"] {
+  border-color: var(--text-error);
+  color: var(--text-error);
+}
+
+.structural-tables-settings-save-status[hidden],
+.structural-tables-settings-save-status button[hidden] {
+  display: none !important;
+}
+
 @media (pointer: coarse) {
   .structural-tables-live-preview {
     padding-block-start: 2.75rem;

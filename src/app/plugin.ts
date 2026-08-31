@@ -8,7 +8,13 @@ import {
 } from "obsidian";
 
 import { createTranslator, operationNotice, type Translate } from "../config/i18n";
-import { DEFAULT_SETTINGS, sanitizeSettings, type StructuralTablesSettings } from "../config/settings";
+import {
+  DEFAULT_SETTINGS,
+  cloneSettings,
+  normalizeStoredSettings,
+  sanitizeSettings,
+  type StructuralTablesSettings,
+} from "../config/settings";
 import {
   cellColumnAt,
   mergeCell,
@@ -45,7 +51,8 @@ import { copyHtml, copyText, structuralSourceFromClipboardHtml } from "../editor
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
 import { StructuralTablesSettingTab } from "./settings-tab";
-import { SettingsSaveCoordinator } from "./settings-save-coordinator";
+import type { SettingsSaveStatus } from "./settings-save-coordinator";
+import { SettingsPersistenceSession } from "./settings-persistence-session";
 import { ConversionPreviewModal } from "./conversion-preview-modal";
 import { BasePromotionModal } from "./base-promotion-modal";
 import { BasePromotionService } from "./base-promotion-service";
@@ -77,16 +84,20 @@ function promotionBlockerText(t: Translate, blocker: BasePromotionBlocker): stri
 }
 
 export class StructuralTablesPlugin extends Plugin {
-  override settings: StructuralTablesSettings = { ...DEFAULT_SETTINGS };
+  override settings: StructuralTablesSettings = cloneSettings(DEFAULT_SETTINGS);
   private editorController: StructuralTableEditorController | null = null;
   private basePromotionService: BasePromotionService | null = null;
   private readonly localizedCommands: Command[] = [];
-  private readonly settingsSaver = new SettingsSaveCoordinator<StructuralTablesSettings>(
-    (snapshot) => this.saveData(snapshot),
-  );
+  private settingsPersistence: SettingsPersistenceSession | null = null;
 
   override async onload(): Promise<void> {
-    this.settings = sanitizeSettings(await this.loadData());
+    const loaded = normalizeStoredSettings(await this.loadData());
+    this.settingsPersistence = new SettingsPersistenceSession(
+      loaded,
+      (data) => this.saveData(data),
+    );
+    this.settings = this.settingsPersistence.initialSettings();
+    void this.settingsPersistence.start().catch(() => undefined);
     const promote = (editor: Editor, sourceFile: TFile | null, table: StructuralTable): void => {
       this.previewBasePromotion(editor, sourceFile, table);
     };
@@ -125,14 +136,36 @@ export class StructuralTablesPlugin extends Plugin {
     });
   }
 
+  override onunload(): void {
+    void this.settingsPersistence?.flush().catch((error: unknown) => {
+      console.error("Structural Tables: failed to flush settings", error);
+    });
+  }
+
   async updateSettings(update: Partial<StructuralTablesSettings>): Promise<void> {
+    if (this.settingsPersistence == null) {
+      throw new Error("Structural Tables settings persistence is unavailable.");
+    }
+    this.settingsPersistence.assertWritable();
     this.settings = sanitizeSettings({ ...this.settings, ...update });
-    await this.settingsSaver.save(this.settings);
     this.refreshCommandNames();
     this.editorController?.refresh();
     this.app.workspace.iterateAllLeaves((leaf) => {
       if (leaf.view instanceof MarkdownView) leaf.view.previewMode.rerender(true);
     });
+    await this.settingsPersistence.save(this.settings);
+  }
+
+  settingsSaveStatus(): SettingsSaveStatus {
+    return this.settingsPersistence?.status() ?? { state: "saved", error: null };
+  }
+
+  subscribeSettingsSaveStatus(listener: (status: SettingsSaveStatus) => void): () => void {
+    return this.settingsPersistence?.subscribe(listener) ?? (() => undefined);
+  }
+
+  retrySettingsSave(): Promise<void> {
+    return this.settingsPersistence?.retry() ?? Promise.resolve();
   }
 
   private registerCommands(): void {

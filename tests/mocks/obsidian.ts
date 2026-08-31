@@ -128,3 +128,23 @@ export const editorInfoField = StateField.define<{ file?: { path: string }; edit
 export function getLanguage(): string {
   return "en";
 }
+
+export class App {}
+
+export class PluginSettingTab {
+  containerEl: HTMLElement;
+
+  constructor(public app: App, public plugin: unknown) {
+    this.containerEl = typeof document === "undefined"
+      ? {} as HTMLElement
+      : document.createElement("div");
+  }
+
+  display(): void {}
+
+  hide(): void {}
+}
+
+export class Setting {
+  constructor(public settingEl: HTMLElement) {}
+}

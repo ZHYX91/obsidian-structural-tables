@@ -24,6 +24,7 @@ describe("settings tab UI", () => {
     expect(source).toContain('role: "tabpanel"');
     expect(source).toContain('tabindex: "0"');
     expect(source).toContain('t("settings.takeoverOrdinary")');
+    expect(source).not.toContain("getSettingDefinitions(");
     expect(source).not.toContain('setName(t("settings.title")).setHeading()');
   });
 

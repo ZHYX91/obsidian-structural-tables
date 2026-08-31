@@ -10,12 +10,16 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
-export const RELEASE_CORE_VERSION = "1.0.0";
+export const RELEASE_CORE_VERSION = "2.0.0";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
-export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 1;
+export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
+export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
+export const CANDIDATE_BUNDLE_KIND = "obsidian-plugin/candidate-bundle-v3";
+export const PRODUCT_SCENARIOS_SCHEMA_VERSION = 1;
+export const PRODUCT_SCENARIOS_KIND = "obsidian-plugin/product-scenarios-v1";
 
 const execFileAsync = promisify(execFile);
 const runtimePath = fileURLToPath(import.meta.url);
@@ -37,7 +41,15 @@ const defaultPaths = Object.freeze({
   packageLock: "package-lock.json",
   versions: "versions.json",
   dist: "dist",
+  nodeVersion: ".node-version",
 });
+const requiredWorkflowPath = ".github/workflows/release.yml";
+const requiredScenarioContractPath = "acceptance/product-scenarios.json";
+const requiredInstallCommand = "npm ci --no-audit --no-fund";
+const requiredVerifyCommand = "npm run release:check";
+const npmPackageManagerPattern = /^npm@((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/u;
+const scenarioIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const releaseRunIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 export class ReleaseCoreError extends Error {
   constructor(message, code = "RELEASE_CORE_CONTRACT", options = undefined) {
@@ -127,9 +139,11 @@ export function sha256(content) {
 }
 
 export function validateReleaseConfig(input) {
-  assertExactKeys(input, ["schemaVersion", "plugin", "assets", "publication", "paths"],
-    ["schemaVersion", "plugin", "assets", "publication"], "Release config");
-  assertCondition(input.schemaVersion === 1, "Release config schemaVersion must be 1");
+  assertExactKeys(input,
+    ["schemaVersion", "plugin", "assets", "publication", "build", "acceptance", "paths"],
+    ["schemaVersion", "plugin", "assets", "publication", "build", "acceptance"],
+    "Release config");
+  assertCondition(input.schemaVersion === 2, "Release config schemaVersion must be 2");
 
   assertExactKeys(input.plugin, ["id", "name", "minAppVersion", "isDesktopOnly"],
     ["id", "name", "minAppVersion", "isDesktopOnly"], "Release config plugin");
@@ -152,6 +166,31 @@ export function validateReleaseConfig(input) {
   assertCondition(repositoryPattern.test(repository),
     "Release config publication repository must use owner/name");
 
+  assertExactKeys(input.build,
+    ["node", "packageManager", "installCommand", "verifyCommand", "workflow"],
+    ["node", "packageManager", "installCommand", "verifyCommand", "workflow"],
+    "Release config build");
+  const node = assertStableVersion(input.build.node, "Release config build node");
+  const packageManager = assertNonEmptyString(input.build.packageManager,
+    "Release config build packageManager");
+  assertCondition(npmPackageManagerPattern.test(packageManager),
+    "Release config build packageManager must pin npm@x.y.z");
+  assertCondition(input.build.installCommand === requiredInstallCommand,
+    `Release config build installCommand must be '${requiredInstallCommand}'`);
+  assertCondition(input.build.verifyCommand === requiredVerifyCommand,
+    `Release config build verifyCommand must be '${requiredVerifyCommand}'`);
+  const workflow = assertSafeRelativePath(input.build.workflow,
+    "Release config build workflow");
+  assertCondition(workflow === requiredWorkflowPath,
+    `Release config build workflow must be ${requiredWorkflowPath}`);
+
+  assertExactKeys(input.acceptance, ["scenarioContract"], ["scenarioContract"],
+    "Release config acceptance");
+  const scenarioContract = assertSafeRelativePath(input.acceptance.scenarioContract,
+    "Release config acceptance scenarioContract");
+  assertCondition(scenarioContract === requiredScenarioContractPath,
+    `Release config acceptance scenarioContract must be ${requiredScenarioContractPath}`);
+
   const paths = { ...defaultPaths };
   if (input.paths !== undefined) {
     assertExactKeys(input.paths, Object.keys(defaultPaths), [], "Release config paths");
@@ -164,7 +203,7 @@ export function validateReleaseConfig(input) {
   }
 
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     plugin: Object.freeze({
       id: pluginId,
       name: pluginName,
@@ -173,6 +212,14 @@ export function validateReleaseConfig(input) {
     }),
     assets: Object.freeze({ styles: input.assets.styles }),
     publication: Object.freeze({ repository }),
+    build: Object.freeze({
+      node,
+      packageManager,
+      installCommand: requiredInstallCommand,
+      verifyCommand: requiredVerifyCommand,
+      workflow,
+    }),
+    acceptance: Object.freeze({ scenarioContract }),
     paths: Object.freeze(paths),
   });
 }
@@ -222,6 +269,152 @@ function compareStringKeys(actualObject, expectedObject, label) {
   }
 }
 
+function assertStringArray(value, label, { nonEmpty = true } = {}) {
+  assertCondition(Array.isArray(value) && (!nonEmpty || value.length > 0),
+    `${label} must be ${nonEmpty ? "a non-empty" : "an"} array`);
+  for (const item of value) assertNonEmptyString(item, `${label} entry`);
+}
+
+function assertVaultRelativePath(value, label) {
+  if (value === "") return value;
+  return assertSafeRelativePath(value, label);
+}
+
+function validateProductScenarios(input, config) {
+  assertExactKeys(input,
+    ["schemaVersion", "kind", "pluginId", "materializer", "scenarios"],
+    ["schemaVersion", "kind", "pluginId", "materializer", "scenarios"],
+    "Product scenarios");
+  assertCondition(input.schemaVersion === PRODUCT_SCENARIOS_SCHEMA_VERSION,
+    `Product scenarios schemaVersion must be ${PRODUCT_SCENARIOS_SCHEMA_VERSION}`);
+  assertCondition(input.kind === PRODUCT_SCENARIOS_KIND,
+    `Product scenarios kind must be ${PRODUCT_SCENARIOS_KIND}`);
+  assertCondition(input.pluginId === config.plugin.id,
+    "Product scenarios pluginId must match the release config");
+  assertExactKeys(input.materializer, ["kind", "roots"], ["kind", "roots"],
+    "Product scenarios materializer");
+  assertCondition(input.materializer.kind === "copy-v1",
+    "Product scenarios materializer kind must be copy-v1");
+  assertCondition(Array.isArray(input.materializer.roots) && input.materializer.roots.length > 0,
+    "Product scenarios materializer roots must be a non-empty array");
+  const roots = input.materializer.roots.map((root, index) => {
+    assertExactKeys(root, ["source", "target"], ["source", "target"],
+      `Product scenarios materializer root ${index}`);
+    return Object.freeze({
+      source: assertSafeRelativePath(root.source,
+        `Product scenarios materializer root ${index} source`),
+      target: assertVaultRelativePath(root.target,
+        `Product scenarios materializer root ${index} target`),
+    });
+  });
+  assertCondition(new Set(roots.map((root) => root.source)).size === roots.length,
+    "Product scenarios materializer source roots must be unique");
+  assertCondition(Array.isArray(input.scenarios) && input.scenarios.length > 0,
+    "Product scenarios must contain at least one scenario");
+  const scenarios = input.scenarios.map((scenario, index) => {
+    assertExactKeys(scenario, ["id", "title", "surfaces", "steps", "expected"],
+      ["id", "title", "surfaces", "steps", "expected"],
+      `Product scenario ${index}`);
+    const id = assertNonEmptyString(scenario.id, `Product scenario ${index} id`);
+    assertCondition(scenarioIdPattern.test(id), `Product scenario id is invalid: ${id}`);
+    const title = assertNonEmptyString(scenario.title, `Product scenario ${id} title`);
+    assertStringArray(scenario.surfaces, `Product scenario ${id} surfaces`);
+    const surfaces = [...scenario.surfaces];
+    assertCondition(new Set(surfaces).size === surfaces.length &&
+      surfaces.every((surface) => surface === "desktop" || surface === "android-emulator"),
+    `Product scenario ${id} surfaces are invalid`);
+    assertStringArray(scenario.steps, `Product scenario ${id} steps`);
+    assertStringArray(scenario.expected, `Product scenario ${id} expected`);
+    return Object.freeze({
+      id,
+      title,
+      surfaces: Object.freeze(surfaces),
+      steps: Object.freeze([...scenario.steps]),
+      expected: Object.freeze([...scenario.expected]),
+    });
+  });
+  assertCondition(new Set(scenarios.map((scenario) => scenario.id)).size === scenarios.length,
+    "Product scenario ids must be unique");
+  const covered = new Set(scenarios.flatMap((scenario) => scenario.surfaces));
+  assertCondition(covered.has("desktop"), "Product scenarios must cover desktop");
+  assertCondition(config.plugin.isDesktopOnly || covered.has("android-emulator"),
+    "Mobile-capable plugins must cover the Android emulator");
+  assertCondition(!config.plugin.isDesktopOnly || !covered.has("android-emulator"),
+    "Desktop-only plugins must not claim Android emulator scenarios");
+  return Object.freeze({
+    schemaVersion: PRODUCT_SCENARIOS_SCHEMA_VERSION,
+    kind: PRODUCT_SCENARIOS_KIND,
+    pluginId: input.pluginId,
+    materializer: Object.freeze({ kind: "copy-v1", roots: Object.freeze(roots) }),
+    scenarios: Object.freeze(scenarios),
+  });
+}
+
+async function readRegularTreeFiles(projectRoot, relativeRoot) {
+  const absoluteRoot = resolveInside(projectRoot, relativeRoot, "Product fixture root");
+  await assertRegularDirectory(absoluteRoot, `Product fixture root ${relativeRoot}`);
+  const records = [];
+  async function visit(directory, relativeDirectory) {
+    const entries = await readdir(directory, { withFileTypes: true });
+    entries.sort((left, right) => left.name.localeCompare(right.name, "en"));
+    for (const entry of entries) {
+      const absolute = path.join(directory, entry.name);
+      const relative = path.posix.join(relativeDirectory, entry.name);
+      assertCondition(!entry.isSymbolicLink(),
+        `Product fixture resource must not be a symbolic link: ${relative}`,
+        "RELEASE_CORE_SCENARIO");
+      if (entry.isDirectory()) {
+        await visit(absolute, relative);
+      } else {
+        assertCondition(entry.isFile(),
+          `Product fixture resource must be a regular file: ${relative}`,
+          "RELEASE_CORE_SCENARIO");
+        const content = await readRegularFile(absolute, `Product fixture resource ${relative}`);
+        records.push(Object.freeze({ path: relative, size: content.length, sha256: sha256(content) }));
+      }
+    }
+  }
+  await visit(absoluteRoot, relativeRoot);
+  assertCondition(records.length > 0,
+    `Product fixture root must contain at least one file: ${relativeRoot}`,
+    "RELEASE_CORE_SCENARIO");
+  return records;
+}
+
+async function readScenarioContract(projectRoot, config) {
+  const relativePath = config.acceptance.scenarioContract;
+  const contractPath = resolveInside(projectRoot, relativePath, "Product scenario contract path");
+  const { source, value } = await readJsonRegular(contractPath, "Product scenario contract");
+  assertCondition(canonicalJson(value).equals(source),
+    "Product scenario contract must use canonical deterministic JSON serialization",
+    "RELEASE_CORE_SCENARIO");
+  const contract = validateProductScenarios(value, config);
+  const resourceLists = await Promise.all(contract.materializer.roots.map((root) =>
+    readRegularTreeFiles(projectRoot, root.source)));
+  const resources = resourceLists.flat().sort((left, right) =>
+    left.path.localeCompare(right.path, "en"));
+  assertCondition(new Set(resources.map((record) => record.path)).size === resources.length,
+    "Product scenario materializer roots overlap");
+  const contractRecord = Object.freeze({
+    path: relativePath,
+    size: source.length,
+    sha256: sha256(source),
+  });
+  const digestSha256 = sha256(canonicalJson({
+    schemaVersion: 1,
+    contract: contractRecord,
+    resources,
+  }));
+  return Object.freeze({
+    contract,
+    record: Object.freeze({
+      ...contractRecord,
+      resources: Object.freeze(resources),
+      digestSha256,
+    }),
+  });
+}
+
 function assertPackageContract(manifest, packageJson, packageLock, versions, config, requestedVersion) {
   assertPlainObject(manifest, "manifest.json");
   assertPlainObject(packageJson, "package.json");
@@ -240,6 +433,10 @@ function assertPackageContract(manifest, packageJson, packageLock, versions, con
     "manifest.json isDesktopOnly must match release config");
   assertCondition(packageJson.version === version,
     "package.json and manifest.json versions must match");
+  assertCondition(packageJson.engines?.node === config.build.node,
+    "package.json engines.node must match the release config build node");
+  assertCondition(packageJson.packageManager === config.build.packageManager,
+    "package.json packageManager must match the release config build packageManager");
   assertCondition(versions[version] === manifest.minAppVersion,
     "versions.json must map the release version to manifest.json minAppVersion");
   assertCondition(packageLock.lockfileVersion === 3, "package-lock.json must use lockfileVersion 3");
@@ -443,11 +640,17 @@ export async function validateReleaseProject({
   const packagePath = resolveInside(root, config.paths.package, "Package path");
   const packageLockPath = resolveInside(root, config.paths.packageLock, "Package lock path");
   const versionsPath = resolveInside(root, config.paths.versions, "Versions path");
-  const [manifestRecord, packageRecord, packageLockRecord, versionsRecord] = await Promise.all([
+  const nodeVersionPath = resolveInside(root, config.paths.nodeVersion, "Node version path");
+  const workflowPath = resolveInside(root, config.build.workflow, "Release workflow path");
+  const [manifestRecord, packageRecord, packageLockRecord, versionsRecord, nodeVersionSource,
+    workflowSource, scenarioContract] = await Promise.all([
     readJsonRegular(manifestPath, "manifest.json"),
     readJsonRegular(packagePath, "package.json"),
     readJsonRegular(packageLockPath, "package-lock.json"),
     readJsonRegular(versionsPath, "versions.json"),
+    readRegularFile(nodeVersionPath, ".node-version"),
+    readRegularFile(workflowPath, "Generated release workflow"),
+    readScenarioContract(root, config),
   ]);
   const releaseVersion = assertPackageContract(
     manifestRecord.value,
@@ -458,6 +661,12 @@ export async function validateReleaseProject({
     version,
   );
   const production = await readProductionAssets(root, config, manifestRecord.source);
+  assertCondition(nodeVersionSource.equals(Buffer.from(`${config.build.node}\n`, "utf8")),
+    ".node-version must contain the exact configured Node version and one LF");
+  const expectedWorkflow = renderReleaseWorkflow(config);
+  assertCondition(workflowSource.equals(expectedWorkflow),
+    "Release workflow differs from the canonical generated workflow",
+    "RELEASE_CORE_WORKFLOW");
   assertCondition(typeof checkTag === "boolean", "checkTag must be boolean");
   assertCondition(typeof requireClean === "boolean", "requireClean must be boolean");
   const source = await readGitIdentity(root, releaseVersion, commandRunner, {
@@ -470,9 +679,28 @@ export async function validateReleaseProject({
     version: releaseVersion,
     manifest: Object.freeze(manifestRecord.value),
     packageJson: Object.freeze(packageRecord.value),
+    packageLock: Object.freeze(packageLockRecord.value),
     assets: production.assets,
     distRoot: production.distRoot,
     source,
+    build: Object.freeze({
+      nodeVersion: Object.freeze({
+        path: config.paths.nodeVersion,
+        size: nodeVersionSource.length,
+        sha256: sha256(nodeVersionSource),
+      }),
+      lockfile: Object.freeze({
+        path: config.paths.packageLock,
+        size: packageLockRecord.source.length,
+        sha256: sha256(packageLockRecord.source),
+      }),
+      workflow: Object.freeze({
+        path: config.build.workflow,
+        size: workflowSource.length,
+        sha256: sha256(workflowSource),
+      }),
+    }),
+    acceptance: scenarioContract,
   });
 }
 
@@ -731,7 +959,19 @@ async function createExactDirectory(directoryPath, files) {
   return root;
 }
 
-export async function createCandidateHandoff({
+export function computeProductPayloadDigest(records) {
+  assertCondition(Array.isArray(records) && records.length >= 2,
+    "Product payload requires at least main.js and manifest.json records");
+  const normalized = records.map((record) => {
+    assertAssetRecordShape(record, "Product payload asset");
+    return { name: record.name, size: record.size, sha256: record.sha256 };
+  }).sort((left, right) => left.name.localeCompare(right.name, "en"));
+  assertCondition(new Set(normalized.map((record) => record.name)).size === normalized.length,
+    "Product payload asset names must be unique");
+  return sha256(canonicalJson({ schemaVersion: 1, assets: normalized }));
+}
+
+export async function buildCandidateBundle({
   projectRoot,
   config,
   outputDirectory,
@@ -757,49 +997,68 @@ export async function createCandidateHandoff({
   const releaseArchiveName = archiveName(project.config.plugin.id, project.version);
   const archiveRecord = Object.freeze({
     ...assetRecord(releaseArchiveName, archive),
-    entries: zipEntries.map((entry) => entry.name).sort((left, right) =>
-      left.localeCompare(right, "en")),
+    entries: Object.freeze(zipEntries.map((entry) => entry.name).sort((left, right) =>
+      left.localeCompare(right, "en"))),
   });
   const publicRecords = [...productionRecords, assetRecord(releaseArchiveName, archive)]
     .sort((left, right) => left.name.localeCompare(right.name, "en"));
   const checksumBytes = buildSha256Sums(publicRecords);
   const checksumRecord = assetRecord("SHA256SUMS", checksumBytes);
-  const candidate = Object.freeze({
-    schemaVersion: 1,
+  const candidateBundle = Object.freeze({
+    schemaVersion: CANDIDATE_BUNDLE_SCHEMA_VERSION,
+    kind: CANDIDATE_BUNDLE_KIND,
     plugin: Object.freeze({
       id: project.config.plugin.id,
       name: project.config.plugin.name,
       version: project.version,
+      minAppVersion: project.config.plugin.minAppVersion,
+      isDesktopOnly: project.config.plugin.isDesktopOnly,
     }),
     source: Object.freeze({
       commit: project.source.commit,
       tree: project.source.tree,
-      tag: Object.freeze({
-        name: project.source.tag.name,
-        commit: project.source.commit,
+      targetTag: Object.freeze({ name: project.version, commit: project.source.commit }),
+    }),
+    product: Object.freeze({
+      payloadSha256: computeProductPayloadDigest(productionRecords),
+      assets: Object.freeze(productionRecords),
+    }),
+    build: Object.freeze({
+      toolchain: Object.freeze({
+        node: project.config.build.node,
+        packageManager: project.config.build.packageManager,
       }),
+      commands: Object.freeze({
+        install: project.config.build.installCommand,
+        verify: project.config.build.verifyCommand,
+      }),
+      nodeVersion: project.build.nodeVersion,
+      lockfile: project.build.lockfile,
+      workflow: project.build.workflow,
+      releaseCore: Object.freeze({ version: core.version, vendoredSha256: core.sha256 }),
     }),
-    releaseCore: Object.freeze({
-      version: core.version,
-      vendoredSha256: core.sha256,
+    acceptance: Object.freeze({ scenarioContract: project.acceptance.record }),
+    distribution: Object.freeze({
+      archive: archiveRecord,
+      checksums: checksumRecord,
+      publicAssets: Object.freeze(publicRecords),
     }),
-    productionAssets: Object.freeze(productionRecords),
-    archive: archiveRecord,
-    checksums: checksumRecord,
   });
-  const candidateBytes = canonicalJson(candidate);
-  const candidateSha256 = sha256(candidateBytes);
+  const bundleBytes = canonicalJson(candidateBundle);
+  const bundleSha256 = sha256(bundleBytes);
   const files = new Map(project.assets);
   files.set(releaseArchiveName, archive);
   files.set("SHA256SUMS", checksumBytes);
-  files.set("candidate.json", candidateBytes);
-  const handoffDirectory = await createExactDirectory(
+  files.set("candidate-bundle.json", bundleBytes);
+  const bundleDirectory = await createExactDirectory(
     assertNonEmptyString(outputDirectory, "outputDirectory"), files);
   return Object.freeze({
     status: "created",
-    handoffDirectory,
-    candidate,
-    candidateSha256,
+    bundleDirectory,
+    candidateBundle,
+    bundleSha256,
+    productPayloadSha256: candidateBundle.product.payloadSha256,
+    scenarioContractSha256: candidateBundle.acceptance.scenarioContract.digestSha256,
     publicAssets: Object.freeze(publicRecords),
   });
 }
@@ -812,50 +1071,142 @@ function assertAssetRecordShape(record, label) {
   assertSha256(record.sha256, `${label} sha256`);
 }
 
-function assertCandidateShape(candidate, config) {
-  assertExactKeys(candidate,
-    ["schemaVersion", "plugin", "source", "releaseCore", "productionAssets", "archive", "checksums"],
-    ["schemaVersion", "plugin", "source", "releaseCore", "productionAssets", "archive", "checksums"],
-    "candidate.json");
-  assertCondition(candidate.schemaVersion === 1, "candidate.json schemaVersion must be 1");
-  assertExactKeys(candidate.plugin, ["id", "name", "version"], ["id", "name", "version"],
-    "candidate.json plugin");
-  assertCondition(candidate.plugin.id === config.plugin.id && candidate.plugin.name === config.plugin.name,
-    "candidate.json plugin identity must match release config");
-  assertStableVersion(candidate.plugin.version, "candidate.json plugin version");
-  assertExactKeys(candidate.source, ["commit", "tree", "tag"], ["commit", "tree", "tag"],
-    "candidate.json source");
-  assertGitObject(candidate.source.commit, "candidate.json source commit");
-  assertGitObject(candidate.source.tree, "candidate.json source tree");
-  assertExactKeys(candidate.source.tag, ["name", "commit"], ["name", "commit"],
-    "candidate.json source tag");
-  assertCondition(candidate.source.tag.name === candidate.plugin.version,
-    "candidate.json source tag must equal plugin version");
-  assertCondition(candidate.source.tag.commit === candidate.source.commit,
-    "candidate.json source tag target must equal the source commit");
-  assertExactKeys(candidate.releaseCore, ["version", "vendoredSha256"],
-    ["version", "vendoredSha256"], "candidate.json releaseCore");
-  assertCondition(candidate.releaseCore.version === RELEASE_CORE_VERSION,
-    "candidate.json release-core version differs from this runtime");
-  assertSha256(candidate.releaseCore.vendoredSha256,
-    "candidate.json release-core vendoredSha256");
-  assertCondition(Array.isArray(candidate.productionAssets) && candidate.productionAssets.length >= 2,
-    "candidate.json productionAssets must be an array");
-  for (const record of candidate.productionAssets) {
-    assertAssetRecordShape(record, "candidate.json production asset");
+function assertPathRecordShape(record, label) {
+  assertExactKeys(record, ["path", "size", "sha256"], ["path", "size", "sha256"], label);
+  assertSafeRelativePath(record.path, `${label} path`);
+  assertCondition(Number.isSafeInteger(record.size) && record.size >= 0,
+    `${label} size must be a non-negative integer`);
+  assertSha256(record.sha256, `${label} sha256`);
+}
+
+function assertScenarioContractRecordShape(record, config) {
+  assertExactKeys(record, ["path", "size", "sha256", "resources", "digestSha256"],
+    ["path", "size", "sha256", "resources", "digestSha256"],
+    "Candidate Bundle scenario contract");
+  assertPathRecordShape({ path: record.path, size: record.size, sha256: record.sha256 },
+    "Candidate Bundle scenario contract file");
+  assertCondition(record.path === config.acceptance.scenarioContract,
+    "Candidate Bundle scenario contract path differs from release config");
+  assertCondition(Array.isArray(record.resources) && record.resources.length > 0,
+    "Candidate Bundle scenario resources must be a non-empty array");
+  for (const resource of record.resources) {
+    assertPathRecordShape(resource, "Candidate Bundle scenario resource");
   }
-  assertExactKeys(candidate.archive, ["name", "size", "sha256", "entries"],
-    ["name", "size", "sha256", "entries"], "candidate.json archive");
-  assertPublicAssetName(candidate.archive.name);
-  assertCondition(Number.isSafeInteger(candidate.archive.size) && candidate.archive.size > 0,
-    "candidate.json archive size must be positive");
-  assertSha256(candidate.archive.sha256, "candidate.json archive sha256");
-  assertCondition(Array.isArray(candidate.archive.entries) && candidate.archive.entries.length >= 2,
-    "candidate.json archive entries must be an array");
-  for (const name of candidate.archive.entries) normalizeArchiveName(name);
-  assertAssetRecordShape(candidate.checksums, "candidate.json checksums");
-  assertCondition(candidate.checksums.name === "SHA256SUMS",
-    "candidate.json checksums name must be SHA256SUMS");
+  const resourcePaths = record.resources.map((resource) => resource.path);
+  assertCondition(new Set(resourcePaths).size === resourcePaths.length,
+    "Candidate Bundle scenario resource paths must be unique");
+  const sortedResourcePaths = [...resourcePaths].sort((left, right) =>
+    left.localeCompare(right, "en"));
+  assertCondition(JSON.stringify(resourcePaths) === JSON.stringify(sortedResourcePaths),
+    "Candidate Bundle scenario resources must be sorted");
+  assertSha256(record.digestSha256, "Candidate Bundle scenario contract digest");
+  const expectedDigest = sha256(canonicalJson({
+    schemaVersion: 1,
+    contract: { path: record.path, size: record.size, sha256: record.sha256 },
+    resources: record.resources,
+  }));
+  assertCondition(record.digestSha256 === expectedDigest,
+    "Candidate Bundle scenario contract aggregate digest is invalid");
+}
+
+function assertCandidateBundleShape(candidateBundle, config) {
+  assertExactKeys(candidateBundle,
+    ["schemaVersion", "kind", "plugin", "source", "product", "build", "acceptance", "distribution"],
+    ["schemaVersion", "kind", "plugin", "source", "product", "build", "acceptance", "distribution"],
+    "Candidate Bundle");
+  assertCondition(candidateBundle.schemaVersion === CANDIDATE_BUNDLE_SCHEMA_VERSION,
+    `Candidate Bundle schemaVersion must be ${CANDIDATE_BUNDLE_SCHEMA_VERSION}`);
+  assertCondition(candidateBundle.kind === CANDIDATE_BUNDLE_KIND,
+    `Candidate Bundle kind must be ${CANDIDATE_BUNDLE_KIND}`);
+  assertExactKeys(candidateBundle.plugin,
+    ["id", "name", "version", "minAppVersion", "isDesktopOnly"],
+    ["id", "name", "version", "minAppVersion", "isDesktopOnly"],
+    "Candidate Bundle plugin");
+  assertCondition(candidateBundle.plugin.id === config.plugin.id &&
+    candidateBundle.plugin.name === config.plugin.name &&
+    candidateBundle.plugin.minAppVersion === config.plugin.minAppVersion &&
+    candidateBundle.plugin.isDesktopOnly === config.plugin.isDesktopOnly,
+  "Candidate Bundle plugin identity must match release config");
+  assertStableVersion(candidateBundle.plugin.version, "Candidate Bundle plugin version");
+  assertExactKeys(candidateBundle.source, ["commit", "tree", "targetTag"],
+    ["commit", "tree", "targetTag"], "Candidate Bundle source");
+  assertGitObject(candidateBundle.source.commit, "Candidate Bundle source commit");
+  assertGitObject(candidateBundle.source.tree, "Candidate Bundle source tree");
+  assertExactKeys(candidateBundle.source.targetTag, ["name", "commit"], ["name", "commit"],
+    "Candidate Bundle target tag");
+  assertCondition(candidateBundle.source.targetTag.name === candidateBundle.plugin.version &&
+    candidateBundle.source.targetTag.commit === candidateBundle.source.commit,
+  "Candidate Bundle target tag must bind the plugin version and source commit");
+
+  assertExactKeys(candidateBundle.product, ["payloadSha256", "assets"],
+    ["payloadSha256", "assets"], "Candidate Bundle product");
+  assertCondition(Array.isArray(candidateBundle.product.assets) &&
+    candidateBundle.product.assets.length >= 2, "Candidate Bundle product assets must be an array");
+  for (const record of candidateBundle.product.assets) {
+    assertAssetRecordShape(record, "Candidate Bundle product asset");
+  }
+  assertCondition(candidateBundle.product.payloadSha256 ===
+    computeProductPayloadDigest(candidateBundle.product.assets),
+  "Candidate Bundle product payload digest is invalid");
+
+  assertExactKeys(candidateBundle.build,
+    ["toolchain", "commands", "nodeVersion", "lockfile", "workflow", "releaseCore"],
+    ["toolchain", "commands", "nodeVersion", "lockfile", "workflow", "releaseCore"],
+    "Candidate Bundle build");
+  assertExactKeys(candidateBundle.build.toolchain, ["node", "packageManager"],
+    ["node", "packageManager"], "Candidate Bundle toolchain");
+  assertCondition(candidateBundle.build.toolchain.node === config.build.node &&
+    candidateBundle.build.toolchain.packageManager === config.build.packageManager,
+  "Candidate Bundle toolchain differs from release config");
+  assertExactKeys(candidateBundle.build.commands, ["install", "verify"],
+    ["install", "verify"], "Candidate Bundle build commands");
+  assertCondition(candidateBundle.build.commands.install === config.build.installCommand &&
+    candidateBundle.build.commands.verify === config.build.verifyCommand,
+  "Candidate Bundle build commands differ from release config");
+  for (const [name, record] of Object.entries({
+    nodeVersion: candidateBundle.build.nodeVersion,
+    lockfile: candidateBundle.build.lockfile,
+    workflow: candidateBundle.build.workflow,
+  })) {
+    assertPathRecordShape(record, `Candidate Bundle build ${name}`);
+  }
+  assertCondition(candidateBundle.build.nodeVersion.path === config.paths.nodeVersion &&
+    candidateBundle.build.lockfile.path === config.paths.packageLock &&
+    candidateBundle.build.workflow.path === config.build.workflow,
+  "Candidate Bundle build paths differ from release config");
+  assertExactKeys(candidateBundle.build.releaseCore, ["version", "vendoredSha256"],
+    ["version", "vendoredSha256"], "Candidate Bundle releaseCore");
+  assertCondition(candidateBundle.build.releaseCore.version === RELEASE_CORE_VERSION,
+    "Candidate Bundle release-core version differs from this runtime");
+  assertSha256(candidateBundle.build.releaseCore.vendoredSha256,
+    "Candidate Bundle release-core digest");
+
+  assertExactKeys(candidateBundle.acceptance, ["scenarioContract"], ["scenarioContract"],
+    "Candidate Bundle acceptance");
+  assertScenarioContractRecordShape(candidateBundle.acceptance.scenarioContract, config);
+
+  assertExactKeys(candidateBundle.distribution, ["archive", "checksums", "publicAssets"],
+    ["archive", "checksums", "publicAssets"], "Candidate Bundle distribution");
+  assertExactKeys(candidateBundle.distribution.archive, ["name", "size", "sha256", "entries"],
+    ["name", "size", "sha256", "entries"], "Candidate Bundle archive");
+  const archiveRecord = candidateBundle.distribution.archive;
+  assertPublicAssetName(archiveRecord.name);
+  assertCondition(Number.isSafeInteger(archiveRecord.size) && archiveRecord.size > 0,
+    "Candidate Bundle archive size must be positive");
+  assertSha256(archiveRecord.sha256, "Candidate Bundle archive digest");
+  assertCondition(Array.isArray(archiveRecord.entries) && archiveRecord.entries.length >= 2,
+    "Candidate Bundle archive entries must be an array");
+  for (const name of archiveRecord.entries) normalizeArchiveName(name);
+  assertAssetRecordShape(candidateBundle.distribution.checksums,
+    "Candidate Bundle checksums");
+  assertCondition(candidateBundle.distribution.checksums.name === "SHA256SUMS",
+    "Candidate Bundle checksums name must be SHA256SUMS");
+  assertCondition(Array.isArray(candidateBundle.distribution.publicAssets) &&
+    candidateBundle.distribution.publicAssets.length >= 3,
+  "Candidate Bundle public assets must be an array");
+  for (const record of candidateBundle.distribution.publicAssets) {
+    assertAssetRecordShape(record, "Candidate Bundle public asset");
+  }
 }
 
 function assertExactNameList(actual, expected, label) {
@@ -865,131 +1216,237 @@ function assertExactNameList(actual, expected, label) {
     `${label} must be exactly: ${expectedSorted.join(", ")}`);
 }
 
-export async function verifyReleaseHandoff({
-  projectRoot,
-  config: configInput,
-  handoffDirectory,
-  commandRunner = defaultCommandRunner,
-}) {
-  const config = validateReleaseConfig(configInput);
-  const handoffRoot = path.resolve(assertNonEmptyString(handoffDirectory, "handoffDirectory"));
-  await assertRegularDirectory(handoffRoot, "Release handoff directory");
-  const candidateBytes = await readRegularFile(path.join(handoffRoot, "candidate.json"), "candidate.json");
-  let candidate;
+async function verifyCandidateBundleContents({ config, bundleDirectory }) {
+  const bundleRoot = path.resolve(assertNonEmptyString(bundleDirectory, "bundleDirectory"));
+  await assertRegularDirectory(bundleRoot, "Candidate Bundle directory");
+  const bundleBytes = await readRegularFile(path.join(bundleRoot, "candidate-bundle.json"),
+    "candidate-bundle.json");
+  let candidateBundle;
   try {
-    candidate = JSON.parse(candidateBytes.toString("utf8"));
+    candidateBundle = JSON.parse(bundleBytes.toString("utf8"));
   } catch (error) {
-    fail("candidate.json is invalid UTF-8 JSON", "RELEASE_CORE_CANDIDATE", { cause: error });
+    fail("candidate-bundle.json is invalid UTF-8 JSON", "RELEASE_CORE_CANDIDATE", {
+      cause: error,
+    });
   }
-  assertCandidateShape(candidate, config);
-  assertCondition(canonicalJson(candidate).equals(candidateBytes),
-    "candidate.json must use canonical deterministic serialization", "RELEASE_CORE_CANDIDATE");
-  const core = await getReleaseCoreIdentity();
-  assertCondition(candidate.releaseCore.vendoredSha256 === core.sha256,
-    "candidate.json was built by different release-core bytes", "RELEASE_CORE_CANDIDATE");
-
-  const project = await validateReleaseProject({
-    projectRoot,
-    config,
-    version: candidate.plugin.version,
-    checkTag: true,
-    commandRunner,
-  });
-  assertCondition(candidate.source.commit === project.source.commit && candidate.source.tree === project.source.tree,
-    "candidate.json source commit/tree differs from the current project",
+  assertCandidateBundleShape(candidateBundle, config);
+  assertCondition(canonicalJson(candidateBundle).equals(bundleBytes),
+    "candidate-bundle.json must use canonical deterministic serialization",
     "RELEASE_CORE_CANDIDATE");
-  const expectedProductionNames = [...project.assets.keys()].sort((left, right) =>
-    left.localeCompare(right, "en"));
-  assertExactNameList(candidate.productionAssets.map((record) => record.name), expectedProductionNames,
-    "candidate.json production asset inventory");
-  const expectedArchiveName = archiveName(config.plugin.id, project.version);
-  assertCondition(candidate.archive.name === expectedArchiveName,
-    "candidate.json archive name is invalid");
-  const expectedPublicNames = [...expectedProductionNames, expectedArchiveName];
-  const expectedHandoffNames = [...expectedPublicNames, "SHA256SUMS", "candidate.json"];
-  const handoffEntries = await readdir(handoffRoot, { withFileTypes: true });
-  for (const entry of handoffEntries) {
+  const core = await getReleaseCoreIdentity();
+  assertCondition(candidateBundle.build.releaseCore.vendoredSha256 === core.sha256,
+    "Candidate Bundle was built by different release-core bytes",
+    "RELEASE_CORE_CANDIDATE");
+
+  const productNames = candidateBundle.product.assets.map((record) => record.name);
+  const expectedProductNames = config.assets.styles === "required"
+    ? ["main.js", "manifest.json", "styles.css"]
+    : productNames.includes("styles.css")
+      ? ["main.js", "manifest.json", "styles.css"]
+      : ["main.js", "manifest.json"];
+  assertExactNameList(productNames, expectedProductNames,
+    "Candidate Bundle product asset inventory");
+  const expectedArchiveName = archiveName(config.plugin.id, candidateBundle.plugin.version);
+  assertCondition(candidateBundle.distribution.archive.name === expectedArchiveName,
+    "Candidate Bundle archive name is invalid");
+  const expectedPublicNames = [...expectedProductNames, expectedArchiveName];
+  const expectedBundleNames = [...expectedPublicNames, "SHA256SUMS", "candidate-bundle.json"];
+  const entries = await readdir(bundleRoot, { withFileTypes: true });
+  for (const entry of entries) {
     assertCondition(entry.isFile() && !entry.isSymbolicLink(),
-      `Release handoff entry must be a regular file: ${entry.name}`,
+      `Candidate Bundle entry must be a regular file: ${entry.name}`,
       "RELEASE_CORE_HANDOFF");
   }
-  assertExactNameList(handoffEntries.map((entry) => entry.name), expectedHandoffNames,
-    "Release handoff inventory");
+  assertExactNameList(entries.map((entry) => entry.name), expectedBundleNames,
+    "Candidate Bundle inventory");
 
   const publicFiles = new Map();
   for (const name of expectedPublicNames) {
-    publicFiles.set(name, await readRegularFile(path.join(handoffRoot, name), `Release handoff ${name}`));
+    publicFiles.set(name, await readRegularFile(path.join(bundleRoot, name),
+      `Candidate Bundle ${name}`));
   }
-  for (const record of candidate.productionAssets) {
+  for (const record of candidateBundle.product.assets) {
     const content = publicFiles.get(record.name);
     assertCondition(record.size === content.length && record.sha256 === sha256(content),
-      `Release handoff production asset mismatch: ${record.name}`, "RELEASE_CORE_HANDOFF");
-    assertCondition(content.equals(project.assets.get(record.name)),
-      `Release handoff differs from current production asset: ${record.name}`,
-      "RELEASE_CORE_HANDOFF");
+      `Candidate Bundle product asset mismatch: ${record.name}`, "RELEASE_CORE_HANDOFF");
   }
   const archiveBytes = publicFiles.get(expectedArchiveName);
-  assertCondition(candidate.archive.size === archiveBytes.length &&
-    candidate.archive.sha256 === sha256(archiveBytes),
-  "Release handoff archive hash/size mismatch", "RELEASE_CORE_HANDOFF");
-  const expectedZip = createDeterministicZip([...project.assets.entries()].map(([name, content]) => ({
-    name: `${config.plugin.id}/${name}`,
-    content,
+  const archiveRecord = candidateBundle.distribution.archive;
+  assertCondition(archiveRecord.size === archiveBytes.length &&
+    archiveRecord.sha256 === sha256(archiveBytes),
+  "Candidate Bundle archive hash/size mismatch", "RELEASE_CORE_HANDOFF");
+  const expectedZip = createDeterministicZip(candidateBundle.product.assets.map((record) => ({
+    name: `${config.plugin.id}/${record.name}`,
+    content: publicFiles.get(record.name),
   })));
   assertCondition(archiveBytes.equals(expectedZip),
     "Release archive is not the deterministic byte-exact wrapper of loose assets",
     "RELEASE_CORE_HANDOFF");
   const parsedArchive = readDeterministicZip(archiveBytes);
-  const expectedArchiveEntries = expectedProductionNames.map((name) => `${config.plugin.id}/${name}`);
+  const expectedArchiveEntries = expectedProductNames.map((name) => `${config.plugin.id}/${name}`);
   assertExactNameList(parsedArchive.keys(), expectedArchiveEntries, "Release archive inventory");
-  assertExactNameList(candidate.archive.entries, expectedArchiveEntries,
-    "candidate.json archive inventory");
-  for (const name of expectedProductionNames) {
+  assertExactNameList(archiveRecord.entries, expectedArchiveEntries,
+    "Candidate Bundle archive inventory");
+  for (const name of expectedProductNames) {
     assertCondition(parsedArchive.get(`${config.plugin.id}/${name}`).equals(publicFiles.get(name)),
       `Release archive entry differs from loose asset: ${name}`, "RELEASE_CORE_HANDOFF");
   }
   const publicRecords = expectedPublicNames.map((name) => assetRecord(name, publicFiles.get(name)))
     .sort((left, right) => left.name.localeCompare(right.name, "en"));
-  const checksumBytes = await readRegularFile(path.join(handoffRoot, "SHA256SUMS"), "SHA256SUMS");
-  const expectedChecksums = buildSha256Sums(publicRecords);
-  assertCondition(checksumBytes.equals(expectedChecksums),
+  assertCondition(JSON.stringify(publicRecords) ===
+    JSON.stringify(candidateBundle.distribution.publicAssets),
+  "Candidate Bundle public asset records are invalid", "RELEASE_CORE_HANDOFF");
+  const checksumBytes = await readRegularFile(path.join(bundleRoot, "SHA256SUMS"), "SHA256SUMS");
+  assertCondition(checksumBytes.equals(buildSha256Sums(publicRecords)),
     "SHA256SUMS does not exactly match sorted public assets", "RELEASE_CORE_HANDOFF");
-  assertCondition(candidate.checksums.size === checksumBytes.length &&
-    candidate.checksums.sha256 === sha256(checksumBytes),
-  "candidate.json checksum record mismatch", "RELEASE_CORE_HANDOFF");
+  assertCondition(candidateBundle.distribution.checksums.size === checksumBytes.length &&
+    candidateBundle.distribution.checksums.sha256 === sha256(checksumBytes),
+  "Candidate Bundle checksum record mismatch", "RELEASE_CORE_HANDOFF");
   return Object.freeze({
-    status: "verified",
-    handoffDirectory: handoffRoot,
-    candidate: Object.freeze(candidate),
-    candidateSha256: sha256(candidateBytes),
+    status: "transport-verified",
+    bundleDirectory: bundleRoot,
+    candidateBundle: Object.freeze(candidateBundle),
+    bundleSha256: sha256(bundleBytes),
+    productPayloadSha256: candidateBundle.product.payloadSha256,
+    scenarioContractSha256: candidateBundle.acceptance.scenarioContract.digestSha256,
     publicAssets: Object.freeze(publicRecords),
     publicFiles,
   });
+}
+
+export async function verifyCandidateBundleArchive({ config: configInput, bundleDirectory }) {
+  const config = validateReleaseConfig(configInput);
+  return verifyCandidateBundleContents({ config, bundleDirectory });
+}
+
+function assertRecordEqual(actual, expected, label) {
+  assertCondition(JSON.stringify(actual) === JSON.stringify(expected), `${label} differs`);
+}
+
+async function readTransportSourceMetadata({ projectRoot, config, version, commandRunner,
+  requireClean }) {
+  const root = path.resolve(projectRoot);
+  const manifestPath = resolveInside(root, config.paths.manifest, "Manifest path");
+  const packagePath = resolveInside(root, config.paths.package, "Package path");
+  const packageLockPath = resolveInside(root, config.paths.packageLock, "Package lock path");
+  const versionsPath = resolveInside(root, config.paths.versions, "Versions path");
+  const nodeVersionPath = resolveInside(root, config.paths.nodeVersion, "Node version path");
+  const workflowPath = resolveInside(root, config.build.workflow, "Release workflow path");
+  const [manifestRecord, packageRecord, packageLockRecord, versionsRecord, nodeVersionSource,
+    workflowSource, scenarioContract] = await Promise.all([
+    readJsonRegular(manifestPath, "manifest.json"),
+    readJsonRegular(packagePath, "package.json"),
+    readJsonRegular(packageLockPath, "package-lock.json"),
+    readJsonRegular(versionsPath, "versions.json"),
+    readRegularFile(nodeVersionPath, ".node-version"),
+    readRegularFile(workflowPath, "Generated release workflow"),
+    readScenarioContract(root, config),
+  ]);
+  const releaseVersion = assertPackageContract(manifestRecord.value, packageRecord.value,
+    packageLockRecord.value, versionsRecord.value, config, version);
+  assertCondition(nodeVersionSource.equals(Buffer.from(`${config.build.node}\n`, "utf8")),
+    ".node-version must contain the exact configured Node version and one LF");
+  assertCondition(workflowSource.equals(renderReleaseWorkflow(config)),
+    "Release workflow differs from the canonical generated workflow",
+    "RELEASE_CORE_WORKFLOW");
+  const source = await readGitIdentity(root, releaseVersion, commandRunner, {
+    checkTag: true,
+    requireClean,
+  });
+  return Object.freeze({
+    root,
+    source,
+    manifestSource: manifestRecord.source,
+    build: Object.freeze({
+      nodeVersion: Object.freeze({ path: config.paths.nodeVersion, size: nodeVersionSource.length,
+        sha256: sha256(nodeVersionSource) }),
+      lockfile: Object.freeze({ path: config.paths.packageLock, size: packageLockRecord.source.length,
+        sha256: sha256(packageLockRecord.source) }),
+      workflow: Object.freeze({ path: config.build.workflow, size: workflowSource.length,
+        sha256: sha256(workflowSource) }),
+    }),
+    acceptance: scenarioContract,
+  });
+}
+
+export async function verifyTransportCandidateBundle({
+  projectRoot,
+  config: configInput,
+  bundleDirectory,
+  commandRunner = defaultCommandRunner,
+  requireClean = true,
+}) {
+  const config = validateReleaseConfig(configInput);
+  const verified = await verifyCandidateBundleContents({ config, bundleDirectory });
+  const metadata = await readTransportSourceMetadata({
+    projectRoot,
+    config,
+    version: verified.candidateBundle.plugin.version,
+    commandRunner,
+    requireClean,
+  });
+  const candidateBundle = verified.candidateBundle;
+  assertCondition(candidateBundle.source.commit === metadata.source.commit &&
+    candidateBundle.source.tree === metadata.source.tree,
+  "Candidate Bundle source commit/tree differs from the current project",
+  "RELEASE_CORE_CANDIDATE");
+  assertCondition(verified.publicFiles.get("manifest.json").equals(metadata.manifestSource),
+    "Candidate Bundle manifest differs from the source manifest",
+    "RELEASE_CORE_CANDIDATE");
+  assertRecordEqual(candidateBundle.build.nodeVersion, metadata.build.nodeVersion,
+    "Candidate Bundle Node version identity");
+  assertRecordEqual(candidateBundle.build.lockfile, metadata.build.lockfile,
+    "Candidate Bundle lockfile identity");
+  assertRecordEqual(candidateBundle.build.workflow, metadata.build.workflow,
+    "Candidate Bundle workflow identity");
+  assertRecordEqual(candidateBundle.acceptance.scenarioContract, metadata.acceptance.record,
+    "Candidate Bundle scenario contract identity");
+  return verified;
+}
+
+export async function verifySourceCandidateBundle(options) {
+  const config = validateReleaseConfig(options.config);
+  const verified = await verifyTransportCandidateBundle({ ...options, config });
+  const project = await validateReleaseProject({
+    projectRoot: options.projectRoot,
+    config,
+    version: verified.candidateBundle.plugin.version,
+    checkTag: true,
+    requireClean: options.requireClean ?? true,
+    commandRunner: options.commandRunner ?? defaultCommandRunner,
+  });
+  for (const [name, content] of project.assets) {
+    assertCondition(verified.publicFiles.get(name)?.equals(content),
+      `Candidate Bundle differs from current production asset: ${name}`,
+      "RELEASE_CORE_CANDIDATE");
+  }
+  return Object.freeze({ ...verified, status: "source-verified" });
 }
 
 export function buildPublicationAuthorization({
   repository,
   tag,
   commit,
-  candidateSha256,
+  bundleSha256,
   acceptanceClosureSha256,
 }) {
   assertCondition(repositoryPattern.test(assertNonEmptyString(repository, "Publication repository")),
     "Publication repository must use owner/name");
   assertStableVersion(tag, "Publication tag");
   assertGitObject(commit, "Publication commit");
-  assertSha256(candidateSha256, "Publication candidate digest");
+  assertSha256(bundleSha256, "Publication Candidate Bundle digest");
   assertSha256(acceptanceClosureSha256, "Publication acceptance closure digest");
-  return `publish ${repository}@${tag} commit=${commit} candidate=${candidateSha256} acceptance=${acceptanceClosureSha256}`;
+  return `publish ${repository}@${tag} commit=${commit} bundle=${bundleSha256} acceptance=${acceptanceClosureSha256}`;
 }
 
-async function assertCurrentExactTag(projectRoot, candidate, commandRunner) {
-  const current = await readGitIdentity(projectRoot, candidate.plugin.version, commandRunner);
+async function assertCurrentExactTag(projectRoot, candidateBundle, commandRunner) {
+  const current = await readGitIdentity(projectRoot, candidateBundle.plugin.version, commandRunner);
   assertCondition(current.tag.state === "exact",
-    `Publication requires the exact current tag ${candidate.plugin.version}`,
+    `Publication requires the exact current tag ${candidateBundle.plugin.version}`,
     "RELEASE_CORE_PUBLICATION_BOUNDARY");
-  assertCondition(current.commit === candidate.source.commit && current.tree === candidate.source.tree,
-    "Publication tag/source differs from candidate commit/tree",
+  assertCondition(current.commit === candidateBundle.source.commit &&
+    current.tree === candidateBundle.source.tree,
+  "Publication tag/source differs from Candidate Bundle commit/tree",
     "RELEASE_CORE_PUBLICATION_BOUNDARY");
   return current;
 }
@@ -997,18 +1454,18 @@ async function assertCurrentExactTag(projectRoot, candidate, commandRunner) {
 export async function validatePublicationBoundary({
   projectRoot,
   config: configInput,
-  verifiedHandoff,
-  candidateSha256,
+  verifiedBundle,
+  bundleSha256,
   acceptanceClosurePath,
   acceptanceClosureSha256,
   authorization,
   commandRunner = defaultCommandRunner,
 }) {
   const config = validateReleaseConfig(configInput);
-  assertPlainObject(verifiedHandoff, "verifiedHandoff");
-  assertSha256(candidateSha256, "Expected candidate digest");
-  assertCondition(candidateSha256 === verifiedHandoff.candidateSha256,
-    "Expected candidate digest does not match candidate.json",
+  assertPlainObject(verifiedBundle, "verifiedBundle");
+  assertSha256(bundleSha256, "Expected Candidate Bundle digest");
+  assertCondition(bundleSha256 === verifiedBundle.bundleSha256,
+    "Expected Candidate Bundle digest does not match candidate-bundle.json",
     "RELEASE_CORE_PUBLICATION_BOUNDARY");
   assertSha256(acceptanceClosureSha256, "Expected acceptance closure digest");
   const closure = await readRegularFile(path.resolve(assertNonEmptyString(acceptanceClosurePath,
@@ -1017,23 +1474,24 @@ export async function validatePublicationBoundary({
     "RELEASE_CORE_PUBLICATION_BOUNDARY");
   assertCondition(sha256(closure) === acceptanceClosureSha256,
     "Acceptance closure digest mismatch", "RELEASE_CORE_PUBLICATION_BOUNDARY");
-  await assertCurrentExactTag(path.resolve(projectRoot), verifiedHandoff.candidate, commandRunner);
+  await assertCurrentExactTag(path.resolve(projectRoot), verifiedBundle.candidateBundle,
+    commandRunner);
   const expectedAuthorization = buildPublicationAuthorization({
     repository: config.publication.repository,
-    tag: verifiedHandoff.candidate.plugin.version,
-    commit: verifiedHandoff.candidate.source.commit,
-    candidateSha256,
+    tag: verifiedBundle.candidateBundle.plugin.version,
+    commit: verifiedBundle.candidateBundle.source.commit,
+    bundleSha256,
     acceptanceClosureSha256,
   });
   assertCondition(typeof authorization === "string" && authorization === expectedAuthorization,
-    "Manual publication authorization is missing or does not bind the exact candidate and acceptance closure",
+    "Manual publication authorization is missing or does not bind the exact Candidate Bundle and acceptance closure",
     "RELEASE_CORE_PUBLICATION_BOUNDARY");
   return Object.freeze({
     status: "authorized",
     repository: config.publication.repository,
-    tag: verifiedHandoff.candidate.plugin.version,
-    commit: verifiedHandoff.candidate.source.commit,
-    candidateSha256,
+    tag: verifiedBundle.candidateBundle.plugin.version,
+    commit: verifiedBundle.candidateBundle.source.commit,
+    bundleSha256,
     acceptanceClosureSha256,
     authorization: expectedAuthorization,
   });
@@ -1101,14 +1559,14 @@ async function fetchRelease(commandRunner, repository, tag, options, allow404) {
 async function verifyHostedRecord({
   projectRoot,
   config,
-  verifiedHandoff,
+  verifiedBundle,
   commandRunner,
   env,
   releaseRecord,
 }) {
   const repository = config.publication.repository;
-  const candidate = verifiedHandoff.candidate;
-  const tag = candidate.plugin.version;
+  const candidateBundle = verifiedBundle.candidateBundle;
+  const tag = candidateBundle.plugin.version;
   assertPlainObject(releaseRecord, "GitHub Release");
   assertCondition(releaseRecord.tag_name === tag && releaseRecord.draft === false &&
     releaseRecord.prerelease === false && releaseRecord.immutable === true &&
@@ -1116,10 +1574,10 @@ async function verifyHostedRecord({
   "GitHub Release must be the exact immutable published stable tag", "RELEASE_CORE_GITHUB");
   assertCondition(Array.isArray(releaseRecord.assets), "GitHub Release assets must be an array",
     "RELEASE_CORE_GITHUB");
-  const expectedNames = verifiedHandoff.publicAssets.map((record) => record.name);
+  const expectedNames = verifiedBundle.publicAssets.map((record) => record.name);
   assertExactNameList(releaseRecord.assets.map((asset) => asset?.name), expectedNames,
     "GitHub Release public asset inventory");
-  const expectedByName = new Map(verifiedHandoff.publicAssets.map((record) => [record.name, record]));
+  const expectedByName = new Map(verifiedBundle.publicAssets.map((record) => [record.name, record]));
   for (const asset of releaseRecord.assets) {
     assertPlainObject(asset, `GitHub Release asset ${String(asset?.name)}`);
     const expected = expectedByName.get(asset.name);
@@ -1129,12 +1587,12 @@ async function verifyHostedRecord({
     `GitHub Release asset metadata mismatch: ${asset.name}`, "RELEASE_CORE_GITHUB");
     const hosted = await githubAssetBytes(commandRunner, repository, asset.id,
       { cwd: projectRoot, env });
-    assertCondition(hosted.equals(verifiedHandoff.publicFiles.get(asset.name)),
+    assertCondition(hosted.equals(verifiedBundle.publicFiles.get(asset.name)),
       `GitHub Release hosted bytes mismatch: ${asset.name}`, "RELEASE_CORE_GITHUB");
     await invokeCommand(commandRunner, "gh", [
       "attestation",
       "verify",
-      path.join(verifiedHandoff.handoffDirectory, asset.name),
+      path.join(verifiedBundle.bundleDirectory, asset.name),
       "--repo",
       repository,
       "--signer-workflow",
@@ -1142,14 +1600,14 @@ async function verifyHostedRecord({
       "--source-ref",
       `refs/tags/${tag}`,
       "--source-digest",
-      candidate.source.commit,
+      candidateBundle.source.commit,
       "--deny-self-hosted-runners",
     ], { cwd: projectRoot, env });
   }
   const remoteTagCommit = await resolveRemoteTagCommit(commandRunner, repository, tag,
     { cwd: projectRoot, env });
-  assertCondition(remoteTagCommit === candidate.source.commit,
-    "GitHub tag source commit differs from candidate source", "RELEASE_CORE_GITHUB");
+  assertCondition(remoteTagCommit === candidateBundle.source.commit,
+    "GitHub tag source commit differs from Candidate Bundle source", "RELEASE_CORE_GITHUB");
   return Object.freeze({
     status: "verified",
     repository,
@@ -1162,19 +1620,20 @@ async function verifyHostedRecord({
 export async function verifyPublishedRelease({
   projectRoot,
   config: configInput,
-  verifiedHandoff,
+  verifiedBundle,
   commandRunner = defaultCommandRunner,
   env = process.env,
   releaseRecord,
 }) {
   const config = validateReleaseConfig(configInput);
-  await assertCurrentExactTag(path.resolve(projectRoot), verifiedHandoff.candidate, commandRunner);
+  await assertCurrentExactTag(path.resolve(projectRoot), verifiedBundle.candidateBundle,
+    commandRunner);
   const record = releaseRecord ?? await fetchRelease(commandRunner, config.publication.repository,
-    verifiedHandoff.candidate.plugin.version, { cwd: projectRoot, env }, false);
+    verifiedBundle.candidateBundle.plugin.version, { cwd: projectRoot, env }, false);
   return verifyHostedRecord({
     projectRoot: path.resolve(projectRoot),
     config,
-    verifiedHandoff,
+    verifiedBundle,
     commandRunner,
     env,
     releaseRecord: record,
@@ -1184,12 +1643,12 @@ export async function verifyPublishedRelease({
 async function inspectExistingGitHubRelease({
   projectRoot,
   config,
-  verifiedHandoff,
+  verifiedBundle,
   commandRunner,
   env,
 }) {
   const repository = config.publication.repository;
-  const tag = verifiedHandoff.candidate.plugin.version;
+  const tag = verifiedBundle.candidateBundle.plugin.version;
   const existing = await fetchRelease(commandRunner, repository, tag,
     { cwd: projectRoot, env }, true);
   if (existing === null) {
@@ -1198,7 +1657,7 @@ async function inspectExistingGitHubRelease({
   const verified = await verifyPublishedRelease({
     projectRoot,
     config,
-    verifiedHandoff,
+    verifiedBundle,
     commandRunner,
     env,
     releaseRecord: existing,
@@ -1215,8 +1674,8 @@ async function inspectExistingGitHubRelease({
 export async function preflightGitHubPublication({
   projectRoot,
   config: configInput,
-  verifiedHandoff,
-  candidateSha256,
+  verifiedBundle,
+  bundleSha256,
   acceptanceClosurePath,
   acceptanceClosureSha256,
   authorization,
@@ -1228,8 +1687,8 @@ export async function preflightGitHubPublication({
   await validatePublicationBoundary({
     projectRoot: root,
     config,
-    verifiedHandoff,
-    candidateSha256,
+    verifiedBundle,
+    bundleSha256,
     acceptanceClosurePath,
     acceptanceClosureSha256,
     authorization,
@@ -1238,7 +1697,7 @@ export async function preflightGitHubPublication({
   return inspectExistingGitHubRelease({
     projectRoot: root,
     config,
-    verifiedHandoff,
+    verifiedBundle,
     commandRunner,
     env,
   });
@@ -1247,7 +1706,7 @@ export async function preflightGitHubPublication({
 async function publishGitHub({
   projectRoot,
   config: configInput,
-  verifiedHandoff,
+  verifiedBundle,
   boundary,
   commandRunner,
   env,
@@ -1256,11 +1715,11 @@ async function publishGitHub({
   const config = validateReleaseConfig(configInput);
   assertCondition(boundary?.status === "authorized", "Publication boundary is not authorized",
     "RELEASE_CORE_PUBLICATION_BOUNDARY");
-  const tag = verifiedHandoff.candidate.plugin.version;
+  const tag = verifiedBundle.candidateBundle.plugin.version;
   const preflight = await inspectExistingGitHubRelease({
     projectRoot,
     config,
-    verifiedHandoff,
+    verifiedBundle,
     commandRunner,
     env,
   });
@@ -1268,8 +1727,8 @@ async function publishGitHub({
     return Object.freeze({ status: "noop", repository: config.publication.repository, tag });
   }
   const arguments_ = ["release", "create", tag];
-  for (const record of verifiedHandoff.publicAssets) {
-    arguments_.push(path.join(verifiedHandoff.handoffDirectory, record.name));
+  for (const record of verifiedBundle.publicAssets) {
+    arguments_.push(path.join(verifiedBundle.bundleDirectory, record.name));
   }
   arguments_.push("--repo", config.publication.repository, "--verify-tag", "--title", tag);
   if (notesFile !== undefined) {
@@ -1280,8 +1739,698 @@ async function publishGitHub({
     arguments_.push("--generate-notes");
   }
   await invokeCommand(commandRunner, "gh", arguments_, { cwd: projectRoot, env });
-  await verifyPublishedRelease({ projectRoot, config, verifiedHandoff, commandRunner, env });
+  await verifyPublishedRelease({ projectRoot, config, verifiedBundle, commandRunner, env });
   return Object.freeze({ status: "created", repository: config.publication.repository, tag });
+}
+
+function workflowSource(npmVersion) {
+  return `name: Release
+run-name: release \${{ inputs.release_run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Stable workspace release-run UUID
+        required: true
+        type: string
+      mode:
+        description: Explicit release operation
+        required: true
+        default: verify
+        type: choice
+        options:
+          - verify
+          - publish
+      candidate_commit:
+        description: Exact accepted source commit
+        required: true
+        type: string
+      candidate_bundle_digest:
+        description: SHA-256 of candidate-bundle.json
+        required: true
+        type: string
+      acceptance_closure_digest:
+        description: SHA-256 of the decoded acceptance closure
+        required: true
+        type: string
+      acceptance_closure_b64:
+        description: Canonical base64 acceptance closure
+        required: true
+        type: string
+      release_authorization:
+        description: Exact publication authorization phrase
+        required: true
+        type: string
+      authorization_digest:
+        description: SHA-256 of the decoded authorization record
+        required: true
+        type: string
+      authorization_b64:
+        description: Canonical base64 authorization record
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-\${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Rebuild and verify exact Candidate Bundle
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      bundle_artifact_id: \${{ steps.bundle.outputs.artifact-id }}
+      bundle_artifact_digest: \${{ steps.bundle.outputs.artifact-digest }}
+    steps:
+      - name: Validate dispatch identifiers
+        shell: bash
+        env:
+          MODE: \${{ github.event.inputs.mode }}
+          RELEASE_RUN_ID: \${{ inputs.release_run_id }}
+          CANDIDATE_COMMIT: \${{ inputs.candidate_commit }}
+          CANDIDATE_BUNDLE_DIGEST: \${{ inputs.candidate_bundle_digest }}
+          ACCEPTANCE_CLOSURE_DIGEST: \${{ inputs.acceptance_closure_digest }}
+          AUTHORIZATION_DIGEST: \${{ inputs.authorization_digest }}
+        run: |
+          set -euo pipefail
+          [[ "$MODE" == "verify" || "$MODE" == "publish" ]]
+          [[ "$RELEASE_RUN_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]
+          [[ "$CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
+          [[ "$CANDIDATE_BUNDLE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$ACCEPTANCE_CLOSURE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$AUTHORIZATION_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          test "$CANDIDATE_COMMIT" = "$GITHUB_SHA"
+          [[ "$GITHUB_REF_TYPE" == "tag" ]]
+          [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$ ]]
+
+      - name: Check out the exact source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: \${{ inputs.candidate_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify tagged source identity
+        shell: bash
+        env:
+          DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse --verify HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse --verify "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install exact npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@${npmVersion} --no-audit --no-fund
+          test "$(npm --version)" = "${npmVersion}"
+
+      - name: Install locked dependencies
+        run: ${requiredInstallCommand}
+
+      - name: Run the one complete repository build and verification pass
+        run: ${requiredVerifyCommand}
+
+      - name: Build deterministic Candidate Bundle
+        run: >-
+          node scripts/release.mjs bundle
+          --version "$GITHUB_REF_NAME"
+          --output-dir "$RUNNER_TEMP/candidate-bundle"
+
+      - name: Verify source candidate and expected Bundle identity
+        shell: bash
+        env:
+          CANDIDATE_BUNDLE_DIGEST: \${{ inputs.candidate_bundle_digest }}
+        run: |
+          set -euo pipefail
+          test "$(sha256sum "$RUNNER_TEMP/candidate-bundle/candidate-bundle.json" | cut -d ' ' -f 1)" = "$CANDIDATE_BUNDLE_DIGEST"
+          node scripts/release.mjs verify-source --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+
+      - name: Upload fixed Candidate Bundle
+        id: bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: candidate-bundle-\${{ inputs.release_run_id }}
+          path: \${{ runner.temp }}/candidate-bundle/
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: false
+          retention-days: 1
+
+  publish:
+    name: Publish explicitly authorized Candidate Bundle
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      actions: read
+      attestations: write
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out the exact source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: \${{ inputs.candidate_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+
+      - name: Download fixed Candidate Bundle by artifact ID
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: \${{ needs.verify.outputs.bundle_artifact_id }}
+          path: \${{ runner.temp }}/candidate-bundle
+          digest-mismatch: error
+
+      - name: Materialize exact acceptance and authorization evidence
+        env:
+          ACCEPTANCE_CLOSURE_B64: \${{ inputs.acceptance_closure_b64 }}
+          AUTHORIZATION_B64: \${{ inputs.authorization_b64 }}
+          RELEASE_PUBLISH_AUTHORIZATION: \${{ inputs.release_authorization }}
+        run: >-
+          node scripts/release.mjs materialize-evidence
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          --output-dir "$RUNNER_TEMP/release-evidence"
+          --run-id "\${{ inputs.release_run_id }}"
+          --bundle-digest "\${{ inputs.candidate_bundle_digest }}"
+          --acceptance-closure-digest "\${{ inputs.acceptance_closure_digest }}"
+          --authorization-digest "\${{ inputs.authorization_digest }}"
+
+      - name: Verify transported Bundle without rebuilding
+        shell: bash
+        env:
+          ARTIFACT_DIGEST: \${{ needs.verify.outputs.bundle_artifact_digest }}
+        run: |
+          set -euo pipefail
+          [[ "$ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+
+      - name: Verify publication boundary before attestation
+        env:
+          RELEASE_PUBLISH_AUTHORIZATION: \${{ inputs.release_authorization }}
+        run: >-
+          node scripts/release.mjs publication-boundary
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          --bundle-digest "\${{ inputs.candidate_bundle_digest }}"
+          --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
+          --acceptance-closure-digest "\${{ inputs.acceptance_closure_digest }}"
+
+      - name: Preflight immutable GitHub Release
+        id: publication_preflight
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          RELEASE_PUBLISH_AUTHORIZATION: \${{ inputs.release_authorization }}
+        run: |
+          set -euo pipefail
+          result_path="$RUNNER_TEMP/publication-preflight.json"
+          test ! -e "$result_path"
+          node scripts/release.mjs publication-preflight \
+            --bundle-dir "$RUNNER_TEMP/candidate-bundle" \
+            --bundle-digest "\${{ inputs.candidate_bundle_digest }}" \
+            --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json" \
+            --acceptance-closure-digest "\${{ inputs.acceptance_closure_digest }}" \
+            > "$result_path"
+          status="$(node --input-type=module - "$result_path" <<'NODE'
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          const result = JSON.parse(readFileSync(process.argv[2], "utf8"));
+          assert.ok(result.status === "missing" || result.status === "exact");
+          process.stdout.write(result.status);
+          NODE
+          )"
+          printf 'status=%s\\n' "$status" >> "$GITHUB_OUTPUT"
+
+      - name: Stage exact public asset inventory
+        if: steps.publication_preflight.outputs.status == 'missing'
+        run: >-
+          node scripts/release.mjs stage-public-assets
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          --output-dir "$RUNNER_TEMP/release-public-assets"
+
+      - name: Attest public release assets
+        if: steps.publication_preflight.outputs.status == 'missing'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: \${{ runner.temp }}/release-public-assets/*
+
+      - name: Create or prove the exact GitHub Release
+        if: steps.publication_preflight.outputs.status == 'missing'
+        env:
+          GH_TOKEN: \${{ github.token }}
+          RELEASE_PUBLISH_AUTHORIZATION: \${{ inputs.release_authorization }}
+        run: >-
+          node scripts/release.mjs publish-github
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          --bundle-digest "\${{ inputs.candidate_bundle_digest }}"
+          --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
+          --acceptance-closure-digest "\${{ inputs.acceptance_closure_digest }}"
+
+  post_verify:
+    name: Verify immutable hosted release state
+    if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
+    needs:
+      - verify
+      - publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    steps:
+      - name: Check out the exact source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: \${{ inputs.candidate_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+
+      - name: Download the same fixed Candidate Bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: \${{ needs.verify.outputs.bundle_artifact_id }}
+          path: \${{ runner.temp }}/candidate-bundle
+          digest-mismatch: error
+
+      - name: Reverify transported Bundle without rebuilding
+        run: >-
+          node scripts/release.mjs verify-transport
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+
+      - name: Verify immutable hosted bytes and provenance
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: >-
+          node scripts/release.mjs post-verify
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+`;
+}
+
+export function renderReleaseWorkflow(configInput) {
+  const config = validateReleaseConfig(configInput);
+  const match = npmPackageManagerPattern.exec(config.build.packageManager);
+  assertCondition(match !== null, "Configured package manager is not a supported exact npm pin");
+  return Buffer.from(workflowSource(match[1]), "utf8");
+}
+
+export async function writeReleaseWorkflow({ projectRoot, config: configInput }) {
+  const config = validateReleaseConfig(configInput);
+  const root = path.resolve(projectRoot);
+  const target = resolveInside(root, config.build.workflow, "Release workflow path");
+  const parent = path.dirname(target);
+  await assertRegularDirectory(parent, "Release workflow directory");
+  await writeFile(target, renderReleaseWorkflow(config), { flag: "w", mode: 0o644 });
+  return Object.freeze({ status: "written", workflow: config.build.workflow });
+}
+
+export async function checkReleaseWorkflow({ projectRoot, config: configInput }) {
+  const config = validateReleaseConfig(configInput);
+  const target = resolveInside(path.resolve(projectRoot), config.build.workflow,
+    "Release workflow path");
+  const actual = await readRegularFile(target, "Generated release workflow");
+  assertCondition(actual.equals(renderReleaseWorkflow(config)),
+    "Release workflow differs from the canonical generated workflow",
+    "RELEASE_CORE_WORKFLOW");
+  return Object.freeze({ status: "verified", workflow: config.build.workflow,
+    sha256: sha256(actual) });
+}
+
+function decodeCanonicalBase64(value, maximumCharacters, maximumBytes, label) {
+  assertCondition(typeof value === "string" && value.length > 0 &&
+    value.length <= maximumCharacters, `${label} is missing or exceeds its input limit`);
+  assertCondition(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value),
+    `${label} must use canonical base64`);
+  const bytes = Buffer.from(value, "base64");
+  assertCondition(bytes.length > 0 && bytes.length <= maximumBytes &&
+    bytes.toString("base64") === value, `${label} decoded bytes are invalid`);
+  return bytes;
+}
+
+function assertPortableJson(value, label) {
+  if (typeof value === "string") {
+    assertCondition(!/^(?:[A-Za-z]:[\\/]|\\\\|\/)/u.test(value),
+      `${label} contains an absolute path`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const child of value) assertPortableJson(child, label);
+    return;
+  }
+  if (value !== null && typeof value === "object") {
+    for (const child of Object.values(value)) assertPortableJson(child, label);
+  }
+}
+
+function parseCanonicalJson(bytes, label) {
+  let value;
+  try {
+    value = JSON.parse(bytes.toString("utf8"));
+  } catch (error) {
+    fail(`${label} is not valid UTF-8 JSON`, "RELEASE_CORE_JSON", { cause: error });
+  }
+  assertCondition(canonicalJson(value).equals(bytes),
+    `${label} must use canonical deterministic JSON serialization`, "RELEASE_CORE_JSON");
+  assertPortableJson(value, label);
+  return value;
+}
+
+function assertCanonicalTimestamp(value, label) {
+  assertNonEmptyString(value, label);
+  const milliseconds = Date.parse(value);
+  assertCondition(Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === value,
+    `${label} must be a canonical UTC ISO-8601 timestamp`);
+}
+
+const portableCandidateKeys = Object.freeze([
+  "bundleSha256", "pluginId", "version", "commit", "tree", "productPayloadSha256",
+  "scenarioContractSha256",
+]);
+
+function assertPortableCandidate(candidate, label) {
+  assertExactKeys(candidate, portableCandidateKeys, portableCandidateKeys, label);
+  assertSha256(candidate.bundleSha256, `${label} Bundle digest`);
+  assertCondition(pluginIdPattern.test(candidate.pluginId), `${label} plugin id is invalid`);
+  assertStableVersion(candidate.version, `${label} version`);
+  assertGitObject(candidate.commit, `${label} commit`);
+  assertGitObject(candidate.tree, `${label} tree`);
+  assertSha256(candidate.productPayloadSha256, `${label} product payload digest`);
+  assertSha256(candidate.scenarioContractSha256, `${label} scenario contract digest`);
+}
+
+function samePortableCandidate(left, right) {
+  return portableCandidateKeys.every((key) => left[key] === right[key]);
+}
+
+function candidateFromVerifiedBundle(verifiedBundle) {
+  const bundle = verifiedBundle.candidateBundle;
+  return {
+    bundleSha256: verifiedBundle.bundleSha256,
+    pluginId: bundle.plugin.id,
+    version: bundle.plugin.version,
+    commit: bundle.source.commit,
+    tree: bundle.source.tree,
+    productPayloadSha256: bundle.product.payloadSha256,
+    scenarioContractSha256: bundle.acceptance.scenarioContract.digestSha256,
+  };
+}
+
+function validatePortableProductEvidence(record) {
+  assertExactKeys(record,
+    ["schemaVersion", "kind", "observedAt", "candidate", "surface", "status", "host", "scenario"],
+    ["schemaVersion", "kind", "observedAt", "candidate", "surface", "status", "host", "scenario"],
+    "Portable product evidence");
+  assertCondition(record.schemaVersion === 2 &&
+    record.kind === "obsidian-plugin-workspace/product-evidence-v2",
+  "Portable product evidence schema/kind is unsupported");
+  assertCanonicalTimestamp(record.observedAt, "Portable product evidence observedAt");
+  assertCondition(["desktop", "android-emulator"].includes(record.surface),
+    "Portable product evidence surface is invalid");
+  assertCondition(record.status === "passed",
+    "A passed acceptance closure may contain only passed product evidence");
+  assertPortableCandidate(record.candidate, "Portable product evidence candidate");
+  assertPlainObject(record.host, "Portable product evidence host");
+  for (const field of ["profileId", "platform", "deviceKind", "deviceName", "osVersion",
+    "obsidianVersion"]) {
+    assertNonEmptyString(record.host[field], `Portable product evidence host ${field}`);
+  }
+  assertCondition(Array.isArray(record.host.inputMethods) && record.host.inputMethods.length > 0 &&
+    record.host.inputMethods.every((value) => typeof value === "string" && value.length > 0),
+  "Portable product evidence host inputMethods are invalid");
+  if (record.surface === "desktop") {
+    assertCondition(record.host.deviceKind === "desktop" && record.host.platform !== "android",
+      "Portable desktop evidence has an invalid host");
+  } else {
+    assertCondition(record.host.platform === "android" && record.host.deviceKind === "emulator" &&
+      Number.isSafeInteger(record.host.apiLevel) && record.host.apiLevel > 0,
+    "Portable Android emulator evidence has an invalid host");
+  }
+  assertExactKeys(record.scenario, ["id", "source", "contractSha256", "result"],
+    ["id", "source", "contractSha256", "result"], "Portable product evidence scenario");
+  assertNonEmptyString(record.scenario.id, "Portable product evidence scenario id");
+  assertCondition(record.scenario.source === "plugin-repository",
+    "Portable product evidence scenario source is invalid");
+  assertCondition(record.scenario.contractSha256 === record.candidate.scenarioContractSha256,
+    "Portable product evidence scenario digest differs from its candidate");
+  assertNonEmptyString(record.scenario.result, "Portable product evidence scenario result");
+}
+
+function validatePortableEquivalence(record, evidenceByDigest) {
+  assertExactKeys(record,
+    ["schemaVersion", "kind", "recordedAt", "surface", "hostProfileId",
+      "sourceEvidenceSha256", "sourceCandidate", "targetCandidate", "identical", "reason"],
+    ["schemaVersion", "kind", "recordedAt", "surface", "hostProfileId",
+      "sourceEvidenceSha256", "sourceCandidate", "targetCandidate", "identical", "reason"],
+    "Portable runtime equivalence");
+  assertCondition(record.schemaVersion === 1 &&
+    record.kind === "obsidian-plugin-workspace/runtime-equivalence-v1",
+  "Portable runtime-equivalence schema/kind is unsupported");
+  assertCanonicalTimestamp(record.recordedAt, "Portable runtime-equivalence recordedAt");
+  assertCondition(["desktop", "android-emulator"].includes(record.surface),
+    "Portable runtime-equivalence surface is invalid");
+  assertNonEmptyString(record.hostProfileId, "Portable runtime-equivalence host profile");
+  assertSha256(record.sourceEvidenceSha256,
+    "Portable runtime-equivalence source evidence digest");
+  assertPortableCandidate(record.sourceCandidate, "Portable runtime-equivalence source candidate");
+  assertPortableCandidate(record.targetCandidate, "Portable runtime-equivalence target candidate");
+  assertCondition(record.sourceCandidate.pluginId === record.targetCandidate.pluginId,
+    "Portable runtime equivalence cannot cross plugin identities");
+  assertExactKeys(record.identical, ["productPayloadSha256", "scenarioContractSha256"],
+    ["productPayloadSha256", "scenarioContractSha256"],
+    "Portable runtime-equivalence identical contract");
+  assertCondition(record.identical.productPayloadSha256 ===
+      record.sourceCandidate.productPayloadSha256 &&
+    record.identical.productPayloadSha256 === record.targetCandidate.productPayloadSha256,
+  "Portable runtime equivalence requires byte-identical product payloads");
+  assertCondition(record.identical.scenarioContractSha256 ===
+      record.sourceCandidate.scenarioContractSha256 &&
+    record.identical.scenarioContractSha256 === record.targetCandidate.scenarioContractSha256,
+  "Portable runtime equivalence requires identical scenario contracts");
+  assertNonEmptyString(record.reason, "Portable runtime-equivalence reason");
+  const evidence = evidenceByDigest.get(record.sourceEvidenceSha256);
+  assertCondition(evidence !== undefined,
+    "Portable runtime equivalence lacks its source evidence");
+  assertCondition(samePortableCandidate(evidence.candidate, record.sourceCandidate) &&
+    evidence.surface === record.surface && evidence.host.profileId === record.hostProfileId,
+  "Portable runtime equivalence differs from its source evidence");
+}
+
+function validatePortableRecordWrappers(entries, validator, label) {
+  assertCondition(Array.isArray(entries), `${label} must be an array`);
+  const digests = [];
+  const records = new Map();
+  for (const entry of entries) {
+    assertExactKeys(entry, ["sha256", "record"], ["sha256", "record"], `${label} wrapper`);
+    assertSha256(entry.sha256, `${label} digest`);
+    validator(entry.record);
+    assertCondition(entry.sha256 === sha256(canonicalJson(entry.record)),
+      `${label} wrapper digest mismatch`);
+    assertCondition(!records.has(entry.sha256), `${label} digest is duplicated`);
+    records.set(entry.sha256, entry.record);
+    digests.push(entry.sha256);
+  }
+  const sorted = [...digests].sort((left, right) => left.localeCompare(right, "en"));
+  assertCondition(JSON.stringify(digests) === JSON.stringify(sorted), `${label} must be sorted`);
+  return records;
+}
+
+export function validatePortableAcceptanceClosure(value, { runId, verifiedBundle }) {
+  assertExactKeys(value,
+    ["schemaVersion", "kind", "runId", "closedAt", "status", "gatePassed",
+      "authorizesPublication", "candidate", "policy", "surfaces", "evidence", "equivalences"],
+    ["schemaVersion", "kind", "runId", "closedAt", "status", "gatePassed",
+      "authorizesPublication", "candidate", "policy", "surfaces", "evidence", "equivalences"],
+    "Acceptance closure");
+  assertCondition(value.schemaVersion === 2 &&
+    value.kind === "obsidian-plugin-workspace/release-acceptance-closure-v2",
+  "Acceptance closure schema/kind is unsupported");
+  assertCondition(value.runId === runId && value.status === "passed" &&
+    value.gatePassed === true && value.authorizesPublication === false,
+  "Acceptance closure does not close the exact run as passed");
+  assertCanonicalTimestamp(value.closedAt, "Acceptance closure closedAt");
+  assertPortableCandidate(value.candidate, "Acceptance closure candidate");
+  const bundle = verifiedBundle.candidateBundle;
+  const expectedCandidate = candidateFromVerifiedBundle(verifiedBundle);
+  assertCondition(samePortableCandidate(value.candidate, expectedCandidate),
+  "Acceptance closure candidate differs from the exact Candidate Bundle");
+  assertExactKeys(value.policy, ["desktop", "androidEmulator", "androidPhysical", "ios"],
+    ["desktop", "androidEmulator", "androidPhysical", "ios"], "Acceptance closure policy");
+  assertCondition(value.policy.desktop === "required" &&
+    value.policy.androidEmulator === "required-if-mobile" &&
+    value.policy.androidPhysical === "out-of-scope" && value.policy.ios === "out-of-scope",
+  "Acceptance closure policy is unsupported");
+  assertExactKeys(value.surfaces, ["desktop", "androidEmulator", "androidPhysical", "ios"],
+    ["desktop", "androidEmulator", "androidPhysical", "ios"], "Acceptance closure surfaces");
+  assertCondition(Array.isArray(value.evidence) && value.evidence.length > 0,
+    "Acceptance closure must contain evidence records");
+  assertCondition(Array.isArray(value.equivalences),
+    "Acceptance closure equivalences must be an array");
+  const evidenceByDigest = validatePortableRecordWrappers(value.evidence,
+    validatePortableProductEvidence, "Portable product evidence");
+  const equivalenceByDigest = validatePortableRecordWrappers(value.equivalences,
+    (record) => validatePortableEquivalence(record, evidenceByDigest),
+    "Portable runtime equivalence");
+  const claims = [];
+  for (const [evidenceSha256, evidence] of evidenceByDigest) {
+    let equivalenceSha256 = null;
+    if (!samePortableCandidate(evidence.candidate, expectedCandidate)) {
+      const matches = [...equivalenceByDigest].filter(([, equivalence]) =>
+        equivalence.sourceEvidenceSha256 === evidenceSha256 &&
+        samePortableCandidate(equivalence.targetCandidate, expectedCandidate));
+      assertCondition(matches.length === 1,
+        "Non-target portable evidence requires exactly one target runtime equivalence");
+      equivalenceSha256 = matches[0][0];
+    }
+    claims.push({ evidenceSha256, evidence, equivalenceSha256 });
+  }
+  for (const digest of equivalenceByDigest.keys()) {
+    assertCondition(claims.some((claim) => claim.equivalenceSha256 === digest),
+      "Portable runtime equivalence is unused");
+  }
+  const requiredSurfaces = bundle.plugin.isDesktopOnly ? ["desktop"] :
+    ["desktop", "android-emulator"];
+  for (const surface of requiredSurfaces) {
+    const matches = claims.filter((claim) => claim.evidence.surface === surface);
+    assertCondition(matches.length === 1,
+      `Acceptance closure requires exactly one passed ${surface} claim`);
+    const verdictName = surface === "desktop" ? "desktop" : "androidEmulator";
+    const verdict = value.surfaces[verdictName];
+    assertExactKeys(verdict, ["required", "status", "evidenceSha256", "equivalenceSha256"],
+      ["required", "status", "evidenceSha256", "equivalenceSha256"],
+      `Acceptance closure ${verdictName} verdict`);
+    assertCondition(verdict.required === true && verdict.status === "passed" &&
+      verdict.evidenceSha256 === matches[0].evidenceSha256 &&
+      verdict.equivalenceSha256 === matches[0].equivalenceSha256,
+    `Acceptance closure ${verdictName} verdict differs from its evidence`);
+  }
+  assertCondition(claims.every((claim) => requiredSurfaces.includes(claim.evidence.surface)),
+    "Acceptance closure contains evidence outside required surfaces");
+  if (bundle.plugin.isDesktopOnly) {
+    assertOutOfScopeVerdict(value.surfaces.androidEmulator, "androidEmulator");
+  }
+  assertOutOfScopeVerdict(value.surfaces.androidPhysical, "androidPhysical");
+  assertOutOfScopeVerdict(value.surfaces.ios, "ios");
+  return value;
+}
+
+function assertOutOfScopeVerdict(verdict, label) {
+  assertExactKeys(verdict, ["required", "status", "reason"],
+    ["required", "status", "reason"], `Acceptance closure ${label} verdict`);
+  assertCondition(verdict.required === false && verdict.status === "out-of-scope",
+    `Acceptance closure ${label} verdict must be out of scope`);
+  assertNonEmptyString(verdict.reason, `Acceptance closure ${label} reason`);
+}
+
+function validatePortableAuthorization(value, {
+  runId,
+  bundleSha256,
+  acceptanceClosureSha256,
+  expectedAuthorization,
+}) {
+  assertExactKeys(value,
+    ["schemaVersion", "kind", "runId", "authorizedAt", "singleCandidate",
+      "authorizesPublication", "bindings", "confirmation"],
+    ["schemaVersion", "kind", "runId", "authorizedAt", "singleCandidate",
+      "authorizesPublication", "bindings", "confirmation"],
+    "Publication authorization");
+  assertCondition(value.schemaVersion === 2 &&
+    value.kind === "obsidian-plugin-workspace/release-authorization-v2",
+  "Publication authorization schema/kind is unsupported");
+  assertCondition(value.runId === runId && value.singleCandidate === true &&
+    value.authorizesPublication === true,
+  "Publication authorization does not authorize the exact run");
+  assertCanonicalTimestamp(value.authorizedAt, "Publication authorization authorizedAt");
+  assertExactKeys(value.bindings,
+    ["planSha256", "candidateBundleSha256", "acceptanceClosureSha256"],
+    ["planSha256", "candidateBundleSha256", "acceptanceClosureSha256"],
+    "Publication authorization bindings");
+  assertSha256(value.bindings.planSha256, "Publication authorization plan digest");
+  assertCondition(value.bindings.candidateBundleSha256 === bundleSha256 &&
+    value.bindings.acceptanceClosureSha256 === acceptanceClosureSha256,
+  "Publication authorization bindings differ from the exact release records");
+  assertCondition(value.confirmation === expectedAuthorization,
+    "Publication authorization confirmation differs from the exact phrase");
+}
+
+export async function materializePublicationEvidence({
+  verifiedBundle,
+  outputDirectory,
+  runId,
+  bundleSha256,
+  acceptanceClosureSha256,
+  acceptanceClosureBase64,
+  authorizationSha256,
+  authorizationBase64,
+  expectedAuthorization,
+}) {
+  assertCondition(releaseRunIdPattern.test(assertNonEmptyString(runId, "Release run id")),
+    "Release run id must be a UUID");
+  assertSha256(bundleSha256, "Expected Candidate Bundle digest");
+  assertCondition(bundleSha256 === verifiedBundle.bundleSha256,
+    "Expected Candidate Bundle digest mismatch");
+  assertSha256(acceptanceClosureSha256, "Expected acceptance closure digest");
+  assertSha256(authorizationSha256, "Expected publication authorization digest");
+  const closureBytes = decodeCanonicalBase64(acceptanceClosureBase64, 60_000, 45_000,
+    "Acceptance closure");
+  const authorizationBytes = decodeCanonicalBase64(authorizationBase64, 16_000, 12_000,
+    "Publication authorization");
+  assertCondition(sha256(closureBytes) === acceptanceClosureSha256,
+    "Acceptance closure digest mismatch");
+  assertCondition(sha256(authorizationBytes) === authorizationSha256,
+    "Publication authorization digest mismatch");
+  const closure = parseCanonicalJson(closureBytes, "Acceptance closure");
+  const authorization = parseCanonicalJson(authorizationBytes, "Publication authorization");
+  validatePortableAcceptanceClosure(closure, { runId, verifiedBundle });
+  validatePortableAuthorization(authorization, {
+    runId,
+    bundleSha256,
+    acceptanceClosureSha256,
+    expectedAuthorization,
+  });
+  const output = await createExactDirectory(outputDirectory, new Map([
+    ["acceptance-closure.json", closureBytes],
+    ["authorization.json", authorizationBytes],
+  ]));
+  return Object.freeze({ status: "materialized", outputDirectory: output });
+}
+
+export async function stagePublicAssets({ verifiedBundle, outputDirectory }) {
+  const files = new Map(verifiedBundle.publicAssets.map((record) => [
+    record.name,
+    verifiedBundle.publicFiles.get(record.name),
+  ]));
+  const output = await createExactDirectory(outputDirectory, files);
+  return Object.freeze({ status: "staged", outputDirectory: output,
+    assetCount: verifiedBundle.publicAssets.length });
 }
 
 function parseCliOptions(arguments_, allowed, required = [], booleanOptions = []) {
@@ -1309,17 +2458,6 @@ function parseCliOptions(arguments_, allowed, required = [], booleanOptions = []
   return options;
 }
 
-function aliasedOption(options, primary, alias, label, { required = true } = {}) {
-  assertCondition(!(options.has(primary) && options.has(alias)),
-    `${primary} and ${alias} cannot be used together`, "RELEASE_CORE_CLI");
-  const value = options.get(primary) ?? options.get(alias);
-  if (required) {
-    assertCondition(typeof value === "string" && value.length > 0,
-      `${label} is required via ${primary} or ${alias}`, "RELEASE_CORE_CLI");
-  }
-  return value;
-}
-
 export async function runReleaseCli({
   projectRoot,
   config,
@@ -1330,6 +2468,12 @@ export async function runReleaseCli({
   assertCondition(Array.isArray(argv) && argv.length > 0, "Release command is required",
     "RELEASE_CORE_CLI");
   const [command, ...arguments_] = argv;
+  if (command === "workflow-write" || command === "workflow-check") {
+    parseCliOptions(arguments_, []);
+    return command === "workflow-write"
+      ? writeReleaseWorkflow({ projectRoot, config })
+      : checkReleaseWorkflow({ projectRoot, config });
+  }
   if (command === "validate" || command === "validate-tag") {
     const options = parseCliOptions(arguments_, ["--version", "--check-tag"], [], ["--check-tag"]);
     const checkTag = command === "validate-tag" || options.has("--check-tag");
@@ -1351,50 +2495,100 @@ export async function runReleaseCli({
       tagPolicyChecked: checkTag,
     });
   }
-  if (command === "candidate") {
-    const options = parseCliOptions(arguments_, ["--version", "--output-dir", "--output"]);
-    return createCandidateHandoff({
+  if (command === "bundle") {
+    const options = parseCliOptions(arguments_, ["--version", "--output-dir"],
+      ["--output-dir"]);
+    return buildCandidateBundle({
       projectRoot,
       config,
-      outputDirectory: aliasedOption(options, "--output-dir", "--output", "Candidate output directory"),
+      outputDirectory: options.get("--output-dir"),
       version: options.get("--version"),
       commandRunner,
     });
   }
-  if (command === "verify-handoff") {
-    const options = parseCliOptions(arguments_, ["--handoff-dir", "--candidate-dir"]);
-    return verifyReleaseHandoff({
+  if (command === "verify-source" || command === "verify-transport") {
+    const options = parseCliOptions(arguments_, ["--bundle-dir"], ["--bundle-dir"]);
+    const verify = command === "verify-source"
+      ? verifySourceCandidateBundle
+      : verifyTransportCandidateBundle;
+    return verify({
       projectRoot,
       config,
-      handoffDirectory: aliasedOption(options, "--handoff-dir", "--candidate-dir",
-        "Candidate handoff directory"),
+      bundleDirectory: options.get("--bundle-dir"),
       commandRunner,
+    });
+  }
+  if (command === "materialize-evidence") {
+    const options = parseCliOptions(arguments_, [
+      "--bundle-dir",
+      "--output-dir",
+      "--run-id",
+      "--bundle-digest",
+      "--acceptance-closure-digest",
+      "--authorization-digest",
+    ], [
+      "--bundle-dir",
+      "--output-dir",
+      "--run-id",
+      "--bundle-digest",
+      "--acceptance-closure-digest",
+      "--authorization-digest",
+    ]);
+    const verifiedBundle = await verifyTransportCandidateBundle({
+      projectRoot,
+      config,
+      bundleDirectory: options.get("--bundle-dir"),
+      commandRunner,
+    });
+    return materializePublicationEvidence({
+      verifiedBundle,
+      outputDirectory: options.get("--output-dir"),
+      runId: options.get("--run-id"),
+      bundleSha256: options.get("--bundle-digest"),
+      acceptanceClosureSha256: options.get("--acceptance-closure-digest"),
+      acceptanceClosureBase64: env.ACCEPTANCE_CLOSURE_B64,
+      authorizationSha256: options.get("--authorization-digest"),
+      authorizationBase64: env.AUTHORIZATION_B64,
+      expectedAuthorization: env.RELEASE_PUBLISH_AUTHORIZATION,
+    });
+  }
+  if (command === "stage-public-assets") {
+    const options = parseCliOptions(arguments_, ["--bundle-dir", "--output-dir"],
+      ["--bundle-dir", "--output-dir"]);
+    const verifiedBundle = await verifyTransportCandidateBundle({
+      projectRoot,
+      config,
+      bundleDirectory: options.get("--bundle-dir"),
+      commandRunner,
+    });
+    return stagePublicAssets({
+      verifiedBundle,
+      outputDirectory: options.get("--output-dir"),
     });
   }
   if (command === "publication-boundary") {
     const options = parseCliOptions(arguments_, [
-      "--handoff-dir",
-      "--candidate-dir",
-      "--candidate-digest",
+      "--bundle-dir",
+      "--bundle-digest",
       "--acceptance-closure",
       "--acceptance-closure-digest",
     ], [
-      "--candidate-digest",
+      "--bundle-dir",
+      "--bundle-digest",
       "--acceptance-closure",
       "--acceptance-closure-digest",
     ]);
-    const verifiedHandoff = await verifyReleaseHandoff({
+    const verifiedBundle = await verifyTransportCandidateBundle({
       projectRoot,
       config,
-      handoffDirectory: aliasedOption(options, "--handoff-dir", "--candidate-dir",
-        "Candidate handoff directory"),
+      bundleDirectory: options.get("--bundle-dir"),
       commandRunner,
     });
     return validatePublicationBoundary({
       projectRoot,
       config,
-      verifiedHandoff,
-      candidateSha256: options.get("--candidate-digest"),
+      verifiedBundle,
+      bundleSha256: options.get("--bundle-digest"),
       acceptanceClosurePath: options.get("--acceptance-closure"),
       acceptanceClosureSha256: options.get("--acceptance-closure-digest"),
       authorization: env.RELEASE_PUBLISH_AUTHORIZATION,
@@ -1403,28 +2597,27 @@ export async function runReleaseCli({
   }
   if (command === "publication-preflight") {
     const options = parseCliOptions(arguments_, [
-      "--handoff-dir",
-      "--candidate-dir",
-      "--candidate-digest",
+      "--bundle-dir",
+      "--bundle-digest",
       "--acceptance-closure",
       "--acceptance-closure-digest",
     ], [
-      "--candidate-digest",
+      "--bundle-dir",
+      "--bundle-digest",
       "--acceptance-closure",
       "--acceptance-closure-digest",
     ]);
-    const verifiedHandoff = await verifyReleaseHandoff({
+    const verifiedBundle = await verifyTransportCandidateBundle({
       projectRoot,
       config,
-      handoffDirectory: aliasedOption(options, "--handoff-dir", "--candidate-dir",
-        "Candidate handoff directory"),
+      bundleDirectory: options.get("--bundle-dir"),
       commandRunner,
     });
     return preflightGitHubPublication({
       projectRoot,
       config,
-      verifiedHandoff,
-      candidateSha256: options.get("--candidate-digest"),
+      verifiedBundle,
+      bundleSha256: options.get("--bundle-digest"),
       acceptanceClosurePath: options.get("--acceptance-closure"),
       acceptanceClosureSha256: options.get("--acceptance-closure-digest"),
       authorization: env.RELEASE_PUBLISH_AUTHORIZATION,
@@ -1434,29 +2627,28 @@ export async function runReleaseCli({
   }
   if (command === "publish-github") {
     const options = parseCliOptions(arguments_, [
-      "--handoff-dir",
-      "--candidate-dir",
-      "--candidate-digest",
+      "--bundle-dir",
+      "--bundle-digest",
       "--acceptance-closure",
       "--acceptance-closure-digest",
       "--notes-file",
     ], [
-      "--candidate-digest",
+      "--bundle-dir",
+      "--bundle-digest",
       "--acceptance-closure",
       "--acceptance-closure-digest",
     ]);
-    const verifiedHandoff = await verifyReleaseHandoff({
+    const verifiedBundle = await verifyTransportCandidateBundle({
       projectRoot,
       config,
-      handoffDirectory: aliasedOption(options, "--handoff-dir", "--candidate-dir",
-        "Candidate handoff directory"),
+      bundleDirectory: options.get("--bundle-dir"),
       commandRunner,
     });
     const boundary = await validatePublicationBoundary({
       projectRoot,
       config,
-      verifiedHandoff,
-      candidateSha256: options.get("--candidate-digest"),
+      verifiedBundle,
+      bundleSha256: options.get("--bundle-digest"),
       acceptanceClosurePath: options.get("--acceptance-closure"),
       acceptanceClosureSha256: options.get("--acceptance-closure-digest"),
       authorization: env.RELEASE_PUBLISH_AUTHORIZATION,
@@ -1465,7 +2657,7 @@ export async function runReleaseCli({
     return publishGitHub({
       projectRoot: path.resolve(projectRoot),
       config,
-      verifiedHandoff,
+      verifiedBundle,
       boundary,
       commandRunner,
       env,
@@ -1473,21 +2665,91 @@ export async function runReleaseCli({
     });
   }
   if (command === "post-verify") {
-    const options = parseCliOptions(arguments_, ["--handoff-dir", "--candidate-dir"]);
-    const verifiedHandoff = await verifyReleaseHandoff({
+    const options = parseCliOptions(arguments_, ["--bundle-dir"], ["--bundle-dir"]);
+    const verifiedBundle = await verifyTransportCandidateBundle({
       projectRoot,
       config,
-      handoffDirectory: aliasedOption(options, "--handoff-dir", "--candidate-dir",
-        "Candidate handoff directory"),
+      bundleDirectory: options.get("--bundle-dir"),
       commandRunner,
     });
     return verifyPublishedRelease({
       projectRoot,
       config,
-      verifiedHandoff,
+      verifiedBundle,
       commandRunner,
       env,
     });
   }
   fail(`Unknown release command: ${String(command)}`, "RELEASE_CORE_CLI");
+}
+
+function printableReleaseResult(result) {
+  const summary = {};
+  for (const name of [
+    "command",
+    "status",
+    "pluginId",
+    "version",
+    "commit",
+    "tree",
+    "bundleSha256",
+    "bundleDirectory",
+    "productPayloadSha256",
+    "scenarioContractSha256",
+    "repository",
+    "tag",
+    "workflow",
+    "sha256",
+    "assetCount",
+    "outputDirectory",
+  ]) {
+    if (typeof result?.[name] === "string" || typeof result?.[name] === "number") {
+      summary[name] = result[name];
+    }
+  }
+  return summary;
+}
+
+export function createReleaseAdapter({ adapterUrl, config: configInput }) {
+  const config = validateReleaseConfig(configInput);
+  const adapterPath = fileURLToPath(assertNonEmptyString(adapterUrl, "adapterUrl"));
+  const scriptDirectory = path.dirname(adapterPath);
+  const projectRoot = path.resolve(scriptDirectory, "..");
+  const lockPath = path.join(scriptDirectory, "vendor", "obsidian-release-core.lock.json");
+
+  async function verifyReleaseCorePin() {
+    const actual = await readRegularFile(lockPath, "Vendored release-core lock");
+    const expected = await serializeReleaseCoreVendorLock();
+    assertCondition(actual.equals(expected),
+      "Vendored release-core differs from its exact lock", "RELEASE_CORE_VENDOR_LOCK");
+  }
+
+  async function run(argv = process.argv.slice(2), options = {}) {
+    await verifyReleaseCorePin();
+    return runReleaseCli({
+      projectRoot,
+      config,
+      argv,
+      env: options.env ?? process.env,
+      commandRunner: options.commandRunner ?? defaultCommandRunner,
+    });
+  }
+
+  async function runIfMain(options = {}) {
+    const entryPoint = process.argv[1]
+      ? pathToFileURL(path.resolve(process.argv[1])).href
+      : undefined;
+    if (adapterUrl !== entryPoint) return null;
+    const result = await run(options.argv ?? process.argv.slice(2), options);
+    process.stdout.write(`${JSON.stringify(printableReleaseResult(result))}\n`);
+    return result;
+  }
+
+  return Object.freeze({
+    projectRoot,
+    releaseConfig: config,
+    verifyReleaseCorePin,
+    run,
+    runIfMain,
+  });
 }

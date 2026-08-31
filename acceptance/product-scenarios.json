@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "kind": "obsidian-plugin/product-scenarios-v1",
+  "pluginId": "structural-tables",
+  "materializer": {
+    "kind": "copy-v1",
+    "roots": [
+      {
+        "source": "acceptance/fixtures",
+        "target": ""
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "render-preview-and-invalid-source",
+      "title": "Structural rendering, previewed formatting, and invalid-source preservation",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "steps": [
+        "Open the valid table in Reading View and Live Preview",
+        "Preview the format command before confirming a canonical rewrite",
+        "Open the invalid table and inspect its diagnostic"
+      ],
+      "expected": [
+        "Column spans, row spans, multi-row headers, and row-header boundaries render consistently",
+        "No Markdown changes before explicit format confirmation",
+        "Invalid syntax retains its source and reports a bounded diagnostic"
+      ]
+    }
+  ]
+}

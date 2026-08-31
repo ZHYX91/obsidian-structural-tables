@@ -12,52 +12,61 @@ translation_of: release.zh-CN.md
 
 # Structural Tables — Release procedure
 
-<!-- section: versioning -->
-## Versioning
+This document defines the repeatable Structural Tables release process. Source, the Candidate
+Bundle, real Obsidian acceptance, GitHub publication, and production-Vault deployment are separate
+boundaries.
 
-`package.json`, the lockfile, `manifest.json`, `versions.json`, and the tag version must agree. Tags use unprefixed `x.y.z`.
+<!-- section: boundaries -->
+## Boundaries
 
-<!-- section: gates -->
-## Gates
+An ordinary tag push does not trigger publication. Commit, push, tag, workflow dispatch, GitHub
+Release, and production-Vault deployment are separately authorized; no local gate makes a remote
+write.
 
-The ordinary `check` runs runtime, formatting, bilingual sync, lint, type, coverage, production
-build, product bundle checks, and common vendored-core validation. `release:check` adds
-tag-aware validation. A missing same-version tag is allowed while preparing a candidate, but an
-existing tag must point to `HEAD`.
+<!-- section: version-source -->
+## Version and source
 
-<!-- section: assets -->
-## Assets
+`manifest.json`, `package.json`, `package-lock.json`, and `versions.json` bind one canonical version
+and exact commit/tree. A clean worktree must pass `npm run release:check`; a same-version tag must be
+absent or already point at that commit.
 
-The public Release contains only `main.js`, `manifest.json`, `styles.css`, and
-`structural-tables-x.y.z.zip`. The archive uses a `structural-tables/` root. The workflow handoff
-additionally contains `candidate.json` and `SHA256SUMS`; neither is a public Release asset.
+<!-- section: candidate-bundle -->
+## Candidate Bundle v3
 
-<!-- section: workflow -->
-## Workflow
+The vendored release-core `2.0.0` and thin adapter create the sole Candidate Bundle v3 containing
+`main.js`, `manifest.json`, `styles.css`, `structural-tables-x.y.z.zip`, `SHA256SUMS`, and
+`candidate-bundle.json`. The versioned ZIP uses a `structural-tables/` root. The Bundle also binds
+the toolchain, core/config/workflow, product payload, scenario contract, and fixture hashes.
 
-Build one deterministic core candidate, complete isolated acceptance, and keep the workspace
-candidate envelope, closure, and explicit authorization as separate evidence. Creating and
-pushing the exact numeric tag is separately authorized and never triggers publication.
+<!-- section: product-acceptance -->
+## Product acceptance
 
-The manual workflow defaults to read-only `verify`. The workspace dispatches `publish` only
-with the exact candidate commit and candidate/envelope/closure/authorization digests plus the
-original closure and authorization bytes. The verify job reproduces and uploads one fixed
-handoff. The write-enabled job validates both transported evidence documents and the core
-publication boundary, then performs a read-only GitHub preflight before any write. A missing
-Release permits staging, attestation, and creation; an exact existing Release whose bytes and
-provenance pass every check is a zero-write safe rerun; any conflict fails before those writes.
-`publish-github` repeats the check. A separate post-verification job checks hosted bytes,
-metadata, tag identity, and provenance.
+The same Bundle requires desktop and Android-emulator acceptance covering Reading View and Live
+Preview column spans, row spans, multi-row headers, row-header boundaries, preview-first format,
+and invalid-source preservation with a bounded diagnostic. Android physical devices and iOS are
+out of scope.
 
-An existing same-tag Release is accepted as a successful no-op only when every exact check passes.
-Any difference fails; the workflow never overwrites, edits, or appends same-tag assets.
+<!-- section: standalone-workflow -->
+## Standalone workflow
 
-<!-- section: acceptance -->
-## Acceptance
+The generated, checked-in standalone workflow accepts only explicit `workflow_dispatch`. Its
+read-only verify job performs one independent install and one complete `release:check` at the exact
+commit, rebuilds the Bundle, and source-verifies it. The publish job downloads the fixed artifact
+and performs transport verification without restoring `dist`.
 
-Source gates, packaged candidates, disposable Vaults, production Vaults, and Android emulators are separate claims. Android physical devices and iOS are out of scope. Evidence is required before broadening any supported claim.
+<!-- section: publication-verification -->
+## Publication and verification
 
-<!-- section: rollback -->
-## Rollback
+The acceptance closure does not authorize publication; separate authorization binds the same
+Bundle and closure. Before the first mutation, the workflow deeply validates the records, tag, and
+read-only preflight. The public Release contains exactly the three loose assets and versioned ZIP;
+`SHA256SUMS` and `candidate-bundle.json` remain in the private Bundle. Post-verification reads back
+hosted bytes and provenance.
 
-Published versions are never overwritten. Ship a new patch for defects. Production-Vault actions preserve `data.json` and require explicit authorization for the exact target.
+<!-- section: failure-deployment -->
+## Failure, rollback, and deployment
+
+An existing same-tag Release is a zero-write no-op only when exact; any difference fails without
+overwrite and fixes use a new version. Production-Vault deployment requires separate authorization
+for the exact Vault and preserves `data.json`; candidate, host, publication, and deployment verdicts
+are reported separately.

@@ -11,49 +11,53 @@ last_synced: 2026-08-31
 
 # Structural Tables — 发布流程
 
-<!-- section: versioning -->
-## 版本
+本文定义 Structural Tables 的可重复发布流程。源码、Candidate Bundle、真实 Obsidian 验收、
+GitHub 发布与正式 Vault 部署是独立边界。
 
-`package.json`、锁文件、`manifest.json`、`versions.json` 和标签版本必须一致；标签使用无前缀的 `x.y.z`。
+<!-- section: boundaries -->
+## 边界
 
-<!-- section: gates -->
-## 门禁
+普通 tag push 不触发发布。commit、push、tag、workflow dispatch、GitHub Release 与正式 Vault
+部署分别授权；任何本地门禁都不会产生远端写入。
 
-普通 `check` 运行 runtime、格式、双语同步、静态检查、类型、覆盖率、production build、
-产品 bundle 检查和公共 vendored-core 校验；`release:check` 额外运行 tag-aware 校验。准备
-候选时允许同版本 tag 不存在，但既有 tag 必须指向 `HEAD`。
+<!-- section: version-source -->
+## 版本与源码
 
-<!-- section: assets -->
-## 产物
+`manifest.json`、`package.json`、`package-lock.json` 与 `versions.json` 必须绑定同一规范版本和精确
+commit/tree。干净工作树必须通过 `npm run release:check`，同名 tag 只能不存在或已指向该提交。
 
-公开 Release 只包含 `main.js`、`manifest.json`、`styles.css` 与 `structural-tables-x.y.z.zip`。
-压缩包内使用 `structural-tables/` 根目录。工作流交接额外包含 `candidate.json` 与
-`SHA256SUMS`，二者都不属于公共 Release 资产。
+<!-- section: candidate-bundle -->
+## Candidate Bundle v3
 
-<!-- section: workflow -->
-## 工作流
+vendored release-core `2.0.0` 与薄 adapter 创建唯一 Candidate Bundle v3，包含 `main.js`、
+`manifest.json`、`styles.css`、`structural-tables-x.y.z.zip`、`SHA256SUMS` 与
+`candidate-bundle.json`。版本 ZIP 使用 `structural-tables/` 根目录；Bundle 同时绑定工具链、
+core/config/workflow、产品 payload、场景合同及 fixture 哈希。
 
-构建一次确定性 core candidate，完成隔离验收，并把 workspace candidate envelope、closure 与
-明确 authorization 保持为三份独立证据。创建和推送精确数值 tag 需要另行授权，且永远不会
-触发发布。
+<!-- section: product-acceptance -->
+## 产品验收
 
-手动 workflow 默认只读 `verify`。Workspace 只有在提供精确 candidate commit、candidate /
-envelope / closure / authorization 摘要，以及原始 closure 与 authorization 字节时，才派发
-`publish`。verify 任务重建并上传唯一固定 handoff；写权限任务校验两份传输证据与 core
-publication boundary，并在任何写入前只读预检 GitHub。Release 不存在才允许暂存、签发
-provenance 和创建；既有 Release 只有字节与 provenance 全部精确通过时才作为零写入安全重跑，
-任何冲突都在这些写入前失败，且 `publish-github` 会重复检查。独立 post-verification 任务校验
-hosted bytes、元数据、tag 身份与 provenance。
+同一 Bundle 必须通过桌面与 Android 模拟器验收，覆盖 Reading View 与 Live Preview 的 column
+span、row span、多行 header、row-header boundary，preview-first format，以及非法源码保持与有界
+诊断。Android 真机与 iOS 不在范围内。
 
-既有同 tag Release 只有全部精确检查通过时才按成功 no-op 接受；任何差异都会失败，workflow
-不会覆盖、编辑或追加同 tag 资产。
+<!-- section: standalone-workflow -->
+## 独立工作流
 
-<!-- section: acceptance -->
-## 验收
+生成并签入的 standalone workflow 只接受显式 `workflow_dispatch`。只读 verify job 在精确
+commit 上执行一次独立安装与一次完整 `release:check`，重建并 source-verify Bundle；publish
+job 下载固定 artifact 后只做 transport verification，不恢复 `dist`。
 
-源代码门禁、打包候选、临时 Vault、生产 Vault 和 Android 模拟器是独立声明。Android 真机和 iOS 不在范围内；没有对应证据不得提升受支持声明。
+<!-- section: publication-verification -->
+## 发布与核验
 
-<!-- section: rollback -->
-## 回退
+acceptance closure 不授权发布；单独 authorization 绑定同一 Bundle 与 closure。首次 mutation
+前 workflow 深度验证记录、标签和只读 preflight。公共 Release 恰好包含三个 loose assets 与
+版本 ZIP；`SHA256SUMS` 和 `candidate-bundle.json` 仅属于私有 Bundle。发布后回读托管字节与
+provenance。
 
-已发布版本不可覆盖。发现问题时发布新补丁版本；生产 Vault 操作必须保留 `data.json`，且需要用户明确授权具体目标。
+<!-- section: failure-deployment -->
+## 失败、回退与部署
+
+既有同 tag Release 只有完全一致时才是零写 no-op；任何差异都失败且不得覆盖，修复使用新版本。
+正式 Vault 部署需对精确 Vault 单独授权并保留 `data.json`；候选、宿主、发布与部署分别报告。

@@ -17,35 +17,31 @@ on:
           - verify
           - publish
       candidate_commit:
-        description: Exact accepted candidate commit
+        description: Exact accepted source commit
         required: true
         type: string
-      candidate_digest:
-        description: SHA-256 of the exact core candidate.json
-        required: true
-        type: string
-      candidate_envelope_digest:
-        description: SHA-256 of the workspace candidate envelope
+      candidate_bundle_digest:
+        description: SHA-256 of candidate-bundle.json
         required: true
         type: string
       acceptance_closure_digest:
-        description: SHA-256 of the decoded acceptance-closure bytes
+        description: SHA-256 of the decoded acceptance closure
         required: true
         type: string
       acceptance_closure_b64:
-        description: Base64 of the portable acceptance-closure JSON bytes
+        description: Canonical base64 acceptance closure
         required: true
         type: string
       release_authorization:
-        description: Exact core publication authorization phrase
-        required: true
-        type: string
-      authorization_b64:
-        description: Base64 of the exact publication-authorization JSON bytes
+        description: Exact publication authorization phrase
         required: true
         type: string
       authorization_digest:
-        description: SHA-256 of the decoded publication-authorization bytes
+        description: SHA-256 of the decoded authorization record
+        required: true
+        type: string
+      authorization_b64:
+        description: Canonical base64 authorization record
         required: true
         type: string
 
@@ -58,15 +54,15 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify exact candidate
+    name: Rebuild and verify exact Candidate Bundle
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
     outputs:
-      candidate_artifact_id: ${{ steps.handoff.outputs.artifact-id }}
-      candidate_artifact_digest: ${{ steps.handoff.outputs.artifact-digest }}
+      bundle_artifact_id: ${{ steps.bundle.outputs.artifact-id }}
+      bundle_artifact_digest: ${{ steps.bundle.outputs.artifact-digest }}
     steps:
       - name: Validate dispatch identifiers
         shell: bash
@@ -74,8 +70,7 @@ jobs:
           MODE: ${{ github.event.inputs.mode }}
           RELEASE_RUN_ID: ${{ inputs.release_run_id }}
           CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
-          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
-          CANDIDATE_ENVELOPE_DIGEST: ${{ inputs.candidate_envelope_digest }}
+          CANDIDATE_BUNDLE_DIGEST: ${{ inputs.candidate_bundle_digest }}
           ACCEPTANCE_CLOSURE_DIGEST: ${{ inputs.acceptance_closure_digest }}
           AUTHORIZATION_DIGEST: ${{ inputs.authorization_digest }}
         run: |
@@ -83,15 +78,14 @@ jobs:
           [[ "$MODE" == "verify" || "$MODE" == "publish" ]]
           [[ "$RELEASE_RUN_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]
           [[ "$CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
-          [[ "$CANDIDATE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$CANDIDATE_ENVELOPE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$CANDIDATE_BUNDLE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
           [[ "$ACCEPTANCE_CLOSURE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
           [[ "$AUTHORIZATION_DIGEST" =~ ^[0-9a-f]{64}$ ]]
           test "$CANDIDATE_COMMIT" = "$GITHUB_SHA"
           [[ "$GITHUB_REF_TYPE" == "tag" ]]
           [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
 
-      - name: Check out the exact candidate without persisted credentials
+      - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.candidate_commit }}
@@ -125,37 +119,37 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Run complete repository release gates
+      - name: Run the one complete repository build and verification pass
         run: npm run release:check
 
-      - name: Build deterministic candidate handoff
+      - name: Build deterministic Candidate Bundle
         run: >-
-          node scripts/release.mjs candidate
+          node scripts/release.mjs bundle
           --version "$GITHUB_REF_NAME"
-          --output "$RUNNER_TEMP/release-candidate"
+          --output-dir "$RUNNER_TEMP/candidate-bundle"
 
-      - name: Verify candidate identity and handoff
+      - name: Verify source candidate and expected Bundle identity
         shell: bash
         env:
-          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
+          CANDIDATE_BUNDLE_DIGEST: ${{ inputs.candidate_bundle_digest }}
         run: |
           set -euo pipefail
-          test "$(sha256sum "$RUNNER_TEMP/release-candidate/candidate.json" | cut -d ' ' -f 1)" = "$CANDIDATE_DIGEST"
-          node scripts/release.mjs verify-handoff --candidate-dir "$RUNNER_TEMP/release-candidate"
+          test "$(sha256sum "$RUNNER_TEMP/candidate-bundle/candidate-bundle.json" | cut -d ' ' -f 1)" = "$CANDIDATE_BUNDLE_DIGEST"
+          node scripts/release.mjs verify-source --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
-      - name: Upload fixed candidate handoff
-        id: handoff
+      - name: Upload fixed Candidate Bundle
+        id: bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: release-candidate-${{ inputs.release_run_id }}
-          path: ${{ runner.temp }}/release-candidate/
+          name: candidate-bundle-${{ inputs.release_run_id }}
+          path: ${{ runner.temp }}/candidate-bundle/
           if-no-files-found: error
           compression-level: 0
           overwrite: false
           retention-days: 1
 
   publish:
-    name: Publish explicitly authorized candidate
+    name: Publish explicitly authorized Candidate Bundle
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
     needs: verify
     runs-on: ubuntu-24.04
@@ -167,7 +161,7 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - name: Check out the exact candidate without persisted credentials
+      - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.candidate_commit }}
@@ -179,206 +173,43 @@ jobs:
         with:
           node-version-file: .node-version
 
-      - name: Download fixed candidate handoff by artifact ID
+      - name: Download fixed Candidate Bundle by artifact ID
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          artifact-ids: ${{ needs.verify.outputs.candidate_artifact_id }}
-          path: ${{ runner.temp }}/release-candidate
+          artifact-ids: ${{ needs.verify.outputs.bundle_artifact_id }}
+          path: ${{ runner.temp }}/candidate-bundle
           digest-mismatch: error
 
-      - name: Verify transported acceptance and authorization evidence
-        shell: bash
+      - name: Materialize exact acceptance and authorization evidence
         env:
-          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
-          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
-          CANDIDATE_DIGEST: ${{ inputs.candidate_digest }}
-          CANDIDATE_ENVELOPE_DIGEST: ${{ inputs.candidate_envelope_digest }}
           ACCEPTANCE_CLOSURE_B64: ${{ inputs.acceptance_closure_b64 }}
-          ACCEPTANCE_CLOSURE_DIGEST: ${{ inputs.acceptance_closure_digest }}
           AUTHORIZATION_B64: ${{ inputs.authorization_b64 }}
-          RELEASE_AUTHORIZATION: ${{ inputs.release_authorization }}
-          AUTHORIZATION_DIGEST: ${{ inputs.authorization_digest }}
-          CANDIDATE_DIRECTORY: ${{ runner.temp }}/release-candidate
-          EVIDENCE_DIRECTORY: ${{ runner.temp }}/release-evidence
-        run: |
-          set -euo pipefail
-          node --input-type=module <<'NODE'
-          import assert from "node:assert/strict";
-          import { createHash } from "node:crypto";
-          import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-          import path from "node:path";
+          RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
+        run: >-
+          node scripts/release.mjs materialize-evidence
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          --output-dir "$RUNNER_TEMP/release-evidence"
+          --run-id "${{ inputs.release_run_id }}"
+          --bundle-digest "${{ inputs.candidate_bundle_digest }}"
+          --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"
+          --authorization-digest "${{ inputs.authorization_digest }}"
 
-          const SHA256 = /^[0-9a-f]{64}$/u;
-          const GIT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-          const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-          const exactKeys = (value, keys, label) => {
-            assert.ok(value !== null && typeof value === "object" && !Array.isArray(value), label);
-            assert.deepEqual(Object.keys(value).sort(), [...keys].sort(), `${label} fields`);
-          };
-          const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
-          const decode = (encoded, maximumCharacters, maximumBytes, label) => {
-            assert.ok(typeof encoded === "string" && encoded.length > 0, `${label} missing`);
-            assert.ok(encoded.length <= maximumCharacters, `${label} exceeds input limit`);
-            assert.match(encoded, /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u);
-            const bytes = Buffer.from(encoded, "base64");
-            assert.ok(bytes.length > 0 && bytes.length <= maximumBytes, `${label} decoded size`);
-            assert.equal(bytes.toString("base64"), encoded, `${label} must be canonical base64`);
-            return bytes;
-          };
-          const assertPortable = (value) => {
-            if (typeof value === "string") {
-              assert.ok(!/^(?:[A-Za-z]:[\\/]|\\\\|\/)/u.test(value), "portable evidence contains an absolute path");
-              return;
-            }
-            if (Array.isArray(value)) {
-              for (const item of value) assertPortable(item);
-              return;
-            }
-            if (value !== null && typeof value === "object") {
-              for (const item of Object.values(value)) assertPortable(item);
-            }
-          };
-
-          const runId = process.env.RELEASE_RUN_ID ?? "";
-          const candidateCommit = process.env.CANDIDATE_COMMIT ?? "";
-          const candidateDigest = process.env.CANDIDATE_DIGEST ?? "";
-          const candidateEnvelopeDigest = process.env.CANDIDATE_ENVELOPE_DIGEST ?? "";
-          const closureDigest = process.env.ACCEPTANCE_CLOSURE_DIGEST ?? "";
-          const authorizationDigest = process.env.AUTHORIZATION_DIGEST ?? "";
-          assert.match(runId, UUID);
-          assert.match(candidateCommit, GIT_ID);
-          assert.match(candidateDigest, SHA256);
-          assert.match(candidateEnvelopeDigest, SHA256);
-          assert.match(closureDigest, SHA256);
-          assert.match(authorizationDigest, SHA256);
-
-          const closureBytes = decode(
-            process.env.ACCEPTANCE_CLOSURE_B64,
-            60_000,
-            45_000,
-            "acceptance closure",
-          );
-          const authorizationBytes = decode(
-            process.env.AUTHORIZATION_B64,
-            16_000,
-            12_000,
-            "publication authorization",
-          );
-          assert.equal(digest(closureBytes), closureDigest, "acceptance closure digest");
-          assert.equal(digest(authorizationBytes), authorizationDigest, "authorization digest");
-
-          const candidateBytes = readFileSync(
-            path.join(process.env.CANDIDATE_DIRECTORY, "candidate.json"),
-          );
-          assert.equal(digest(candidateBytes), candidateDigest, "candidate digest");
-          const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
-
-          const closure = JSON.parse(closureBytes.toString("utf8"));
-          exactKeys(closure, [
-            "authorizesPublication",
-            "candidate",
-            "candidateEnvelopeSha256",
-            "closedAt",
-            "evidence",
-            "gatePassed",
-            "kind",
-            "policy",
-            "receipt",
-            "releaseCandidate",
-            "runId",
-            "schemaVersion",
-            "status",
-            "surfaces",
-          ], "acceptance closure");
-          assert.equal(closure.schemaVersion, 1);
-          assert.equal(closure.kind, "obsidian-plugin-workspace/release-acceptance-closure-v1");
-          assert.equal(closure.runId, runId);
-          assert.equal(closure.status, "passed");
-          assert.equal(closure.gatePassed, true);
-          assert.equal(closure.authorizesPublication, false);
-          assert.equal(closure.candidateEnvelopeSha256, candidateEnvelopeDigest);
-          exactKeys(closure.receipt, ["sha256", "size"], "acceptance closure receipt");
-          assert.match(closure.receipt.sha256, SHA256);
-          assert.notEqual(closure.receipt.sha256, candidateDigest);
-          assert.ok(Number.isSafeInteger(closure.receipt.size) && closure.receipt.size > 0);
-          exactKeys(
-            closure.releaseCandidate,
-            ["candidateJsonSha256", "candidateJsonSize"],
-            "acceptance closure release candidate",
-          );
-          assert.equal(closure.releaseCandidate.candidateJsonSha256, candidateDigest);
-          assert.equal(closure.releaseCandidate.candidateJsonSize, candidateBytes.length);
-          assert.ok(Array.isArray(closure.evidence) && closure.evidence.length > 0);
-          exactKeys(closure.candidate, [
-            "assets",
-            "commit",
-            "identitySha256",
-            "pluginId",
-            "projectId",
-            "tree",
-            "version",
-          ], "acceptance closure candidate");
-          assert.equal(closure.candidate.pluginId, manifest.id);
-          assert.equal(closure.candidate.version, manifest.version);
-          assert.equal(closure.candidate.version, process.env.GITHUB_REF_NAME);
-          assert.equal(closure.candidate.commit, candidateCommit);
-          assert.match(closure.candidate.tree, GIT_ID);
-          assert.match(closure.candidate.identitySha256, SHA256);
-          assertPortable(closure);
-
-          const authorization = JSON.parse(authorizationBytes.toString("utf8"));
-          exactKeys(authorization, [
-            "authorizedAt",
-            "authorizesPublication",
-            "bindings",
-            "confirmation",
-            "kind",
-            "runId",
-            "schemaVersion",
-            "singleCandidate",
-          ], "publication authorization");
-          exactKeys(authorization.bindings, [
-            "candidateEnvelopeSha256",
-            "candidateSha256",
-            "closureSha256",
-            "planSha256",
-          ], "publication authorization bindings");
-          assert.equal(authorization.schemaVersion, 1);
-          assert.equal(authorization.kind, "obsidian-plugin-workspace/release-authorization-v1");
-          assert.equal(authorization.runId, runId);
-          assert.equal(authorization.singleCandidate, true);
-          assert.equal(authorization.authorizesPublication, true);
-          assert.match(authorization.bindings.planSha256, SHA256);
-          assert.equal(authorization.bindings.candidateEnvelopeSha256, candidateEnvelopeDigest);
-          assert.equal(authorization.bindings.candidateSha256, candidateDigest);
-          assert.equal(authorization.bindings.closureSha256, closureDigest);
-
-          const expectedPhrase = `publish ${process.env.GITHUB_REPOSITORY}@${process.env.GITHUB_REF_NAME} commit=${candidateCommit} candidate=${candidateDigest} acceptance=${closureDigest}`;
-          assert.equal(process.env.RELEASE_AUTHORIZATION, expectedPhrase);
-          assert.equal(authorization.confirmation, expectedPhrase);
-          assertPortable(authorization);
-
-          mkdirSync(process.env.EVIDENCE_DIRECTORY, { recursive: false });
-          writeFileSync(path.join(process.env.EVIDENCE_DIRECTORY, "acceptance-closure.json"), closureBytes, { flag: "wx", mode: 0o600 });
-          writeFileSync(path.join(process.env.EVIDENCE_DIRECTORY, "authorization.json"), authorizationBytes, { flag: "wx", mode: 0o600 });
-          NODE
-
-      - name: Verify fixed handoff before publication
+      - name: Verify transported Bundle without rebuilding
         shell: bash
         env:
-          ARTIFACT_DIGEST: ${{ needs.verify.outputs.candidate_artifact_digest }}
+          ARTIFACT_DIGEST: ${{ needs.verify.outputs.bundle_artifact_digest }}
         run: |
           set -euo pipefail
           [[ "$ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          node scripts/release.mjs verify-handoff --candidate-dir "$RUNNER_TEMP/release-candidate"
+          node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
       - name: Verify publication boundary before attestation
         env:
           RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
         run: >-
           node scripts/release.mjs publication-boundary
-          --candidate-dir "$RUNNER_TEMP/release-candidate"
-          --candidate-digest "${{ inputs.candidate_digest }}"
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          --bundle-digest "${{ inputs.candidate_bundle_digest }}"
           --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
           --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"
 
@@ -392,65 +223,23 @@ jobs:
           set -euo pipefail
           result_path="$RUNNER_TEMP/publication-preflight.json"
           test ! -e "$result_path"
-          node scripts/release.mjs publication-preflight \
-            --candidate-dir "$RUNNER_TEMP/release-candidate" \
-            --candidate-digest "${{ inputs.candidate_digest }}" \
-            --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json" \
-            --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}" \
-            > "$result_path"
-          status="$(
-            node --input-type=module - "$result_path" <<'NODE'
+          node scripts/release.mjs publication-preflight             --bundle-dir "$RUNNER_TEMP/candidate-bundle"             --bundle-digest "${{ inputs.candidate_bundle_digest }}"             --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"             --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"             > "$result_path"
+          status="$(node --input-type=module - "$result_path" <<'NODE'
           import assert from "node:assert/strict";
           import { readFileSync } from "node:fs";
-
           const result = JSON.parse(readFileSync(process.argv[2], "utf8"));
-          assert.ok(result !== null && typeof result === "object" && !Array.isArray(result));
           assert.ok(result.status === "missing" || result.status === "exact");
           process.stdout.write(result.status);
           NODE
           )"
           printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
 
-      - name: Stage exact public asset inventory for attestation
+      - name: Stage exact public asset inventory
         if: steps.publication_preflight.outputs.status == 'missing'
-        env:
-          CANDIDATE_DIRECTORY: ${{ runner.temp }}/release-candidate
-          PUBLIC_ASSET_DIRECTORY: ${{ runner.temp }}/release-public-assets
-        run: |
-          node --input-type=module <<'NODE'
-          import assert from "node:assert/strict";
-          import { constants, copyFileSync, lstatSync, mkdirSync, readFileSync } from "node:fs";
-          import path from "node:path";
-
-          const candidate = JSON.parse(readFileSync(
-            path.join(process.env.CANDIDATE_DIRECTORY, "candidate.json"),
-            "utf8",
-          ));
-          assert.ok(Array.isArray(candidate.productionAssets));
-          const names = [
-            ...candidate.productionAssets.map((record) => record.name),
-            candidate.archive?.name,
-          ];
-          assert.ok(names.length >= 3);
-          assert.equal(new Set(names).size, names.length);
-          mkdirSync(process.env.PUBLIC_ASSET_DIRECTORY, { recursive: false });
-          for (const name of names) {
-            assert.ok(
-              typeof name === "string" &&
-              name.length > 0 &&
-              path.posix.basename(name) === name &&
-              !name.includes("\\"),
-            );
-            const source = path.join(process.env.CANDIDATE_DIRECTORY, name);
-            const status = lstatSync(source);
-            assert.ok(status.isFile() && !status.isSymbolicLink());
-            copyFileSync(
-              source,
-              path.join(process.env.PUBLIC_ASSET_DIRECTORY, name),
-              constants.COPYFILE_EXCL,
-            );
-          }
-          NODE
+        run: >-
+          node scripts/release.mjs stage-public-assets
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          --output-dir "$RUNNER_TEMP/release-public-assets"
 
       - name: Attest public release assets
         if: steps.publication_preflight.outputs.status == 'missing'
@@ -465,13 +254,13 @@ jobs:
           RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
         run: >-
           node scripts/release.mjs publish-github
-          --candidate-dir "$RUNNER_TEMP/release-candidate"
-          --candidate-digest "${{ inputs.candidate_digest }}"
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          --bundle-digest "${{ inputs.candidate_bundle_digest }}"
           --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
           --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"
 
   post_verify:
-    name: Verify hosted release state
+    name: Verify immutable hosted release state
     if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
     needs:
       - verify
@@ -483,7 +272,7 @@ jobs:
       attestations: read
       contents: read
     steps:
-      - name: Check out the exact candidate without persisted credentials
+      - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.candidate_commit }}
@@ -495,21 +284,21 @@ jobs:
         with:
           node-version-file: .node-version
 
-      - name: Download the same fixed candidate handoff
+      - name: Download the same fixed Candidate Bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          artifact-ids: ${{ needs.verify.outputs.candidate_artifact_id }}
-          path: ${{ runner.temp }}/release-candidate
+          artifact-ids: ${{ needs.verify.outputs.bundle_artifact_id }}
+          path: ${{ runner.temp }}/candidate-bundle
           digest-mismatch: error
 
-      - name: Reverify fixed handoff
+      - name: Reverify transported Bundle without rebuilding
         run: >-
-          node scripts/release.mjs verify-handoff
-          --candidate-dir "$RUNNER_TEMP/release-candidate"
+          node scripts/release.mjs verify-transport
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
       - name: Verify immutable hosted bytes and provenance
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           node scripts/release.mjs post-verify
-          --candidate-dir "$RUNNER_TEMP/release-candidate"
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle"

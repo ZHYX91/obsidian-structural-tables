@@ -55,7 +55,7 @@ Any difference fails; the workflow never overwrites, edits, or appends same-tag 
 <!-- section: acceptance -->
 ## Acceptance
 
-Source gates, packaged candidates, disposable Vaults, production Vaults, emulators, and physical devices are separate claims. Evidence is required before broadening any claim.
+Source gates, packaged candidates, disposable Vaults, production Vaults, and Android emulators are separate claims. Android physical devices and iOS are out of scope. Evidence is required before broadening any supported claim.
 
 <!-- section: rollback -->
 ## Rollback

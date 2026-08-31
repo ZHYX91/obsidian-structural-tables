@@ -52,7 +52,7 @@ The recovery manifest records the original table, generated Base, source file, a
 <!-- section: settings -->
 ## Settings
 
-Settings saves pass through one serialized coordinator. Each queued save owns an immutable snapshot, so overlapping changes cannot persist a later mutable object under an earlier request.
+Persisted settings use a schema-1 envelope. The previous unversioned object is the only legacy input: startup sanitizes it once and queues the schema-1 envelope, while current schema-1 data is normalized without another migration. Any explicit unknown or malformed schema is incompatible and read-only, so this plugin version cannot overwrite future fields. Settings saves pass through one serialized coordinator. Each queued save owns an immutable snapshot, failed saves remain visible and retryable, and unload flushes the queue and retries the latest failed snapshot once.
 
 <!-- section: release -->
 ## Release

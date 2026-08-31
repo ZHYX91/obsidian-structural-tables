@@ -51,7 +51,7 @@ hosted bytes、元数据、tag 身份与 provenance。
 <!-- section: acceptance -->
 ## 验收
 
-源代码门禁、打包候选、临时 Vault、生产 Vault、模拟器和真机是独立声明。没有对应证据不得提升声明范围。
+源代码门禁、打包候选、临时 Vault、生产 Vault 和 Android 模拟器是独立声明。Android 真机和 iOS 不在范围内；没有对应证据不得提升受支持声明。
 
 <!-- section: rollback -->
 ## 回退

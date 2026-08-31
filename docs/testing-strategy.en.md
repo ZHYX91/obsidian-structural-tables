@@ -30,7 +30,7 @@ Cover missing anchors, nonrectangles, role crossing, edge/multiple/spaced `||`, 
 <!-- section: commands -->
 ## Commands
 
-Cover safe merges, non-empty refusal, splitting, insert/delete/move/alignment transformations, merged-anchor migration, Wiki-link pipe escaping without double escapes, and canonical formatting. Every candidate edit is parsed again. DOM tests cover ordinary takeover and release, full owned menus, semantic header roles, handles, in-place editing, one-transaction Tab commit, and IME composition. Settings tests cover the default-off takeover flag, overlap writes, immutable snapshots, and deterministic final state.
+Cover safe merges, non-empty refusal, splitting, insert/delete/move/alignment transformations, merged-anchor migration, Wiki-link pipe escaping without double escapes, and canonical formatting. Every candidate edit is parsed again. DOM tests cover ordinary takeover and release, full owned menus, semantic header roles, handles, in-place editing, one-transaction Tab commit, and IME composition. Settings tests cover the default-off takeover flag; pure, idempotent normalization; unversioned-to-schema-1 migration; current-schema loading; future and malformed explicit-schema refusal without writes; immutable serialized snapshots; visible failure and retry states; and unload flushing.
 
 <!-- section: interchange -->
 ## Interchange cases
@@ -50,4 +50,4 @@ In an explicitly named disposable Vault, test minimum and current Obsidian, ligh
 <!-- section: mobile -->
 ## Mobile
 
-Every mobile release candidate requires current Android-emulator evidence for startup, Reading view, Live Preview, two-tap rectangular selection, long-press menus, touch-sized handles, in-place editing, and Chinese/English IME composition. Emulator and physical-device claims remain separate. A physical Android run is optional enhanced evidence when touch, IME, storage, or another platform boundary changes; its absence does not block the shared release closure. When run, record the device, OS, Obsidian version, candidate identity, and scenario result.
+Every mobile release candidate requires current Android-emulator evidence for startup, Reading view, Live Preview, two-tap rectangular selection, long-press menus, touch-sized handles, in-place editing, and Chinese/English IME composition. Record the AVD, OS, Obsidian version, candidate identity, and scenario result. Android physical devices and iOS are out of scope.

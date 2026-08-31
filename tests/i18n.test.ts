@@ -15,6 +15,8 @@ describe("i18n", () => {
 
   it("localizes interchange commands and settings", () => {
     expect(createTranslator("en")("command.copyHtml")).toBe("Copy current table as HTML");
+    expect(createTranslator("en")("modal.format.confirm")).toBe("Format table");
+    expect(createTranslator("zh-CN")("modal.format.title")).toBe("格式化结构表格");
     expect(createTranslator("zh-CN")("settings.htmlPaste")).toBe("保留粘贴 HTML 表格的合并结构");
     expect(createTranslator("zh-CN")("menu.flattenAndPromoteBase")).toBe("展开结构并升级为 Base…");
   });

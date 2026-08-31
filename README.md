@@ -62,7 +62,7 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 4. Double-click or double-tap a rendered cell, or select it and press Enter/F2, to edit it in place. Enter commits, Escape cancels, and Tab commits and advances.
 5. Use the row/column handles, drag across cells with a mouse, or tap the first and last cell of a rectangle on Android. Then right-click or long-press to insert, safely delete, move, align, merge, split, or set headers.
 6. Paste an HTML table from a browser, Excel, or Google Sheets to preserve supported row and column spans.
-7. Open the command palette to copy the current valid table as HTML, GFM, TSV, or CSV; preview a flatten-to-GFM conversion; or migrate a Sheets Extended row-header separator.
+7. Open the command palette to preview and confirm canonical formatting, copy the current valid table as HTML, GFM, TSV, or CSV, preview a flatten-to-GFM conversion, or migrate a Sheets Extended row-header separator.
 8. Right-click a table and choose **Upgrade to Base…**. Structural tables use **Expand structure and upgrade to Base…**, whose preview explains flattened header paths, ordinary row-header properties, repeated merged row-header values, and any blocking merged data cell before files can be created.
 
 ```markdown

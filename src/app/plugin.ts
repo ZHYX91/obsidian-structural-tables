@@ -345,8 +345,24 @@ export class StructuralTablesPlugin extends Plugin {
       new Notice(current.table.diagnostics[0]?.message ?? "Invalid structural table.");
       return;
     }
-    this.replaceTable(editor, current.table, serializeStructuralTable(current.table));
-    new Notice(createTranslator(this.settings.language)("notice.formatted"));
+    const t = createTranslator(this.settings.language);
+    const source = serializeStructuralTable(current.table);
+    new ConversionPreviewModal(this.app, {
+      title: t("modal.format.title"),
+      description: t("modal.format.desc"),
+      source,
+      cancelLabel: t("modal.cancel"),
+      confirmLabel: t("modal.format.confirm"),
+      onConfirm: () => {
+        const reparsed = reparseUnchangedTable(editor.getValue(), current.table);
+        if (reparsed === null) {
+          new Notice(t("notice.staleTable"));
+          return;
+        }
+        this.replaceTable(editor, reparsed, source);
+        new Notice(t("notice.formatted"));
+      },
+    }).open();
   }
 
   private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV"): void {

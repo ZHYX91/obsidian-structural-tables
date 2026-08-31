@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.3.1 - 2026-08-31
+
+- Protected settings that use an unknown or malformed schema from being overwritten.
+- Serialized settings saves with retryable failure status and unload flushing.
+
 ## 0.3.0 - 2026-08-28
 
 - Support Android Obsidian while retaining the existing desktop interaction model.

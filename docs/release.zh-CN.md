@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-08-26
+last_synced: 2026-08-31
 ---
 
 [English](release.en.md)
@@ -19,26 +19,34 @@ last_synced: 2026-08-26
 <!-- section: gates -->
 ## 门禁
 
-发布前运行运行时、格式、双语同步、静态检查、类型、覆盖率、生产构建与产物检查。`release:check` 还要求干净、已提交且标签一致的源码。
+普通 `check` 运行 runtime、格式、双语同步、静态检查、类型、覆盖率、production build、
+产品 bundle 检查和公共 vendored-core 校验；`release:check` 额外运行 tag-aware 校验。准备
+候选时允许同版本 tag 不存在，但既有 tag 必须指向 `HEAD`。
 
 <!-- section: assets -->
 ## 产物
 
 公开 Release 只包含 `main.js`、`manifest.json`、`styles.css` 与 `structural-tables-x.y.z.zip`。
-压缩包内使用 `structural-tables/` 根目录。工作流交接额外包含 `SHA256SUMS`，但它不属于公共
-Release 资产。
+压缩包内使用 `structural-tables/` 根目录。工作流交接额外包含 `candidate.json` 与
+`SHA256SUMS`，二者都不属于公共 Release 资产。
 
 <!-- section: workflow -->
 ## 工作流
 
-创建 tag 前，从当前远端默认分支 HEAD 手动运行只读 preflight 并输入计划版本；它要求远端 tag
-与同版本 Release 尚不存在，运行完整门禁并生成手动安装 ZIP，但不发布。推送数值 tag 后，验证
-任务构建一次并上传带摘要的精确交接产物；发布任务核验服务端身份、字节、摘要与证明后创建
-不可变 Release。
+构建一次确定性 core candidate，完成隔离验收，并把 workspace candidate envelope、closure 与
+明确 authorization 保持为三份独立证据。创建和推送精确数值 tag 需要另行授权，且永远不会
+触发发布。
 
-失败的 tag workflow 可以安全重跑。既有同 tag Release 只有在稳定、不可变、精确包含四个公共
-资产、与当前候选逐字节一致，且四项 provenance 均绑定同一 tag 与 commit 时，才作为成功
-no-op 接受；任何差异都会失败，工作流不会覆盖、编辑或追加同 tag 资产。
+手动 workflow 默认只读 `verify`。Workspace 只有在提供精确 candidate commit、candidate /
+envelope / closure / authorization 摘要，以及原始 closure 与 authorization 字节时，才派发
+`publish`。verify 任务重建并上传唯一固定 handoff；写权限任务校验两份传输证据与 core
+publication boundary，并在任何写入前只读预检 GitHub。Release 不存在才允许暂存、签发
+provenance 和创建；既有 Release 只有字节与 provenance 全部精确通过时才作为零写入安全重跑，
+任何冲突都在这些写入前失败，且 `publish-github` 会重复检查。独立 post-verification 任务校验
+hosted bytes、元数据、tag 身份与 provenance。
+
+既有同 tag Release 只有全部精确检查通过时才按成功 no-op 接受；任何差异都会失败，workflow
+不会覆盖、编辑或追加同 tag 资产。
 
 <!-- section: acceptance -->
 ## 验收

@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "npm run typecheck && npm run build:bundle && npm run check:release",
+    "build": "npm run typecheck && npm run build:bundle && npm run check:production",
     "build:bundle": "node esbuild.config.mjs production",
     "check:runtime": "node scripts/check-runtime.mjs",
     "format:check": "node scripts/check-format.mjs",
@@ -16,9 +16,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check:release": "node scripts/check-release.mjs",
-    "check": "npm run check:runtime && npm run format:check && npm run check:readme-i18n && npm run check:docs-i18n && npm run lint && npm run typecheck && npm run test:coverage && npm run build:bundle && npm run check:release",
-    "release:check": "npm run check && node scripts/check-release-version.mjs"
+    "check:production": "node scripts/check-production-bundle.mjs",
+    "release:validate": "node scripts/release.mjs validate",
+    "release:validate-tag": "node scripts/release.mjs validate-tag",
+    "release:candidate": "node scripts/release.mjs candidate",
+    "release:verify-handoff": "node scripts/release.mjs verify-handoff",
+    "release:publish-github": "node scripts/release.mjs publish-github",
+    "release:post-verify": "node scripts/release.mjs post-verify",
+    "check": "npm run check:runtime && npm run format:check && npm run check:readme-i18n && npm run check:docs-i18n && npm run lint && npm run typecheck && npm run test:coverage && npm run build:bundle && npm run check:production && npm run release:validate",
+    "release:check": "npm run check && npm run release:validate-tag"
   },
   "keywords": [
     "obsidian",

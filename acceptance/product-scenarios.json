@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "kind": "obsidian-plugin/product-scenarios-v1",
+  "schemaVersion": 2,
+  "kind": "obsidian-plugin/product-scenarios-v2",
   "pluginId": "structural-tables",
   "materializer": {
     "kind": "copy-v1",
@@ -19,6 +19,10 @@
         "desktop",
         "android-emulator"
       ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
       "steps": [
         "Open the valid table in Reading View and Live Preview",
         "Preview the format command before confirming a canonical rewrite",

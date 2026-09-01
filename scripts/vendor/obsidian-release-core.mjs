@@ -18,8 +18,8 @@ export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
 export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
 export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
 export const CANDIDATE_BUNDLE_KIND = "obsidian-plugin/candidate-bundle-v3";
-export const PRODUCT_SCENARIOS_SCHEMA_VERSION = 1;
-export const PRODUCT_SCENARIOS_KIND = "obsidian-plugin/product-scenarios-v1";
+export const PRODUCT_SCENARIOS_SCHEMA_VERSION = 2;
+export const PRODUCT_SCENARIOS_KIND = "obsidian-plugin/product-scenarios-v2";
 
 const execFileAsync = promisify(execFile);
 const runtimePath = fileURLToPath(import.meta.url);
@@ -28,6 +28,7 @@ const pluginIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
 const gitObjectPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const hostCapabilities = Object.freeze(["touch.drag", "touch.longPress"]);
 const zipDosDate = 0x0021;
 const zipDosTime = 0;
 const zipUtf8Flag = 0x0800;
@@ -312,8 +313,9 @@ function validateProductScenarios(input, config) {
   assertCondition(Array.isArray(input.scenarios) && input.scenarios.length > 0,
     "Product scenarios must contain at least one scenario");
   const scenarios = input.scenarios.map((scenario, index) => {
-    assertExactKeys(scenario, ["id", "title", "surfaces", "steps", "expected"],
-      ["id", "title", "surfaces", "steps", "expected"],
+    assertExactKeys(scenario,
+      ["id", "title", "surfaces", "requiredCapabilities", "steps", "expected"],
+      ["id", "title", "surfaces", "requiredCapabilities", "steps", "expected"],
       `Product scenario ${index}`);
     const id = assertNonEmptyString(scenario.id, `Product scenario ${index} id`);
     assertCondition(scenarioIdPattern.test(id), `Product scenario id is invalid: ${id}`);
@@ -323,12 +325,28 @@ function validateProductScenarios(input, config) {
     assertCondition(new Set(surfaces).size === surfaces.length &&
       surfaces.every((surface) => surface === "desktop" || surface === "android-emulator"),
     `Product scenario ${id} surfaces are invalid`);
+    assertExactKeys(scenario.requiredCapabilities, surfaces, surfaces,
+      `Product scenario ${id} requiredCapabilities`);
+    const requiredCapabilities = Object.fromEntries(surfaces.map((surface) => {
+      const capabilities = scenario.requiredCapabilities[surface];
+      assertStringArray(capabilities,
+        `Product scenario ${id} requiredCapabilities.${surface}`, { nonEmpty: false });
+      assertCondition(new Set(capabilities).size === capabilities.length &&
+        capabilities.every((capability) => hostCapabilities.includes(capability)) &&
+        capabilities.every((capability, capabilityIndex) =>
+          capabilityIndex === 0 || capabilities[capabilityIndex - 1].localeCompare(capability, "en") < 0),
+      `Product scenario ${id} requiredCapabilities.${surface} are invalid`);
+      assertCondition(surface === "android-emulator" || capabilities.length === 0,
+        `Product scenario ${id} desktop capabilities must be empty`);
+      return [surface, Object.freeze([...capabilities])];
+    }));
     assertStringArray(scenario.steps, `Product scenario ${id} steps`);
     assertStringArray(scenario.expected, `Product scenario ${id} expected`);
     return Object.freeze({
       id,
       title,
       surfaces: Object.freeze(surfaces),
+      requiredCapabilities: Object.freeze(requiredCapabilities),
       steps: Object.freeze([...scenario.steps]),
       expected: Object.freeze([...scenario.expected]),
     });
@@ -2098,7 +2116,12 @@ function decodeCanonicalBase64(value, maximumCharacters, maximumBytes, label) {
 
 function assertPortableJson(value, label) {
   if (typeof value === "string") {
-    assertCondition(!/^(?:[A-Za-z]:[\\/]|\\\\|\/)/u.test(value),
+    const frozenGrpcMethod = [
+      "/android.emulation.control.EmulatorController/getStatus",
+      "/android.emulation.control.EmulatorController/getScreenshot",
+      "/android.emulation.control.EmulatorController/sendTouch",
+    ].includes(value);
+    assertCondition(frozenGrpcMethod || !/^(?:[A-Za-z]:[\\/]|\\\\|\/)/u.test(value),
       `${label} contains an absolute path`);
     return;
   }
@@ -2133,7 +2156,7 @@ function assertCanonicalTimestamp(value, label) {
 
 const portableCandidateKeys = Object.freeze([
   "bundleSha256", "pluginId", "version", "commit", "tree", "productPayloadSha256",
-  "scenarioContractSha256",
+  "scenarioContractSha256", "acceptanceCandidateIdentityHash",
 ]);
 
 function assertPortableCandidate(candidate, label) {
@@ -2145,6 +2168,8 @@ function assertPortableCandidate(candidate, label) {
   assertGitObject(candidate.tree, `${label} tree`);
   assertSha256(candidate.productPayloadSha256, `${label} product payload digest`);
   assertSha256(candidate.scenarioContractSha256, `${label} scenario contract digest`);
+  assertSha256(candidate.acceptanceCandidateIdentityHash,
+    `${label} acceptance candidate identity hash`);
 }
 
 function samePortableCandidate(left, right) {
@@ -2161,16 +2186,32 @@ function candidateFromVerifiedBundle(verifiedBundle) {
     tree: bundle.source.tree,
     productPayloadSha256: bundle.product.payloadSha256,
     scenarioContractSha256: bundle.acceptance.scenarioContract.digestSha256,
+    acceptanceCandidateIdentityHash: acceptanceCandidateIdentityHashFromBundle(bundle),
   };
+}
+
+function acceptanceCandidateIdentityHashFromBundle(bundle) {
+  const assets = Object.fromEntries([...bundle.product.assets]
+    .sort((left, right) => left.name.localeCompare(right.name, "en"))
+    .map((asset) => [asset.name, { sha256: asset.sha256, size: asset.size }]));
+  return sha256(JSON.stringify({
+    pluginId: bundle.plugin.id,
+    version: bundle.plugin.version,
+    commit: bundle.source.commit,
+    tree: bundle.source.tree,
+    assets,
+  }));
 }
 
 function validatePortableProductEvidence(record) {
   assertExactKeys(record,
-    ["schemaVersion", "kind", "observedAt", "candidate", "surface", "status", "host", "scenario"],
-    ["schemaVersion", "kind", "observedAt", "candidate", "surface", "status", "host", "scenario"],
+    ["schemaVersion", "kind", "observedAt", "candidate", "surface", "status", "host",
+      "inputTrace", "scenario"],
+    ["schemaVersion", "kind", "observedAt", "candidate", "surface", "status", "host",
+      "inputTrace", "scenario"],
     "Portable product evidence");
-  assertCondition(record.schemaVersion === 2 &&
-    record.kind === "obsidian-plugin-workspace/product-evidence-v2",
+  assertCondition(record.schemaVersion === 3 &&
+    record.kind === "obsidian-plugin-workspace/product-evidence-v3",
   "Portable product evidence schema/kind is unsupported");
   assertCanonicalTimestamp(record.observedAt, "Portable product evidence observedAt");
   assertCondition(["desktop", "android-emulator"].includes(record.surface),
@@ -2189,19 +2230,153 @@ function validatePortableProductEvidence(record) {
   if (record.surface === "desktop") {
     assertCondition(record.host.deviceKind === "desktop" && record.host.platform !== "android",
       "Portable desktop evidence has an invalid host");
+    assertCondition(record.inputTrace === null,
+      "Portable desktop evidence cannot contain an Android input trace");
   } else {
-    assertCondition(record.host.platform === "android" && record.host.deviceKind === "emulator" &&
-      Number.isSafeInteger(record.host.apiLevel) && record.host.apiLevel > 0,
-    "Portable Android emulator evidence has an invalid host");
+    validatePortableAndroidHost(record.host);
   }
-  assertExactKeys(record.scenario, ["id", "source", "contractSha256", "result"],
-    ["id", "source", "contractSha256", "result"], "Portable product evidence scenario");
+  assertExactKeys(record.scenario,
+    ["id", "source", "contractSha256", "requiredCapabilities", "result"],
+    ["id", "source", "contractSha256", "requiredCapabilities", "result"],
+    "Portable product evidence scenario");
   assertNonEmptyString(record.scenario.id, "Portable product evidence scenario id");
   assertCondition(record.scenario.source === "plugin-repository",
     "Portable product evidence scenario source is invalid");
   assertCondition(record.scenario.contractSha256 === record.candidate.scenarioContractSha256,
     "Portable product evidence scenario digest differs from its candidate");
+  assertCondition(Array.isArray(record.scenario.requiredCapabilities) &&
+    new Set(record.scenario.requiredCapabilities).size ===
+      record.scenario.requiredCapabilities.length &&
+    record.scenario.requiredCapabilities.every((capability, index) =>
+      (capability === "touch.drag" || capability === "touch.longPress") &&
+      (index === 0 || record.scenario.requiredCapabilities[index - 1]
+        .localeCompare(capability, "en") < 0)),
+  "Portable product evidence scenario capabilities are invalid");
+  if (record.surface === "desktop") {
+    assertCondition(record.scenario.requiredCapabilities.length === 0,
+      "Portable desktop evidence cannot require Android touch capabilities");
+  } else {
+    validatePortableInputTraceSummary(record.inputTrace, record);
+  }
   assertNonEmptyString(record.scenario.result, "Portable product evidence scenario result");
+}
+
+function validatePortableAndroidHost(host) {
+  const keys = [
+    "schemaVersion", "profileId", "platform", "deviceKind", "deviceName", "avdName",
+    "osVersion", "apiLevel", "resolution", "orientation", "obsidianVersion", "sessionKind",
+    "packageId", "inputMethods", "inputDriver",
+  ];
+  assertExactKeys(host, keys, keys, "Portable Android emulator host");
+  assertCondition(host.schemaVersion === 2 && host.platform === "android" &&
+    host.deviceKind === "emulator" && host.sessionKind === "external" &&
+    host.packageId === "md.obsidian" && Number.isSafeInteger(host.apiLevel) && host.apiLevel > 0 &&
+    host.resolution === "1080x2340" && host.orientation === "PORTRAIT" &&
+    JSON.stringify(host.inputMethods) === JSON.stringify(["android-emulator-grpc-v1"]),
+  "Portable Android emulator evidence has an invalid host");
+  assertNonEmptyString(host.avdName, "Portable Android emulator AVD name");
+  const driverKeys = [
+    "id", "version", "endpoint", "capabilities", "rpcAllowlist", "emulator", "display",
+  ];
+  assertExactKeys(host.inputDriver, driverKeys, driverKeys,
+    "Portable Android emulator input driver");
+  assertCondition(host.inputDriver.id === "android-emulator-grpc-v1" &&
+    host.inputDriver.version === "1.0.0" &&
+    JSON.stringify(host.inputDriver.endpoint) ===
+      JSON.stringify({ host: "127.0.0.1", port: "ephemeral" }) &&
+    JSON.stringify(host.inputDriver.capabilities) ===
+      JSON.stringify(["touch.longPress", "touch.drag"]) &&
+    JSON.stringify(host.inputDriver.rpcAllowlist) === JSON.stringify([
+      "/android.emulation.control.EmulatorController/getStatus",
+      "/android.emulation.control.EmulatorController/getScreenshot",
+      "/android.emulation.control.EmulatorController/sendTouch",
+    ]) && JSON.stringify(host.inputDriver.emulator) === JSON.stringify({
+      version: "36.6.11.0",
+      buildId: "15507667",
+      protoSha256: "5a18f729a3df31c3ede3a290af12acce2eca258133555f73126157749764a9c2",
+    }) && JSON.stringify(host.inputDriver.display) === JSON.stringify({
+      id: 0, width: 1080, height: 2340, orientation: "PORTRAIT",
+    }),
+  "Portable Android emulator input driver differs from the frozen contract");
+}
+
+function validatePortableInputTraceSummary(trace, evidence) {
+  const keys = [
+    "schemaVersion", "kind", "path", "sha256", "traceHash", "driver", "identity",
+    "device", "status", "createdAt", "sealedAt", "actionCount", "actions", "rpcCalls",
+    "residualTouches",
+  ];
+  assertExactKeys(trace, keys, keys, "Portable Android input trace summary");
+  assertCondition(trace.schemaVersion === 1 &&
+    trace.kind === "obsidian-plugin-workspace/android-input-trace-summary-v1",
+  "Portable Android input trace summary schema/kind is unsupported");
+  assertCondition(typeof trace.path === "string" && trace.path.startsWith("input-traces/") &&
+    !trace.path.includes("\\") && !trace.path.split("/").some((segment) =>
+      segment === "" || segment === "." || segment === ".."),
+  "Portable Android input trace path is unsafe");
+  assertSha256(trace.sha256, "Portable Android input trace file digest");
+  assertSha256(trace.traceHash, "Portable Android input trace hash");
+  assertExactKeys(trace.driver, ["id", "version", "rpcAllowlist"],
+    ["id", "version", "rpcAllowlist"], "Portable Android input trace driver");
+  assertCondition(trace.driver.id === "android-emulator-grpc-v1" &&
+    trace.driver.version === "1.0.0" &&
+    JSON.stringify(trace.driver.rpcAllowlist) ===
+      JSON.stringify(evidence.host.inputDriver.rpcAllowlist),
+  "Portable Android input trace driver differs from its host profile");
+  const identityKeys = [
+    "pluginId", "runId", "candidateIdentityHash", "inputManifestHash", "markerHash",
+    "markerGeneration", "hostProfileId",
+  ];
+  assertExactKeys(trace.identity, identityKeys, identityKeys,
+    "Portable Android input trace identity");
+  assertCondition(trace.identity.pluginId === evidence.candidate.pluginId &&
+    releaseRunIdPattern.test(trace.identity.runId) &&
+    trace.identity.candidateIdentityHash === evidence.candidate.acceptanceCandidateIdentityHash &&
+    trace.identity.hostProfileId === evidence.host.profileId &&
+    Number.isSafeInteger(trace.identity.markerGeneration) && trace.identity.markerGeneration >= 0,
+  "Portable Android input trace identity differs from its candidate or host");
+  assertSha256(trace.identity.inputManifestHash,
+    "Portable Android input trace input manifest hash");
+  assertSha256(trace.identity.markerHash, "Portable Android input trace marker hash");
+  const deviceKeys = [
+    "avdName", "serial", "apiLevel", "emulatorVersion", "emulatorBuildId", "protoSha256",
+    "display",
+  ];
+  assertExactKeys(trace.device, deviceKeys, deviceKeys, "Portable Android input trace device");
+  assertCondition(trace.device.avdName === evidence.host.avdName &&
+    /^emulator-\d+$/u.test(trace.device.serial) && trace.device.apiLevel === evidence.host.apiLevel &&
+    trace.device.emulatorVersion === evidence.host.inputDriver.emulator.version &&
+    trace.device.emulatorBuildId === evidence.host.inputDriver.emulator.buildId &&
+    trace.device.protoSha256 === evidence.host.inputDriver.emulator.protoSha256 &&
+    JSON.stringify(trace.device.display) === JSON.stringify(evidence.host.inputDriver.display),
+  "Portable Android input trace device differs from its host profile");
+  assertCanonicalTimestamp(trace.createdAt, "Portable Android input trace createdAt");
+  assertCanonicalTimestamp(trace.sealedAt, "Portable Android input trace sealedAt");
+  assertCondition(Date.parse(trace.sealedAt) >= Date.parse(trace.createdAt) &&
+    Date.parse(evidence.observedAt) >= Date.parse(trace.sealedAt) && trace.status === "completed",
+  "Portable passed Android input trace has invalid timing or status");
+  assertCondition(Number.isSafeInteger(trace.actionCount) && trace.actionCount > 0,
+    "Portable passed Android input trace must contain actions");
+  assertExactKeys(trace.actions, ["tap", "longPress", "drag", "failed"],
+    ["tap", "longPress", "drag", "failed"], "Portable Android input trace actions");
+  assertCondition(Object.values(trace.actions).every((count) =>
+    Number.isSafeInteger(count) && count >= 0) &&
+    trace.actions.tap + trace.actions.longPress + trace.actions.drag === trace.actionCount &&
+    trace.actions.failed === 0 && trace.residualTouches === 0,
+  "Portable passed Android input trace action counts are invalid");
+  for (const capability of evidence.scenario.requiredCapabilities) {
+    const action = capability === "touch.drag" ? "drag" : "longPress";
+    assertCondition(trace.actions[action] > 0,
+      `Portable Android input trace does not exercise ${capability}`);
+  }
+  assertExactKeys(trace.rpcCalls, ["getStatus", "getScreenshot", "sendTouch"],
+    ["getStatus", "getScreenshot", "sendTouch"], "Portable Android input trace RPC calls");
+  assertCondition(Object.values(trace.rpcCalls).every((count) =>
+    Number.isSafeInteger(count) && count >= 0) &&
+    trace.rpcCalls.getStatus === trace.rpcCalls.getScreenshot &&
+    trace.rpcCalls.getStatus >= trace.actionCount * 3 &&
+    trace.rpcCalls.sendTouch >= trace.actionCount * 2,
+  "Portable Android input trace RPC counts are invalid");
 }
 
 function validatePortableEquivalence(record, evidenceByDigest) {
@@ -2211,8 +2386,8 @@ function validatePortableEquivalence(record, evidenceByDigest) {
     ["schemaVersion", "kind", "recordedAt", "surface", "hostProfileId",
       "sourceEvidenceSha256", "sourceCandidate", "targetCandidate", "identical", "reason"],
     "Portable runtime equivalence");
-  assertCondition(record.schemaVersion === 1 &&
-    record.kind === "obsidian-plugin-workspace/runtime-equivalence-v1",
+  assertCondition(record.schemaVersion === 2 &&
+    record.kind === "obsidian-plugin-workspace/runtime-equivalence-v2",
   "Portable runtime-equivalence schema/kind is unsupported");
   assertCanonicalTimestamp(record.recordedAt, "Portable runtime-equivalence recordedAt");
   assertCondition(["desktop", "android-emulator"].includes(record.surface),
@@ -2270,8 +2445,8 @@ export function validatePortableAcceptanceClosure(value, { runId, verifiedBundle
     ["schemaVersion", "kind", "runId", "closedAt", "status", "gatePassed",
       "authorizesPublication", "candidate", "policy", "surfaces", "evidence", "equivalences"],
     "Acceptance closure");
-  assertCondition(value.schemaVersion === 2 &&
-    value.kind === "obsidian-plugin-workspace/release-acceptance-closure-v2",
+  assertCondition(value.schemaVersion === 3 &&
+    value.kind === "obsidian-plugin-workspace/release-acceptance-closure-v3",
   "Acceptance closure schema/kind is unsupported");
   assertCondition(value.runId === runId && value.status === "passed" &&
     value.gatePassed === true && value.authorizesPublication === false,

@@ -3,5 +3,5 @@
   "package": "@zhyx/obsidian-release-core",
   "version": "2.0.0",
   "runtime": "obsidian-release-core.mjs",
-  "sha256": "61e5dd25d38ea6bf912b581efc9cd52358fbb20457309d02fbe10ecb549600c4"
+  "sha256": "d1a20b1242a6be1dcc0ee5f44e28c7ad8a8f5932bb8340a682f586f78cafb18d"
 }

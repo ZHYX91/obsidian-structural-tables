@@ -368,6 +368,19 @@ function validateProductScenarios(input, config) {
   });
 }
 
+function buildScenarioRequirements(contract) {
+  return Object.freeze(contract.scenarios.flatMap((scenario) =>
+    scenario.surfaces.map((surface) => Object.freeze({
+      scenarioId: scenario.id,
+      surface,
+      requiredCapabilities: Object.freeze([
+        ...scenario.requiredCapabilities[surface],
+      ]),
+    }))).sort((left, right) =>
+    left.surface.localeCompare(right.surface, "en") ||
+      left.scenarioId.localeCompare(right.scenarioId, "en")));
+}
+
 async function readRegularTreeFiles(projectRoot, relativeRoot) {
   const absoluteRoot = resolveInside(projectRoot, relativeRoot, "Product fixture root");
   await assertRegularDirectory(absoluteRoot, `Product fixture root ${relativeRoot}`);
@@ -418,16 +431,19 @@ async function readScenarioContract(projectRoot, config) {
     size: source.length,
     sha256: sha256(source),
   });
+  const requirements = buildScenarioRequirements(contract);
   const digestSha256 = sha256(canonicalJson({
-    schemaVersion: 1,
+    schemaVersion: 2,
     contract: contractRecord,
     resources,
+    requirements,
   }));
   return Object.freeze({
     contract,
     record: Object.freeze({
       ...contractRecord,
       resources: Object.freeze(resources),
+      requirements,
       digestSha256,
     }),
   });
@@ -1098,8 +1114,9 @@ function assertPathRecordShape(record, label) {
 }
 
 function assertScenarioContractRecordShape(record, config) {
-  assertExactKeys(record, ["path", "size", "sha256", "resources", "digestSha256"],
-    ["path", "size", "sha256", "resources", "digestSha256"],
+  assertExactKeys(record,
+    ["path", "size", "sha256", "resources", "requirements", "digestSha256"],
+    ["path", "size", "sha256", "resources", "requirements", "digestSha256"],
     "Candidate Bundle scenario contract");
   assertPathRecordShape({ path: record.path, size: record.size, sha256: record.sha256 },
     "Candidate Bundle scenario contract file");
@@ -1117,11 +1134,50 @@ function assertScenarioContractRecordShape(record, config) {
     left.localeCompare(right, "en"));
   assertCondition(JSON.stringify(resourcePaths) === JSON.stringify(sortedResourcePaths),
     "Candidate Bundle scenario resources must be sorted");
+  assertCondition(Array.isArray(record.requirements) && record.requirements.length > 0,
+    "Candidate Bundle scenario requirements must be a non-empty array");
+  const requirementKeys = [];
+  for (const requirement of record.requirements) {
+    assertExactKeys(requirement, ["scenarioId", "surface", "requiredCapabilities"],
+      ["scenarioId", "surface", "requiredCapabilities"],
+      "Candidate Bundle scenario requirement");
+    assertCondition(scenarioIdPattern.test(requirement.scenarioId ?? ""),
+      "Candidate Bundle scenario requirement id is invalid");
+    assertCondition(requirement.surface === "desktop" ||
+      requirement.surface === "android-emulator",
+    "Candidate Bundle scenario requirement surface is invalid");
+    assertStringArray(requirement.requiredCapabilities,
+      "Candidate Bundle scenario requirement capabilities", { nonEmpty: false });
+    assertCondition(new Set(requirement.requiredCapabilities).size ===
+        requirement.requiredCapabilities.length &&
+      requirement.requiredCapabilities.every((capability) => hostCapabilities.includes(capability)) &&
+      requirement.requiredCapabilities.every((capability, index) =>
+        index === 0 || requirement.requiredCapabilities[index - 1]
+          .localeCompare(capability, "en") < 0),
+    "Candidate Bundle scenario requirement capabilities are invalid");
+    assertCondition(requirement.surface === "android-emulator" ||
+      requirement.requiredCapabilities.length === 0,
+    "Candidate Bundle desktop scenario requirements cannot require touch capabilities");
+    requirementKeys.push(`${requirement.surface}\u0000${requirement.scenarioId}`);
+  }
+  assertCondition(new Set(requirementKeys).size === requirementKeys.length,
+    "Candidate Bundle scenario requirements must be unique");
+  const sortedRequirementKeys = [...requirementKeys].sort((left, right) =>
+    left.localeCompare(right, "en"));
+  assertCondition(JSON.stringify(requirementKeys) === JSON.stringify(sortedRequirementKeys),
+    "Candidate Bundle scenario requirements must be sorted");
+  const coveredSurfaces = new Set(record.requirements.map((requirement) => requirement.surface));
+  assertCondition(coveredSurfaces.has("desktop"),
+    "Candidate Bundle scenario requirements must cover desktop");
+  assertCondition(config.plugin.isDesktopOnly ? !coveredSurfaces.has("android-emulator") :
+    coveredSurfaces.has("android-emulator"),
+  "Candidate Bundle scenario requirements differ from the plugin platform policy");
   assertSha256(record.digestSha256, "Candidate Bundle scenario contract digest");
   const expectedDigest = sha256(canonicalJson({
-    schemaVersion: 1,
+    schemaVersion: 2,
     contract: { path: record.path, size: record.size, sha256: record.sha256 },
     resources: record.resources,
+    requirements: record.requirements,
   }));
   assertCondition(record.digestSha256 === expectedDigest,
     "Candidate Bundle scenario contract aggregate digest is invalid");
@@ -2493,22 +2549,51 @@ export function validatePortableAcceptanceClosure(value, { runId, verifiedBundle
   }
   const requiredSurfaces = bundle.plugin.isDesktopOnly ? ["desktop"] :
     ["desktop", "android-emulator"];
+  const requirements = bundle.acceptance.scenarioContract.requirements;
+  const requirementByKey = new Map(requirements.map((requirement) => [
+    `${requirement.surface}\u0000${requirement.scenarioId}`,
+    requirement,
+  ]));
+  const claimsByRequirement = new Map();
+  for (const claim of claims) {
+    const key = `${claim.evidence.surface}\u0000${claim.evidence.scenario.id}`;
+    const requirement = requirementByKey.get(key);
+    assertCondition(requirement !== undefined,
+      "Acceptance closure contains evidence outside exact candidate scenario requirements");
+    assertCondition(JSON.stringify(claim.evidence.scenario.requiredCapabilities) ===
+      JSON.stringify(requirement.requiredCapabilities),
+    "Acceptance closure evidence capabilities differ from its candidate scenario requirement");
+    assertCondition(!claimsByRequirement.has(key),
+      "Acceptance closure contains duplicate scenario claims");
+    claimsByRequirement.set(key, claim);
+  }
   for (const surface of requiredSurfaces) {
-    const matches = claims.filter((claim) => claim.evidence.surface === surface);
-    assertCondition(matches.length === 1,
-      `Acceptance closure requires exactly one passed ${surface} claim`);
+    const surfaceRequirements = requirements.filter((requirement) =>
+      requirement.surface === surface);
+    assertCondition(surfaceRequirements.length > 0,
+      `Acceptance closure candidate has no ${surface} scenario requirements`);
+    const matches = surfaceRequirements.map((requirement) => claimsByRequirement.get(
+      `${requirement.surface}\u0000${requirement.scenarioId}`,
+    ));
+    assertCondition(matches.every((claim) => claim !== undefined),
+      `Acceptance closure requires one passed claim for every ${surface} scenario`);
     const verdictName = surface === "desktop" ? "desktop" : "androidEmulator";
     const verdict = value.surfaces[verdictName];
-    assertExactKeys(verdict, ["required", "status", "evidenceSha256", "equivalenceSha256"],
-      ["required", "status", "evidenceSha256", "equivalenceSha256"],
+    assertExactKeys(verdict, ["required", "status", "scenarios"],
+      ["required", "status", "scenarios"],
       `Acceptance closure ${verdictName} verdict`);
+    const expectedScenarioVerdicts = surfaceRequirements.map((requirement, index) => ({
+      scenarioId: requirement.scenarioId,
+      status: "passed",
+      evidenceSha256: matches[index].evidenceSha256,
+      equivalenceSha256: matches[index].equivalenceSha256,
+    }));
     assertCondition(verdict.required === true && verdict.status === "passed" &&
-      verdict.evidenceSha256 === matches[0].evidenceSha256 &&
-      verdict.equivalenceSha256 === matches[0].equivalenceSha256,
+      JSON.stringify(verdict.scenarios) === JSON.stringify(expectedScenarioVerdicts),
     `Acceptance closure ${verdictName} verdict differs from its evidence`);
   }
-  assertCondition(claims.every((claim) => requiredSurfaces.includes(claim.evidence.surface)),
-    "Acceptance closure contains evidence outside required surfaces");
+  assertCondition(claims.length === requirements.length,
+    "Acceptance closure claim count differs from exact candidate scenario requirements");
   if (bundle.plugin.isDesktopOnly) {
     assertOutOfScopeVerdict(value.surfaces.androidEmulator, "androidEmulator");
   }

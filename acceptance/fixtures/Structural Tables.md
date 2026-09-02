@@ -8,6 +8,14 @@
 | North | 10 | 12 |
 | ^ | 8 | 11 |
 
+## Visual line breaks
+
+| Syntax | Rendered |
+| --- || --- |
+| HTML | First<br>Second |
+| XHTML compact | First<br/>Second |
+| XHTML spaced | First<br />Second |
+
 ## Invalid structure
 
 | Region | Sales |

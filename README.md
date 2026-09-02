@@ -66,14 +66,16 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 8. Right-click a table and choose **Upgrade to Base…**. Structural tables use **Expand structure and upgrade to Base…**, whose preview explains flattened header paths, ordinary row-header properties, repeated merged row-header values, and any blocking merged data cell before files can be created.
 
 ```markdown
-| Region | Sales | < |
-| Quarter | Q1 | Q2 |
-| --- || --- | --- |
-| North | 10 | 12 |
-| ^ | 8 | 11 |
+| Region  | Sales | <   |
+| Quarter | Q1    | Q2  |
+| ---     || ---  | --- |
+| North   | 10    | 12  |
+| ^       | 8     | 11  |
 ```
 
 All equal-width rows immediately before the delimiter are column-header rows. The `||` divider is internal, appears at most once, does not add a column, and makes columns to its left row headers. A merge must resolve to one top-left content cell, form a complete rectangle, and stay inside one header/data role region. Write `\<` or `\^` for literal marker text.
+
+Inside a cell, `<br>`, `<br/>`, and `<br />` all render as a visual line break in Reading view and owned Live Preview tables. Structural Tables preserves the exact spelling you write and does not normalize it. This is not true multiline or block content: formatting preserves the tag, while conversions and exports give it no special line-break meaning.
 
 Once a table uses any structural feature, every row must have exactly the delimiter width. Invalid structures keep their Markdown and show a diagnostic. Use **Format current structural table** for the canonical representation: the top-left cell stores content, the rest of the top row uses `<`, and covered cells below use `^`. GFM, TSV, and CSV conversion repeats merged values and joins multi-row column-header paths with ` / ` so the flattened result remains explicit.
 
@@ -89,7 +91,7 @@ The settings page follows Obsidian's native controls and has General, Views, and
 <!-- section: limitations -->
 ## Limitations
 
-Structural Tables does not support formulas, per-cell styling, block-level or multiline cell content, captions, numbering, source attributes for repeated headers, or automatic rich-text-to-Markdown conversion inside imported HTML cells. Imported cell content is plain text. Base upgrade flattens layout structure into properties: multi-row header paths are joined with ` / `, row headers become ordinary properties, and merged row-header values repeat per record. A merged data cell blocks confirmation and identifies its location until it is split. Native-New adoption is deliberately limited to just-created notes that match exactly one Structural Tables Base; ambiguous notes are left in place. Recovery requires the generated `_promotion.json` to remain at the path recorded in the Base block. The parser deliberately refuses ambiguous or nonrectangular merges.
+Structural Tables does not support formulas, per-cell styling, block-level or true multiline cell content, captions, numbering, source attributes for repeated headers, or automatic rich-text-to-Markdown conversion inside imported HTML cells. Imported cell content is plain text. Base upgrade flattens layout structure into properties: multi-row header paths are joined with ` / `, row headers become ordinary properties, and merged row-header values repeat per record. A merged data cell blocks confirmation and identifies its location until it is split. Native-New adoption is deliberately limited to just-created notes that match exactly one Structural Tables Base; ambiguous notes are left in place. Recovery requires the generated `_promotion.json` to remain at the path recorded in the Base block. The parser deliberately refuses ambiguous or nonrectangular merges.
 
 <!-- section: privacy-and-security -->
 ## Privacy and security

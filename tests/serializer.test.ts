@@ -32,4 +32,12 @@ describe("serializeStructuralTable", () => {
     expect(serializeStructuralTable(table!)).toBe(source);
     expect(serializeStructuralTable(table!)).not.toMatch(/(?<!\r)\n/u);
   });
+
+  it.each(["<br>", "<br/>", "<br />"])("preserves the exact %s visual-break spelling", (tag) => {
+    const source = `| Name | Note |\n| --- || --- |\n| Alice | First${tag}Second |`;
+    const table = parseStructuralTables(source).tables[0];
+
+    expect(table?.valid).toBe(true);
+    expect(serializeStructuralTable(table!)).toBe(source);
+  });
 });

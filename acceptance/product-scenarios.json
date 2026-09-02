@@ -25,12 +25,14 @@
       },
       "steps": [
         "Open the valid table in Reading View and Live Preview",
+        "Render cells containing <br>, <br/>, and <br /> in Reading View and Live Preview, then preview formatting",
         "Open the in-place editor with a desktop single click or Android double-tap",
         "Preview the format command before confirming a canonical rewrite",
         "Open the invalid table and inspect its diagnostic"
       ],
       "expected": [
         "Column spans, row spans, multi-row headers, and row-header boundaries render consistently",
+        "All three break-tag spellings produce a visual line break and formatting preserves the exact source spelling",
         "Desktop single-click editing works while Android retains double-tap editing and touch selection",
         "No Markdown changes before explicit format confirmation",
         "Invalid syntax retains its source and reports a bounded diagnostic"

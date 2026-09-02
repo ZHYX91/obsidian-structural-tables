@@ -35,7 +35,7 @@ Reading view and Live Preview rendering on desktop and Android; default-native o
 <!-- section: exclusions -->
 ## Exclusions
 
-The plugin excludes formulas, styling, block or multiline content, captions and numbering, repeated-header source attributes, and automatic rich-text-to-Markdown conversion inside imported HTML cells. Base promotion does not guess record semantics for merged data cells, replace the native Bases New button, or delete generated or later-moved record notes during restoration.
+The plugin excludes formulas, styling, block or true multiline content, captions and numbering, repeated-header source attributes, and automatic rich-text-to-Markdown conversion inside imported HTML cells. Exact `<br>`, `<br/>`, and `<br />` spellings remain ordinary cell text that Obsidian renders as a visual line-break workaround; the plugin preserves rather than models or normalizes them. Base promotion does not guess record semantics for merged data cells, replace the native Bases New button, or delete generated or later-moved record notes during restoration.
 
 <!-- section: success -->
 ## Acceptance

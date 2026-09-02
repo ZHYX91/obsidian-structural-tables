@@ -3,7 +3,11 @@ import { TFile, TFolder } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 
 import { BasePromotionService } from "../src/app/base-promotion-service";
-import { promotionBlockAt } from "../src/core/base-promotion";
+import {
+  LEGACY_TABLE_MEMBERSHIP_PROPERTY,
+  promotionBlockAt,
+  TABLE_MEMBERSHIP_PROPERTY,
+} from "../src/core/base-promotion";
 import { parseEditableTables } from "../src/core/parser";
 
 let testUuid = 0;
@@ -175,11 +179,13 @@ describe("Base promotion file transaction", () => {
       `${prepared.directoryPath}/Alice.md`,
       `${prepared.directoryPath}/Bob.md`,
     ]);
-    expect(host.contents.get(prepared.records[0]?.path ?? "")).toContain("structural_table_ids:");
+    expect(host.contents.get(prepared.records[0]?.path ?? "")).toContain("structural-tables:");
+    expect(host.contents.get(prepared.records[0]?.path ?? "")).not.toContain("structural_record_id:");
     expect(host.contents.get(prepared.records[0]?.path ?? "")).toContain('name: "Alice"');
     expect(host.contents.has(prepared.manifestPath)).toBe(true);
-    expect(host.contents.get(prepared.manifestPath)).toContain('"version": 1');
-    expect(host.contents.get(prepared.manifestPath)).toContain('"pluginVersion": "0.3.0"');
+    expect(host.contents.get(prepared.manifestPath)).toContain('"version": 2');
+    expect(host.contents.get(prepared.manifestPath)).toContain('"pluginVersion": "0.4.0"');
+    expect(host.contents.get(prepared.manifestPath)).not.toContain('"recordId"');
     expect(editor.getValue()).toBe(prepared.replacementSource);
   });
 
@@ -271,12 +277,40 @@ describe("Base promotion file transaction", () => {
 
     const created = await service.createRecord(movedHost, metadata);
 
-    expect(created.path).toMatch(new RegExp(`^Moved/_structural-table-records/${metadata.tableId}/Record .+\\.md$`, "u"));
+    expect(created.path).toBe(`Moved/_structural-table-records/${metadata.tableId}/Record.md`);
     expect(host.contents.get(created.path)).toContain(`- "${metadata.tableId}"`);
+    expect(host.contents.get(created.path)).not.toContain("structural_record_id:");
     expect(host.opened).toEqual([created.path]);
   });
 
-  it("adopts a native Base record without changing its name, properties, or body", async () => {
+  it("keeps plugin-created records visible in an unmigrated legacy Base", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const source = `\`\`\`base
+# structural-tables-promotion: stb_legacy
+# structural-tables-manifest: "Folder/manifest.json"
+filters:
+  and:
+    - 'list(note.structural_table_ids).contains("stb_legacy")'
+properties:
+views:
+  - type: table
+    name: Table
+    order:
+\`\`\``;
+    const metadata = promotionBlockAt(source, source.indexOf("filters:"));
+    if (metadata === null) throw new Error("Expected legacy promotion metadata.");
+    const service = new BasePromotionService(host.app);
+
+    const created = await service.createRecord(sourceFile, metadata);
+
+    expect(metadata.membershipProperty).toBe(LEGACY_TABLE_MEMBERSHIP_PROPERTY);
+    expect(host.contents.get(created.path)).toContain("structural_table_ids:");
+    expect(host.contents.get(created.path)).not.toContain("structural-tables:");
+  });
+
+  it("organizes a native Base record without changing its properties or body", async () => {
     const host = memoryHost();
     const sourceFile = memoryFile("Moved/People.md");
     const recordFile = memoryFile("Untitled.md");
@@ -284,7 +318,7 @@ describe("Base promotion file transaction", () => {
     host.files.set(recordFile.path, recordFile);
     host.contents.set(recordFile.path, "---\nname: Alice\n---\nKept body\n");
     host.frontmatters.set(recordFile.path, {
-      structural_table_ids: ["stb_native"],
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
       name: "Alice",
     });
     const collisionPath = "Moved/_structural-table-records/stb_native/Untitled.md";
@@ -294,6 +328,7 @@ describe("Base promotion file transaction", () => {
     const result = await service.adoptCreatedRecord(recordFile, sourceFile, {
       tableId: "stb_native",
       manifestPath: "Moved/manifest.json",
+      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
       propertyKeys: ["name"],
       range: { from: 0, to: 1 },
       source: "base",
@@ -302,24 +337,24 @@ describe("Base promotion file transaction", () => {
     expect(result).toMatchObject({ adopted: true, moved: true });
     expect(recordFile.path).toBe("Moved/_structural-table-records/stb_native/Untitled 2.md");
     expect(host.frontmatters.get(recordFile.path)).toMatchObject({
-      structural_table_ids: ["stb_native"],
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
       name: "Alice",
-      structural_record_id: expect.stringMatching(/^str_/u),
     });
     expect(host.contents.get(recordFile.path)).toBe("---\nname: Alice\n---\nKept body\n");
   });
 
-  it("adds identity without moving a record the user already organized", async () => {
+  it("does not write identity or move a record the user already organized", async () => {
     const host = memoryHost();
     const sourceFile = memoryFile("Moved/People.md");
     const recordFile = memoryFile("People/Sales/Alice.md");
     host.files.set(recordFile.path, recordFile);
-    host.frontmatters.set(recordFile.path, { structural_table_ids: ["stb_native"] });
+    host.frontmatters.set(recordFile.path, { [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"] });
     const service = new BasePromotionService(host.app);
 
     const result = await service.adoptCreatedRecord(recordFile, sourceFile, {
       tableId: "stb_native",
       manifestPath: "Moved/manifest.json",
+      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
       propertyKeys: [],
       range: { from: 0, to: 1 },
       source: "base",
@@ -328,22 +363,25 @@ describe("Base promotion file transaction", () => {
     expect(result).toMatchObject({ adopted: true, moved: false });
     expect(recordFile.path).toBe("People/Sales/Alice.md");
     expect(host.renamed).toEqual([]);
-    expect(host.frontmatters.get(recordFile.path)?.structural_record_id).toMatch(/^str_/u);
+    expect(host.frontmatters.get(recordFile.path)).toEqual({
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
+    });
   });
 
-  it("keeps the source note and assigned identity when moving it fails", async () => {
+  it("keeps the source note unchanged when moving it fails", async () => {
     const host = memoryHost();
     const sourceFile = memoryFile("Moved/People.md");
     const recordFile = memoryFile("Untitled.md");
     host.files.set(recordFile.path, recordFile);
     host.contents.set(recordFile.path, "Body stays\n");
-    host.frontmatters.set(recordFile.path, { structural_table_ids: ["stb_native"] });
+    host.frontmatters.set(recordFile.path, { [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"] });
     host.renameError = new Error("move failed");
     const service = new BasePromotionService(host.app);
 
     await expect(service.adoptCreatedRecord(recordFile, sourceFile, {
       tableId: "stb_native",
       manifestPath: "Moved/manifest.json",
+      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
       propertyKeys: [],
       range: { from: 0, to: 1 },
       source: "base",
@@ -351,7 +389,9 @@ describe("Base promotion file transaction", () => {
 
     expect(recordFile.path).toBe("Untitled.md");
     expect(host.contents.get(recordFile.path)).toBe("Body stays\n");
-    expect(host.frontmatters.get(recordFile.path)?.structural_record_id).toMatch(/^str_/u);
+    expect(host.frontmatters.get(recordFile.path)).toEqual({
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
+    });
   });
 
   it("refuses a target collision before creating or trashing anything", async () => {

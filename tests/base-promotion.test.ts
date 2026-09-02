@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildBasePromotionPlan,
   embeddedBaseSource,
+  LEGACY_RECORD_ID_PROPERTY,
+  LEGACY_TABLE_MEMBERSHIP_PROPERTY,
+  migrateMembershipFilter,
   promotionBlockAt,
   promotionBlocks,
-  RECORD_ID_PROPERTY,
   TABLE_MEMBERSHIP_PROPERTY,
+  tableMembershipState,
 } from "../src/core/base-promotion";
 import { parseEditableTables } from "../src/core/parser";
 
@@ -21,24 +24,23 @@ describe("Base promotion planning", () => {
     const source = `| Name | Due Date | Due-Date | structural table ids |
 | --- | --- | --- | --- |
 | Alice | 2026-09-01 | Soon | Team |`;
-    const plan = buildBasePromotionPlan(table(source), "stb_123", ["str_1"]);
+    const plan = buildBasePromotionPlan(table(source), "stb_123");
     expect(plan.columns.map((column) => column.key)).toEqual([
       "name",
       "due_date",
       "due_date_2",
-      `${TABLE_MEMBERSHIP_PROPERTY}_2`,
+      `${LEGACY_TABLE_MEMBERSHIP_PROPERTY}_2`,
     ]);
     expect(plan.records[0]).toEqual({
-      recordId: "str_1",
       fileStem: "Alice",
       values: {
         name: "Alice",
         due_date: "2026-09-01",
         due_date_2: "Soon",
-        [`${TABLE_MEMBERSHIP_PROPERTY}_2`]: "Team",
+        [`${LEGACY_TABLE_MEMBERSHIP_PROPERTY}_2`]: "Team",
       },
     });
-    expect(RECORD_ID_PROPERTY).toBe("structural_record_id");
+    expect(TABLE_MEMBERSHIP_PROPERTY).toBe("structural-tables");
   });
 
   it("uses Windows-safe readable filename candidates", () => {
@@ -46,7 +48,7 @@ describe("Base promotion planning", () => {
 | --- | --- |
 | CON | 1 |
 | A/B:*? | 2 |`;
-    const plan = buildBasePromotionPlan(table(source), "stb_files", ["str_1", "str_2"]);
+    const plan = buildBasePromotionPlan(table(source), "stb_files");
     expect(plan.records.map((record) => record.fileStem)).toEqual(["_CON", "A B"]);
   });
 
@@ -55,7 +57,7 @@ describe("Base promotion planning", () => {
 | --- || --- |
 | North | 1 |
 | ^ | 2 |`);
-    const plan = buildBasePromotionPlan(rowHeaders, "stb_rows", ["str_1", "str_2"]);
+    const plan = buildBasePromotionPlan(rowHeaders, "stb_rows");
     expect(plan.records.map((record) => record.values.region)).toEqual(["North", "North"]);
     expect(plan.warnings).toEqual([
       "row-headers-become-properties",
@@ -66,7 +68,7 @@ describe("Base promotion planning", () => {
     const dataMerge = table(`| Name | Q1 | Q2 |
 | --- | --- | --- |
 | Alice | 1 | < |`);
-    expect(buildBasePromotionPlan(dataMerge, "stb_data", ["str_1"]).blockers).toEqual([{
+    expect(buildBasePromotionPlan(dataMerge, "stb_data").blockers).toEqual([{
       code: "merged-data-cell",
       row: 2,
       column: 2,
@@ -80,7 +82,7 @@ describe("Base promotion planning", () => {
 | Q1 | Q2 |
 | --- | --- |
 | 1 | 2 |`);
-    const plan = buildBasePromotionPlan(structural, "stb_headers", ["str_1"]);
+    const plan = buildBasePromotionPlan(structural, "stb_headers");
     expect(plan.columns.map((column) => column.displayName)).toEqual(["Year / Q1", "Year / Q2"]);
     expect(plan.warnings).toEqual([
       "flatten-multi-row-headers",
@@ -92,10 +94,10 @@ describe("Base promotion planning", () => {
     const source = `| 姓名 | Due Date |
 | --- | --- |
 | Alice | Soon |`;
-    const plan = buildBasePromotionPlan(table(source), "stb_abc", ["str_abc"]);
+    const plan = buildBasePromotionPlan(table(source), "stb_abc");
     const base = embeddedBaseSource(plan, "People/_structural-table-records/stb_abc/_promotion.json");
     expect(base).toContain("# structural-tables-promotion: stb_abc");
-    expect(base).toContain('list(note.structural_table_ids).contains("stb_abc")');
+    expect(base).toContain('list(note["structural-tables"]).contains("stb_abc")');
     expect(base).toContain("  姓名:\n    displayName: \"姓名\"");
     expect(base).toContain("      - note.due_date");
   });
@@ -103,7 +105,7 @@ describe("Base promotion planning", () => {
   it("finds only plugin-owned Base blocks at the cursor", () => {
     const plan = buildBasePromotionPlan(table(`| Name | Value |
 | --- | --- |
-| A | 1 |`), "stb_find", ["str_1"]);
+| A | 1 |`), "stb_find");
     const block = embeddedBaseSource(plan, "Folder/_promotion.json");
     const note = `Before\n\n${block}\n\nAfter`;
     const inside = note.indexOf("filters:");
@@ -119,11 +121,11 @@ describe("Base promotion planning", () => {
 
   it("lists every valid plugin-owned Base block without accepting lookalikes", () => {
     const first = embeddedBaseSource(
-      buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_first", ["str_1"]),
+      buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_first"),
       "Folder/first.json",
     );
     const second = embeddedBaseSource(
-      buildBasePromotionPlan(table(`| Value |\n| --- |\n| 1 |`), "stb_second", ["str_2"]),
+      buildBasePromotionPlan(table(`| Value |\n| --- |\n| 1 |`), "stb_second"),
       "Folder/second.json",
     );
     const source = [
@@ -135,5 +137,46 @@ describe("Base promotion planning", () => {
     ].join("\n\n");
 
     expect(promotionBlocks(source).map(({ tableId }) => tableId)).toEqual(["stb_first", "stb_second"]);
+  });
+
+  it("keeps plugin metadata recognizable after the user customizes a Base filter", () => {
+    const source = `\`\`\`base
+# structural-tables-promotion: stb_custom
+# structural-tables-manifest: "Folder/custom.json"
+filters:
+  and:
+    - 'note.status == "Active"'
+\`\`\``;
+    expect(promotionBlocks(source)[0]).toMatchObject({
+      tableId: "stb_custom",
+      membershipProperty: null,
+    });
+  });
+
+  it("reads current and legacy membership while rejecting invalid or conflicting dual values", () => {
+    expect(tableMembershipState({ [TABLE_MEMBERSHIP_PROPERTY]: ["stb_one", "stb_two"] })).toEqual({
+      status: "valid",
+      ids: ["stb_one", "stb_two"],
+    });
+    expect(tableMembershipState({ [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_old"] })).toEqual({
+      status: "valid",
+      ids: ["stb_old"],
+    });
+    expect(tableMembershipState({
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_same"],
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_same"],
+    }).status).toBe("valid");
+    expect(tableMembershipState({
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_new"],
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_old"],
+    }).status).toBe("conflict");
+    expect(tableMembershipState({ [TABLE_MEMBERSHIP_PROPERTY]: "stb_scalar" }).status).toBe("invalid");
+  });
+
+  it("keeps legacy controls reserved and migrates only the membership filter", () => {
+    const source = `filters:\n  and:\n    - 'list(note.${LEGACY_TABLE_MEMBERSHIP_PROPERTY}).contains("stb_old")'\n# ${LEGACY_RECORD_ID_PROPERTY}`;
+    expect(migrateMembershipFilter(source)).toBe(
+      `filters:\n  and:\n    - 'list(note["structural-tables"]).contains("stb_old")'\n# ${LEGACY_RECORD_ID_PROPERTY}`,
+    );
   });
 });

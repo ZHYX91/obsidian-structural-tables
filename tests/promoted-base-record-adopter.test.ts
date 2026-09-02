@@ -6,21 +6,37 @@ import {
   PromotedBaseRecordAdopter,
   type BaseRecordAdoptionReporter,
 } from "../src/app/promoted-base-record-adopter";
+import {
+  LEGACY_RECORD_ID_PROPERTY,
+  LEGACY_TABLE_MEMBERSHIP_PROPERTY,
+  TABLE_MEMBERSHIP_PROPERTY,
+  type TableMembershipProperty,
+} from "../src/core/base-promotion";
 
-function promotedBase(tableId: string): string {
+function promotedBase(
+  tableId: string,
+  membershipProperty: TableMembershipProperty = TABLE_MEMBERSHIP_PROPERTY,
+): string {
+  const membership = membershipProperty === TABLE_MEMBERSHIP_PROPERTY
+    ? 'note["structural-tables"]'
+    : "note.structural_table_ids";
   return `\`\`\`base
 # structural-tables-promotion: ${tableId}
 # structural-tables-manifest: "Records/${tableId}/_promotion.json"
 filters:
   and:
-    - 'list(note.structural_table_ids).contains("${tableId}")'
+    - 'list(${membership}).contains("${tableId}")'
 \`\`\``;
 }
 
-function metadata(tableIds: string[], recordId?: string): CachedMetadata {
-  const frontmatter: Record<string, unknown> = { structural_table_ids: tableIds };
-  if (recordId !== undefined) frontmatter.structural_record_id = recordId;
-  return { frontmatter } as unknown as CachedMetadata;
+function metadata(
+  tableIds: string[],
+  membershipProperty: TableMembershipProperty = TABLE_MEMBERSHIP_PROPERTY,
+  additions: Record<string, unknown> = {},
+): CachedMetadata {
+  return {
+    frontmatter: { [membershipProperty]: tableIds, ...additions },
+  } as unknown as CachedMetadata;
 }
 
 function testFile(path: string): TFile {
@@ -44,6 +60,7 @@ interface TestContext {
   reporter: BaseRecordAdoptionReporter & {
     adopted: ReturnType<typeof vi.fn>;
     ambiguous: ReturnType<typeof vi.fn>;
+    incompatible: ReturnType<typeof vi.fn>;
     failed: ReturnType<typeof vi.fn>;
   };
 }
@@ -60,6 +77,7 @@ function context(now: () => number = () => 0): TestContext {
   const reporter = {
     adopted: vi.fn(),
     ambiguous: vi.fn(),
+    incompatible: vi.fn(),
     failed: vi.fn(),
   };
   const app = {
@@ -144,7 +162,7 @@ describe("native Base record adoption", () => {
     );
   });
 
-  it("leaves unknown, ambiguous, and already identified notes untouched", async () => {
+  it("leaves unknown and ambiguous notes untouched", async () => {
     const test = context();
     const host = testFile("Folder/People.md");
     test.active.file = host;
@@ -158,13 +176,60 @@ describe("native Base record adoption", () => {
     test.adopter.handleCreated(ambiguous);
     await test.adopter.handleMetadataChanged(ambiguous, metadata(["stb_one", "stb_two"]));
 
-    const identified = testFile("Identified.md");
-    test.adopter.handleCreated(identified);
-    await test.adopter.handleMetadataChanged(identified, metadata(["stb_one"], "str_existing"));
-
     expect(test.adoptCreatedRecord).not.toHaveBeenCalled();
     expect(test.reporter.ambiguous).toHaveBeenCalledOnce();
     expect(test.reporter.ambiguous).toHaveBeenCalledWith(ambiguous);
+  });
+
+  it("accepts legacy membership and ignores the retired record ID", async () => {
+    const test = context();
+    const host = testFile("Folder/People.md");
+    const record = testFile("Untitled.md");
+    test.active.file = host;
+    test.sources.set(host, promotedBase("stb_people", LEGACY_TABLE_MEMBERSHIP_PROPERTY));
+
+    test.adopter.handleCreated(record);
+    await test.adopter.handleMetadataChanged(record, metadata(
+      ["stb_people"],
+      LEGACY_TABLE_MEMBERSHIP_PROPERTY,
+      { [LEGACY_RECORD_ID_PROPERTY]: "str_existing" },
+    ));
+
+    expect(test.adoptCreatedRecord).toHaveBeenCalledOnce();
+  });
+
+  it("accepts equivalent dual membership and refuses conflicts or malformed lists", async () => {
+    const test = context();
+    const host = testFile("Folder/People.md");
+    test.active.file = host;
+    test.sources.set(host, promotedBase("stb_people"));
+
+    const equivalent = testFile("Equivalent.md");
+    test.adopter.handleCreated(equivalent);
+    await test.adopter.handleMetadataChanged(equivalent, metadata(
+      ["stb_people"],
+      TABLE_MEMBERSHIP_PROPERTY,
+      { [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"] },
+    ));
+
+    const conflicting = testFile("Conflicting.md");
+    test.adopter.handleCreated(conflicting);
+    await test.adopter.handleMetadataChanged(conflicting, metadata(
+      ["stb_people"],
+      TABLE_MEMBERSHIP_PROPERTY,
+      { [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_other"] },
+    ));
+
+    const malformed = testFile("Malformed.md");
+    test.adopter.handleCreated(malformed);
+    await test.adopter.handleMetadataChanged(malformed, {
+      frontmatter: { [TABLE_MEMBERSHIP_PROPERTY]: "stb_people" },
+    } as unknown as CachedMetadata);
+
+    expect(test.adoptCreatedRecord).toHaveBeenCalledTimes(1);
+    expect(test.reporter.incompatible).toHaveBeenCalledTimes(2);
+    expect(test.reporter.incompatible).toHaveBeenCalledWith(conflicting);
+    expect(test.reporter.incompatible).toHaveBeenCalledWith(malformed);
   });
 
   it("ignores candidates after the short native-create window", async () => {

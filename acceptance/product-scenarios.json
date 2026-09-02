@@ -37,6 +37,30 @@
         "No Markdown changes before explicit format confirmation",
         "Invalid syntax retains its source and reports a bounded diagnostic"
       ]
+    },
+    {
+      "id": "base-membership-and-legacy-migration",
+      "title": "Base membership property and explicit legacy migration",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Legacy Base and confirm its legacy record is visible",
+        "Run Migrate legacy Structural Tables Base properties from the command palette",
+        "Review the affected-file preview with retired record-ID cleanup enabled, then confirm",
+        "Reopen Legacy Record and Legacy Base"
+      ],
+      "expected": [
+        "The preview names both fixture files before any write",
+        "Legacy Record contains a structural-tables list and keeps its user property and body",
+        "structural_table_ids and structural_record_id are absent after confirmed cleanup",
+        "Legacy Base uses bracket access for structural-tables and still shows the record"
+      ]
     }
   ]
 }

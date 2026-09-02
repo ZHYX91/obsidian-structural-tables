@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.4.0 - 2026-09-03
+
+- Store promoted Base membership in the Obsidian-friendly `structural-tables` list Property.
+- Stop assigning plugin-specific IDs to record notes and remove record IDs from new recovery manifests.
+- Keep legacy `structural_table_ids` Bases working while rejecting malformed or conflicting dual membership metadata.
+- Add an explicit Vault-wide migration with affected-file preview, stale checks, optional `structural_record_id` cleanup, and rollback after a failed write.
+
 ## 0.3.1 - 2026-09-02
 
 - Start editing rendered cells with a single desktop click while preserving drag selection, links, and touch behavior.

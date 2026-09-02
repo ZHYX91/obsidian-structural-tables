@@ -56,6 +56,8 @@ import { SettingsPersistenceSession } from "./settings-persistence-session";
 import { ConversionPreviewModal } from "./conversion-preview-modal";
 import { BasePromotionModal } from "./base-promotion-modal";
 import { BasePromotionService } from "./base-promotion-service";
+import { BasePropertyMigrationModal } from "./base-property-migration-modal";
+import { BasePropertyMigrationService } from "./base-property-migration-service";
 import { PromotedBaseRecordAdopter } from "./promoted-base-record-adopter";
 
 const TEMPLATE = `| Region | Sales | < |
@@ -87,6 +89,7 @@ export class StructuralTablesPlugin extends Plugin {
   override settings: StructuralTablesSettings = cloneSettings(DEFAULT_SETTINGS);
   private editorController: StructuralTableEditorController | null = null;
   private basePromotionService: BasePromotionService | null = null;
+  private basePropertyMigrationService: BasePropertyMigrationService | null = null;
   private readonly localizedCommands: Command[] = [];
   private settingsPersistence: SettingsPersistenceSession | null = null;
 
@@ -102,14 +105,19 @@ export class StructuralTablesPlugin extends Plugin {
       this.previewBasePromotion(editor, sourceFile, table);
     };
     this.editorController = new StructuralTableEditorController(this.app, () => this.settings, promote);
-    const basePromotionService = new BasePromotionService(this.app);
+    const basePromotionService = new BasePromotionService(this.app, this.manifest.version);
     this.basePromotionService = basePromotionService;
+    this.basePropertyMigrationService = new BasePropertyMigrationService(this.app);
     const baseRecordAdopter = new PromotedBaseRecordAdopter(this.app, basePromotionService, {
       adopted: ({ file }) => new Notice(
         createTranslator(this.settings.language)("notice.recordAdopted").replace("{path}", file.path),
       ),
       ambiguous: () => new Notice(
         createTranslator(this.settings.language)("notice.recordAdoptionAmbiguous"),
+        8000,
+      ),
+      incompatible: () => new Notice(
+        createTranslator(this.settings.language)("notice.recordAdoptionIncompatible"),
         8000,
       ),
       failed: (_file, error) => new Notice(
@@ -177,6 +185,11 @@ export class StructuralTablesPlugin extends Plugin {
         editor.replaceSelection(TEMPLATE);
         new Notice(createTranslator(this.settings.language)("notice.inserted"));
       },
+    }));
+    this.localizedCommands.push(this.addCommand({
+      id: "migrate-legacy-base-properties",
+      name: t("command.migrateBaseProperties"),
+      callback: () => { void this.previewBasePropertyMigration(); },
     }));
     this.localizedCommands.push(this.addCommand({
       id: "promote-current-table-to-base",
@@ -258,6 +271,7 @@ export class StructuralTablesPlugin extends Plugin {
       "insert-structural-table": t("command.insert"),
       "merge-current-cell-left": t("command.mergeLeft"),
       "merge-current-cell-up": t("command.mergeUp"),
+      "migrate-legacy-base-properties": t("command.migrateBaseProperties"),
       "promote-current-table-to-base": t("command.promoteBase"),
       "restore-current-promoted-base-to-table": t("command.restorePromotedTable"),
       "split-current-merged-cell": t("command.split"),
@@ -507,6 +521,56 @@ export class StructuralTablesPlugin extends Plugin {
       }).open();
     } catch (error) {
       new Notice(t("notice.restoreFailed").replace("{message}", errorMessage(error)), 8000);
+    }
+  }
+
+  private async previewBasePropertyMigration(): Promise<void> {
+    const service = this.basePropertyMigrationService;
+    const t = createTranslator(this.settings.language);
+    if (service === null) return;
+    try {
+      const prepared = await service.prepare();
+      if (
+        prepared.membershipNoteCount === 0
+        && prepared.legacyBaseCount === 0
+        && prepared.legacyRecordIdCount === 0
+      ) {
+        new Notice(t("notice.noBasePropertiesToMigrate"));
+        return;
+      }
+      new BasePropertyMigrationModal(
+        this.app,
+        prepared,
+        {
+          title: t("modal.migrateBaseProperties.title"),
+          description: t("modal.migrateBaseProperties.desc"),
+          membershipNotes: t("modal.migrateBaseProperties.membershipNotes"),
+          promotedBases: t("modal.migrateBaseProperties.promotedBases"),
+          retiredRecordIds: t("modal.migrateBaseProperties.retiredRecordIds"),
+          removeRecordIds: t("modal.migrateBaseProperties.removeRecordIds"),
+          removeRecordIdsDescription: t("modal.migrateBaseProperties.removeRecordIdsDesc"),
+          cancel: t("modal.cancel"),
+          confirm: t("modal.migrateBaseProperties.confirm"),
+        },
+        async (removeLegacyRecordIds) => {
+          const result = await service.execute(prepared, removeLegacyRecordIds);
+          const message = t("notice.basePropertiesMigrated")
+            .replace("{files}", String(result.fileCount))
+            .replace("{memberships}", String(result.membershipNoteCount))
+            .replace("{bases}", String(result.legacyBaseCount))
+            .replace("{ids}", String(result.removedRecordIdCount));
+          new Notice(message, 8000);
+        },
+        (error) => new Notice(
+          t("notice.basePropertyMigrationFailed").replace("{message}", errorMessage(error)),
+          8000,
+        ),
+      ).open();
+    } catch (error) {
+      new Notice(
+        t("notice.basePropertyMigrationFailed").replace("{message}", errorMessage(error)),
+        8000,
+      );
     }
   }
 

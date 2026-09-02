@@ -7,8 +7,7 @@ import {
 
 import {
   promotionBlocks,
-  RECORD_ID_PROPERTY,
-  TABLE_MEMBERSHIP_PROPERTY,
+  tableMembershipState,
   type PromotionBlockMetadata,
 } from "../core/base-promotion";
 import type { AdoptedBaseRecord, BasePromotionService } from "./base-promotion-service";
@@ -34,24 +33,11 @@ interface MatchResult {
 export interface BaseRecordAdoptionReporter {
   adopted(result: AdoptedBaseRecord): void;
   ambiguous(file: TFile): void;
+  incompatible(file: TFile): void;
   failed(file: TFile, error: unknown): void;
 }
 
 type AdoptionService = Pick<BasePromotionService, "adoptCreatedRecord">;
-
-function membershipIds(cache: CachedMetadata): Set<string> {
-  const value = cache.frontmatter?.[TABLE_MEMBERSHIP_PROPERTY] as unknown;
-  const candidates = Array.isArray(value) ? value : [value];
-  return new Set(candidates.filter((candidate): candidate is string => (
-    typeof candidate === "string" && candidate.trim() !== ""
-  )));
-}
-
-function hasRecordId(cache: CachedMetadata): boolean {
-  const frontmatter = cache.frontmatter;
-  return frontmatter !== undefined
-    && Object.prototype.hasOwnProperty.call(frontmatter, RECORD_ID_PROPERTY);
-}
 
 export class PromotedBaseRecordAdopter {
   private readonly pending = new Map<TFile, PendingRecord>();
@@ -83,11 +69,13 @@ export class PromotedBaseRecordAdopter {
       this.pending.delete(file);
       return;
     }
-    if (hasRecordId(cache)) {
+    const membership = tableMembershipState(cache.frontmatter);
+    if (membership.status === "invalid" || membership.status === "conflict") {
       this.pending.delete(file);
+      this.reporter.incompatible(file);
       return;
     }
-    const tableIds = membershipIds(cache);
+    const tableIds = new Set(membership.ids);
     if (tableIds.size === 0) return;
 
     this.inFlight.add(file);

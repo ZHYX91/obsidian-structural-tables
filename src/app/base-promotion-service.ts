@@ -11,7 +11,6 @@ import {
   buildBasePromotionPlan,
   embeddedBaseSource,
   promotionBlockAt,
-  RECORD_ID_PROPERTY,
   TABLE_MEMBERSHIP_PROPERTY,
   type BasePromotionPlan,
   type PromotionBlockMetadata,
@@ -46,14 +45,14 @@ export interface AdoptedBaseRecord {
 }
 
 interface PromotionManifest {
-  version: 1;
+  version: 1 | 2;
   pluginVersion: string;
   tableId: string;
   sourceFilePath: string;
   originalTableSource: string;
   replacementSource: string;
   createdAt: string;
-  records: { recordId: string; path: string }[];
+  records: { recordId?: string; path: string }[];
 }
 
 function parentPath(path: string): string {
@@ -75,16 +74,19 @@ function applyLineEnding(source: string, ending: string): string {
   return source.replace(/\r\n|\r|\n/gu, ending);
 }
 
-function recordContent(tableId: string, record: PromotionRecord): string {
+function recordContent(
+  tableId: string,
+  record: PromotionRecord,
+  membershipProperty = TABLE_MEMBERSHIP_PROPERTY,
+): string {
   const frontmatter = {
-    [TABLE_MEMBERSHIP_PROPERTY]: [tableId],
-    [RECORD_ID_PROPERTY]: record.recordId,
+    [membershipProperty]: [tableId],
     ...record.values,
   };
   return `---\n${stringifyYaml(frontmatter).trimEnd()}\n---\n`;
 }
 
-function randomId(prefix: "stb" | "str"): string {
+function randomId(prefix: "stb"): string {
   const uuid = activeWindow.crypto.randomUUID().replace(/-/gu, "");
   return `${prefix}_${uuid}`;
 }
@@ -108,7 +110,7 @@ function promotionManifest(value: unknown): PromotionManifest | null {
   if (typeof value !== "object" || value === null) return null;
   const source = value as Partial<PromotionManifest>;
   if (
-    source.version !== 1
+    (source.version !== 1 && source.version !== 2)
     || typeof source.pluginVersion !== "string"
     || source.pluginVersion.trim() === ""
     || typeof source.tableId !== "string"
@@ -121,7 +123,10 @@ function promotionManifest(value: unknown): PromotionManifest | null {
 }
 
 export class BasePromotionService {
-  constructor(private readonly app: App) {}
+  constructor(
+    private readonly app: App,
+    private readonly pluginVersion = "0.4.0",
+  ) {}
 
   prepare(table: StructuralTable, sourceFile: TFile): PreparedBasePromotion {
     let tableId = randomId("stb");
@@ -133,24 +138,19 @@ export class BasePromotionService {
     if (this.app.vault.getAbstractFileByPath(directoryPath) !== null) {
       throw new Error("Could not allocate a unique record folder.");
     }
-    const rowCount = table.rows.length - table.headerRowCount;
-    const plan = buildBasePromotionPlan(
-      table,
-      tableId,
-      Array.from({ length: rowCount }, () => randomId("str")),
-    );
+    const plan = buildBasePromotionPlan(table, tableId);
     const manifestPath = joinedPath(directoryPath, "_promotion.json");
     const replacementSource = applyLineEnding(embeddedBaseSource(plan, manifestPath), lineEnding(table.source));
     const records = uniqueRecordPaths(directoryPath, plan);
     const manifest: PromotionManifest = {
-      version: 1,
-      pluginVersion: "0.3.0",
+      version: 2,
+      pluginVersion: this.pluginVersion,
       tableId,
       sourceFilePath: sourceFile.path,
       originalTableSource: table.source,
       replacementSource,
       createdAt: new Date().toISOString(),
-      records: records.map(({ path, record }) => ({ path, recordId: record.recordId })),
+      records: records.map(({ path }) => ({ path })),
     };
     return {
       plan,
@@ -206,20 +206,17 @@ export class BasePromotionService {
   async createRecord(sourceFile: TFile, metadata: PromotionBlockMetadata): Promise<TFile> {
     const directory = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, metadata.tableId);
     await this.ensureFolder(directory);
-    const recordId = randomId("str");
-    const shortId = recordId.slice(-8);
-    let path = joinedPath(directory, `Record ${shortId}.md`);
+    let path = joinedPath(directory, "Record.md");
     let suffix = 2;
     while (this.app.vault.getAbstractFileByPath(path) !== null) {
-      path = joinedPath(directory, `Record ${shortId} ${suffix}.md`);
+      path = joinedPath(directory, `Record ${suffix}.md`);
       suffix += 1;
     }
     const values = Object.fromEntries(metadata.propertyKeys.map((key) => [key, ""]));
     const created = await this.app.vault.create(path, recordContent(metadata.tableId, {
-      recordId,
-      fileStem: `Record ${shortId}`,
+      fileStem: "Record",
       values,
-    }));
+    }, metadata.membershipProperty ?? TABLE_MEMBERSHIP_PROPERTY));
     await this.app.workspace.getLeaf(false).openFile(created);
     return created;
   }
@@ -230,14 +227,7 @@ export class BasePromotionService {
     metadata: PromotionBlockMetadata,
     moveToInbox: boolean,
   ): Promise<AdoptedBaseRecord> {
-    let adopted = false;
-    await this.app.fileManager.processFrontMatter(recordFile, (frontmatter) => {
-      const properties = frontmatter as Record<string, unknown>;
-      if (Object.prototype.hasOwnProperty.call(properties, RECORD_ID_PROPERTY)) return;
-      properties[RECORD_ID_PROPERTY] = randomId("str");
-      adopted = true;
-    });
-    if (!adopted || !moveToInbox) return { file: recordFile, adopted, moved: false };
+    if (!moveToInbox) return { file: recordFile, adopted: true, moved: false };
 
     const directory = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, metadata.tableId);
     await this.ensureFolder(directory);

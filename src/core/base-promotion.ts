@@ -1,8 +1,20 @@
 import type { StructuralTable } from "./model";
 import { projectStructuralTable } from "./interchange";
 
-export const TABLE_MEMBERSHIP_PROPERTY = "structural_table_ids";
-export const RECORD_ID_PROPERTY = "structural_record_id";
+export const TABLE_MEMBERSHIP_PROPERTY = "structural-tables";
+export const LEGACY_TABLE_MEMBERSHIP_PROPERTY = "structural_table_ids";
+export const LEGACY_RECORD_ID_PROPERTY = "structural_record_id";
+
+export type TableMembershipProperty =
+  | typeof TABLE_MEMBERSHIP_PROPERTY
+  | typeof LEGACY_TABLE_MEMBERSHIP_PROPERTY;
+
+export type TableMembershipStatus = "missing" | "valid" | "invalid" | "conflict";
+
+export interface TableMembershipState {
+  status: TableMembershipStatus;
+  ids: string[];
+}
 
 export interface PromotionColumn {
   sourceColumn: number;
@@ -11,7 +23,6 @@ export interface PromotionColumn {
 }
 
 export interface PromotionRecord {
-  recordId: string;
   fileStem: string;
   values: Record<string, string>;
 }
@@ -41,6 +52,7 @@ export interface BasePromotionPlan {
 export interface PromotionBlockMetadata {
   tableId: string;
   manifestPath: string;
+  membershipProperty: TableMembershipProperty | null;
   propertyKeys: string[];
   range: { from: number; to: number };
   source: string;
@@ -59,7 +71,11 @@ function propertyKey(label: string, column: number): string {
 }
 
 function uniqueColumns(names: readonly string[]): PromotionColumn[] {
-  const used = new Set([TABLE_MEMBERSHIP_PROPERTY, RECORD_ID_PROPERTY]);
+  const used = new Set([
+    TABLE_MEMBERSHIP_PROPERTY,
+    LEGACY_TABLE_MEMBERSHIP_PROPERTY,
+    LEGACY_RECORD_ID_PROPERTY,
+  ]);
   return names.map((displayName, sourceColumn) => {
     const base = propertyKey(displayName, sourceColumn);
     let key = base;
@@ -116,17 +132,14 @@ function promotionWarnings(table: StructuralTable): BasePromotionWarning[] {
 export function buildBasePromotionPlan(
   table: StructuralTable,
   tableId: string,
-  recordIds: readonly string[],
 ): BasePromotionPlan {
   if (!table.valid) throw new Error("The table must be valid before promotion.");
   const projection = projectStructuralTable(table);
   if (projection.rows.length === 0) throw new Error("The table must contain at least one data row.");
-  if (recordIds.length !== projection.rows.length) throw new Error("Every promoted row requires one record ID.");
   const columns = uniqueColumns(projection.columnNames);
   const records = projection.rows.map((row, rowIndex) => {
     const values = Object.fromEntries(columns.map((column) => [column.key, row[column.sourceColumn] ?? ""]));
     return {
-      recordId: recordIds[rowIndex] ?? "",
       fileStem: fileStem(row[0] ?? "", rowIndex),
       values,
     };
@@ -144,6 +157,56 @@ function yamlString(value: string): string {
   return JSON.stringify(value);
 }
 
+function membershipList(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const ids: string[] = [];
+  for (const candidate of value) {
+    if (typeof candidate !== "string" || candidate.trim() === "") return null;
+    const id = candidate.trim();
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+function sameMemberships(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((id) => right.includes(id));
+}
+
+export function tableMembershipState(frontmatter: Record<string, unknown> | undefined): TableMembershipState {
+  if (frontmatter === undefined) return { status: "missing", ids: [] };
+  const hasCurrent = Object.prototype.hasOwnProperty.call(frontmatter, TABLE_MEMBERSHIP_PROPERTY);
+  const hasLegacy = Object.prototype.hasOwnProperty.call(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY);
+  if (!hasCurrent && !hasLegacy) return { status: "missing", ids: [] };
+
+  const current = hasCurrent ? membershipList(frontmatter[TABLE_MEMBERSHIP_PROPERTY]) : null;
+  const legacy = hasLegacy ? membershipList(frontmatter[LEGACY_TABLE_MEMBERSHIP_PROPERTY]) : null;
+  if ((hasCurrent && current === null) || (hasLegacy && legacy === null)) {
+    return { status: "invalid", ids: [] };
+  }
+  if (current !== null && legacy !== null && !sameMemberships(current, legacy)) {
+    return { status: "conflict", ids: [] };
+  }
+  return { status: "valid", ids: current ?? legacy ?? [] };
+}
+
+export function migrateMembershipFilter(source: string): string {
+  const current = `list(note[${yamlString(TABLE_MEMBERSHIP_PROPERTY)}])`;
+  return source
+    .split(`list(note.${LEGACY_TABLE_MEMBERSHIP_PROPERTY})`).join(current)
+    .split(`list(note[${yamlString(LEGACY_TABLE_MEMBERSHIP_PROPERTY)}])`).join(current);
+}
+
+export function migrateLegacyPromotionBlocks(source: string): { source: string; count: number } {
+  const legacy = promotionBlocks(source)
+    .filter(({ membershipProperty }) => membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY)
+    .sort((left, right) => right.range.from - left.range.from);
+  let migrated = source;
+  for (const block of legacy) {
+    migrated = `${migrated.slice(0, block.range.from)}${migrateMembershipFilter(block.source)}${migrated.slice(block.range.to)}`;
+  }
+  return { source: migrated, count: legacy.length };
+}
+
 export function embeddedBaseSource(plan: BasePromotionPlan, manifestPath: string): string {
   const lines = [
     "```base",
@@ -151,7 +214,7 @@ export function embeddedBaseSource(plan: BasePromotionPlan, manifestPath: string
     `# structural-tables-manifest: ${yamlString(manifestPath)}`,
     "filters:",
     "  and:",
-    `    - 'list(note.${TABLE_MEMBERSHIP_PROPERTY}).contains(${yamlString(plan.tableId)})'`,
+    `    - 'list(note[${yamlString(TABLE_MEMBERSHIP_PROPERTY)}]).contains(${yamlString(plan.tableId)})'`,
     "properties:",
   ];
   for (const column of plan.columns) {
@@ -186,7 +249,13 @@ export function promotionBlocks(source: string): PromotionBlockMetadata[] {
     const propertyKeys = [...block.matchAll(/^\s+- note\.([^\s]+)$/gmu)]
       .map((property) => property[1])
       .filter((property): property is string => property !== undefined);
-    blocks.push({ tableId, manifestPath, propertyKeys, range: { from, to }, source: block });
+    const membershipProperty = block.includes(`note[${yamlString(TABLE_MEMBERSHIP_PROPERTY)}]`)
+      ? TABLE_MEMBERSHIP_PROPERTY
+      : block.includes(`note.${LEGACY_TABLE_MEMBERSHIP_PROPERTY}`)
+          || block.includes(`note[${yamlString(LEGACY_TABLE_MEMBERSHIP_PROPERTY)}]`)
+        ? LEGACY_TABLE_MEMBERSHIP_PROPERTY
+        : null;
+    blocks.push({ tableId, manifestPath, membershipProperty, propertyKeys, range: { from, to }, source: block });
   }
   return blocks;
 }

@@ -37,7 +37,7 @@ General, Views, and Appearance keep import, rendering, ordinary-table takeover, 
 - Copy valid tables as semantic HTML, portable GFM, TSV, or CSV, and preview before flattening a table to GFM.
 - Convert unambiguous Sheets Extended separator columns into canonical row-header syntax.
 - Upgrade a valid ordinary or structural table into an embedded Obsidian Base whose rows are independent Markdown notes, directly from the table context menu or command palette.
-- Keep promoted membership in `structural_table_ids`, keep record identity in `structural_record_id`, and allow record notes to move or be renamed without leaving the Base.
+- Keep promoted membership in the Obsidian-friendly `structural-tables` list and allow record notes to move or be renamed without leaving the Base; records need no plugin-specific identity property.
 - Preview every promotion, create a schema-versioned recovery manifest, roll back failed file creation to trash, restore the original table without deleting generated notes, and organize later records created by either the native Base New action or the plugin command under the host note's current folder.
 - Diagnose invalid structures without rewriting the note.
 
@@ -81,7 +81,16 @@ Once a table uses any structural feature, every row must have exactly the delimi
 
 In Live Preview, ordinary Markdown tables remain in Obsidian's native editor by default. Enable **Take over ordinary Markdown tables** to give unchanged GFM tables the same rendered widget, row/column handles, cell selection, in-place editor, context menu, layout, density, and alternating-row appearance as structural tables; disabling it restores native behavior immediately. Rendered tables use theme-aware semantic backgrounds: column and corner headers are stronger than row headers. Handles reveal individually for the hovered, keyboard-focused, or selected row or column instead of appearing as a full grid. Pasting `[[Target|Alias]]` or `![[Image|Size]]` into an owned cell automatically stores the table-safe forms `[[Target\|Alias]]` and `![[Image\|Size]]`; existing escapes are not doubled. Operations that would discard non-empty content or break a merged rectangle are refused.
 
-Promotion creates records under `<host-folder>/_structural-table-records/<table-id>/`. That directory is a creation inbox, not a membership boundary: moving or renaming a record note does not change its `structural_table_ids` membership. Existing records stay where the user placed them when the host note moves. The generated Base's native **New** action registers the just-created note with `structural_record_id` and moves it into the inbox beside the host note; a note that the user has already moved stays at its chosen location. **Create record for current promoted Base** remains available from the command palette and context menu. Use **Restore table from current promoted Base** to recover the original table from `_promotion.json`; generated notes are deliberately kept. The operation stores imported cell values as strings so leading zeroes and identifiers remain unchanged.
+Promotion creates records under `<host-folder>/_structural-table-records/<table-id>/`. Each record uses a normal list Property:
+
+```yaml
+structural-tables:
+  - stb_example
+```
+
+The directory is a creation inbox, not a membership boundary: moving or renaming a record note does not change its membership. Existing records stay where the user placed them when the host note moves. The generated Base's native **New** action can move a just-created note into the inbox beside the host note without adding a record ID; a note that the user has already moved stays at its chosen location. **Create record for current promoted Base** remains available from the command palette and context menu. Use **Restore table from current promoted Base** to recover the original table from `_promotion.json`; generated notes are deliberately kept. The operation stores imported cell values as strings so leading zeroes and identifiers remain unchanged.
+
+Existing Bases that use `structural_table_ids` remain supported. Run **Migrate legacy Structural Tables Base properties…** to preview every affected file, replace the old membership Property and Base filters, and optionally remove retired `structural_record_id` values. Nothing migrates at startup; invalid or conflicting old/new membership Properties stop the migration without overwriting them.
 
 <!-- section: settings -->
 ## Settings

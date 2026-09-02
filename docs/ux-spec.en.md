@@ -30,7 +30,7 @@ Render with `thead`, `tbody`, `th`, `td`, `rowspan`, `colspan`, and suitable `sc
 <!-- section: commands -->
 ## Commands
 
-Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TSV/CSV, preview and flatten to plain GFM, and migrate a Sheets Extended separator are available in the command palette. Formatting and flattening to GFM first show a scrollable, selectable result preview and reparse the unchanged source table when the user confirms; neither changes source before confirmation. A merge from a non-empty cell explains the refusal and preserves source.
+Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TSV/CSV, preview and flatten to plain GFM, migrate a Sheets Extended separator, and migrate legacy Structural Tables Base properties are available in the command palette. Formatting and flattening to GFM first show a scrollable, selectable result preview and reparse the unchanged source table when the user confirms; neither changes source before confirmation. A merge from a non-empty cell explains the refusal and preserves source.
 
 <!-- section: interchange -->
 ## Paste and interchange
@@ -43,6 +43,8 @@ When Preserve pasted HTML table spans is enabled, paste is intercepted only when
 Right-click an ordinary table to choose Upgrade to Base; an owned structural table labels the same action Expand structure and upgrade to Base. The action works only on a valid table in a saved note and requires the Bases core plugin. Its preview shows the target folder, record count, display-column to stable-property mapping, generated Base source, and every applicable flattening rule: multi-row header paths join with ` / `, merged column headers expand into covered property paths, row headers become ordinary properties, and merged row-header values repeat per record. A merged data-region cell remains visible as a row/column/span blocker and disables confirmation. The execute layer checks blockers again before any file creation. While valid work runs the button stays disabled; a failure explains the cause, keeps the table, and sends this promotion's directory to trash.
 
 Metadata comments in the generated Base retain the stable table ID and recovery-manifest path. With the cursor on that Base, plugin commands can create a blank record using the host's current folder or preview and restore the original table. Restoration explicitly says generated records are kept. Moving, renaming, or organizing a record produces no warning and does not change membership.
+
+The legacy-property migration scans the Vault only after an explicit command. Its modal lists every affected file and the counts of membership notes, promoted Base blocks, and retired record IDs. Record-ID cleanup is an enabled-by-default toggle. Confirmation stale-checks every file, replaces `structural_table_ids` with `structural-tables`, updates legacy Base filters, preserves unrelated Properties and note bodies, and rolls back completed writes if a later file fails. Invalid or conflicting old/new membership values stop before the preview can be confirmed.
 
 <!-- section: table-selection -->
 ## Table selection and context menu

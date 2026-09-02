@@ -40,4 +40,23 @@ describe("rawStructuralTableElement", () => {
 
     expect(rawStructuralTableElement(section, table)).toBeUndefined();
   });
+
+  it.each(["<br>", "<br/>", "<br />"])(
+    "matches raw row-header source after Obsidian renders %s as a BR element",
+    (tag) => {
+      const source = `| Syntax | Rendered |\n| --- || --- |\n| HTML | First${tag}Second |`;
+      const table = parseStructuralTables(source).tables[0]!;
+      const section = document.createElement("div");
+      const paragraph = section.appendChild(document.createElement("p"));
+      paragraph.append("| Syntax | Rendered |");
+      paragraph.appendChild(document.createElement("br"));
+      paragraph.append("| --- || --- |");
+      paragraph.appendChild(document.createElement("br"));
+      paragraph.append("| HTML | First");
+      paragraph.appendChild(document.createElement("br"));
+      paragraph.append("Second |");
+
+      expect(rawStructuralTableElement(section, table)).toBe(paragraph);
+    },
+  );
 });

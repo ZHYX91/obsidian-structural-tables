@@ -16,11 +16,15 @@ function normalizeSourceBlock(source: string): string {
     .replace(/\s+/gu, "");
 }
 
+function normalizeExpectedSourceBlock(source: string): string {
+  return normalizeSourceBlock(source.replace(/<br\s*\/?>/giu, ""));
+}
+
 export function rawStructuralTableElement(
   container: HTMLElement,
   table: StructuralTable,
 ): HTMLElement | undefined {
-  const expected = normalizeSourceBlock(table.source);
+  const expected = normalizeExpectedSourceBlock(table.source);
   const elements = [container, ...container.querySelectorAll<HTMLElement>("p, div")];
   return elements.reverse().find((element) => {
     if (element.closest("pre, code, table") !== null || element.querySelector("pre, code, table") !== null) return false;

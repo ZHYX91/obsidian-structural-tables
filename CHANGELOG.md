@@ -8,6 +8,7 @@
 - Stop assigning plugin-specific IDs to record notes and remove record IDs from new recovery manifests.
 - Keep legacy `structural_table_ids` Bases working while rejecting malformed or conflicting dual membership metadata.
 - Add an explicit Vault-wide migration with affected-file preview, stale checks, optional `structural_record_id` cleanup, and rollback after a failed write.
+- Render row-header tables containing `<br>`, `<br/>`, or `<br />` correctly in Reading View.
 
 ## 0.3.1 - 2026-09-02
 

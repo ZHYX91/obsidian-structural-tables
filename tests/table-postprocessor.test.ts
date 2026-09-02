@@ -61,6 +61,38 @@ describe("StructuralTableReadingProcessor", () => {
     expect(addChild).toHaveBeenCalledOnce();
   });
 
+  it.each(["<br>", "<br/>", "<br />"])(
+    "renders row-header source after the Markdown host converts %s to a BR element",
+    (tag) => {
+      const table = `| Syntax | Rendered |\n| --- || --- |\n| HTML | First${tag}Second |`;
+      const container = document.createElement("div");
+      const raw = container.appendChild(document.createElement("p"));
+      raw.append("| Syntax | Rendered |");
+      raw.appendChild(document.createElement("br"));
+      raw.append("| --- || --- |");
+      raw.appendChild(document.createElement("br"));
+      raw.append("| HTML | First");
+      raw.appendChild(document.createElement("br"));
+      raw.append("Second |");
+      const addChild = vi.fn();
+      const context = {
+        addChild,
+        getSectionInfo: () => ({ lineStart: 0, lineEnd: 2, text: table }),
+        sourcePath: "Report.md",
+      } as unknown as MarkdownPostProcessorContext;
+      const processor = new StructuralTableReadingProcessor(
+        {} as App,
+        () => ({ ...DEFAULT_SETTINGS, enableReadingView: true }),
+      );
+
+      processor.process(container, context);
+
+      expect(raw.parentElement).toBeNull();
+      expect(container.querySelector(".structural-tables-container table")).not.toBeNull();
+      expect(addChild).toHaveBeenCalledOnce();
+    },
+  );
+
   it("replaces an ordinary Reading view table only when takeover is enabled", () => {
     const source = "| Name | Status |\n| --- | --- |\n| Alice | Doing |";
     const native = document.createElement("table");

@@ -5,6 +5,7 @@
 ## 0.3.1 - 2026-09-02
 
 - Start editing rendered cells with a single desktop click while preserving drag selection, links, and touch behavior.
+- Make Android double-tap cell editing independent of WebView native double-click timing.
 - Preview and explicitly confirm canonical table formatting before replacing Markdown source.
 - Protected settings that use an unknown or malformed schema from being overwritten.
 - Serialized settings saves with retryable failure status and unload flushing.

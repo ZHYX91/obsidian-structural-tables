@@ -88,13 +88,18 @@ function mountEditor(
   };
 }
 
-function dispatchPointerDown(target: HTMLElement, pointerType: "mouse" | "touch"): Event {
+function dispatchPointerDown(
+  target: HTMLElement,
+  pointerType: "mouse" | "touch",
+  timeStamp?: number,
+): Event {
   const event = new Event("pointerdown", { bubbles: true, cancelable: true });
   Object.defineProperties(event, {
     pointerType: { value: pointerType },
     isPrimary: { value: true },
     button: { value: 0 },
     shiftKey: { value: false },
+    ...(timeStamp === undefined ? {} : { timeStamp: { value: timeStamp } }),
   });
   target.dispatchEvent(event);
   return event;
@@ -248,6 +253,22 @@ describe("StructuralTableEditorController", () => {
 
     last.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
     expect(lastMenu?.items.map((item) => item.title)).toContain("Merge selected cells");
+    view.destroy();
+  });
+
+  it("opens the cell editor after two touch taps on the same cell", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+
+    const firstTap = dispatchPointerDown(cell, "touch", 1_000);
+    cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(firstTap.defaultPrevented).toBe(false);
+    expect(cell.querySelector(".structural-tables-cell-editor")).toBeNull();
+
+    const secondTap = dispatchPointerDown(cell, "touch", 1_500);
+    cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(secondTap.defaultPrevented).toBe(true);
+    expect(cell.querySelector(".structural-tables-cell-editor")).not.toBeNull();
     view.destroy();
   });
 

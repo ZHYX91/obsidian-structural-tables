@@ -47,6 +47,8 @@ import {
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
+const TOUCH_DOUBLE_TAP_MAX_MS = 600;
+
 class StructuralTableWidget extends WidgetType {
   private component: Component | null = null;
   private clickEditCandidate: TableCellCoordinate | null = null;
@@ -57,6 +59,7 @@ class StructuralTableWidget extends WidgetType {
   private selectionHead: TableCellCoordinate | null = null;
   private touchRangeAnchor: TableCellCoordinate | null = null;
   private touchRangeArmed = false;
+  private lastTouchTap: { coordinate: TableCellCoordinate; at: number } | null = null;
   private pointerWindow: Window | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private host: HTMLElement | null = null;
@@ -107,6 +110,7 @@ class StructuralTableWidget extends WidgetType {
     this.host = null;
     this.renderedTable = null;
     this.clickEditCandidate = null;
+    this.lastTouchTap = null;
     this.component?.unload();
     this.component = null;
   }
@@ -121,7 +125,7 @@ class StructuralTableWidget extends WidgetType {
     for (const cell of rendered.querySelectorAll<HTMLElement>("[data-structural-row][data-structural-column]")) {
       cell.tabIndex = 0;
     }
-    rendered.addEventListener("pointerdown", (event) => this.startPointerSelection(event));
+    rendered.addEventListener("pointerdown", (event) => this.startPointerSelection(event, view));
     rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event));
     rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
     rendered.addEventListener("contextmenu", (event) => this.openContextMenu(event, view));
@@ -161,7 +165,7 @@ class StructuralTableWidget extends WidgetType {
     return Number.isInteger(row) && Number.isInteger(column) ? { row, column } : null;
   }
 
-  private startPointerSelection(event: PointerEvent): void {
+  private startPointerSelection(event: PointerEvent, view: EditorView): void {
     this.clickEditCandidate = null;
     if (!event.isPrimary || event.button !== 0) return;
     if (event.target !== null && "closest" in event.target
@@ -169,6 +173,21 @@ class StructuralTableWidget extends WidgetType {
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
     if (event.pointerType === "touch") {
+      const previous = this.lastTouchTap;
+      this.lastTouchTap = { coordinate, at: event.timeStamp };
+      if (previous !== null
+        && previous.coordinate.row === coordinate.row
+        && previous.coordinate.column === coordinate.column
+        && event.timeStamp >= previous.at
+        && event.timeStamp - previous.at <= TOUCH_DOUBLE_TAP_MAX_MS) {
+        this.lastTouchTap = null;
+        this.touchRangeAnchor = null;
+        this.touchRangeArmed = false;
+        event.preventDefault();
+        event.stopPropagation();
+        this.beginCellEdit(view, coordinate);
+        return;
+      }
       this.startTouchSelection(coordinate);
       const cell = this.cellElement(coordinate);
       cell?.focus({ preventScroll: true });

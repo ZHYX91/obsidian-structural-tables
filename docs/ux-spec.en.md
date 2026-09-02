@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-28
+last_synced: 2026-09-02
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -20,7 +20,7 @@ Source remains visible and recoverable; rendering interprets but never rewrites;
 <!-- section: live-preview -->
 ## Live Preview
 
-Show the semantic table while every CodeMirror cursor and selection is outside it. In the rendered widget, double-click or Enter/F2 opens a one-line in-place cell editor; Enter commits, Escape cancels, and Tab commits and advances. Pasted unescaped table pipes are escaped immediately outside code spans without doubling existing escapes. Do not commit or switch rendering during IME composition.
+Show the semantic table while every CodeMirror cursor and selection is outside it. In the rendered widget, a desktop click, touch-screen double-tap, or Enter/F2 opens a one-line in-place cell editor; desktop drag and modified gestures continue to select cells, and links remain actionable. Enter commits, Escape cancels, and Tab commits and advances. Pasted unescaped table pipes are escaped immediately outside code spans without doubling existing escapes. Do not commit or switch rendering during IME composition.
 
 <!-- section: reading-view -->
 ## Reading view
@@ -30,7 +30,7 @@ Render with `thead`, `tbody`, `th`, `td`, `rowspan`, `colspan`, and suitable `sc
 <!-- section: commands -->
 ## Commands
 
-Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TSV/CSV, preview and flatten to plain GFM, and migrate a Sheets Extended separator are available in the command palette. A merge from a non-empty cell explains the refusal and preserves source. Flattening to GFM first shows a scrollable, selectable result preview and reparses the unchanged source table when the user confirms.
+Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TSV/CSV, preview and flatten to plain GFM, and migrate a Sheets Extended separator are available in the command palette. Formatting and flattening to GFM first show a scrollable, selectable result preview and reparse the unchanged source table when the user confirms; neither changes source before confirmation. A merge from a non-empty cell explains the refusal and preserves source.
 
 <!-- section: interchange -->
 ## Paste and interchange

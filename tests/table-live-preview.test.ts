@@ -236,10 +236,13 @@ describe("StructuralTableEditorController", () => {
     const last = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
 
     const firstTap = dispatchPointerDown(first, "touch");
+    first.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(firstTap.defaultPrevented).toBe(false);
     expect(first.getAttribute("aria-selected")).toBe("true");
+    expect(first.querySelector(".structural-tables-cell-editor")).toBeNull();
 
     const secondTap = dispatchPointerDown(last, "touch");
+    last.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(secondTap.defaultPrevented).toBe(false);
     expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
 
@@ -276,10 +279,11 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
-  it("edits a Live Preview cell and escapes a pasted Wiki-link pipe", async () => {
+  it("edits a Live Preview cell on a desktop click and escapes a pasted Wiki-link pipe", async () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
-    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    dispatchPointerDown(cell, "mouse");
+    cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     const editor = cell.querySelector<HTMLTextAreaElement>(".structural-tables-cell-editor")!;
     expect(editor).not.toBeNull();
 
@@ -294,6 +298,25 @@ describe("StructuralTableEditorController", () => {
 
     expect(view.state.doc.toString()).toContain(String.raw`[[Target\|Alias]]`);
     expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+    view.destroy();
+  });
+
+  it("keeps drag selection and links separate from desktop click editing", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const first = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+    const last = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+
+    dispatchPointerDown(first, "mouse");
+    last.dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+    last.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+    expect(parent.querySelector(".structural-tables-cell-editor")).toBeNull();
+
+    const link = first.appendChild(document.createElement("a"));
+    link.textContent = "Link";
+    dispatchPointerDown(link, "mouse");
+    link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(parent.querySelector(".structural-tables-cell-editor")).toBeNull();
     view.destroy();
   });
 

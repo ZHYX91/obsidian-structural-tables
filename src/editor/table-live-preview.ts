@@ -49,6 +49,7 @@ export const refreshStructuralTables = StateEffect.define<void>();
 
 class StructuralTableWidget extends WidgetType {
   private component: Component | null = null;
+  private clickEditCandidate: TableCellCoordinate | null = null;
   private dragging = false;
   private renderedTable: HTMLTableElement | null = null;
   private selection: StructuralTableSelection | null = null;
@@ -105,6 +106,7 @@ class StructuralTableWidget extends WidgetType {
     this.resizeObserver = null;
     this.host = null;
     this.renderedTable = null;
+    this.clickEditCandidate = null;
     this.component?.unload();
     this.component = null;
   }
@@ -121,8 +123,11 @@ class StructuralTableWidget extends WidgetType {
     }
     rendered.addEventListener("pointerdown", (event) => this.startPointerSelection(event));
     rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event));
+    rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
     rendered.addEventListener("contextmenu", (event) => this.openContextMenu(event, view));
     rendered.addEventListener("dblclick", (event) => {
+      if (event.target !== null && "closest" in event.target
+        && (event.target as Element).closest("textarea, input, a, button") !== null) return;
       const coordinate = this.coordinateFor(event.target);
       if (coordinate === null) return;
       event.preventDefault();
@@ -157,6 +162,7 @@ class StructuralTableWidget extends WidgetType {
   }
 
   private startPointerSelection(event: PointerEvent): void {
+    this.clickEditCandidate = null;
     if (!event.isPrimary || event.button !== 0) return;
     if (event.target !== null && "closest" in event.target
       && (event.target as Element).closest("textarea, input, a") !== null) return;
@@ -167,6 +173,9 @@ class StructuralTableWidget extends WidgetType {
       const cell = this.cellElement(coordinate);
       cell?.focus({ preventScroll: true });
       return;
+    }
+    if (!event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      this.clickEditCandidate = coordinate;
     }
     event.preventDefault();
     event.stopPropagation();
@@ -201,8 +210,21 @@ class StructuralTableWidget extends WidgetType {
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null || (coordinate.row === this.selectionHead?.row && coordinate.column === this.selectionHead.column)) return;
     event.preventDefault();
+    this.clickEditCandidate = null;
     this.selectionHead = coordinate;
     this.updateSelection();
+  }
+
+  private openCellOnDesktopClick(event: MouseEvent, view: EditorView): void {
+    const candidate = this.clickEditCandidate;
+    this.clickEditCandidate = null;
+    if (candidate === null || (event.target !== null && "closest" in event.target
+      && (event.target as Element).closest("textarea, input, a, button") !== null)) return;
+    const coordinate = this.coordinateFor(event.target);
+    if (coordinate === null || coordinate.row !== candidate.row || coordinate.column !== candidate.column) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.beginCellEdit(view, coordinate);
   }
 
   private updateSelection(): void {

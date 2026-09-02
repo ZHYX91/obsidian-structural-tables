@@ -14,7 +14,7 @@ Structural semantics render as a clean, accessible table while the note remains 
 
 ### Live Preview
 
-Leave the table to see its rendered structure; double-click a cell to edit it in place.
+Leave the table to see its rendered structure; click a cell on desktop, or double-tap it on touch screens, to edit it in place.
 
 ![Structural Tables rendered in Live Preview](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-live-preview-en.png)
 
@@ -59,7 +59,7 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 1. Create or paste an ordinary pipe table in a Markdown note.
 2. Use an exact `<` cell to merge left, an exact `^` cell to merge up, or one adjacent `||` inside the delimiter row to mark the columns on its left as row headers.
 3. Leave the table in Live Preview, or switch to Reading view, to see the rendered structure.
-4. Double-click or double-tap a rendered cell, or select it and press Enter/F2, to edit it in place. Enter commits, Escape cancels, and Tab commits and advances.
+4. Click a rendered cell on desktop, double-tap it on a touch screen, or select it and press Enter/F2, to edit it in place. Enter commits, Escape cancels, and Tab commits and advances.
 5. Use the row/column handles, drag across cells with a mouse, or tap the first and last cell of a rectangle on Android. Then right-click or long-press to insert, safely delete, move, align, merge, split, or set headers.
 6. Paste an HTML table from a browser, Excel, or Google Sheets to preserve supported row and column spans.
 7. Open the command palette to preview and confirm canonical formatting, copy the current valid table as HTML, GFM, TSV, or CSV, preview a flatten-to-GFM conversion, or migrate a Sheets Extended row-header separator.

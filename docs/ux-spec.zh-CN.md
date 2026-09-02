@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-08-28
+last_synced: 2026-09-02
 ---
 
 [English](ux-spec.en.md)
@@ -19,7 +19,7 @@ last_synced: 2026-08-28
 <!-- section: live-preview -->
 ## 实时预览
 
-CodeMirror 光标和选区均位于表格外时显示语义表格。渲染组件内双击单元格或按 Enter/F2 可打开单行原位编辑器；Enter 提交，Escape 取消，Tab 提交并前往下一格。粘贴时会立即转义代码跨度外尚未转义的表格管道，且不重复转义。输入法合成期间不提交，也不切换渲染。
+CodeMirror 光标和选区均位于表格外时显示语义表格。渲染组件内，桌面端单击单元格、触屏上双击单元格或按 Enter/F2 可打开单行原位编辑器；桌面端拖动及带修饰键的操作仍用于选择，链接保持可点击。Enter 提交，Escape 取消，Tab 提交并前往下一格。粘贴时会立即转义代码跨度外尚未转义的表格管道，且不重复转义。输入法合成期间不提交，也不切换渲染。
 
 <!-- section: reading-view -->
 ## 阅读视图

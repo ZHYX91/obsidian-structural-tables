@@ -2337,7 +2337,7 @@ function validatePortableAndroidHost(host) {
   assertExactKeys(host.inputDriver, driverKeys, driverKeys,
     "Portable Android emulator input driver");
   assertCondition(host.inputDriver.id === "android-emulator-grpc-v1" &&
-    host.inputDriver.version === "1.0.0" &&
+    host.inputDriver.version === "1.1.0" &&
     JSON.stringify(host.inputDriver.endpoint) ===
       JSON.stringify({ host: "127.0.0.1", port: "ephemeral" }) &&
     JSON.stringify(host.inputDriver.capabilities) ===
@@ -2363,8 +2363,8 @@ function validatePortableInputTraceSummary(trace, evidence) {
     "residualTouches",
   ];
   assertExactKeys(trace, keys, keys, "Portable Android input trace summary");
-  assertCondition(trace.schemaVersion === 1 &&
-    trace.kind === "obsidian-plugin-workspace/android-input-trace-summary-v1",
+  assertCondition(trace.schemaVersion === 2 &&
+    trace.kind === "obsidian-plugin-workspace/android-input-trace-summary-v2",
   "Portable Android input trace summary schema/kind is unsupported");
   assertCondition(typeof trace.path === "string" && trace.path.startsWith("input-traces/") &&
     !trace.path.includes("\\") && !trace.path.split("/").some((segment) =>
@@ -2375,13 +2375,13 @@ function validatePortableInputTraceSummary(trace, evidence) {
   assertExactKeys(trace.driver, ["id", "version", "rpcAllowlist"],
     ["id", "version", "rpcAllowlist"], "Portable Android input trace driver");
   assertCondition(trace.driver.id === "android-emulator-grpc-v1" &&
-    trace.driver.version === "1.0.0" &&
+    trace.driver.version === "1.1.0" &&
     JSON.stringify(trace.driver.rpcAllowlist) ===
       JSON.stringify(evidence.host.inputDriver.rpcAllowlist),
   "Portable Android input trace driver differs from its host profile");
   const identityKeys = [
     "pluginId", "runId", "candidateIdentityHash", "inputManifestHash", "markerHash",
-    "markerGeneration", "hostProfileId",
+    "markerGeneration", "hostProfileId", "phase", "scenarioId",
   ];
   assertExactKeys(trace.identity, identityKeys, identityKeys,
     "Portable Android input trace identity");
@@ -2389,6 +2389,8 @@ function validatePortableInputTraceSummary(trace, evidence) {
     releaseRunIdPattern.test(trace.identity.runId) &&
     trace.identity.candidateIdentityHash === evidence.candidate.acceptanceCandidateIdentityHash &&
     trace.identity.hostProfileId === evidence.host.profileId &&
+    trace.identity.phase === "product" &&
+    trace.identity.scenarioId === evidence.scenario.id &&
     Number.isSafeInteger(trace.identity.markerGeneration) && trace.identity.markerGeneration >= 0,
   "Portable Android input trace identity differs from its candidate or host");
   assertSha256(trace.identity.inputManifestHash,

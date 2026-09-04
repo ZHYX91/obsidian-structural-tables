@@ -55,6 +55,8 @@
 .structural-tables-table th,
 .structural-tables-table td {
   position: relative;
+  min-inline-size: 5rem;
+  height: 2.5rem;
   border: 0;
   border-block-end: var(--structural-table-border-width) solid var(--structural-table-border-color);
   border-inline-end: var(--structural-table-border-width) solid var(--structural-table-border-color);
@@ -95,6 +97,8 @@
 
 .structural-tables-row-handle:hover,
 .structural-tables-column-handle:hover,
+.structural-tables-row-handle.is-revealed,
+.structural-tables-column-handle.is-revealed,
 .structural-tables-row-handle:focus-visible,
 .structural-tables-column-handle:focus-visible,
 .structural-tables-row-handle.is-selected,
@@ -104,6 +108,8 @@
 
 .structural-tables-row-handle:hover,
 .structural-tables-column-handle:hover,
+.structural-tables-row-handle.is-revealed,
+.structural-tables-column-handle.is-revealed,
 .structural-tables-row-handle:focus-visible,
 .structural-tables-column-handle:focus-visible,
 .structural-tables-row-handle.is-selected,
@@ -165,6 +171,7 @@
 
 [data-density="compact"] .structural-tables-table th,
 [data-density="compact"] .structural-tables-table td {
+  height: 2rem;
   padding: var(--size-2-1) var(--size-4-2);
 }
 

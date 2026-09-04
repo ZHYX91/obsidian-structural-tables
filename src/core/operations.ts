@@ -195,7 +195,7 @@ function unavailable(table: StructuralTable, row?: number, column?: number): Ope
 
 /** Escapes Markdown table separators while preserving existing escapes and code spans. */
 export function normalizeTableCellInput(input: string): string {
-  const singleLine = input.replace(/\r?\n|\r/gu, " ").trim();
+  const singleLine = input.replace(/\r\n|\r|\n/gu, "<br>").trim();
   let output = "";
   let codeTicks = 0;
   for (let index = 0; index < singleLine.length; index += 1) {

@@ -46,6 +46,19 @@ describe("HTML table clipboard import", () => {
       .toBe("| A | B |\n| --- | --- |\n| 1 | 2 |");
   });
 
+  it("preserves browser and spreadsheet cell line breaks as canonical br tags", () => {
+    const source = structuralSourceFromClipboardHtml(`<table>
+      <tr><th>Name</th><th>Note</th></tr>
+      <tr><td>Alice</td><td>First<br>Second<br/>Third<br />Fourth</td></tr>
+      <tr><td>Bob</td><td><div>Line one</div><div>Line two</div></td></tr>
+    </table>`);
+
+    expect(source).toBe(`| Name | Note |
+| --- | --- |
+| Alice | First<br>Second<br>Third<br>Fourth |
+| Bob | Line one<br>Line two |`);
+  });
+
   it("returns null for non-tables and one-column tables", () => {
     expect(structuralSourceFromClipboardHtml("<p>Hello</p>")).toBeNull();
     expect(structuralSourceFromClipboardHtml("<table><tr><td>A</td></tr></table>")).toBeNull();

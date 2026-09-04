@@ -127,6 +127,8 @@ describe("table operations", () => {
     expect(normalizeTableCellInput("![[Image.png|300]]")).toBe(String.raw`![[Image.png\|300]]`);
     expect(normalizeTableCellInput("`a|b` | c")).toBe("`a|b` \\| c");
     expect(normalizeTableCellInput("^")).toBe(String.raw`\^`);
+    expect(normalizeTableCellInput("First\r\nSecond\rThird\nFourth"))
+      .toBe("First<br>Second<br>Third<br>Fourth");
   });
 
   it("edits a merged anchor from any covered coordinate and keeps Wiki links in one cell", () => {

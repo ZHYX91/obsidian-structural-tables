@@ -211,6 +211,44 @@ describe("Base promotion planning", () => {
     if (ending !== "\n") expect(migrated.source).not.toMatch(/(?<!\r)\n/u);
   });
 
+  it("ignores Base examples nested inside longer Markdown fences", () => {
+    const example = [
+      "````markdown",
+      "```base",
+      "# structural-tables-promotion: stb_example",
+      '# structural-tables-manifest: "Records/example/_promotion.json"',
+      "filters:",
+      "  and:",
+      "    - 'list(note.structural_table_ids).contains(\"stb_example\")'",
+      "```",
+      "````",
+    ].join("\n");
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_real");
+    const real = embeddedBaseSource(plan, "Records/real/_promotion.json")
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
+    const source = `${example}\n\n${real}`;
+
+    expect(promotionBlocks(source).map(({ tableId }) => tableId)).toEqual(["stb_real"]);
+    const migrated = migrateLegacyPromotionBlocks(source);
+    expect(migrated.count).toBe(1);
+    expect(migrated.source.slice(0, example.length)).toBe(example);
+    expect(migrated.source.slice(example.length)).toContain('list(note["structural-tables"])');
+  });
+
+  it("recognizes exact Base info strings in backtick and tilde fences only", () => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_tilde");
+    const tilde = embeddedBaseSource(plan, "Records/tilde/_promotion.json")
+      .replace(/^```base/mu, "~~~base")
+      .replace(/```$/mu, "~~~");
+    const annotated = embeddedBaseSource(plan, "Records/annotated/_promotion.json")
+      .replace(/^```base/mu, "```base extra");
+    const unclosed = embeddedBaseSource(plan, "Records/unclosed/_promotion.json")
+      .replace(/\n```$/u, "");
+
+    expect(promotionBlocks(`${tilde}\n\n${annotated}\n\n${unclosed}`).map(({ tableId }) => tableId))
+      .toEqual(["stb_tilde"]);
+  });
+
   it("keeps plugin metadata recognizable after the user customizes a Base filter", () => {
     const source = `\`\`\`base
 # structural-tables-promotion: stb_custom

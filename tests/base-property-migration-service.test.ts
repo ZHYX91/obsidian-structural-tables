@@ -46,6 +46,7 @@ interface MigrationHost {
   frontmatters: Map<TFile, Record<string, unknown>>;
   failProcessPath?: string;
   beforeProcess?: (file: TFile) => void;
+  beforeFrontMatter?: (file: TFile, frontmatter: Record<string, unknown>) => void;
 }
 
 function migrationHost(): MigrationHost {
@@ -58,8 +59,8 @@ function migrationHost(): MigrationHost {
       getMarkdownFiles: () => files,
       read: async (file: ObsidianTFile) => sources.get(file as TFile) ?? "",
       process: async (file: ObsidianTFile, update: (source: string) => string) => {
-        if (host.failProcessPath === file.path) throw new Error("write failed");
         host.beforeProcess?.(file as TFile);
+        if (host.failProcessPath === file.path) throw new Error("write failed");
         const current = sources.get(file as TFile) ?? "";
         const next = update(current);
         sources.set(file as TFile, next);
@@ -75,6 +76,7 @@ function migrationHost(): MigrationHost {
         update: (frontmatter: Record<string, unknown>) => void,
       ) => {
         const next = { ...frontmatters.get(file as TFile) };
+        host.beforeFrontMatter?.(file as TFile, next);
         update(next);
         frontmatters.set(file as TFile, next);
         const source = sources.get(file as TFile) ?? "";
@@ -175,6 +177,29 @@ describe("legacy Base property migration", () => {
     expect(host.frontmatters.get(record)).toEqual({ [TABLE_MEMBERSHIP_PROPERTY]: ["stb_current"] });
   });
 
+  it("revalidates membership and record ID inside the frontmatter write", async () => {
+    const host = migrationHost();
+    const record = testFile("Records/Current.md");
+    host.files.push(record);
+    host.frontmatters.set(record, {
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_current"],
+      [LEGACY_RECORD_ID_PROPERTY]: "str_current",
+    });
+    const original = yaml(host.frontmatters.get(record) ?? {});
+    host.sources.set(record, original);
+    host.beforeFrontMatter = (_file, frontmatter) => {
+      delete frontmatter[TABLE_MEMBERSHIP_PROPERTY];
+    };
+    const service = new BasePropertyMigrationService(host.app);
+
+    await expect(service.execute(await service.prepare(), true)).rejects.toThrow("membership changed during migration");
+    expect(host.frontmatters.get(record)).toEqual({
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_current"],
+      [LEGACY_RECORD_ID_PROPERTY]: "str_current",
+    });
+    expect(host.sources.get(record)).toBe(original);
+  });
+
   it.each([
     ["CRLF", "\r\n"],
     ["CR", "\r"],
@@ -235,6 +260,37 @@ describe("legacy Base property migration", () => {
 
     expect(host.sources.get(record)).toBe(originalRecord);
     expect(host.sources.get(base)).toBe(originalBase);
+  });
+
+  it("rolls back only migrated properties while preserving unrelated concurrent edits", async () => {
+    const host = migrationHost();
+    const record = testFile("Records/Alice.md");
+    const base = testFile("People.md");
+    host.files.push(record, base);
+    host.frontmatters.set(record, {
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      [LEGACY_RECORD_ID_PROPERTY]: "str_alice",
+      topic: "before",
+    });
+    host.sources.set(record, yaml(host.frontmatters.get(record) ?? {}, "Body\n"));
+    host.sources.set(base, promotedBase("stb_people"));
+    host.failProcessPath = base.path;
+    host.beforeProcess = (file) => {
+      if (file !== base) return;
+      const current = host.frontmatters.get(record);
+      if (current !== undefined) current.topic = "concurrent";
+      host.sources.set(record, `${host.sources.get(record)}Concurrent body\n`);
+    };
+    const service = new BasePropertyMigrationService(host.app);
+
+    await expect(service.execute(await service.prepare(), true)).rejects.toThrow("Every completed file was restored");
+
+    expect(host.frontmatters.get(record)).toEqual({
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      [LEGACY_RECORD_ID_PROPERTY]: "str_alice",
+      topic: "concurrent",
+    });
+    expect(host.sources.get(record)).toContain("Concurrent body");
   });
 
   it("refuses an unrelated concurrent edit between preview and a Base rewrite", async () => {

@@ -7,6 +7,7 @@ import {
   promotionBlocks,
   TABLE_MEMBERSHIP_PROPERTY,
   tableMembershipState,
+  migrateMembershipFilter,
 } from "../core/base-promotion";
 
 interface PropertyMigrationFile {
@@ -16,6 +17,19 @@ interface PropertyMigrationFile {
   migrateMembership: boolean;
   legacyBaseCount: number;
   hasLegacyRecordId: boolean;
+  membershipIds: string[];
+  legacyRecordIdValue: unknown;
+}
+
+interface MigratedBaseBlock {
+  tableId: string;
+  before: string;
+  after: string;
+}
+
+interface WrittenChanges {
+  frontmatter: boolean;
+  bases: MigratedBaseBlock[];
 }
 
 export interface PreparedBasePropertyMigration {
@@ -38,6 +52,34 @@ function owns(value: Record<string, unknown>, property: string): boolean {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
+function restoreMigratedBaseBlocks(source: string, changes: readonly MigratedBaseBlock[]): string {
+  const available = promotionBlocks(source);
+  const replacements = changes.map((change) => {
+    const index = available.findIndex((block) => block.tableId === change.tableId && block.source === change.after);
+    const block = index < 0 ? undefined : available.splice(index, 1)[0];
+    if (block === undefined) throw new Error(`promoted Base ${change.tableId} changed after migration`);
+    return { ...block.range, source: change.before };
+  }).sort((left, right) => right.from - left.from);
+  let restored = source;
+  for (const replacement of replacements) {
+    restored = `${restored.slice(0, replacement.from)}${replacement.source}${restored.slice(replacement.to)}`;
+  }
+  return restored;
 }
 
 export class BasePropertyMigrationService {
@@ -80,6 +122,8 @@ export class BasePropertyMigrationService {
           migrateMembership,
           legacyBaseCount: fileLegacyBaseCount,
           hasLegacyRecordId,
+          membershipIds: [...membership.ids],
+          legacyRecordIdValue: frontmatter?.[LEGACY_RECORD_ID_PROPERTY],
         });
       }
     }
@@ -106,29 +150,35 @@ export class BasePropertyMigrationService {
       }
     }
 
-    const written = new Map<PropertyMigrationFile, string>();
+    const written = new Map<PropertyMigrationFile, WrittenChanges>();
     try {
       for (const candidate of active) {
         let expectedSource = candidate.originalSource;
+        const changes: WrittenChanges = { frontmatter: false, bases: [] };
         if (candidate.migrateMembership || (removeLegacyRecordIds && candidate.hasLegacyRecordId)) {
           await this.app.fileManager.processFrontMatter(candidate.file, (frontmatter: Record<string, unknown>) => {
+            const membership = tableMembershipState(frontmatter);
+            if (membership.status !== "valid" || !sameStrings(membership.ids, candidate.membershipIds)) {
+              throw new Error(`Structural Tables membership changed during migration: ${candidate.path}.`);
+            }
             if (candidate.migrateMembership) {
-              const membership = tableMembershipState(frontmatter);
-              if (
-                membership.status !== "valid"
-                || !owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY)
-              ) {
+              if (!owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY)) {
                 throw new Error(`Structural Tables membership changed during migration: ${candidate.path}.`);
               }
               frontmatter[TABLE_MEMBERSHIP_PROPERTY] = [...membership.ids];
               delete frontmatter[LEGACY_TABLE_MEMBERSHIP_PROPERTY];
             }
             if (removeLegacyRecordIds && candidate.hasLegacyRecordId) {
+              if (!owns(frontmatter, LEGACY_RECORD_ID_PROPERTY)
+                || !sameValue(frontmatter[LEGACY_RECORD_ID_PROPERTY], candidate.legacyRecordIdValue)) {
+                throw new Error(`Structural Tables record ID changed during migration: ${candidate.path}.`);
+              }
               delete frontmatter[LEGACY_RECORD_ID_PROPERTY];
             }
           });
+          changes.frontmatter = true;
+          written.set(candidate, changes);
           expectedSource = await this.app.vault.read(candidate.file);
-          written.set(candidate, expectedSource);
         }
 
         if (candidate.legacyBaseCount > 0) {
@@ -145,23 +195,53 @@ export class BasePropertyMigrationService {
             if (JSON.stringify(currentTableIds) !== JSON.stringify(expectedTableIds)) {
               throw new Error(`A promoted Base changed during migration: ${candidate.path}.`);
             }
+            const currentBlocks = promotionBlocks(source)
+              .filter(({ membershipProperty }) => membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY);
+            changes.bases = currentBlocks.map((block) => ({
+              tableId: block.tableId,
+              before: block.source,
+              after: migrateMembershipFilter(block.source),
+            }));
             return migrateLegacyPromotionBlocks(source).source;
           });
-          written.set(candidate, migrated);
+          if (migrated === expectedSource) throw new Error(`A promoted Base changed during migration: ${candidate.path}.`);
+          written.set(candidate, changes);
         }
       }
     } catch (error) {
       const rollbackFailures: string[] = [];
       for (const candidate of [...active].reverse()) {
-        const expectedWritten = written.get(candidate);
-        if (expectedWritten === undefined) continue;
+        const changes = written.get(candidate);
+        if (changes === undefined) continue;
         try {
-          await this.app.vault.process(candidate.file, (source) => {
-            if (source !== expectedWritten) {
-              throw new Error("the file changed after migration wrote it");
-            }
-            return candidate.originalSource;
-          });
+          if (changes.bases.length > 0) {
+            await this.app.vault.process(candidate.file, (source) => restoreMigratedBaseBlocks(source, changes.bases));
+          }
+          if (changes.frontmatter) {
+            await this.app.fileManager.processFrontMatter(candidate.file, (frontmatter: Record<string, unknown>) => {
+              const membership = tableMembershipState(frontmatter);
+              if (membership.status !== "valid" || !sameStrings(membership.ids, candidate.membershipIds)) {
+                throw new Error("membership changed after migration wrote it");
+              }
+              if (candidate.migrateMembership) {
+                if (!owns(frontmatter, TABLE_MEMBERSHIP_PROPERTY)
+                  || owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY)) {
+                  throw new Error("membership properties changed after migration wrote them");
+                }
+                frontmatter[LEGACY_TABLE_MEMBERSHIP_PROPERTY] = [...candidate.membershipIds];
+                delete frontmatter[TABLE_MEMBERSHIP_PROPERTY];
+              }
+              if (removeLegacyRecordIds && candidate.hasLegacyRecordId) {
+                if (owns(frontmatter, LEGACY_RECORD_ID_PROPERTY)) {
+                  if (!sameValue(frontmatter[LEGACY_RECORD_ID_PROPERTY], candidate.legacyRecordIdValue)) {
+                    throw new Error("record ID changed after migration removed it");
+                  }
+                } else {
+                  frontmatter[LEGACY_RECORD_ID_PROPERTY] = candidate.legacyRecordIdValue;
+                }
+              }
+            });
+          }
         } catch (rollbackError) {
           rollbackFailures.push(`${candidate.path}: ${errorMessage(rollbackError)}`);
         }

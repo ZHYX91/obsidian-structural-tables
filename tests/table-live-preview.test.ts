@@ -224,6 +224,58 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it("reveals only the row and column handles corresponding to the hovered cell", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+    const move = new Event("pointermove", { bubbles: true });
+    Object.defineProperties(move, {
+      pointerType: { value: "mouse" },
+      clientX: { value: 0 },
+      clientY: { value: 0 },
+    });
+    cell.dispatchEvent(move);
+
+    const rows = Array.from(parent.querySelectorAll<HTMLElement>(".structural-tables-row-handle.is-revealed"));
+    const columns = Array.from(parent.querySelectorAll<HTMLElement>(".structural-tables-column-handle.is-revealed"));
+    expect(rows.map((handle) => handle.dataset.structuralRowHandle)).toEqual(["2"]);
+    expect(columns.map((handle) => handle.dataset.structuralColumnHandle)).toEqual(["1"]);
+
+    parent.querySelector<HTMLElement>(".structural-tables-live-preview")
+      ?.dispatchEvent(new Event("pointerleave"));
+    expect(parent.querySelector(".is-revealed")).toBeNull();
+    view.destroy();
+  });
+
+  it("positions overlaid handles from the actual centered table rectangle", () => {
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect(): DOMRect {
+      if (this.classList.contains("structural-tables-live-preview")) {
+        return { left: 20, right: 520, top: 10, bottom: 310, width: 500, height: 300, x: 20, y: 10, toJSON: () => ({}) };
+      }
+      if (this.classList.contains("structural-tables-table")) {
+        return { left: 170, right: 370, top: 50, bottom: 250, width: 200, height: 200, x: 170, y: 50, toJSON: () => ({}) };
+      }
+      return originalRect.call(this);
+    };
+    try {
+      const { parent, view } = mountEditor(
+        screenshotTable,
+        { anchor: screenshotTable.length },
+        [],
+        undefined,
+        { layout: "content-center" },
+      );
+      const row = parent.querySelector<HTMLElement>(".structural-tables-row-handle")!;
+      const column = parent.querySelector<HTMLElement>(".structural-tables-column-handle")!;
+      expect(row.style.getPropertyValue("inset-inline-start")).toBe("calc(150px - var(--structural-table-handle-gutter))");
+      expect(column.style.getPropertyValue("inset-block-start")).toBe("calc(40px - var(--structural-table-handle-gutter))");
+      expect(column.style.left).toBe("170px");
+      view.destroy();
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalRect;
+    }
+  });
+
   it("uses one tab stop per cell and handle group with arrow-key navigation", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cells = Array.from(parent.querySelectorAll<HTMLElement>(
@@ -392,6 +444,32 @@ describe("StructuralTableEditorController", () => {
 
     expect(view.state.doc.toString()).toContain(String.raw`[[Target\|Alias]]`);
     expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+    view.destroy();
+  });
+
+  it("pastes multiline text and inserts cell breaks from Shift+Enter and the editor menu", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = cell.querySelector<HTMLTextAreaElement>(".structural-tables-cell-editor")!;
+    editor.value = "First";
+    editor.setSelectionRange(5, 5);
+
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true }));
+    expect(editor.value).toBe("First<br>");
+
+    const paste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", { value: { getData: () => "Second\r\nThird" } });
+    editor.dispatchEvent(paste);
+    expect(editor.value).toBe("First<br>Second<br>Third");
+
+    editor.setSelectionRange(5, 5);
+    editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    const item = lastMenu?.items.find((candidate) => candidate.title === "Insert line break in cell");
+    expect(item).toBeDefined();
+    item?.callback?.();
+    expect(editor.value).toBe("First<br><br>Second<br>Third");
+    expect(cell.querySelector(".structural-tables-cell-editor")).toBe(editor);
     view.destroy();
   });
 

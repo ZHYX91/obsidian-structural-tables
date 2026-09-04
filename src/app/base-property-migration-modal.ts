@@ -7,11 +7,37 @@ export interface BasePropertyMigrationLabels {
   description: string;
   membershipNotes: string;
   promotedBases: string;
+  retiredRecordIdCandidates: string;
   retiredRecordIds: string;
   removeRecordIds: string;
   removeRecordIdsDescription: string;
   cancel: string;
   confirm: string;
+}
+
+export function basePropertyMigrationPreviewText(
+  prepared: PreparedBasePropertyMigration,
+  labels: BasePropertyMigrationLabels,
+  removeLegacyRecordIds: boolean,
+): string {
+  const paths = prepared.files.map((candidate) => {
+    const actions = [
+      ...(candidate.migrateMembership ? [labels.membershipNotes] : []),
+      ...(candidate.legacyBaseCount > 0 ? [`${labels.promotedBases}: ${candidate.legacyBaseCount}`] : []),
+      ...(candidate.hasLegacyRecordId
+        ? [removeLegacyRecordIds ? labels.retiredRecordIds : labels.retiredRecordIdCandidates]
+        : []),
+    ];
+    return `- ${candidate.path} — ${actions.join(", ")}`;
+  }).join("\n");
+  return [
+    `${labels.membershipNotes}: ${prepared.membershipNoteCount}`,
+    `${labels.promotedBases}: ${prepared.legacyBaseCount}`,
+    `${labels.retiredRecordIdCandidates}: ${prepared.legacyRecordIdCount}`,
+    `${labels.retiredRecordIds}: ${removeLegacyRecordIds ? prepared.legacyRecordIdCount : 0}`,
+    "",
+    paths,
+  ].join("\n");
 }
 
 export class BasePropertyMigrationModal extends Modal {
@@ -29,30 +55,19 @@ export class BasePropertyMigrationModal extends Modal {
     let removeLegacyRecordIds = false;
     this.setTitle(this.labels.title);
     this.contentEl.createEl("p", { text: this.labels.description });
-    const paths = this.prepared.files.map((candidate) => {
-      const actions = [
-        ...(candidate.migrateMembership ? [this.labels.membershipNotes] : []),
-        ...(candidate.legacyBaseCount > 0 ? [`${this.labels.promotedBases}: ${candidate.legacyBaseCount}`] : []),
-        ...(candidate.hasLegacyRecordId ? [this.labels.retiredRecordIds] : []),
-      ];
-      return `- ${candidate.path} — ${actions.join(", ")}`;
-    }).join("\n");
-    this.contentEl.createEl("pre", {
+    const preview = this.contentEl.createEl("pre", {
       cls: "structural-tables-conversion-preview",
-      text: [
-        `${this.labels.membershipNotes}: ${this.prepared.membershipNoteCount}`,
-        `${this.labels.promotedBases}: ${this.prepared.legacyBaseCount}`,
-        `${this.labels.retiredRecordIds}: ${this.prepared.legacyRecordIdCount}`,
-        "",
-        paths,
-      ].join("\n"),
+      text: basePropertyMigrationPreviewText(this.prepared, this.labels, removeLegacyRecordIds),
     });
     new Setting(this.contentEl)
       .setName(this.labels.removeRecordIds)
       .setDesc(this.labels.removeRecordIdsDescription)
       .addToggle((toggle) => toggle
         .setValue(removeLegacyRecordIds)
-        .onChange((value) => { removeLegacyRecordIds = value; }));
+        .onChange((value) => {
+          removeLegacyRecordIds = value;
+          preview.textContent = basePropertyMigrationPreviewText(this.prepared, this.labels, removeLegacyRecordIds);
+        }));
     new Setting(this.contentEl)
       .addButton((button) => button
         .setButtonText(this.labels.cancel)

@@ -27,3 +27,10 @@
 | Name | Status |
 | --- | --- |
 | Alice | Ready |
+
+## Empty geometry reference
+
+|   |   |   |
+| --- | --- | --- |
+|   |   |   |
+|   |   |   |

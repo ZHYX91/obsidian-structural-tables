@@ -49,10 +49,10 @@ describe("table interchange", () => {
     expect(html).toContain("<tbody>");
   });
 
-  it.each(["<br>", "<br/>", "<br />"])("does not reinterpret %s during semantic HTML export", (tag) => {
+  it.each(["<br>", "<br/>", "<br />"])("exports %s as a semantic HTML line break", (tag) => {
     const source = `| Name | Note |\n| --- || --- |\n| Alice | First${tag}Second |`;
 
-    expect(structuralTableToHtml(table(source))).toContain(`First&lt;${tag.slice(1, -1)}&gt;Second`);
+    expect(structuralTableToHtml(table(source))).toContain("First<br>Second");
   });
 
   it("exports quoted CSV and sanitized TSV", () => {

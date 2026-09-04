@@ -58,6 +58,19 @@ export interface PromotionBlockMetadata {
   source: string;
 }
 
+interface SourceLine {
+  from: number;
+  contentTo: number;
+  to: number;
+  text: string;
+}
+
+interface FenceOpening {
+  character: "`" | "~";
+  length: number;
+  info: string;
+}
+
 function propertyIdentity(value: string): string {
   return value.normalize("NFKC").toLowerCase();
 }
@@ -265,14 +278,63 @@ function propertyKeysFromBlock(block: string): string[] {
   return keys;
 }
 
+function sourceLines(source: string): SourceLine[] {
+  const lines: SourceLine[] = [];
+  const pattern = /[^\r\n]*(?:(?:\r\n)|\r|\n|$)/gu;
+  for (const match of source.matchAll(pattern)) {
+    const raw = match[0];
+    if (raw === "" || match.index === undefined) continue;
+    const endingLength = raw.endsWith("\r\n") ? 2 : /[\r\n]$/u.test(raw) ? 1 : 0;
+    const contentTo = match.index + raw.length - endingLength;
+    lines.push({
+      from: match.index,
+      contentTo,
+      to: match.index + raw.length,
+      text: raw.slice(0, raw.length - endingLength),
+    });
+  }
+  return lines;
+}
+
+function fenceOpening(line: string): FenceOpening | null {
+  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
+  const fence = match?.[1];
+  if (fence === undefined) return null;
+  const character = fence[0];
+  if (character !== "`" && character !== "~") return null;
+  const info = (match?.[2] ?? "").trim();
+  if (character === "`" && info.includes("`")) return null;
+  return { character, length: fence.length, info };
+}
+
+function closesFence(line: string, opening: FenceOpening): boolean {
+  const match = /^ {0,3}(`+|~+)[\t ]*$/u.exec(line);
+  const fence = match?.[1];
+  return fence !== undefined
+    && fence[0] === opening.character
+    && fence.length >= opening.length;
+}
+
 export function promotionBlocks(source: string): PromotionBlockMetadata[] {
   const blocks: PromotionBlockMetadata[] = [];
-  const pattern = /(^|(?:\r\n|\r|\n))(```base[\t ]*(?:\r\n|\r|\n)[\s\S]*?(?:\r\n|\r|\n)```)(?=(?:\r\n|\r|\n)|$)/gu;
-  for (const match of source.matchAll(pattern)) {
-    const block = match[2];
-    if (block === undefined || match.index === undefined) continue;
-    const from = match.index + (match[1]?.length ?? 0);
-    const to = from + block.length;
+  const lines = sourceLines(source);
+  for (let index = 0; index < lines.length; index += 1) {
+    const openingLine = lines[index];
+    if (openingLine === undefined) continue;
+    const opening = fenceOpening(openingLine.text);
+    if (opening === null) continue;
+    let closingIndex = index + 1;
+    while (closingIndex < lines.length && !closesFence(lines[closingIndex]?.text ?? "", opening)) {
+      closingIndex += 1;
+    }
+    if (closingIndex >= lines.length) break;
+    const closingLine = lines[closingIndex];
+    if (closingLine === undefined) break;
+    index = closingIndex;
+    if (opening.info !== "base") continue;
+    const from = openingLine.from;
+    const to = closingLine.contentTo;
+    const block = source.slice(from, to);
     const tableId = /^# structural-tables-promotion: ([^\s]+)$/mu.exec(block)?.[1];
     const manifestLiteral = /^# structural-tables-manifest: (.+)$/mu.exec(block)?.[1];
     if (tableId === undefined || manifestLiteral === undefined) continue;

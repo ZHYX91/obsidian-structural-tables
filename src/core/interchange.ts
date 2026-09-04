@@ -42,7 +42,7 @@ function anchorFor(table: StructuralTable, cell: StructuralCell): StructuralCell
 }
 
 function portableCell(content: string): string {
-  const singleLine = content.replace(/\r?\n|\r/gu, " ").trim();
+  const singleLine = content.replace(/\r\n|\r|\n/gu, "<br>").trim();
   let output = "";
   for (let index = 0; index < singleLine.length; index += 1) {
     const character = singleLine[index] ?? "";
@@ -133,7 +133,11 @@ function htmlCell(table: StructuralTable, cell: StructuralCell): string {
   if (cell.role === "row_header") attributes.push(`scope="${cell.rowSpan > 1 ? "rowgroup" : "row"}"`);
   if (cell.role === "column_header") attributes.push(`scope="${cell.columnSpan > 1 ? "colgroup" : "col"}"`);
   const suffix = attributes.length === 0 ? "" : ` ${attributes.join(" ")}`;
-  return `    <${tag}${suffix}>${escapeHtml(cell.content)}</${tag}>`;
+  const content = cell.content
+    .split(/(<br\s*\/?>)/giu)
+    .map((part) => /^<br\s*\/?>$/iu.test(part) ? "<br>" : escapeHtml(part))
+    .join("");
+  return `    <${tag}${suffix}>${content}</${tag}>`;
 }
 
 export function structuralTableToHtml(table: StructuralTable): string {

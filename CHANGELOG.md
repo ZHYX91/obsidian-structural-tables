@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.4.1 - 2026-09-05
+
+- Keep empty and merged tables at stable comfortable or compact cell dimensions instead of collapsing after structural edits.
+- Reveal the corresponding row and column handles when a desktop pointer is over a cell, while keeping the handles outside the table layout for native alignment.
+- Insert a canonical `<br>` while editing with Shift+Enter or the cell editor's context menu, and preserve browser or spreadsheet cell line breaks through HTML import and export.
+- Ignore promoted-Base examples nested inside longer Markdown fences and make migration rollback preserve unrelated concurrent note edits.
+- Keep the legacy-migration preview's retired-ID counts and per-file actions synchronized with its opt-in cleanup toggle.
 - Preserve non-empty table headers, including numeric and leading-zero headers, as promoted Base Property names; use bracket notation for generated references and reserve `column_n` for blank headers.
 - Keep legacy promoted Bases that use dot-notation Property references recognizable without migrating existing records.
 - Correct merged-cell border edges, use content-driven desktop row sizing with coarse-pointer touch minimums, and let alternating row backgrounds continue through row spans.

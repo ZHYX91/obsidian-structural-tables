@@ -546,6 +546,7 @@ export class StructuralTablesPlugin extends Plugin {
           description: t("modal.migrateBaseProperties.desc"),
           membershipNotes: t("modal.migrateBaseProperties.membershipNotes"),
           promotedBases: t("modal.migrateBaseProperties.promotedBases"),
+          retiredRecordIdCandidates: t("modal.migrateBaseProperties.retiredRecordIdCandidates"),
           retiredRecordIds: t("modal.migrateBaseProperties.retiredRecordIds"),
           removeRecordIds: t("modal.migrateBaseProperties.removeRecordIds"),
           removeRecordIdsDescription: t("modal.migrateBaseProperties.removeRecordIdsDesc"),

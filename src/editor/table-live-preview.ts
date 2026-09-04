@@ -148,6 +148,7 @@ class StructuralTableWidget extends WidgetType {
     });
     rendered.addEventListener("pointerdown", (event) => this.startPointerSelection(event, view));
     rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event));
+    rendered.addEventListener("pointermove", (event) => this.revealHandlesForPointer(event));
     rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
     rendered.addEventListener("contextmenu", (event) => this.openContextMenu(event, view));
     rendered.addEventListener("dblclick", (event) => {
@@ -372,7 +373,41 @@ class StructuralTableWidget extends WidgetType {
     }
   }
 
+  private revealHandlesForPointer(event: PointerEvent): void {
+    if (event.pointerType === "touch" || this.host === null) return;
+    const coordinate = this.coordinateFor(event.target);
+    if (coordinate === null) return;
+    const cell = this.table.rows[coordinate.row]?.cells[coordinate.column];
+    const element = cell === undefined ? null : this.cellElement(cell);
+    if (cell === undefined || element === null) return;
+    const rect = element.getBoundingClientRect();
+    const rowOffset = rect.height <= 0
+      ? 0
+      : Math.min(cell.rowSpan - 1, Math.max(0, Math.floor((event.clientY - rect.top) / rect.height * cell.rowSpan)));
+    const rtl = element.ownerDocument.defaultView?.getComputedStyle(this.renderedTable!).direction === "rtl";
+    const inlinePosition = rtl ? rect.right - event.clientX : event.clientX - rect.left;
+    const columnOffset = rect.width <= 0
+      ? 0
+      : Math.min(cell.columnSpan - 1, Math.max(0, Math.floor(inlinePosition / rect.width * cell.columnSpan)));
+    const row = cell.row + rowOffset;
+    const column = cell.column + columnOffset;
+    for (const handle of this.host.querySelectorAll<HTMLElement>(".structural-tables-row-handle")) {
+      handle.classList.toggle("is-revealed", Number(handle.dataset.structuralRowHandle) === row);
+    }
+    for (const handle of this.host.querySelectorAll<HTMLElement>(".structural-tables-column-handle")) {
+      handle.classList.toggle("is-revealed", Number(handle.dataset.structuralColumnHandle) === column);
+    }
+  }
+
+  private clearRevealedHandles(): void {
+    for (const handle of this.host?.querySelectorAll<HTMLElement>(
+      ".structural-tables-row-handle.is-revealed, .structural-tables-column-handle.is-revealed",
+    ) ?? []) handle.classList.remove("is-revealed");
+  }
+
   private openContextMenu(event: MouseEvent, view: EditorView): void {
+    if (event.target !== null && "closest" in event.target
+      && (event.target as Element).closest("textarea.structural-tables-cell-editor") !== null) return;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
     event.preventDefault();
@@ -438,6 +473,12 @@ class StructuralTableWidget extends WidgetType {
     element.replaceChildren(editor);
     let settled = false;
     let composing = false;
+    let contextMenuOpen = false;
+
+    const insertBreak = (start = editor.selectionStart, end = editor.selectionEnd): void => {
+      editor.setRangeText("<br>", start, end, "end");
+      editor.focus({ preventScroll: true });
+    };
 
     const restore = (): void => {
       element.replaceChildren(...originalNodes);
@@ -476,6 +517,10 @@ class StructuralTableWidget extends WidgetType {
         event.preventDefault();
         event.stopPropagation();
         finish(false);
+      } else if (event.key === "Enter" && event.shiftKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        insertBreak();
       } else if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
@@ -492,8 +537,24 @@ class StructuralTableWidget extends WidgetType {
       event.preventDefault();
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
-      editor.value = normalizeTableCellInput(`${editor.value.slice(0, start)}${pasted}${editor.value.slice(end)}`);
-      editor.setSelectionRange(editor.value.length, editor.value.length);
+      editor.setRangeText(normalizeTableCellInput(pasted), start, end, "end");
+    });
+    editor.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      contextMenuOpen = true;
+      const menu = Menu.forEvent(event);
+      menu.addItem((item) => item
+        .setSection("structural-tables-cell")
+        .setIcon("corner-down-left")
+        .setTitle(t("menu.insertCellBreak"))
+        .onClick(() => insertBreak(start, end)));
+      menu.onHide(() => {
+        contextMenuOpen = false;
+        if (!settled) queueMicrotask(() => editor.focus({ preventScroll: true }));
+      });
     });
     editor.addEventListener("compositionstart", (event) => {
       composing = true;
@@ -504,7 +565,7 @@ class StructuralTableWidget extends WidgetType {
       event.stopPropagation();
     });
     editor.addEventListener("blur", () => {
-      if (!composing) finish(true);
+      if (!composing && !contextMenuOpen) finish(true);
     });
     editor.focus({ preventScroll: true });
     editor.select();
@@ -600,15 +661,19 @@ class StructuralTableWidget extends WidgetType {
     });
     this.installRovingHandles(rowHandles, "vertical", rendered);
     this.installRovingHandles(columnHandles, "horizontal", rendered);
+    host.addEventListener("pointerleave", () => this.clearRevealedHandles());
     const positionHandles = (): void => {
       const hostRect = host.getBoundingClientRect();
       const tableRect = rendered.getBoundingClientRect();
+      const rtl = rendered.ownerDocument.defaultView?.getComputedStyle(rendered).direction === "rtl";
+      const inlineStart = rtl ? hostRect.right - tableRect.right : tableRect.left - hostRect.left;
       rowHandles.forEach((handle, row) => {
         const rowRect = rendered.rows.item(row)?.getBoundingClientRect();
         const fallback = (row + 0.5) / this.table.rows.length;
         handle.style.top = `${rowRect === undefined || rowRect.height === 0
-          ? 24 + fallback * Math.max(0, tableRect.height)
+          ? tableRect.top - hostRect.top + fallback * Math.max(0, tableRect.height)
           : rowRect.top - hostRect.top + rowRect.height / 2}px`;
+        handle.style.setProperty("inset-inline-start", `calc(${inlineStart}px - var(--structural-table-handle-gutter))`);
       });
       columnHandles.forEach((handle, column) => {
         let left: number | null = null;
@@ -620,8 +685,13 @@ class StructuralTableWidget extends WidgetType {
           if (rect.width > 0) left = rect.left - hostRect.left + rect.width * ((column - start + 0.5) / span);
           break;
         }
-        const fallback = 24 + (column + 0.5) / this.table.columnCount * Math.max(0, tableRect.width);
+        const fallback = tableRect.left - hostRect.left
+          + (column + 0.5) / this.table.columnCount * Math.max(0, tableRect.width);
         handle.style.left = `${left ?? fallback}px`;
+        handle.style.setProperty(
+          "inset-block-start",
+          `calc(${tableRect.top - hostRect.top}px - var(--structural-table-handle-gutter))`,
+        );
       });
     };
     positionHandles();

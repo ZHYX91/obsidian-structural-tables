@@ -46,6 +46,7 @@ const menusByEvent = new WeakMap<Event, Menu>();
 
 export class Menu {
   readonly items: MenuItem[] = [];
+  private readonly hideCallbacks: Array<() => void> = [];
 
   static forEvent(event: Event): Menu {
     const menu = menusByEvent.get(event) ?? new Menu();
@@ -58,6 +59,15 @@ export class Menu {
     const item = new MenuItem();
     callback(item);
     this.items.push(item);
+    return this;
+  }
+
+  onHide(callback: () => void): void {
+    this.hideCallbacks.push(callback);
+  }
+
+  hide(): this {
+    for (const callback of this.hideCallbacks.splice(0)) callback();
     return this;
   }
 }
@@ -144,6 +154,21 @@ export function getLanguage(): string {
 }
 
 export class App {}
+
+export class Modal {
+  readonly contentEl: HTMLElement;
+
+  constructor(public app: App) {
+    this.contentEl = typeof document === "undefined"
+      ? {} as HTMLElement
+      : document.createElement("div");
+  }
+
+  setTitle(_title: string): this { return this; }
+  close(): void { this.onClose(); }
+  onOpen(): void {}
+  onClose(): void {}
+}
 
 export class PluginSettingTab {
   containerEl: HTMLElement;

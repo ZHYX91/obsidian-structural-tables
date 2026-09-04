@@ -30,11 +30,11 @@ describe("HTML table clipboard import", () => {
         <tr><td>8</td><td>11</td></tr>
       </tbody>
     </table>`);
-    expect(source).toBe(`| Region | Sales | < |
-| ^ | Q1 | Q2 |
-| --- || --- | --- |
-| North | 10 | 12 |
-| ^ | 8 | 11 |`);
+    expect(source).toBe(`| Region  | Sales | <   |
+| ^       | Q1    | Q2  |
+| ---    || ---   | --- |
+| North   | 10    | 12  |
+| ^       | 8     | 11  |`);
     const parsed = parseEditableTables(source ?? "").tables[0];
     expect(parsed?.valid).toBe(true);
     expect(parsed?.headerRowCount).toBe(2);
@@ -43,7 +43,7 @@ describe("HTML table clipboard import", () => {
 
   it("treats the first row as headers when pasted HTML has only td cells", () => {
     expect(structuralSourceFromClipboardHtml("<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"))
-      .toBe("| A | B |\n| --- | --- |\n| 1 | 2 |");
+      .toBe("| A   | B   |\n| --- | --- |\n| 1   | 2   |");
   });
 
   it("preserves browser and spreadsheet cell line breaks as canonical br tags", () => {
@@ -53,10 +53,21 @@ describe("HTML table clipboard import", () => {
       <tr><td>Bob</td><td><div>Line one</div><div>Line two</div></td></tr>
     </table>`);
 
-    expect(source).toBe(`| Name | Note |
-| --- | --- |
+    expect(source).toBe(`| Name  | Note                               |
+| ---   | ---                                |
 | Alice | First<br>Second<br>Third<br>Fourth |
-| Bob | Line one<br>Line two |`);
+| Bob   | Line one<br>Line two               |`);
+  });
+
+  it("escapes HTML cell pipes without losing Wiki links or code spans", () => {
+    const source = structuralSourceFromClipboardHtml(`<table>
+      <tr><th>Name</th><th>Note</th></tr>
+      <tr><td>Alice</td><td>[[Target|Alias]] | literal</td></tr>
+    </table>`);
+    const parsed = parseEditableTables(source ?? "").tables[0];
+
+    expect(parsed?.columnCount).toBe(2);
+    expect(parsed?.rows[1]?.cells[1]?.content).toBe(String.raw`[[Target\|Alias]] \| literal`);
   });
 
   it("returns null for non-tables and one-column tables", () => {

@@ -26,8 +26,9 @@ describe("table operations", () => {
     const table = parseStructuralTables(source).tables[0]!;
     const result = mergeCell(table, 2, 1, "left");
     expect(result.changed).toBe(true);
-    expect(result.source).toContain("| 1 | < |");
-    expect(parseStructuralTables(result.source).tables[0]?.valid).toBe(true);
+    const reparsed = parseStructuralTables(result.source).tables[0];
+    expect(reparsed?.rows[2]?.cells[1]?.marker).toBe("left");
+    expect(reparsed?.valid).toBe(true);
   });
 
   it("refuses to discard non-empty content or cross an edge", () => {
@@ -41,7 +42,7 @@ describe("table operations", () => {
     const table = parseStructuralTables("| Group | < |\n| A | B |\n| --- | --- |\n| 1 | 2 |").tables[0]!;
     const result = splitCell(table, 0, 1);
     expect(result.changed).toBe(true);
-    expect(result.source).toContain("| Group |  |");
+    expect(parseStructuralTables(result.source).tables[0]?.rows[0]?.cells[1]?.content).toBe("");
     expect(splitCell(parseStructuralTables(result.source).tables[0]!, 0, 0).changed).toBe(false);
   });
 
@@ -50,7 +51,7 @@ describe("table operations", () => {
     const result = splitCell(table, 1, 1);
     expect(result.changed).toBe(true);
     expect(parseStructuralTables(result.source).tables).toEqual([]);
-    expect(result.source).toContain("| 1 |  |");
+    expect(parseEditableTables(result.source).tables[0]?.rows[1]?.cells[1]?.content).toBe("");
   });
 
   it("maps cursor positions to pipe cells", () => {
@@ -64,22 +65,23 @@ describe("table operations", () => {
     const table = parseStructuralTables("| Group | Value |\n| Name | Amount |\n| --- | --- |\n| A |  |\n|  |  |").tables[0]!;
     const result = mergeCellRange(table, 2, 0, 3, 1);
     expect(result).toMatchObject({ changed: true, code: "merged" });
-    expect(result.source).toContain("| A | < |");
-    expect(result.source).toContain("| ^ | ^ |");
-    expect(parseStructuralTables(result.source).tables[0]).toMatchObject({ valid: true });
+    const reparsed = parseStructuralTables(result.source).tables[0];
+    expect(reparsed?.rows[2]?.cells[1]?.marker).toBe("left");
+    expect(reparsed?.rows[3]?.cells.map((cell) => cell.marker)).toEqual(["up", "up"]);
+    expect(reparsed).toMatchObject({ valid: true });
   });
 
   it("bootstraps structural syntax by merging an ordinary GFM table selection", () => {
     const table = parseEditableTables("| A | B |\n| --- | --- |\n| 1 |  |").tables[0]!;
     const result = mergeCellRange(table, 1, 0, 1, 1);
     expect(result).toMatchObject({ changed: true, code: "merged" });
-    expect(result.source).toContain("| 1 | < |");
+    expect(parseStructuralTables(result.source).tables[0]?.rows[1]?.cells[1]?.marker).toBe("left");
   });
 
   it("bootstraps multi-row and row headers from an ordinary GFM table", () => {
     const table = parseEditableTables("| A | B |\n| --- | --- |\n| C | D |").tables[0]!;
-    expect(setHeaderRowCount(table, 2).source.split("\n")[2]).toBe("| --- | --- |");
-    expect(setRowHeaderColumnCount(table, 1).source).toContain("| --- || --- |");
+    expect(setHeaderRowCount(table, 2).source.split("\n")[2]?.replace(/ /gu, "")).toBe("|---|---|");
+    expect(setRowHeaderColumnCount(table, 1).source).toContain("||");
   });
 
   it("refuses rectangular merges that lose content, cross roles, or clip an existing merge", () => {
@@ -95,18 +97,18 @@ describe("table operations", () => {
     const table = parseStructuralTables("| Group | Value |\n| Name | Amount |\n| --- | --- |\n| A | 1 |").tables[0]!;
     const reduced = setHeaderRowCount(table, 1);
     expect(reduced).toMatchObject({ changed: true, code: "header-rows-set" });
-    expect(reduced.source.split("\n")[1]).toBe("| --- | --- |");
+    expect(reduced.source.split("\n")[1]?.replace(/ /gu, "")).toBe("|---|---|");
 
     const expandedTable = parseStructuralTables(reduced.source).tables[0];
     expect(expandedTable).toBeUndefined();
-    expect(setHeaderRowCount(table, 3).source.split("\n")[3]).toBe("| --- | --- |");
+    expect(setHeaderRowCount(table, 3).source.split("\n")[3]?.replace(/ /gu, "")).toBe("|---|---|");
   });
 
   it("moves and removes the row-header divider", () => {
     const table = parseStructuralTables("| Group | Value |\n| Name | Amount |\n| --- | --- |\n| A | 1 |").tables[0]!;
     const added = setRowHeaderColumnCount(table, 1);
     expect(added).toMatchObject({ changed: true, code: "row-headers-set" });
-    expect(added.source).toContain("| --- || --- |");
+    expect(added.source).toContain("||");
     const reparsed = parseStructuralTables(added.source).tables[0]!;
     const removed = setRowHeaderColumnCount(reparsed, 0);
     expect(removed.changed).toBe(true);

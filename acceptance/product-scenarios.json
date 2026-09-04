@@ -29,10 +29,12 @@
         "Compare the empty three-column table's cell dimensions before and after merging and splitting cells",
         "Render cells containing <br>, <br/>, and <br /> in Reading View and Live Preview, then preview formatting",
         "Open the in-place editor with a desktop single click or Android double-tap",
+        "Compare the table and column geometry before and during cell editing, and inspect the editor border and resize affordance",
         "Insert a break with Shift+Enter and the cell-editor context menu, then paste multiline text and a browser or Excel cell containing a line break",
         "Hover cells in content-left and content-center layouts and inspect the corresponding row and column handles",
         "Select an owned cell, move focus or the editor cursor outside it, then select a cell in the other owned table",
         "Preview the format command before confirming a canonical rewrite",
+        "Confirm the rewrite aligns source pipes around ASCII, CJK, row-header dividers, alignment markers, escaped Wiki-link pipes, and code-span pipes without changing the note's line endings",
         "Open the invalid table and inspect its diagnostic"
       ],
       "expected": [
@@ -41,10 +43,12 @@
         "Comfortable and compact cell dimensions remain stable through merge and split",
         "All three break-tag spellings produce a visual line break and formatting preserves the exact source spelling",
         "Desktop single-click editing works while Android retains double-tap editing and touch selection",
+        "Editing does not widen the table or its column and shows one outer focus border without an inner textarea border or resize grip",
         "Editor and imported line breaks become canonical <br>, and semantic HTML export contains real break elements",
         "Only the hovered cell's row and column handles reveal, remain reachable without clipping, and align to the actual table rectangle",
         "The previous cell and handles lose selected styling when focus or the editor cursor leaves, and selection never remains on two owned tables",
         "No Markdown changes before explicit format confirmation",
+        "Every explicit rewrite remains parseable and pipe-aligned by display width while rendering alone never changes Markdown",
         "Invalid syntax retains its source and reports a bounded diagnostic"
       ]
     },

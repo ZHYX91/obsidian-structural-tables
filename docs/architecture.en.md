@@ -35,7 +35,7 @@ One shared DOM renderer serves the Reading view postprocessor and CodeMirror wid
 <!-- section: editing -->
 ## Editing
 
-Commands and in-place edits produce candidate source from a pure in-memory ownership grid and parse it again. Row/column transformations rebuild rectangular merge ownership, migrate surviving anchors, and refuse content loss or invalid boundaries. Cell input escapes unescaped pipes outside code spans before one whole-table CodeMirror transaction. Serialization preserves the note's existing LF, CRLF, or CR line ending.
+Commands and in-place edits produce candidate source from a pure in-memory ownership grid and parse it again. Row/column transformations rebuild rectangular merge ownership, migrate surviving anchors, and refuse content loss or invalid boundaries. Cell input escapes unescaped pipes outside code spans before one whole-table CodeMirror transaction. Every explicit source write aligns separator pipes by terminal display width, including CJK and emoji, while preserving row-header dividers, alignment markers, escaped pipes, Wiki links, code spans, and the note's existing LF, CRLF, or CR line ending. Rendering never calls the serializer or writes source.
 
 <!-- section: interchange -->
 ## Interchange

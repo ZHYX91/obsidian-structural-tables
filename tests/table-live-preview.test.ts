@@ -452,6 +452,7 @@ describe("StructuralTableEditorController", () => {
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
     cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     const editor = cell.querySelector<HTMLTextAreaElement>(".structural-tables-cell-editor")!;
+    expect(editor.getAttribute("cols")).toBe("1");
     editor.value = "First";
     editor.setSelectionRange(5, 5);
 

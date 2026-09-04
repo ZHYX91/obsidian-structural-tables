@@ -545,7 +545,7 @@ export function splitCell(table: StructuralTable, row: number, column: number): 
     }
   }
   const candidateSource = sourceWithRawCells(table, values);
-  const parsed = parseStructuralTables(candidateSource).tables[0] ?? null;
+  const parsed = parseEditableTables(candidateSource).tables[0] ?? null;
   if (parsed !== null && !parsed.valid) {
     return { changed: false, code: "split-unsafe", message: "The split could not be represented safely.", source: table.source };
   }
@@ -566,7 +566,7 @@ export function setHeaderRowCount(table: StructuralTable, count: number): Operat
     return { changed: false, code: "header-rows-set", message: "Those rows are already column headers.", source: table.source };
   }
   const candidateSource = sourceWithRawCells(table, rawValues(table), count);
-  const parsed = parseStructuralTables(candidateSource).tables[0] ?? null;
+  const parsed = parseEditableTables(candidateSource).tables[0] ?? null;
   if (parsed !== null && !parsed.valid) {
     return { changed: false, code: "invalid-result", message: parsed.diagnostics[0]?.message ?? "That header boundary would create an invalid table.", source: table.source };
   }
@@ -587,7 +587,7 @@ export function setRowHeaderColumnCount(table: StructuralTable, count: number): 
     return { changed: false, code: "row-headers-set", message: "Those columns are already row headers.", source: table.source };
   }
   const candidateSource = sourceWithRawCells(table, rawValues(table), table.headerRowCount, count);
-  const parsed = parseStructuralTables(candidateSource).tables[0] ?? null;
+  const parsed = parseEditableTables(candidateSource).tables[0] ?? null;
   if (parsed !== null && !parsed.valid) {
     return { changed: false, code: "invalid-result", message: parsed.diagnostics[0]?.message ?? "That row-header boundary would create an invalid table.", source: table.source };
   }

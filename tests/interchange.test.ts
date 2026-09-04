@@ -69,9 +69,9 @@ describe("table interchange", () => {
 | Alice | - | 1 | 2 |`;
     const migration = migrateSheetsExtendedTable(table(source));
     expect(migration?.separatorColumn).toBe(1);
-    expect(migration?.source).toBe(`| Person | Q1 | Q2 |
-| --- || --- | --- |
-| Alice | 1 | 2 |`);
+    expect(migration?.source).toBe(`| Person  | Q1  | Q2  |
+| ---    || --- | --- |
+| Alice   | 1   | 2   |`);
   });
 
   it("refuses ambiguous or edge separator columns", () => {

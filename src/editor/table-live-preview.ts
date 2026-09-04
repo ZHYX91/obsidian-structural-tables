@@ -465,6 +465,7 @@ class StructuralTableWidget extends WidgetType {
     const originalNodes = Array.from(element.childNodes);
     const editor = element.ownerDocument.createElement("textarea");
     editor.className = "structural-tables-cell-editor";
+    editor.cols = 1;
     editor.value = anchor.raw.trim();
     const t = createTranslator(this.getSettings().language);
     editor.setAttribute("aria-label", t("editor.cell")

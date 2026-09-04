@@ -4,6 +4,8 @@
 
 ## 0.4.1 - 2026-09-05
 
+- Keep in-place cell editing within the existing column and show one clear outer focus border without an inner textarea border or resize grip.
+- Align Markdown pipe columns after explicit table writes using display width for CJK and emoji while preserving row-header dividers, alignment markers, escaped pipes, Wiki links, code spans, and the note's line endings.
 - Keep empty and merged tables at stable comfortable or compact cell dimensions instead of collapsing after structural edits.
 - Reveal the corresponding row and column handles when a desktop pointer is over a cell, while keeping the handles outside the table layout for native alignment.
 - Insert a canonical `<br>` while editing with Shift+Enter or the cell editor's context menu, and preserve browser or spreadsheet cell line breaks through HTML import and export.

@@ -4,6 +4,7 @@
 
 ## 0.4.1 - 2026-09-05
 
+- Bind each Reading View replacement to Obsidian's reported source-line range so later ordinary tables cannot be replaced with an earlier structural table.
 - Keep in-place cell editing within the existing column and show one clear outer focus border without an inner textarea border or resize grip.
 - Align Markdown pipe columns after explicit table writes using display width for CJK and emoji while preserving row-header dividers, alignment markers, escaped pipes, Wiki links, code spans, and the note's line endings.
 - Keep empty and merged tables at stable comfortable or compact cell dimensions instead of collapsing after structural edits.

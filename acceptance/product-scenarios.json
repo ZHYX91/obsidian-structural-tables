@@ -25,6 +25,7 @@
       },
       "steps": [
         "Open the valid table in Reading View and Live Preview",
+        "In Reading View, compare the later native alignment and empty-geometry references with their own Markdown source",
         "Compare the owned content-left table origin with the native ordinary-table reference",
         "Compare the empty three-column table's cell dimensions before and after merging and splitting cells",
         "Render cells containing <br>, <br/>, and <br /> in Reading View and Live Preview, then preview formatting",
@@ -39,6 +40,7 @@
       ],
       "expected": [
         "Column spans, row spans, multi-row headers, and row-header boundaries render consistently",
+        "Each later ordinary table renders its own rows and columns instead of repeating an earlier structural table",
         "Overlaid row and column handles do not shift the owned table's content-left alignment away from the native reference",
         "Comfortable and compact cell dimensions remain stable through merge and split",
         "All three break-tag spellings produce a visual line break and formatting preserves the exact source spelling",

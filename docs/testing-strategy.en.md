@@ -17,6 +17,8 @@ translation_of: testing-strategy.zh-CN.md
 
 Pure-core unit tests, DOM rendering tests, plugin wiring tests, packaged-candidate checks, and real Obsidian acceptance are separate levels whose conclusions cannot substitute for one another.
 
+Reading-view regression tests pass full-note section text with bounded source lines and assert that a later ordinary table is never substituted with an earlier structural table.
+
 <!-- section: parser-cases -->
 ## Parser cases
 

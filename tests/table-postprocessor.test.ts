@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import type { App, MarkdownPostProcessorContext } from "obsidian";
+import { type App, MarkdownRenderer, type MarkdownPostProcessorContext } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings";
@@ -116,6 +116,33 @@ describe("StructuralTableReadingProcessor", () => {
     expect(container.querySelector<HTMLElement>(".structural-tables-container")?.dataset.tableKind).toBe("ordinary");
     expect(container.querySelector("thead th")?.getAttribute("data-structural-role")).toBe("column_header");
     expect(addChild).toHaveBeenCalledOnce();
+  });
+
+  it("uses the element's bounded source lines instead of substituting an earlier structural table", () => {
+    const structural = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
+    const ordinary = "| Name | Status |\n| --- | --- |\n| Alice | Ready |";
+    const source = `${structural}\n\n# Native\n\n${ordinary}`;
+    const native = document.createElement("table");
+    native.innerHTML = "<thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Alice</td><td>Ready</td></tr></tbody>";
+    const container = document.createElement("div");
+    container.appendChild(native);
+    const render = vi.spyOn(MarkdownRenderer, "render");
+    const context = {
+      addChild: vi.fn(),
+      getSectionInfo: () => ({ lineStart: 6, lineEnd: 8, text: source }),
+      sourcePath: "People.md",
+    } as unknown as MarkdownPostProcessorContext;
+    const processor = new StructuralTableReadingProcessor(
+      {} as App,
+      () => ({ ...DEFAULT_SETTINGS, enableReadingView: true, takeOverOrdinaryTables: true }),
+    );
+
+    processor.process(container, context);
+
+    expect(native.parentElement).toBeNull();
+    expect(render.mock.calls.map((call) => call[1])).toContain("Alice");
+    expect(render.mock.calls.map((call) => call[1])).not.toContain("North");
+    render.mockRestore();
   });
 
   it("ignores recursive cell rendering when section information is unavailable", () => {

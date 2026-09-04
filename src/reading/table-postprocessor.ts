@@ -11,6 +11,20 @@ function renderedTables(container: HTMLElement): HTMLTableElement[] {
   return tables.filter((table) => !table.classList.contains("structural-tables-table"));
 }
 
+function sectionSource(
+  text: string,
+  lineStart: number,
+  lineEnd: number,
+): string | null {
+  if (!Number.isInteger(lineStart) || !Number.isInteger(lineEnd) || lineStart < 0 || lineEnd < lineStart) {
+    return null;
+  }
+  const ending = text.includes("\r\n") ? "\r\n" : text.includes("\r") ? "\r" : "\n";
+  const lines = text.split(/\r\n|\r|\n/gu);
+  if (lineStart >= lines.length) return null;
+  return lines.slice(lineStart, Math.min(lineEnd + 1, lines.length)).join(ending);
+}
+
 export class StructuralTableReadingProcessor {
   constructor(
     private readonly app: App,
@@ -24,7 +38,9 @@ export class StructuralTableReadingProcessor {
     if (!(container.textContent ?? "").includes("|") && renderedTables(container).length === 0) return;
     const section = context.getSectionInfo(container);
     if (section === null || section === undefined) return;
-    const parsed = parseEditableTables(section.text).tables;
+    const source = sectionSource(section.text, section.lineStart, section.lineEnd);
+    if (source === null) return;
+    const parsed = parseEditableTables(source).tables;
     if (parsed.length === 0) return;
     const candidates = renderedTables(container);
     let candidateIndex = 0;

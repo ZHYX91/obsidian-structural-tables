@@ -29,14 +29,14 @@ function yaml(frontmatter: Record<string, unknown>, body = ""): string {
   return `---\n${lines.join("\n")}\n---\n${body}`;
 }
 
-function promotedBase(tableId: string): string {
+function promotedBase(tableId: string, ending = "\n"): string {
   return `\`\`\`base
 # structural-tables-promotion: ${tableId}
 # structural-tables-manifest: "Records/${tableId}/_promotion.json"
 filters:
   and:
     - 'list(note.structural_table_ids).contains("${tableId}")'
-\`\`\``;
+\`\`\``.split("\n").join(ending);
 }
 
 interface MigrationHost {
@@ -45,6 +45,7 @@ interface MigrationHost {
   sources: Map<TFile, string>;
   frontmatters: Map<TFile, Record<string, unknown>>;
   failProcessPath?: string;
+  beforeProcess?: (file: TFile) => void;
 }
 
 function migrationHost(): MigrationHost {
@@ -58,6 +59,7 @@ function migrationHost(): MigrationHost {
       read: async (file: ObsidianTFile) => sources.get(file as TFile) ?? "",
       process: async (file: ObsidianTFile, update: (source: string) => string) => {
         if (host.failProcessPath === file.path) throw new Error("write failed");
+        host.beforeProcess?.(file as TFile);
         const current = sources.get(file as TFile) ?? "";
         const next = update(current);
         sources.set(file as TFile, next);
@@ -140,6 +142,60 @@ describe("legacy Base property migration", () => {
     expect(host.frontmatters.get(record)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toBeUndefined();
   });
 
+  it("does not classify an unrelated structural_record_id as plugin-owned cleanup", async () => {
+    const host = migrationHost();
+    const unrelated = testFile("Unrelated.md");
+    host.files.push(unrelated);
+    host.frontmatters.set(unrelated, { [LEGACY_RECORD_ID_PROPERTY]: "user-value", topic: "kept" });
+    const original = yaml(host.frontmatters.get(unrelated) ?? {});
+    host.sources.set(unrelated, original);
+    const service = new BasePropertyMigrationService(host.app);
+
+    const prepared = await service.prepare();
+    expect(prepared.legacyRecordIdCount).toBe(0);
+    expect(prepared.files).toHaveLength(0);
+    expect(await service.execute(prepared, true)).toMatchObject({ fileCount: 0, removedRecordIdCount: 0 });
+    expect(host.sources.get(unrelated)).toBe(original);
+  });
+
+  it("cleans a retired record ID when current membership proves plugin ownership", async () => {
+    const host = migrationHost();
+    const record = testFile("Records/Current.md");
+    host.files.push(record);
+    host.frontmatters.set(record, {
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_current"],
+      [LEGACY_RECORD_ID_PROPERTY]: "str_current",
+    });
+    host.sources.set(record, yaml(host.frontmatters.get(record) ?? {}));
+    const service = new BasePropertyMigrationService(host.app);
+
+    const prepared = await service.prepare();
+    expect(prepared.legacyRecordIdCount).toBe(1);
+    await service.execute(prepared, true);
+    expect(host.frontmatters.get(record)).toEqual({ [TABLE_MEMBERSHIP_PROPERTY]: ["stb_current"] });
+  });
+
+  it.each([
+    ["CRLF", "\r\n"],
+    ["CR", "\r"],
+  ])("migrates a promoted Base with %s endings without normalizing them", async (_name, ending) => {
+    const host = migrationHost();
+    const base = testFile("People.md");
+    host.files.push(base);
+    const original = promotedBase("stb_people", ending);
+    host.sources.set(base, original);
+    const service = new BasePropertyMigrationService(host.app);
+
+    const prepared = await service.prepare();
+    expect(prepared.legacyBaseCount).toBe(1);
+    await service.execute(prepared, false);
+
+    const migrated = host.sources.get(base) ?? "";
+    expect(migrated).toContain('list(note["structural-tables"])');
+    if (ending === "\r") expect(migrated).not.toContain("\n");
+    else expect(migrated.split("\r\n").join("")).not.toContain("\n");
+  });
+
   it("fails closed for conflicting, malformed, or stale metadata", async () => {
     const host = migrationHost();
     const conflicting = testFile("Conflict.md");
@@ -179,5 +235,23 @@ describe("legacy Base property migration", () => {
 
     expect(host.sources.get(record)).toBe(originalRecord);
     expect(host.sources.get(base)).toBe(originalBase);
+  });
+
+  it("refuses an unrelated concurrent edit between preview and a Base rewrite", async () => {
+    const host = migrationHost();
+    const base = testFile("People.md");
+    host.files.push(base);
+    const original = promotedBase("stb_people");
+    host.sources.set(base, original);
+    let changed = false;
+    host.beforeProcess = (file) => {
+      if (file !== base || changed) return;
+      changed = true;
+      host.sources.set(base, `${host.sources.get(base)}\nConcurrent user edit`);
+    };
+    const service = new BasePropertyMigrationService(host.app);
+
+    await expect(service.execute(await service.prepare(), false)).rejects.toThrow("changed during migration");
+    expect(host.sources.get(base)).toBe(`${original}\nConcurrent user edit`);
   });
 });

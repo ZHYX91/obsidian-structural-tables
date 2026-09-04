@@ -26,10 +26,17 @@ export class BasePropertyMigrationModal extends Modal {
   }
 
   override onOpen(): void {
-    let removeLegacyRecordIds = true;
+    let removeLegacyRecordIds = false;
     this.setTitle(this.labels.title);
     this.contentEl.createEl("p", { text: this.labels.description });
-    const paths = this.prepared.files.map(({ path }) => `- ${path}`).join("\n");
+    const paths = this.prepared.files.map((candidate) => {
+      const actions = [
+        ...(candidate.migrateMembership ? [this.labels.membershipNotes] : []),
+        ...(candidate.legacyBaseCount > 0 ? [`${this.labels.promotedBases}: ${candidate.legacyBaseCount}`] : []),
+        ...(candidate.hasLegacyRecordId ? [this.labels.retiredRecordIds] : []),
+      ];
+      return `- ${candidate.path} — ${actions.join(", ")}`;
+    }).join("\n");
     this.contentEl.createEl("pre", {
       cls: "structural-tables-conversion-preview",
       text: [

@@ -53,14 +53,17 @@ describe("settings tab UI", () => {
     expect(styles).toMatch(/\[data-zebra="true"\][\s\S]*tbody tr:nth-child\(even\) \{/u);
   });
 
-  it("uses span-aware edges, stable row heights, and visible keyboard focus", () => {
+  it("uses span-aware edges, overlaid handles, content sizing, and visible keyboard focus", () => {
     const styles = readFileSync(
       fileURLToPath(new URL("../styles.css", import.meta.url)),
       "utf8",
     );
     expect(styles).toContain('[data-structural-block-end="true"]');
     expect(styles).toContain('[data-structural-inline-end="true"]');
-    expect(styles).toContain("height: 2.5rem");
+    expect(styles).not.toContain("height: 2.5rem");
+    expect(styles).toMatch(/\.structural-tables-live-preview \{[\s\S]*?overflow: visible;[\s\S]*?\}/u);
+    expect(styles).toMatch(/\.structural-tables-row-handle \{[\s\S]*?inset-inline-start: calc\(-1 \* var\(--structural-table-handle-gutter\)\)/u);
+    expect(styles).toMatch(/@media \(pointer: coarse\)[\s\S]*?height: 2\.75rem/u);
     expect(styles).toMatch(/is-interactive :is\(th, td\):focus-visible[\s\S]*outline: 2px solid/u);
   });
 });

@@ -4,8 +4,12 @@
 
 - Preserve non-empty table headers, including numeric and leading-zero headers, as promoted Base Property names; use bracket notation for generated references and reserve `column_n` for blank headers.
 - Keep legacy promoted Bases that use dot-notation Property references recognizable without migrating existing records.
-- Correct merged-cell border edges, retain stable comfortable and compact row heights, and let alternating row backgrounds continue through row spans.
+- Correct merged-cell border edges, use content-driven desktop row sizing with coarse-pointer touch minimums, and let alternating row backgrounds continue through row spans.
 - Reduce owned-table keyboard tab stops with arrow-key cell and handle navigation, plus explicit focus rings.
+- Clear owned cell and handle selections when focus or the editor cursor leaves the table, including when another table receives the pointer.
+- Overlay row and column handles outside table layout so they no longer shift content alignment.
+- Recognize promoted Base blocks across LF, CRLF, and CR endings and protect Windows device-name stems even when they include an extension.
+- Make retired-record-ID cleanup opt-in and membership-scoped, show per-file migration actions, and reject concurrent source changes immediately before Base rewrites.
 
 ## 0.4.0 - 2026-09-03
 

@@ -55,14 +55,17 @@ export class BasePropertyMigrationService {
         | undefined;
       const migrateMembership = frontmatter !== undefined
         && owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY);
+      const membership = tableMembershipState(frontmatter);
       if (migrateMembership) {
-        const membership = tableMembershipState(frontmatter);
         if (membership.status === "invalid" || membership.status === "conflict") {
           throw new Error(`Conflicting or invalid Structural Tables membership in ${file.path}.`);
         }
         membershipNoteCount += 1;
       }
-      const hasLegacyRecordId = frontmatter !== undefined && owns(frontmatter, LEGACY_RECORD_ID_PROPERTY);
+      const hasLegacyRecordId = frontmatter !== undefined
+        && owns(frontmatter, LEGACY_RECORD_ID_PROPERTY)
+        && membership.status === "valid"
+        && membership.ids.length > 0;
       if (hasLegacyRecordId) legacyRecordIdCount += 1;
       const originalSource = await this.app.vault.read(file);
       const fileLegacyBaseCount = promotionBlocks(originalSource)
@@ -106,6 +109,7 @@ export class BasePropertyMigrationService {
     const written = new Map<PropertyMigrationFile, string>();
     try {
       for (const candidate of active) {
+        let expectedSource = candidate.originalSource;
         if (candidate.migrateMembership || (removeLegacyRecordIds && candidate.hasLegacyRecordId)) {
           await this.app.fileManager.processFrontMatter(candidate.file, (frontmatter: Record<string, unknown>) => {
             if (candidate.migrateMembership) {
@@ -119,9 +123,12 @@ export class BasePropertyMigrationService {
               frontmatter[TABLE_MEMBERSHIP_PROPERTY] = [...membership.ids];
               delete frontmatter[LEGACY_TABLE_MEMBERSHIP_PROPERTY];
             }
-            if (removeLegacyRecordIds) delete frontmatter[LEGACY_RECORD_ID_PROPERTY];
+            if (removeLegacyRecordIds && candidate.hasLegacyRecordId) {
+              delete frontmatter[LEGACY_RECORD_ID_PROPERTY];
+            }
           });
-          written.set(candidate, await this.app.vault.read(candidate.file));
+          expectedSource = await this.app.vault.read(candidate.file);
+          written.set(candidate, expectedSource);
         }
 
         if (candidate.legacyBaseCount > 0) {
@@ -129,6 +136,9 @@ export class BasePropertyMigrationService {
             .filter(({ membershipProperty }) => membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY)
             .map(({ tableId }) => tableId);
           const migrated = await this.app.vault.process(candidate.file, (source) => {
+            if (source !== expectedSource) {
+              throw new Error(`A migration file changed during migration: ${candidate.path}.`);
+            }
             const currentTableIds = promotionBlocks(source)
               .filter(({ membershipProperty }) => membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY)
               .map(({ tableId }) => tableId);

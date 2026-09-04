@@ -11,8 +11,22 @@ export const activeWindow = {
 } as unknown as Window;
 
 export class Component {
+  private readonly cleanups: Array<() => void> = [];
+
   load(): void {}
-  unload(): void {}
+  unload(): void {
+    for (const cleanup of this.cleanups.splice(0).reverse()) cleanup();
+  }
+
+  registerDomEvent(
+    element: HTMLElement,
+    type: string,
+    callback: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    element.addEventListener(type, callback, options);
+    this.cleanups.push(() => element.removeEventListener(type, callback, options));
+  }
 }
 
 export class MarkdownRenderChild extends Component {

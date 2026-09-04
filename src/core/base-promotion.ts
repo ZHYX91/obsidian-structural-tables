@@ -106,7 +106,7 @@ function fileStem(value: string, row: number): string {
     .trim()
     .slice(0, 80);
   const fallback = sanitized || `Record ${row + 1}`;
-  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu.test(fallback) ? `_${fallback}` : fallback;
+  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(fallback) ? `_${fallback}` : fallback;
 }
 
 function mergedDataCellBlockers(table: StructuralTable): BasePromotionBlocker[] {
@@ -267,7 +267,7 @@ function propertyKeysFromBlock(block: string): string[] {
 
 export function promotionBlocks(source: string): PromotionBlockMetadata[] {
   const blocks: PromotionBlockMetadata[] = [];
-  const pattern = /(^|\n)(```base[\t ]*\n[\s\S]*?\n```)(?=\n|$)/gu;
+  const pattern = /(^|(?:\r\n|\r|\n))(```base[\t ]*(?:\r\n|\r|\n)[\s\S]*?(?:\r\n|\r|\n)```)(?=(?:\r\n|\r|\n)|$)/gu;
   for (const match of source.matchAll(pattern)) {
     const block = match[2];
     if (block === undefined || match.index === undefined) continue;

@@ -320,6 +320,41 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it("clears owned cell selection when the editor cursor moves elsewhere", () => {
+    const source = `${screenshotTable}\n\nOutside`;
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+    dispatchPointerDown(cell, "mouse");
+    expect(cell.getAttribute("aria-selected")).toBe("true");
+
+    view.dispatch({ selection: { anchor: source.length - "Outside".length } });
+
+    expect(parent.querySelector("[aria-selected='true']")).toBeNull();
+    expect(parent.querySelector(".structural-tables-row-handle.is-selected")).toBeNull();
+    expect(parent.querySelector(".structural-tables-column-handle.is-selected")).toBeNull();
+    view.destroy();
+  });
+
+  it("keeps selection local to the structural table receiving the pointer", () => {
+    const second = screenshotTable.split("|  |").join("| x |");
+    const source = `${screenshotTable}\n\n${second}\n\nOutside`;
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    const hosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+    expect(hosts).toHaveLength(2);
+    const firstHost = hosts.item(0);
+    const secondHost = hosts.item(1);
+    const firstCell = firstHost.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+    const secondCell = secondHost.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+
+    dispatchPointerDown(firstCell, "mouse");
+    expect(firstCell.getAttribute("aria-selected")).toBe("true");
+    dispatchPointerDown(secondCell, "mouse");
+
+    expect(firstCell.getAttribute("aria-selected")).toBe("false");
+    expect(secondCell.getAttribute("aria-selected")).toBe("true");
+    view.destroy();
+  });
+
   it("offers structural expansion and Base upgrade from the owned context menu", () => {
     const requested: StructuralTable[] = [];
     const { parent, view } = mountEditor(

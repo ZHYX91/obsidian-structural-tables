@@ -21,3 +21,9 @@
 | Region | Sales |
 | --- || --- |
 | North | 10 | 12 |
+
+## Native alignment reference
+
+| Name | Status |
+| --- | --- |
+| Alice | Ready |

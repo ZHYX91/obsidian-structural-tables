@@ -25,15 +25,19 @@
       },
       "steps": [
         "Open the valid table in Reading View and Live Preview",
+        "Compare the owned content-left table origin with the native ordinary-table reference",
         "Render cells containing <br>, <br/>, and <br /> in Reading View and Live Preview, then preview formatting",
         "Open the in-place editor with a desktop single click or Android double-tap",
+        "Select an owned cell, move focus or the editor cursor outside it, then select a cell in the other owned table",
         "Preview the format command before confirming a canonical rewrite",
         "Open the invalid table and inspect its diagnostic"
       ],
       "expected": [
         "Column spans, row spans, multi-row headers, and row-header boundaries render consistently",
+        "Overlaid row and column handles do not shift the owned table's content-left alignment away from the native reference",
         "All three break-tag spellings produce a visual line break and formatting preserves the exact source spelling",
         "Desktop single-click editing works while Android retains double-tap editing and touch selection",
+        "The previous cell and handles lose selected styling when focus or the editor cursor leaves, and selection never remains on two owned tables",
         "No Markdown changes before explicit format confirmation",
         "Invalid syntax retains its source and reports a bounded diagnostic"
       ]
@@ -52,11 +56,11 @@
       "steps": [
         "Open Legacy Base and confirm its legacy record is visible",
         "Run Migrate legacy Structural Tables Base properties from the command palette",
-        "Review the affected-file preview with retired record-ID cleanup enabled, then confirm",
+        "Confirm retired record-ID cleanup starts disabled, review each file's intended actions, enable cleanup, then confirm",
         "Reopen Legacy Record and Legacy Base"
       ],
       "expected": [
-        "The preview names both fixture files before any write",
+        "The preview names both fixture files and their intended actions before any write, with cleanup initially disabled",
         "Legacy Record contains a structural-tables list and keeps its user property and body",
         "structural_table_ids and structural_record_id are absent after confirmed cleanup",
         "Legacy Base uses bracket access for structural-tables and still shows the record"

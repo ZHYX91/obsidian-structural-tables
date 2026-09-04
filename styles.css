@@ -1,14 +1,13 @@
-.structural-tables-container,
-.structural-tables-live-preview {
+.structural-tables-container {
   max-width: 100%;
   overflow-x: auto;
 }
 
 .structural-tables-live-preview {
+  --structural-table-handle-gutter: 1.5rem;
   position: relative;
-  box-sizing: border-box;
-  padding-block-start: 1.5rem;
-  padding-inline-start: 1.5rem;
+  max-width: 100%;
+  overflow: visible;
 }
 
 .structural-tables-container[data-layout="pane"],
@@ -56,8 +55,6 @@
 .structural-tables-table th,
 .structural-tables-table td {
   position: relative;
-  min-inline-size: 5rem;
-  height: 2.5rem;
   border: 0;
   border-block-end: var(--structural-table-border-width) solid var(--structural-table-border-color);
   border-inline-end: var(--structural-table-border-width) solid var(--structural-table-border-color);
@@ -122,14 +119,14 @@
 }
 
 .structural-tables-row-handle {
-  inset-inline-start: 0;
+  inset-inline-start: calc(-1 * var(--structural-table-handle-gutter));
   width: 1.25rem;
   height: 1.5rem;
   transform: translateY(-50%);
 }
 
 .structural-tables-column-handle {
-  inset-block-start: 0;
+  inset-block-start: calc(-1 * var(--structural-table-handle-gutter));
   width: 1.5rem;
   height: 1.25rem;
   transform: translateX(-50%);
@@ -168,7 +165,6 @@
 
 [data-density="compact"] .structural-tables-table th,
 [data-density="compact"] .structural-tables-table td {
-  height: 2rem;
   padding: var(--size-2-1) var(--size-4-2);
 }
 
@@ -291,8 +287,7 @@
 
 @media (pointer: coarse) {
   .structural-tables-live-preview {
-    padding-block-start: 2.75rem;
-    padding-inline-start: 2.75rem;
+    --structural-table-handle-gutter: 2.75rem;
   }
 
   .structural-tables-row-handle,

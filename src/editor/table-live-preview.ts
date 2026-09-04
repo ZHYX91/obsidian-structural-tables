@@ -13,6 +13,7 @@ import {
   ViewPlugin,
   WidgetType,
   type DecorationSet,
+  type ViewUpdate,
 } from "@codemirror/view";
 import {
   App,
@@ -48,6 +49,14 @@ import {
 export const refreshStructuralTables = StateEffect.define<void>();
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
+const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
+
+function dispatchClearSelection(host: HTMLElement): void {
+  const EventConstructor = host.ownerDocument.defaultView?.Event;
+  if (EventConstructor !== undefined) {
+    host.dispatchEvent(new EventConstructor(CLEAR_SELECTION_EVENT));
+  }
+}
 
 class StructuralTableWidget extends WidgetType {
   private component: Component | null = null;
@@ -98,6 +107,13 @@ class StructuralTableWidget extends WidgetType {
     this.host = host;
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
     this.installInteraction(view, host, rendered);
+    host.addEventListener(CLEAR_SELECTION_EVENT, () => this.clearSelection());
+    host.addEventListener("focusout", (event) => {
+      const next = event.relatedTarget;
+      if (next === null || !(next instanceof host.ownerDocument.defaultView!.Node) || !host.contains(next)) {
+        this.clearSelection();
+      }
+    });
     return host;
   }
 
@@ -331,6 +347,28 @@ class StructuralTableWidget extends WidgetType {
         && this.selection.minRow === 0
         && this.selection.maxRow === this.table.rows.length - 1
         && this.selection.minColumn <= column && this.selection.maxColumn >= column);
+    }
+  }
+
+  private clearSelection(): void {
+    this.selection = null;
+    this.selectionAnchor = null;
+    this.selectionHead = null;
+    this.touchRangeAnchor = null;
+    this.touchRangeArmed = false;
+    this.clickEditCandidate = null;
+    this.dragging = false;
+    this.lastTouchTap = null;
+    for (const element of this.renderedTable?.querySelectorAll<HTMLElement>(
+      "[data-structural-row][data-structural-column]",
+    ) ?? []) {
+      element.classList.remove("is-selected");
+      element.setAttribute("aria-selected", "false");
+    }
+    for (const handle of this.host?.querySelectorAll<HTMLElement>(
+      ".structural-tables-row-handle.is-selected, .structural-tables-column-handle.is-selected",
+    ) ?? []) {
+      handle.classList.remove("is-selected");
     }
   }
 
@@ -587,6 +625,8 @@ class StructuralTableWidget extends WidgetType {
       });
     };
     positionHandles();
+    const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
+    if (scroller !== null) this.component?.registerDomEvent(scroller, "scroll", positionHandles);
     if (typeof ResizeObserver !== "undefined") {
       this.resizeObserver = new ResizeObserver(positionHandles);
       this.resizeObserver.observe(rendered);
@@ -741,11 +781,30 @@ export class StructuralTableEditorController {
       provide: (field) => Prec.highest(EditorView.decorations.from(field, (value) => value.decorations)),
     });
     const viewTracker = ViewPlugin.fromClass(class {
+      private readonly clearOtherSelections = (event: Event): void => {
+        const target = event.target;
+        for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
+          if (target !== null && target instanceof host.ownerDocument.defaultView!.Node && host.contains(target)) continue;
+          dispatchClearSelection(host);
+        }
+      };
+
       constructor(private readonly view: EditorView) {
         views.add(view);
+        view.dom.addEventListener("pointerdown", this.clearOtherSelections, true);
+        view.dom.addEventListener("focusin", this.clearOtherSelections, true);
+      }
+
+      update(update: ViewUpdate): void {
+        if (!update.transactions.some((transaction) => transaction.selection !== undefined)) return;
+        for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
+          dispatchClearSelection(host);
+        }
       }
 
       destroy(): void {
+        this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
+        this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);
         views.delete(this.view);
       }
     });

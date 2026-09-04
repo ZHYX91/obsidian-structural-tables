@@ -5,6 +5,7 @@ import {
   embeddedBaseSource,
   LEGACY_RECORD_ID_PROPERTY,
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
+  migrateLegacyPromotionBlocks,
   migrateMembershipFilter,
   promotionBlockAt,
   promotionBlocks,
@@ -89,9 +90,18 @@ describe("Base promotion planning", () => {
     const source = `| Name | Value |
 | --- | --- |
 | CON | 1 |
-| A/B:*? | 2 |`;
+| CON.txt | 2 |
+| AUX.md | 3 |
+| COM1.log | 4 |
+| A/B:*? | 5 |`;
     const plan = buildBasePromotionPlan(table(source), "stb_files");
-    expect(plan.records.map((record) => record.fileStem)).toEqual(["_CON", "A B"]);
+    expect(plan.records.map((record) => record.fileStem)).toEqual([
+      "_CON",
+      "_CON.txt",
+      "_AUX.md",
+      "_COM1.log",
+      "A B",
+    ]);
   });
 
   it("describes structural flattening and blocks merged data cells", () => {
@@ -179,6 +189,26 @@ describe("Base promotion planning", () => {
     ].join("\n\n");
 
     expect(promotionBlocks(source).map(({ tableId }) => tableId)).toEqual(["stb_first", "stb_second"]);
+  });
+
+  it.each([
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+    ["CR", "\r"],
+  ])("recognizes and migrates plugin-owned Base blocks with %s endings", (_name, ending) => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_endings");
+    const current = embeddedBaseSource(plan, "Folder/endings.json");
+    const legacy = current
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)")
+      .split("\n").join(ending);
+    const source = `Before${ending}${ending}${legacy}${ending}${ending}After`;
+
+    expect(promotionBlocks(source)).toHaveLength(1);
+    expect(promotionBlocks(source)[0]?.source).toBe(legacy);
+    const migrated = migrateLegacyPromotionBlocks(source);
+    expect(migrated.count).toBe(1);
+    expect(migrated.source).toContain('list(note["structural-tables"])');
+    if (ending !== "\n") expect(migrated.source).not.toMatch(/(?<!\r)\n/u);
   });
 
   it("keeps plugin metadata recognizable after the user customizes a Base filter", () => {

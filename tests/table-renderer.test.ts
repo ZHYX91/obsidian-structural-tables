@@ -43,4 +43,33 @@ describe("renderStructuralTable", () => {
     expect(render.mock.calls.map((call) => call[1])).toContain(`First${tag}Second`);
     render.mockRestore();
   });
+
+  it("marks real block and inline edges after row and column spans", () => {
+    const source = [
+      "| A | B | C |",
+      "| --- | --- | --- |",
+      "| D | E | < |",
+      "| ^ | F | G |",
+    ].join("\n");
+    const table = parseStructuralTables(source).tables[0];
+    const container = document.createElement("div");
+
+    renderStructuralTable({} as App, table!, container, "Edges.md", new Component());
+
+    const spanningColumn = container.querySelector<HTMLElement>(
+      "[data-structural-row='1'][data-structural-column='1']",
+    );
+    const spanningRow = container.querySelector<HTMLElement>(
+      "[data-structural-row='1'][data-structural-column='0']",
+    );
+    const bottomRight = container.querySelector<HTMLElement>(
+      "[data-structural-row='2'][data-structural-column='2']",
+    );
+    expect(spanningColumn?.dataset.structuralInlineEnd).toBe("true");
+    expect(spanningColumn?.dataset.structuralBlockEnd).toBe("false");
+    expect(spanningRow?.dataset.structuralInlineEnd).toBe("false");
+    expect(spanningRow?.dataset.structuralBlockEnd).toBe("true");
+    expect(bottomRight?.dataset.structuralInlineEnd).toBe("true");
+    expect(bottomRight?.dataset.structuralBlockEnd).toBe("true");
+  });
 });

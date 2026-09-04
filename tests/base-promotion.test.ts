@@ -21,26 +21,68 @@ function table(source: string) {
 
 describe("Base promotion planning", () => {
   it("creates stable unique property keys and path-independent record metadata", () => {
-    const source = `| Name | Due Date | Due-Date | structural table ids |
+    const source = `| Name | Due Date | due date | structural_table_ids |
 | --- | --- | --- | --- |
 | Alice | 2026-09-01 | Soon | Team |`;
     const plan = buildBasePromotionPlan(table(source), "stb_123");
     expect(plan.columns.map((column) => column.key)).toEqual([
-      "name",
-      "due_date",
-      "due_date_2",
+      "Name",
+      "Due Date",
+      "due date_2",
       `${LEGACY_TABLE_MEMBERSHIP_PROPERTY}_2`,
     ]);
     expect(plan.records[0]).toEqual({
       fileStem: "Alice",
       values: {
-        name: "Alice",
-        due_date: "2026-09-01",
-        due_date_2: "Soon",
+        Name: "Alice",
+        "Due Date": "2026-09-01",
+        "due date_2": "Soon",
         [`${LEGACY_TABLE_MEMBERSHIP_PROPERTY}_2`]: "Team",
       },
     });
     expect(TABLE_MEMBERSHIP_PROPERTY).toBe("structural-tables");
+  });
+
+  it("preserves numeric and nonempty headers while naming only blank columns", () => {
+    const source = `| 1 | 01 | 123 | １２３ | 1 | 123 Name |  |
+| --- | --- | --- | --- | --- | --- | --- |
+| A | B | C | D | E | F | G |`;
+    const plan = buildBasePromotionPlan(table(source), "stb_numeric");
+
+    expect(plan.columns.map((column) => column.key)).toEqual([
+      "1",
+      "01",
+      "123",
+      "１２３_2",
+      "1_2",
+      "123 Name",
+      "column_7",
+    ]);
+    expect(plan.columns.map((column) => column.displayName)).toEqual([
+      "1",
+      "01",
+      "123",
+      "１２３",
+      "1",
+      "123 Name",
+      "Column 7",
+    ]);
+    const base = embeddedBaseSource(plan, "Folder/numeric.json");
+    expect(base).toContain('  "1":\n    displayName: "1"');
+    expect(base).toContain('      - "note[\\"1\\"]"');
+    expect(base).toContain('      - "note[\\"123 Name\\"]"');
+  });
+
+  it("quotes punctuation in preserved Property keys and reads it back", () => {
+    const source = `| O'Reilly | a:b | bracket] |
+| --- | --- | --- |
+| A | B | C |`;
+    const plan = buildBasePromotionPlan(table(source), "stb_punctuation");
+    const base = embeddedBaseSource(plan, "Folder/punctuation.json");
+
+    expect(base).toContain('  "a:b":\n    displayName: "a:b"');
+    expect(base).toContain('      - "note[\\"O\'Reilly\\"]"');
+    expect(promotionBlocks(base)[0]?.propertyKeys).toEqual(["O'Reilly", "a:b", "bracket]"]);
   });
 
   it("uses Windows-safe readable filename candidates", () => {
@@ -58,7 +100,7 @@ describe("Base promotion planning", () => {
 | North | 1 |
 | ^ | 2 |`);
     const plan = buildBasePromotionPlan(rowHeaders, "stb_rows");
-    expect(plan.records.map((record) => record.values.region)).toEqual(["North", "North"]);
+    expect(plan.records.map((record) => record.values.Region)).toEqual(["North", "North"]);
     expect(plan.warnings).toEqual([
       "row-headers-become-properties",
       "repeat-row-headers",
@@ -98,8 +140,8 @@ describe("Base promotion planning", () => {
     const base = embeddedBaseSource(plan, "People/_structural-table-records/stb_abc/_promotion.json");
     expect(base).toContain("# structural-tables-promotion: stb_abc");
     expect(base).toContain('list(note["structural-tables"]).contains("stb_abc")');
-    expect(base).toContain("  姓名:\n    displayName: \"姓名\"");
-    expect(base).toContain("      - note.due_date");
+    expect(base).toContain("  \"姓名\":\n    displayName: \"姓名\"");
+    expect(base).toContain('      - "note[\\"Due Date\\"]"');
   });
 
   it("finds only plugin-owned Base blocks at the cursor", () => {
@@ -112,7 +154,7 @@ describe("Base promotion planning", () => {
     expect(promotionBlockAt(note, inside)).toMatchObject({
       tableId: "stb_find",
       manifestPath: "Folder/_promotion.json",
-      propertyKeys: ["name", "value"],
+      propertyKeys: ["Name", "Value"],
       source: block,
     });
     expect(promotionBlockAt(note, 0)).toBeNull();
@@ -150,6 +192,26 @@ filters:
     expect(promotionBlocks(source)[0]).toMatchObject({
       tableId: "stb_custom",
       membershipProperty: null,
+    });
+  });
+
+  it("continues to read legacy dot-notation property orders", () => {
+    const source = `\`\`\`base
+# structural-tables-promotion: stb_legacy_order
+# structural-tables-manifest: "Folder/legacy.json"
+filters:
+  and:
+    - 'list(note.structural_table_ids).contains("stb_legacy_order")'
+views:
+  - type: table
+    name: Table
+    order:
+      - note.name
+      - note.value
+\`\`\``;
+    expect(promotionBlocks(source)[0]).toMatchObject({
+      tableId: "stb_legacy_order",
+      propertyKeys: ["name", "value"],
     });
   });
 

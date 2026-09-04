@@ -181,7 +181,7 @@ describe("Base promotion file transaction", () => {
     ]);
     expect(host.contents.get(prepared.records[0]?.path ?? "")).toContain("structural-tables:");
     expect(host.contents.get(prepared.records[0]?.path ?? "")).not.toContain("structural_record_id:");
-    expect(host.contents.get(prepared.records[0]?.path ?? "")).toContain('name: "Alice"');
+    expect(host.contents.get(prepared.records[0]?.path ?? "")).toContain('Name: "Alice"');
     expect(host.contents.has(prepared.manifestPath)).toBe(true);
     expect(host.contents.get(prepared.manifestPath)).toContain('"version": 2');
     expect(host.contents.get(prepared.manifestPath)).toContain('"pluginVersion": "0.4.0"');

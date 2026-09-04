@@ -57,6 +57,7 @@
 .structural-tables-table td {
   position: relative;
   min-inline-size: 5rem;
+  height: 2.5rem;
   border: 0;
   border-block-end: var(--structural-table-border-width) solid var(--structural-table-border-color);
   border-inline-end: var(--structural-table-border-width) solid var(--structural-table-border-color);
@@ -64,11 +65,15 @@
   vertical-align: middle;
 }
 
-.structural-tables-table tbody:last-child tr:last-child > :is(th, td) {
+.structural-tables-table td {
+  background: transparent;
+}
+
+.structural-tables-table :is(th, td)[data-structural-block-end="true"] {
   border-block-end: 0;
 }
 
-.structural-tables-table tr > :is(th, td):last-child {
+.structural-tables-table :is(th, td)[data-structural-inline-end="true"] {
   border-inline-end: 0;
 }
 
@@ -110,6 +115,12 @@
   color: var(--text-normal);
 }
 
+.structural-tables-row-handle:focus-visible,
+.structural-tables-column-handle:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
 .structural-tables-row-handle {
   inset-inline-start: 0;
   width: 1.25rem;
@@ -144,6 +155,12 @@
   cursor: default;
 }
 
+.structural-tables-live-preview .structural-tables-table.is-interactive :is(th, td):focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
 .structural-tables-live-preview .structural-tables-table :is(th, td).is-selected {
   background: var(--text-selection);
   box-shadow: inset 0 0 0 2px var(--interactive-accent);
@@ -151,6 +168,7 @@
 
 [data-density="compact"] .structural-tables-table th,
 [data-density="compact"] .structural-tables-table td {
+  height: 2rem;
   padding: var(--size-2-1) var(--size-4-2);
 }
 
@@ -181,7 +199,7 @@
   text-align: right;
 }
 
-[data-zebra="true"] .structural-tables-table tbody tr:nth-child(even) td {
+[data-zebra="true"] .structural-tables-table tbody tr:nth-child(even) {
   background: var(--table-row-alt-background);
 }
 
@@ -287,6 +305,7 @@
   .structural-tables-table th,
   .structural-tables-table td,
   .structural-tables-cell-editor {
+    height: 2.75rem;
     min-block-size: 2.75rem;
   }
 

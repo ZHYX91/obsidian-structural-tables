@@ -50,6 +50,17 @@ describe("settings tab UI", () => {
     expect(styles).toContain("--structural-table-column-header-background");
     expect(styles).toContain("--structural-table-row-header-background");
     expect(styles).toMatch(/th:is\(\[scope="row"\], \[scope="rowgroup"\]\)[\s\S]*background: var\(--structural-table-row-header-background\)/u);
-    expect(styles).toMatch(/\[data-zebra="true"\][\s\S]*tbody tr:nth-child\(even\) td/u);
+    expect(styles).toMatch(/\[data-zebra="true"\][\s\S]*tbody tr:nth-child\(even\) \{/u);
+  });
+
+  it("uses span-aware edges, stable row heights, and visible keyboard focus", () => {
+    const styles = readFileSync(
+      fileURLToPath(new URL("../styles.css", import.meta.url)),
+      "utf8",
+    );
+    expect(styles).toContain('[data-structural-block-end="true"]');
+    expect(styles).toContain('[data-structural-inline-end="true"]');
+    expect(styles).toContain("height: 2.5rem");
+    expect(styles).toMatch(/is-interactive :is\(th, td\):focus-visible[\s\S]*outline: 2px solid/u);
   });
 });

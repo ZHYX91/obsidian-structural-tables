@@ -224,6 +224,44 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it("uses one tab stop per cell and handle group with arrow-key navigation", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cells = Array.from(parent.querySelectorAll<HTMLElement>(
+      "[data-structural-row][data-structural-column]",
+    ));
+    const rows = Array.from(parent.querySelectorAll<HTMLButtonElement>("[data-structural-row-handle]"));
+    const columns = Array.from(parent.querySelectorAll<HTMLButtonElement>("[data-structural-column-handle]"));
+    expect(cells.filter((cell) => cell.tabIndex === 0)).toEqual([cells[0]]);
+    expect(rows.filter((handle) => handle.tabIndex === 0)).toEqual([rows[0]]);
+    expect(columns.filter((handle) => handle.tabIndex === 0)).toEqual([columns[0]]);
+
+    cells[0]?.focus();
+    cells[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(document.activeElement).toBe(cells[1]);
+    expect(cells.filter((cell) => cell.tabIndex === 0)).toEqual([cells[1]]);
+    expect(cells[1]?.getAttribute("aria-selected")).toBe("true");
+
+    rows[0]?.focus();
+    rows[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement).toBe(rows[1]);
+    expect(rows.filter((handle) => handle.tabIndex === 0)).toEqual([rows[1]]);
+
+    columns[0]?.focus();
+    columns[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(document.activeElement).toBe(columns[1]);
+    expect(columns.filter((handle) => handle.tabIndex === 0)).toEqual([columns[1]]);
+
+    const table = parent.querySelector<HTMLTableElement>(".structural-tables-table")!;
+    table.style.direction = "rtl";
+    cells[0]?.focus();
+    cells[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    expect(document.activeElement).toBe(cells[1]);
+    columns[0]?.focus();
+    columns[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    expect(document.activeElement).toBe(columns[1]);
+    view.destroy();
+  });
+
   it("does not select every handle when a structural cell is selected", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;

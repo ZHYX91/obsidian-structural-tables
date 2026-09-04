@@ -58,33 +58,39 @@ export interface PromotionBlockMetadata {
   source: string;
 }
 
-function propertyKey(label: string, column: number): string {
-  const normalized = label
-    .normalize("NFKC")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[\s-]+/gu, "_")
-    .replace(/[^\p{L}\p{N}_]/gu, "")
-    .replace(/^_+|_+$/gu, "");
-  const candidate = normalized === "" ? `column_${column + 1}` : normalized;
-  return /^\p{N}/u.test(candidate) ? `column_${candidate}` : candidate;
+function propertyIdentity(value: string): string {
+  return value.normalize("NFKC").toLowerCase();
 }
 
-function uniqueColumns(names: readonly string[]): PromotionColumn[] {
+function propertyKey(label: string, column: number, generatedName: boolean): string {
+  return generatedName ? `column_${column + 1}` : label.trim();
+}
+
+function headerColumnIsBlank(table: StructuralTable, column: number): boolean {
+  for (let row = 0; row < table.headerRowCount; row += 1) {
+    const cell = table.rows[row]?.cells[column];
+    if (cell === undefined) continue;
+    const anchor = table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
+    if (anchor?.content.trim() !== "") return false;
+  }
+  return true;
+}
+
+function uniqueColumns(table: StructuralTable, names: readonly string[]): PromotionColumn[] {
   const used = new Set([
     TABLE_MEMBERSHIP_PROPERTY,
     LEGACY_TABLE_MEMBERSHIP_PROPERTY,
     LEGACY_RECORD_ID_PROPERTY,
-  ]);
+  ].map(propertyIdentity));
   return names.map((displayName, sourceColumn) => {
-    const base = propertyKey(displayName, sourceColumn);
+    const base = propertyKey(displayName, sourceColumn, headerColumnIsBlank(table, sourceColumn));
     let key = base;
     let suffix = 2;
-    while (used.has(key)) {
+    while (used.has(propertyIdentity(key))) {
       key = `${base}_${suffix}`;
       suffix += 1;
     }
-    used.add(key);
+    used.add(propertyIdentity(key));
     return { sourceColumn, key, displayName };
   });
 }
@@ -136,7 +142,7 @@ export function buildBasePromotionPlan(
   if (!table.valid) throw new Error("The table must be valid before promotion.");
   const projection = projectStructuralTable(table);
   if (projection.rows.length === 0) throw new Error("The table must contain at least one data row.");
-  const columns = uniqueColumns(projection.columnNames);
+  const columns = uniqueColumns(table, projection.columnNames);
   const records = projection.rows.map((row, rowIndex) => {
     const values = Object.fromEntries(columns.map((column) => [column.key, row[column.sourceColumn] ?? ""]));
     return {
@@ -218,13 +224,45 @@ export function embeddedBaseSource(plan: BasePromotionPlan, manifestPath: string
     "properties:",
   ];
   for (const column of plan.columns) {
-    lines.push(`  ${column.key}:`);
+    lines.push(`  ${yamlString(column.key)}:`);
     lines.push(`    displayName: ${yamlString(column.displayName)}`);
   }
   lines.push("views:", "  - type: table", "    name: Table", "    order:");
-  for (const column of plan.columns) lines.push(`      - note.${column.key}`);
+  for (const column of plan.columns) {
+    lines.push(`      - ${yamlString(`note[${yamlString(column.key)}]`)}`);
+  }
   lines.push("```");
   return lines.join("\n");
+}
+
+function propertyKeysFromBlock(block: string): string[] {
+  const keys: string[] = [];
+  for (const line of block.split(/\r?\n|\r/gu)) {
+    const item = /^\s+-\s+(.+?)\s*$/u.exec(line)?.[1];
+    if (item === undefined) continue;
+    let expression = item;
+    if (expression.startsWith('"')) {
+      try {
+        const parsed = JSON.parse(expression) as unknown;
+        if (typeof parsed !== "string") continue;
+        expression = parsed;
+      } catch {
+        continue;
+      }
+    }
+    if (expression.startsWith("note.") && !expression.slice(5).includes(" ")) {
+      keys.push(expression.slice(5));
+      continue;
+    }
+    if (!expression.startsWith("note[") || !expression.endsWith("]")) continue;
+    try {
+      const parsed = JSON.parse(expression.slice(5, -1)) as unknown;
+      if (typeof parsed === "string") keys.push(parsed);
+    } catch {
+      continue;
+    }
+  }
+  return keys;
 }
 
 export function promotionBlocks(source: string): PromotionBlockMetadata[] {
@@ -246,9 +284,7 @@ export function promotionBlocks(source: string): PromotionBlockMetadata[] {
     } catch {
       continue;
     }
-    const propertyKeys = [...block.matchAll(/^\s+- note\.([^\s]+)$/gmu)]
-      .map((property) => property[1])
-      .filter((property): property is string => property !== undefined);
+    const propertyKeys = propertyKeysFromBlock(block);
     const membershipProperty = block.includes(`note[${yamlString(TABLE_MEMBERSHIP_PROPERTY)}]`)
       ? TABLE_MEMBERSHIP_PROPERTY
       : block.includes(`note.${LEGACY_TABLE_MEMBERSHIP_PROPERTY}`)

@@ -122,9 +122,14 @@ class StructuralTableWidget extends WidgetType {
   private installInteraction(view: EditorView, host: HTMLElement, rendered: HTMLTableElement): void {
     this.renderedTable = rendered;
     rendered.classList.add("is-interactive");
-    for (const cell of rendered.querySelectorAll<HTMLElement>("[data-structural-row][data-structural-column]")) {
-      cell.tabIndex = 0;
-    }
+    const cells = Array.from(rendered.querySelectorAll<HTMLElement>(
+      "[data-structural-row][data-structural-column]",
+    ));
+    cells.forEach((cell, index) => { cell.tabIndex = index === 0 ? 0 : -1; });
+    rendered.addEventListener("focusin", (event) => {
+      const cell = this.cellForTarget(event.target);
+      if (cell !== null) this.setRovingCell(cell);
+    });
     rendered.addEventListener("pointerdown", (event) => this.startPointerSelection(event, view));
     rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event));
     rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
@@ -139,6 +144,7 @@ class StructuralTableWidget extends WidgetType {
       this.beginCellEdit(view, coordinate);
     });
     rendered.addEventListener("keydown", (event) => {
+      if (this.moveCellFocus(event)) return;
       if (event.key !== "Enter" && event.key !== "F2") return;
       const coordinate = this.coordinateFor(event.target);
       if (coordinate === null) return;
@@ -157,12 +163,63 @@ class StructuralTableWidget extends WidgetType {
   };
 
   private coordinateFor(target: EventTarget | null): TableCellCoordinate | null {
-    if (target === null || !("closest" in target) || this.renderedTable === null) return null;
-    const cell = (target as Element).closest<HTMLElement>("[data-structural-row][data-structural-column]");
-    if (cell === null || !this.renderedTable.contains(cell)) return null;
+    const cell = this.cellForTarget(target);
+    if (cell === null) return null;
     const row = Number(cell.dataset.structuralRow);
     const column = Number(cell.dataset.structuralColumn);
     return Number.isInteger(row) && Number.isInteger(column) ? { row, column } : null;
+  }
+
+  private cellForTarget(target: EventTarget | null): HTMLElement | null {
+    if (target === null || !("closest" in target) || this.renderedTable === null) return null;
+    const cell = (target as Element).closest<HTMLElement>("[data-structural-row][data-structural-column]");
+    return cell !== null && this.renderedTable.contains(cell) ? cell : null;
+  }
+
+  private setRovingCell(active: HTMLElement): void {
+    if (this.renderedTable === null) return;
+    for (const cell of this.renderedTable.querySelectorAll<HTMLElement>(
+      "[data-structural-row][data-structural-column]",
+    )) {
+      cell.tabIndex = cell === active ? 0 : -1;
+    }
+  }
+
+  private moveCellFocus(event: KeyboardEvent): boolean {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.target !== this.cellForTarget(event.target)) return false;
+    const coordinate = this.coordinateFor(event.target);
+    if (coordinate === null) return false;
+    const anchor = this.table.rows[coordinate.row]?.cells[coordinate.column];
+    if (anchor === undefined) return false;
+    const rtl = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl";
+    let target: TableCellCoordinate | null = null;
+    if (event.key === "ArrowUp") {
+      target = { row: anchor.anchorRow - 1, column: anchor.anchorColumn };
+    } else if (event.key === "ArrowDown") {
+      target = { row: anchor.anchorRow + anchor.rowSpan, column: anchor.anchorColumn };
+    } else if (event.key === (rtl ? "ArrowRight" : "ArrowLeft")) {
+      target = { row: anchor.anchorRow, column: anchor.anchorColumn - 1 };
+    } else if (event.key === (rtl ? "ArrowLeft" : "ArrowRight")) {
+      target = { row: anchor.anchorRow, column: anchor.anchorColumn + anchor.columnSpan };
+    } else if (event.key === "Home") {
+      target = { row: anchor.anchorRow, column: 0 };
+    } else if (event.key === "End") {
+      target = { row: anchor.anchorRow, column: this.table.columnCount - 1 };
+    } else {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const element = target.row < 0 || target.row >= this.table.rows.length
+      || target.column < 0 || target.column >= this.table.columnCount
+      ? null
+      : this.cellElement(target);
+    if (element === null) return true;
+    const resolved = this.coordinateFor(element);
+    if (resolved !== null) this.selectBounds(resolved, resolved);
+    this.setRovingCell(element);
+    element.focus({ preventScroll: true });
+    return true;
   }
 
   private startPointerSelection(event: PointerEvent, view: EditorView): void {
@@ -503,6 +560,8 @@ class StructuralTableWidget extends WidgetType {
       host.appendChild(handle);
       return handle;
     });
+    this.installRovingHandles(rowHandles, "vertical", rendered);
+    this.installRovingHandles(columnHandles, "horizontal", rendered);
     const positionHandles = (): void => {
       const hostRect = host.getBoundingClientRect();
       const tableRect = rendered.getBoundingClientRect();
@@ -532,6 +591,36 @@ class StructuralTableWidget extends WidgetType {
       this.resizeObserver = new ResizeObserver(positionHandles);
       this.resizeObserver.observe(rendered);
     }
+  }
+
+  private installRovingHandles(
+    handles: HTMLButtonElement[],
+    orientation: "horizontal" | "vertical",
+    rendered: HTMLTableElement,
+  ): void {
+    handles.forEach((handle, index) => {
+      handle.tabIndex = index === 0 ? 0 : -1;
+      handle.addEventListener("focus", () => {
+        handles.forEach((candidate) => { candidate.tabIndex = candidate === handle ? 0 : -1; });
+      });
+      handle.addEventListener("keydown", (event) => {
+        const rtl = rendered.ownerDocument.defaultView?.getComputedStyle(rendered).direction === "rtl";
+        const previousKey = orientation === "vertical" ? "ArrowUp" : rtl ? "ArrowRight" : "ArrowLeft";
+        const nextKey = orientation === "vertical" ? "ArrowDown" : rtl ? "ArrowLeft" : "ArrowRight";
+        let targetIndex: number | null = null;
+        if (event.key === previousKey) targetIndex = Math.max(0, index - 1);
+        else if (event.key === nextKey) targetIndex = Math.min(handles.length - 1, index + 1);
+        else if (event.key === "Home") targetIndex = 0;
+        else if (event.key === "End") targetIndex = handles.length - 1;
+        if (targetIndex === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (targetIndex === index) return;
+        const target = handles[targetIndex];
+        target?.focus({ preventScroll: true });
+        target?.click();
+      });
+    });
   }
 
   private selectBounds(first: TableCellCoordinate, last: TableCellCoordinate): void {

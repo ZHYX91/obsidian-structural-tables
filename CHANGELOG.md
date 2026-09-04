@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Preserve non-empty table headers, including numeric and leading-zero headers, as promoted Base Property names; use bracket notation for generated references and reserve `column_n` for blank headers.
+- Keep legacy promoted Bases that use dot-notation Property references recognizable without migrating existing records.
+- Correct merged-cell border edges, retain stable comfortable and compact row heights, and let alternating row backgrounds continue through row spans.
+- Reduce owned-table keyboard tab stops with arrow-key cell and handle navigation, plus explicit focus rings.
+
 ## 0.4.0 - 2026-09-03
 
 - Store promoted Base membership in the Obsidian-friendly `structural-tables` list Property.

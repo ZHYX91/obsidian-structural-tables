@@ -24,12 +24,6 @@ Structural Tables 在普通 Markdown 管道表格上增加合并单元格、多�
 
 ![Structural Tables 设置中的普通 Markdown 表格接管](../assets/structural-tables-settings-en.png)
 
-### 升级为 Base
-
-创建文件前，先检查记录文件夹、Property 映射、结构展开规则以及阻断升级的数据区合并单元格。
-
-![Structural Tables 的 Base 升级预览](../assets/structural-tables-base-upgrade-en.png)
-
 <!-- section: features -->
 ## 功能
 

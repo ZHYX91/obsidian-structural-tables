@@ -59,4 +59,34 @@ describe("rawStructuralTableElement", () => {
       expect(rawStructuralTableElement(section, table)).toBe(paragraph);
     },
   );
+
+  it("matches raw source after the host renders Wiki links and inline code", () => {
+    const source = [
+      "| Region | Sales | < |",
+      "| Quarter | Q1 | Q2 |",
+      "| --- || --- | --- |",
+      "| North | 10 | 中文 [[Target\\|Alias]] `a|b` |",
+      "| ^ | 8 | 11 |",
+    ].join("\n");
+    const table = parseStructuralTables(source).tables[0]!;
+    const section = document.createElement("div");
+    const paragraph = section.appendChild(document.createElement("p"));
+    paragraph.append("| Region | Sales | < |");
+    paragraph.appendChild(document.createElement("br"));
+    paragraph.append("| Quarter | Q1 | Q2 |");
+    paragraph.appendChild(document.createElement("br"));
+    paragraph.append("| --- || --- | --- |");
+    paragraph.appendChild(document.createElement("br"));
+    paragraph.append("| North | 10 | 中文 ");
+    const link = paragraph.appendChild(document.createElement("a"));
+    link.textContent = "Alias";
+    paragraph.append(" ");
+    const code = paragraph.appendChild(document.createElement("code"));
+    code.textContent = "a|b";
+    paragraph.append(" |");
+    paragraph.appendChild(document.createElement("br"));
+    paragraph.append("| ^ | 8 | 11 |");
+
+    expect(rawStructuralTableElement(section, table)).toBe(paragraph);
+  });
 });

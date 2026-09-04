@@ -93,6 +93,47 @@ describe("StructuralTableReadingProcessor", () => {
     },
   );
 
+  it("renders raw structural source containing a Wiki-link alias and an inline-code pipe", () => {
+    const table = [
+      "| Region | Sales | < |",
+      "| Quarter | Q1 | Q2 |",
+      "| --- || --- | --- |",
+      "| North | 10 | 中文 [[Target\\|Alias]] `a|b` |",
+      "| ^ | 8 | 11 |",
+    ].join("\n");
+    const container = document.createElement("div");
+    const raw = container.appendChild(document.createElement("p"));
+    raw.append("| Region | Sales | < |");
+    raw.appendChild(document.createElement("br"));
+    raw.append("| Quarter | Q1 | Q2 |");
+    raw.appendChild(document.createElement("br"));
+    raw.append("| --- || --- | --- |");
+    raw.appendChild(document.createElement("br"));
+    raw.append("| North | 10 | 中文 ");
+    raw.appendChild(document.createElement("a")).textContent = "Alias";
+    raw.append(" ");
+    raw.appendChild(document.createElement("code")).textContent = "a|b";
+    raw.append(" |");
+    raw.appendChild(document.createElement("br"));
+    raw.append("| ^ | 8 | 11 |");
+    const addChild = vi.fn();
+    const context = {
+      addChild,
+      getSectionInfo: () => ({ lineStart: 0, lineEnd: 4, text: table }),
+      sourcePath: "Report.md",
+    } as unknown as MarkdownPostProcessorContext;
+    const processor = new StructuralTableReadingProcessor(
+      {} as App,
+      () => ({ ...DEFAULT_SETTINGS, enableReadingView: true }),
+    );
+
+    processor.process(container, context);
+
+    expect(raw.parentElement).toBeNull();
+    expect(container.querySelector(".structural-tables-container table")).not.toBeNull();
+    expect(addChild).toHaveBeenCalledOnce();
+  });
+
   it("replaces an ordinary Reading view table only when takeover is enabled", () => {
     const source = "| Name | Status |\n| --- | --- |\n| Alice | Doing |";
     const native = document.createElement("table");

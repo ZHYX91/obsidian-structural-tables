@@ -17,7 +17,15 @@ function normalizeSourceBlock(source: string): string {
 }
 
 function normalizeExpectedSourceBlock(source: string): string {
-  return normalizeSourceBlock(source.replace(/<br\s*\/?>/giu, ""));
+  const visible = source
+    .replace(/\[\[([^\]\n]+)\]\]/gu, (_match, target: string) => {
+      const separator = target.lastIndexOf("|");
+      return (separator >= 0 ? target.slice(separator + 1) : target).replace(/\\\|/gu, "|");
+    })
+    .replace(/(`+)([^`\n]*?)\1/gu, "$2")
+    .replace(/<br\s*\/?>/giu, "")
+    .replace(/\\\|/gu, "|");
+  return normalizeSourceBlock(visible);
 }
 
 export function rawStructuralTableElement(
@@ -27,7 +35,7 @@ export function rawStructuralTableElement(
   const expected = normalizeExpectedSourceBlock(table.source);
   const elements = [container, ...container.querySelectorAll<HTMLElement>("p, div")];
   return elements.reverse().find((element) => {
-    if (element.closest("pre, code, table") !== null || element.querySelector("pre, code, table") !== null) return false;
+    if (element.closest("pre, code, table") !== null || element.querySelector("pre, table") !== null) return false;
     return normalizeSourceBlock(renderedSourceText(element)) === expected;
   });
 }

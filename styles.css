@@ -139,6 +139,7 @@
 }
 
 .structural-tables-cell-editor {
+  appearance: none;
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -148,11 +149,11 @@
   margin: 0;
   padding: var(--size-2-1) var(--size-4-1);
   resize: none;
-  border: 0;
-  border-radius: 0;
-  outline: 0;
-  box-shadow: none;
-  background: transparent;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
   color: var(--text-normal);
   font: inherit;
   line-height: inherit;

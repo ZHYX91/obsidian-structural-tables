@@ -51,7 +51,7 @@
         "Desktop single-click editing works while Android retains double-tap editing and touch selection",
         "Editing does not widen the table or its column and shows one outer focus border without an inner textarea border or resize grip",
         "Editor and imported line breaks become canonical <br>, and semantic HTML export contains real break elements",
-        "Only the hovered cell's row and column handles reveal, remain reachable without clipping, and align to the actual table rectangle",
+        "Only the hovered cell's row and column handles reveal, remain reachable without clipping, and align to the actual table rectangle; always-visible touch column handles reserve space without covering preceding text",
         "The previous cell and handles lose selected styling when focus or the editor cursor leaves, and selection never remains on two owned tables",
         "No Markdown changes before explicit format confirmation",
         "Every explicit rewrite remains parseable and pipe-aligned by display width while rendering alone never changes Markdown",

@@ -325,6 +325,8 @@
 @media (pointer: coarse) {
   .structural-tables-live-preview {
     --structural-table-handle-gutter: 2.75rem;
+    /* Always-visible touch handles need their own space above the table. */
+    padding-block-start: var(--structural-table-handle-gutter);
   }
 
   .structural-tables-row-handle,

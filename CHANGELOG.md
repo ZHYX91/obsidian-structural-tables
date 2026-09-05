@@ -2,6 +2,7 @@
 
 ## 0.4.2 - 2026-09-05
 
+- Reserve space above Live Preview tables for touch-sized column handles so they do not cover preceding text.
 - Keep Live Preview row and column handles visible outside Obsidian's widget paint containment.
 - Add theme-following, grid, and three-line table styles independently of width and density; preserve existing explicit preferences.
 - Keep owned table blocks inside the text column with local horizontal scrolling, and align merged-cell edge styling with theme table tokens.

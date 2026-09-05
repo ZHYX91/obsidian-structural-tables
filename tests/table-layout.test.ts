@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 
 import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const styles = readFileSync("styles.css", "utf8");
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.head.replaceChildren();
   document.body.replaceChildren();
 });
@@ -59,6 +60,25 @@ describe("table appearance", () => {
 });
 
 describe("explicit table layouts", () => {
+  it.each([0, 5])("reserves column-handle space only for touch input (%i touch points)", (touchPoints) => {
+    vi.spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(touchPoints);
+    document.head.appendChild(document.createElement("style")).textContent = styles;
+    document.body.innerHTML = `<div class="structural-tables-live-preview">
+      <button class="structural-tables-column-handle"></button>
+    </div><div class="structural-tables-container"></div>`;
+    const host = getComputedStyle(document.querySelector(".structural-tables-live-preview")!);
+    const handle = getComputedStyle(document.querySelector("button")!);
+    if (touchPoints > 0) {
+      const gutter = document.body.appendChild(document.createElement("div"));
+      gutter.style.height = host.getPropertyValue("padding-block-start");
+      expect(Number.parseFloat(getComputedStyle(gutter).height)).toBeGreaterThanOrEqual(Number.parseFloat(handle.height));
+    } else {
+      expect(Number.parseFloat(host.getPropertyValue("padding-block-start")) || 0).toBe(0);
+    }
+    expect(Number.parseFloat(getComputedStyle(document.querySelector(".structural-tables-container")!)
+      .getPropertyValue("padding-block-start")) || 0).toBe(0);
+  });
+
   it("keeps the owned handle gutter paintable without changing other editor widgets", () => {
     document.head.appendChild(document.createElement("style")).textContent = styles;
     document.head.appendChild(document.createElement("style")).textContent =

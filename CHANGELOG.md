@@ -2,6 +2,9 @@
 
 ## 0.4.2 - 2026-09-05
 
+- Copy complete tables for Word with semantic merges, portable inline formatting, grid/three-line borders, and readable plain-text clipboard fallback; add an explicit whole-table context-menu action.
+- Restore keyboard focus after structural menu edits so undo/redo remains immediately available.
+- Import Excel clipboard fragments without outer table tags, preserve the first complete header span group, and paste single-cell line breaks without TSV quotes or trailing record separators.
 - Restore cell focus after committing an edit and support document undo/redo from the focused table cell without intercepting draft history.
 - Own F2 while a table cell is focused so Obsidian's rename shortcut cannot intercept cell editing.
 - Clarify nested column headers in three-line tables with inset group rules that respect row spans and leave the body unruled.

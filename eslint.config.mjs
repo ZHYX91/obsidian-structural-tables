@@ -53,6 +53,14 @@ export default defineConfig([
     },
   },
   {
+    // Clipboard HTML leaves Obsidian: recipients need inline styles and standard DOM.
+    files: ["src/rendering/table-clipboard.ts"],
+    rules: {
+      "obsidianmd/no-static-styles-assignment": "off",
+      "obsidianmd/prefer-create-el": "off",
+    },
+  },
+  {
     files: [
       "src/app/plugin.ts",
       "src/editor/table-widget.ts",

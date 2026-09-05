@@ -8,6 +8,8 @@ import { adjacentTableCell } from "../core/table-navigation";
 import { editCellContent, normalizeTableCellInput } from "../core/operations";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { renderStructuralTable } from "../rendering/table-renderer";
+import { renderTableClipboard } from "../rendering/table-clipboard";
+import { copyHtml, singleCellTextFromClipboardHtml } from "./table-interchange";
 import {
   addBasePromotionMenuItem,
   addSelectionMenuItems,
@@ -480,6 +482,14 @@ class StructuralTableInteraction {
     const menu = Menu.forEvent(event);
     const t = createTranslator(this.getSettings().language);
     const info = view.state.field(editorInfoField, false);
+    menu.addItem((item) => item.setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => {
+      const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
+      if (current === null) { new Notice(t("notice.staleTable")); return; }
+      void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance)
+        .then(({ html, text }) => copyHtml(html, text))
+        .then(() => { new Notice(t("notice.copied").replace("{format}", "HTML")); })
+        .catch(() => { new Notice(t("notice.clipboardFailed")); });
+    }));
     if (this.promote !== undefined && info?.editor !== undefined) {
       addBasePromotionMenuItem(menu, t, this.table, () => this.promote?.(info.editor!, info.file, this.table));
     }
@@ -607,7 +617,8 @@ class StructuralTableInteraction {
     this.app.keymap.pushScope(scope);
     editor.addEventListener("keydown", handleKey);
     editor.addEventListener("paste", (event) => {
-      const pasted = event.clipboardData?.getData("text/plain");
+      const html = event.clipboardData?.getData("text/html") ?? "";
+      const pasted = singleCellTextFromClipboardHtml(html) ?? event.clipboardData?.getData("text/plain");
       if (pasted === undefined) return;
       event.preventDefault();
       const start = editor.selectionStart;
@@ -829,10 +840,12 @@ class StructuralTableInteraction {
     }
     const result = operation(current);
     if (result.changed) {
+      const coordinate = this.selectionAnchor ?? { row: 0, column: 0 };
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
         selection: { anchor: current.range.from + result.source.length },
       });
+      queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     }
     new Notice(operationNotice(t, result.code));
   }

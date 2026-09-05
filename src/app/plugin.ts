@@ -26,7 +26,6 @@ import {
   enabledConflictingPlugins,
   migrateSheetsExtendedTable,
   structuralTableToDelimited,
-  structuralTableToHtml,
   structuralTableToPlainGfm,
 } from "../core/interchange";
 import { parseEditableTables, parseStructuralTables } from "../core/parser";
@@ -50,6 +49,7 @@ import { replaceTableSource } from "../editor/table-replacement";
 import { copyHtml, copyText, structuralSourceFromClipboardHtml } from "../editor/table-interchange";
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
+import { renderTableClipboard } from "../rendering/table-clipboard";
 import { StructuralTablesSettingTab } from "./settings-tab";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import { SettingsPersistenceSession } from "./settings-persistence-session";
@@ -209,7 +209,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.localizedCommands.push(this.addCommand({
       id: "copy-current-table-as-html",
       name: t("command.copyHtml"),
-      editorCallback: (editor) => this.copyCurrentTable(editor, "HTML"),
+      editorCallback: (editor, context) => this.copyCurrentTable(editor, "HTML", context.file?.path ?? ""),
     }));
     this.localizedCommands.push(this.addCommand({
       id: "copy-current-table-as-plain-gfm",
@@ -379,19 +379,19 @@ export class StructuralTablesPlugin extends Plugin {
     }).open();
   }
 
-  private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV"): void {
+  private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = ""): void {
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
     if (!current.table.valid) {
       new Notice(current.table.diagnostics[0]?.message ?? "Invalid structural table.");
       return;
     }
-    const output = format === "HTML"
-      ? structuralTableToHtml(current.table)
-      : format === "GFM"
+    const write = format === "HTML"
+      ? renderTableClipboard(this.app, current.table, sourcePath, this.settings.appearance)
+        .then(({ html, text }) => copyHtml(html, text))
+      : copyText(format === "GFM"
         ? structuralTableToPlainGfm(current.table)
-        : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t");
-    const write = format === "HTML" ? copyHtml(output) : copyText(output);
+        : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t"));
     void write.then(() => {
       const message = createTranslator(this.settings.language)("notice.copied").replace("{format}", format);
       new Notice(message);

@@ -241,7 +241,16 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
     if (row.section !== "head" && !row.cells.every((cell) => cell.header)) break;
     headerRowCount = rowIndex + 1;
   }
-  if (headerRowCount === 0) headerRowCount = 1;
+  if (headerRowCount === 0) {
+    // Without semantic headers, use the first complete span group. A divider
+    // through a row-spanning first-row cell would make otherwise valid HTML invalid.
+    headerRowCount = 1;
+    for (let row = 0; row < headerRowCount; row += 1) {
+      for (const anchor of owners[row] ?? []) {
+        if (anchor !== undefined) headerRowCount = Math.max(headerRowCount, anchor.row + anchor.rowSpan);
+      }
+    }
+  }
   const bodyOwners = owners.slice(headerRowCount);
   let rowHeaderColumnCount = 0;
   for (let column = 0; column < columnCount - 1 && bodyOwners.length > 0; column += 1) {

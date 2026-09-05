@@ -1,7 +1,7 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { structuralSourceFromClipboardHtml } from "../src/editor/table-interchange";
+import { singleCellTextFromClipboardHtml, structuralSourceFromClipboardHtml } from "../src/editor/table-interchange";
 import { parseEditableTables } from "../src/core/parser";
 
 const originalDomParser = globalThis.DOMParser;
@@ -73,5 +73,44 @@ describe("HTML table clipboard import", () => {
   it("returns null for non-tables and one-column tables", () => {
     expect(structuralSourceFromClipboardHtml("<p>Hello</p>")).toBeNull();
     expect(structuralSourceFromClipboardHtml("<table><tr><td>A</td></tr></table>")).toBeNull();
+  });
+
+  it("reads spreadsheet cell fragments without TSV quotes or the record terminator", () => {
+    expect(singleCellTextFromClipboardHtml("\r\n  <td height=37 class=xl63>First<br\r\n  />\r\n    Second</td>\r\n"))
+      .toBe("First\nSecond");
+    expect(singleCellTextFromClipboardHtml('<table><tr><td>"Quoted"</td></tr></table>')).toBe('"Quoted"');
+    expect(singleCellTextFromClipboardHtml("<td></td>")).toBe("");
+    expect(singleCellTextFromClipboardHtml("<tr><td>A</td><td>B</td></tr>")).toBeNull();
+    expect(singleCellTextFromClipboardHtml("<p>Ordinary text</p>")).toBeNull();
+  });
+
+  it("imports spreadsheet row fragments with their merge geometry", () => {
+    const fragment = "<tr><td colspan=2>Group</td></tr><tr><td>A</td><td>B</td></tr>";
+    const table = parseEditableTables(structuralSourceFromClipboardHtml(fragment) ?? "").tables[0];
+    expect(table?.valid).toBe(true);
+    expect(table?.rows[0]?.cells[0]?.columnSpan).toBe(2);
+  });
+
+  it("keeps the first complete span group as headers when Excel supplies only td cells", () => {
+    const fragment = `<col width=51 span=2><col width=26>
+      <tr><td rowspan=2>Region</td><td colspan=2>Sales</td></tr>
+      <tr><td>Q1</td><td>Q2</td></tr>
+      <tr><td rowspan=2>North</td><td>First</td><td rowspan=2>10</td></tr>
+      <tr><td>Second</td></tr>`;
+    const table = parseEditableTables(structuralSourceFromClipboardHtml(fragment) ?? "").tables[0];
+    expect(table?.valid).toBe(true);
+    expect(table?.headerRowCount).toBe(2);
+    expect(table?.rows[0]?.cells[0]?.rowSpan).toBe(2);
+    expect(table?.rows[0]?.cells[1]?.columnSpan).toBe(2);
+    expect(table?.rows[2]?.cells[0]?.rowSpan).toBe(2);
+    expect(table?.rows[2]?.cells[2]?.rowSpan).toBe(2);
+    expect(table?.rows[3]?.cells[1]?.content).toBe("Second");
+  });
+
+  it("refuses a span across an explicit header boundary instead of reclassifying data", () => {
+    expect(structuralSourceFromClipboardHtml(`<table>
+      <thead><tr><th rowspan=2>Region</th><th>Sales</th></tr></thead>
+      <tbody><tr><td>10</td></tr></tbody>
+    </table>`)).toBeNull();
   });
 });

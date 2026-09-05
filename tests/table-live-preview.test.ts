@@ -547,6 +547,28 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it.each([false, true])("restores focus after a structural menu changes table ownership (takeover=%s)", async (takeOverOrdinaryTables) => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length }, [], undefined, { takeOverOrdinaryTables });
+    try {
+      const selector = "[data-structural-row='3'][data-structural-column='3']";
+      const cell = parent.querySelector<HTMLElement>(selector)!;
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const split = lastMenu?.items.find((item) => item.title === "Split merged cell");
+      expect(split).toBeDefined();
+      split?.callback?.();
+      await Promise.resolve();
+      const restored = parent.querySelector<HTMLTableCellElement>(selector)!;
+      if (takeOverOrdinaryTables) {
+        expect(restored.rowSpan).toBe(1);
+        expect(restored.colSpan).toBe(1);
+        expect(document.activeElement).toBe(restored);
+      } else {
+        expect(restored).toBeNull();
+        expect(view.hasFocus).toBe(true);
+      }
+    } finally { view.destroy(); }
+  });
+
   it("keeps desktop pointer drag ownership separate from touch selection", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
@@ -629,6 +651,26 @@ describe("StructuralTableEditorController", () => {
 
     expect(view.state.doc.toString()).toContain(String.raw`[[Target\|Alias]]`);
     expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+    view.destroy();
+  });
+
+  it("pastes one Excel cell without its TSV quoting or trailing record separator", async () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+    const paste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", {
+      value: { getData: (type: string) => type === "text/html"
+        ? '<td>"First"<br />Second</td>'
+        : '"""First""\nSecond"\r\n' },
+    });
+    editor.dispatchEvent(paste);
+    expect(paste.defaultPrevented).toBe(true);
+    expect(editor.value).toBe('"First"<br>Second');
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await Promise.resolve();
+    expect(view.state.doc.toString()).toContain('"First"<br>Second');
     view.destroy();
   });
 

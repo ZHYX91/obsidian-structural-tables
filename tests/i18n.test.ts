@@ -10,7 +10,7 @@ describe("i18n", () => {
 
   it("distinguishes table layout from cell-content alignment", () => {
     expect(createTranslator("en")("settings.layout.contentCenter")).toBe("Fit content — Center");
-    expect(createTranslator("zh-CN")("settings.layout.pane")).toBe("适应窗格宽度");
+    expect(createTranslator("zh-CN")("settings.layout.pane")).toBe("铺满正文宽度");
   });
 
   it("localizes interchange commands and settings", () => {

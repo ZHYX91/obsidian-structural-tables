@@ -36,7 +36,11 @@
         "Select an owned cell, move focus or the editor cursor outside it, then select a cell in the other owned table",
         "Preview the format command before confirming a canonical rewrite",
         "Confirm the rewrite aligns source pipes around ASCII, CJK, row-header dividers, alignment markers, escaped Wiki-link pipes, and code-span pipes without changing the note's line endings",
-        "Open the invalid table and inspect its diagnostic"
+        "Open the invalid table and inspect its diagnostic",
+        "Edit the note before a rendered table, then edit a cell; also keep a cell draft open while an unrelated source change shifts the table",
+        "Navigate forward and backward through vertically and horizontally merged cells with Tab and Shift+Tab",
+        "Render a row-header table containing emphasis and Markdown links beside an ordinary table",
+        "On desktop, compare default and Minimal theme table widths with note-level table-wide, table-max and table-100 classes; switch Theme/Grid/Three-line styles and all density/layout options, including merged cells and multi-row headers"
       ],
       "expected": [
         "Column spans, row spans, multi-row headers, and row-header boundaries render consistently",
@@ -51,7 +55,11 @@
         "The previous cell and handles lose selected styling when focus or the editor cursor leaves, and selection never remains on two owned tables",
         "No Markdown changes before explicit format confirmation",
         "Every explicit rewrite remains parseable and pipe-aligned by display width while rendering alone never changes Markdown",
-        "Invalid syntax retains its source and reports a bounded diagnostic"
+        "Invalid syntax retains its source and reports a bounded diagnostic",
+        "Unchanged tables retain current source bindings and open drafts after source shifts, including when preceding tables change their indexes",
+        "Tab and Shift+Tab visit each visible anchor once without loops or skipped cells",
+        "Rich inline formatting preserves row-header rendering and never causes a later ordinary table to be replaced",
+        "Owned blocks stay inside the text column under theme width classes; wide content scrolls locally and does not widen the page"
       ]
     },
     {

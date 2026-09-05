@@ -45,9 +45,16 @@ export class StructuralTableReadingProcessor {
     const candidates = renderedTables(container);
     let candidateIndex = 0;
     parsed.forEach((table) => {
-      const rawSource = rawStructuralTableElement(container, table);
-      const existing = rawSource ?? candidates[candidateIndex];
-      if (rawSource === undefined) candidateIndex += 1;
+      const rawSource = rawStructuralTableElement(container, table, (element) => {
+        const info = context.getSectionInfo(element);
+        return info?.lineStart === section.lineStart + table.startLine
+          && info.lineEnd === section.lineStart + table.endLine;
+      });
+      // An adjacent || delimiter cannot produce a native GFM table. If its raw
+      // block cannot be identified, it must never consume a later native table.
+      const native = rawSource === undefined && table.rowHeaderColumnCount === 0;
+      const existing = rawSource ?? (native ? candidates[candidateIndex] : undefined);
+      if (native) candidateIndex += 1;
       if ((!table.structural && !settings.takeOverOrdinaryTables) || existing === undefined) return;
       existing.dataset.structuralTablesProcessed = "true";
       if (!table.valid) {
@@ -67,6 +74,7 @@ export class StructuralTableReadingProcessor {
         return;
       }
       wrapper.dataset.layout = settings.layout;
+      wrapper.dataset.appearance = settings.appearance;
       wrapper.dataset.density = settings.density;
       wrapper.dataset.zebra = String(settings.zebraRows);
       wrapper.dataset.tableKind = table.structural ? "structural" : "ordinary";

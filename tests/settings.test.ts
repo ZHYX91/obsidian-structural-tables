@@ -30,8 +30,20 @@ describe("sanitizeSettings", () => {
       warnPluginConflicts: false,
     });
     expect(sanitizeSettings({ language: "fr", density: "dense", layout: "wide" })).toMatchObject({
-      language: "auto", density: "comfortable", layout: "content-left",
+      language: "auto", density: "theme", layout: "theme", appearance: "theme",
     });
+  });
+
+  it("keeps existing spacing and layouts while defaulting new appearance to the theme", () => {
+    expect(sanitizeSettings({ density: "comfortable", layout: "pane" })).toMatchObject({
+      density: "comfortable", layout: "pane", appearance: "theme",
+    });
+    for (const appearance of ["theme", "grid", "three-line"]) {
+      expect(sanitizeSettings({ appearance, density: "theme", layout: "theme" })).toMatchObject({
+        appearance, density: "theme", layout: "theme",
+      });
+    }
+    expect(sanitizeSettings({ appearance: "unknown" }).appearance).toBe("theme");
   });
 
   it("keeps ordinary-table takeover opt-in", () => {

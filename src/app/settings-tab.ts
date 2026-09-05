@@ -107,19 +107,29 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         .setValue(this.structuralPlugin.settings.showDiagnostics)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ showDiagnostics: value })));
     } else {
+      new Setting(panels).setName(t("settings.tableStyle")).setDesc(t("settings.appearance.desc")).addDropdown((dropdown) => dropdown
+        .addOption("theme", t("settings.followTheme"))
+        .addOption("grid", t("settings.appearance.grid"))
+        .addOption("three-line", t("settings.appearance.threeLine"))
+        .setValue(this.structuralPlugin.settings.appearance)
+        .onChange(async (value) => this.structuralPlugin.updateSettings({
+          appearance: value === "grid" || value === "three-line" ? value : "theme",
+        })));
       new Setting(panels).setName(t("settings.layout")).setDesc(t("settings.layout.desc")).addDropdown((dropdown) => dropdown
+        .addOption("theme", t("settings.followTheme"))
         .addOption("content-left", t("settings.layout.contentLeft"))
         .addOption("content-center", t("settings.layout.contentCenter"))
         .addOption("pane", t("settings.layout.pane"))
         .setValue(this.structuralPlugin.settings.layout)
         .onChange(async (value) => this.structuralPlugin.updateSettings({
-          layout: value === "content-center" || value === "pane" ? value : "content-left",
+          layout: value === "content-left" || value === "content-center" || value === "pane" ? value : "theme",
         })));
       new Setting(panels).setName(t("settings.density")).setDesc(t("settings.density.desc")).addDropdown((dropdown) => dropdown
+        .addOption("theme", t("settings.followTheme"))
         .addOption("comfortable", t("settings.density.comfortable"))
         .addOption("compact", t("settings.density.compact"))
         .setValue(this.structuralPlugin.settings.density)
-        .onChange(async (value) => this.structuralPlugin.updateSettings({ density: value === "compact" ? "compact" : "comfortable" })));
+        .onChange(async (value) => this.structuralPlugin.updateSettings({ density: value === "compact" || value === "comfortable" ? value : "theme" })));
       new Setting(panels).setName(t("settings.zebra")).setDesc(t("settings.zebra.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.zebraRows)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ zebraRows: value })));

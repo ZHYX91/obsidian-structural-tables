@@ -1,6 +1,7 @@
 export type InterfaceLanguage = "auto" | "en" | "zh-CN";
-export type TableDensity = "comfortable" | "compact";
-export type TableLayout = "content-left" | "content-center" | "pane";
+export type TableDensity = "theme" | "comfortable" | "compact";
+export type TableLayout = "theme" | "content-left" | "content-center" | "pane";
+export type TableAppearance = "theme" | "grid" | "three-line";
 
 export interface StructuralTablesSettings {
   language: InterfaceLanguage;
@@ -12,6 +13,7 @@ export interface StructuralTablesSettings {
   showDiagnostics: boolean;
   density: TableDensity;
   layout: TableLayout;
+  appearance: TableAppearance;
   zebraRows: boolean;
 }
 
@@ -43,8 +45,9 @@ export const DEFAULT_SETTINGS: StructuralTablesSettings = {
   enableLivePreview: true,
   takeOverOrdinaryTables: false,
   showDiagnostics: true,
-  density: "comfortable",
-  layout: "content-left",
+  density: "theme",
+  layout: "theme",
+  appearance: "theme",
   zebraRows: false,
 };
 
@@ -57,11 +60,12 @@ function hasOwn(value: Record<string, unknown>, key: string): boolean {
 }
 
 function sanitizeLayout(source: Record<string, unknown>): TableLayout {
-  if (source.layout === "content-left" || source.layout === "content-center" || source.layout === "pane") {
+  if (source.layout === "theme" || source.layout === "content-left" || source.layout === "content-center" || source.layout === "pane") {
     return source.layout;
   }
   if (source.width === "full") return "pane";
-  return "content-left";
+  if (source.width === "content") return "content-left";
+  return "theme";
 }
 
 export function sanitizeSettings(data: unknown): StructuralTablesSettings {
@@ -74,8 +78,9 @@ export function sanitizeSettings(data: unknown): StructuralTablesSettings {
     enableLivePreview: source.enableLivePreview !== false,
     takeOverOrdinaryTables: source.takeOverOrdinaryTables === true,
     showDiagnostics: source.showDiagnostics !== false,
-    density: source.density === "compact" ? "compact" : "comfortable",
+    density: source.density === "compact" || source.density === "comfortable" ? source.density : "theme",
     layout: sanitizeLayout(source),
+    appearance: source.appearance === "grid" || source.appearance === "three-line" ? source.appearance : "theme",
     zebraRows: source.zebraRows === true,
   };
 }

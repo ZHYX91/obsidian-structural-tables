@@ -2,13 +2,13 @@
 
 import { EditorState, Prec, StateField, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
-import { editorInfoField, editorLivePreviewField, type App, type Editor, type TFile } from "obsidian";
+import { App, editorInfoField, editorLivePreviewField, type Editor, type TFile } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
 import type { StructuralTable } from "../src/core/model";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
-import { lastMenu } from "./mocks/obsidian";
+import { activeScopes, lastMenu } from "./mocks/obsidian";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -63,7 +63,7 @@ function mountEditor(
   } {
   let settings = { ...DEFAULT_SETTINGS, ...settingsOverride, enableLivePreview: true };
   const controller = new StructuralTableEditorController(
-    {} as App,
+    new App(),
     () => settings,
     promote,
   );
@@ -106,6 +106,148 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it.each([false, true])("keeps the new cell scope when focus transfers directly between cell editors (changed=%s)", async (changed) => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cells = parent.querySelectorAll<HTMLElement>("[data-structural-row='0'][data-structural-column]");
+    cells[0]!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    if (changed) parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "First draft saved";
+    cells[1]!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    await Promise.resolve();
+    expect(parent.querySelectorAll("textarea")).toHaveLength(1);
+    expect(activeScopes).toHaveLength(1);
+    if (changed) expect(view.state.doc.toString()).toContain("First draft saved");
+    activeScopes[0]!.handlers.find((handler) => handler.key === "Escape")!
+      .callback(new KeyboardEvent("keydown", { key: "Escape", cancelable: true }));
+    expect(parent.querySelector("textarea")).toBeNull();
+    view.destroy();
+    expect(activeScopes).toHaveLength(0);
+  });
+
+  it("refreshes appearance without changing source or merge semantics", () => {
+    const { parent, view, updateSettings } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const before = view.state.doc.toString();
+    const spans = () => [...parent.querySelectorAll("td, th")].map((cell) => [cell.getAttribute("rowspan"), cell.getAttribute("colspan")]);
+    const expectedSpans = spans();
+    for (const appearance of ["grid", "three-line", "theme"] as const) {
+      updateSettings({ appearance });
+      expect(parent.querySelector<HTMLElement>(".structural-tables-live-preview")?.dataset.appearance).toBe(appearance);
+      expect(spans()).toEqual(expectedSpans);
+      expect(view.state.doc.toString()).toBe(before);
+    }
+    view.destroy();
+  });
+
+  it("rebuilds from current source after rendering is disabled and re-enabled", () => {
+    const source = `Introduction\n\n${screenshotTable}`;
+    const { parent, view, updateSettings } = mountEditor(source, { anchor: 0 });
+    updateSettings({ enableLivePreview: false });
+    expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+    view.dispatch({ changes: { from: 0, insert: "Another paragraph\n\n" } });
+    updateSettings({ enableLivePreview: true });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+    editor.value = "Current source";
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(view.state.doc.toString()).toContain("Current source");
+    view.destroy();
+  });
+
+  it("owns Escape before the host keymap and releases the cell scope on cancel and destroy", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+    editor.value = "Cancelled draft";
+    expect(activeScopes).toHaveLength(1);
+    const escape = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
+    expect(activeScopes[0]!.handlers.find((handler) => handler.key === "Escape")!.callback(escape)).toBe(false);
+    expect(escape.defaultPrevented).toBe(true);
+    expect(activeScopes).toHaveLength(0);
+    expect(view.state.doc.toString()).toBe(screenshotTable);
+    expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    view.destroy();
+    expect(activeScopes).toHaveLength(0);
+  });
+
+  it.each([false, true])("rebinds a shifted table without losing an open draft (%s)", async (openBeforeShift) => {
+    const source = `Introduction\n\n${screenshotTable}\n\nEnd`;
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+      if (openBeforeShift) cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const draft = cell.querySelector<HTMLTextAreaElement>("textarea");
+      if (draft !== null) draft.value = "Preserved draft";
+      view.dispatch({ changes: { from: 0, insert: "Added paragraph\n\n" } });
+      if (!openBeforeShift) {
+        parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!
+          .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      }
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      if (openBeforeShift) {
+        expect(editor).toBe(draft);
+        expect(editor.value).toBe("Preserved draft");
+      } else editor.value = "Preserved draft";
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toContain("Preserved draft");
+      expect(view.state.doc.toString()).toMatch(/^Added paragraph\n\nIntroduction/u);
+    } finally { view.destroy(); }
+  });
+
+  it("keeps a shifted identical table's identity for editing and subsequent Tab navigation", async () => {
+    const prefix = "Introduction\n\n";
+    const source = `${prefix}${screenshotTable}\n\n${screenshotTable}\n\nEnd`;
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      view.dispatch({ changes: { from: 0, insert: "| New | Table |\n| --- | --- |\n| A | B |\n\n" } });
+      const hosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+      expect(Array.from(hosts, (host) => host.dataset.structuralSourceTableIndex)).toEqual(["1", "2"]);
+      hosts[1]!.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = hosts[1]!.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "Second table only";
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toContain(`${screenshotTable}\n\n| Second table only`);
+      expect(parent.querySelector("textarea")?.closest<HTMLElement>(".structural-tables-live-preview")
+        ?.dataset.structuralSourceTableIndex).toBe("2");
+    } finally { view.destroy(); }
+  });
+
+  it.each([false, true])("navigates every visible anchor once through row spans (backward=%s)", async (backward) => {
+    const source = "Intro\n\n| H1 | H2 |\n| --- | --- |\n| A | B |\n| ^ | C |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const coordinate = backward ? [2, 1] : [0, 0];
+      parent.querySelector<HTMLElement>(`[data-structural-row='${coordinate[0]}'][data-structural-column='${coordinate[1]}']`)!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const visited: string[] = [];
+      for (let step = 0; step < 5; step += 1) {
+        const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+        visited.push(editor.value);
+        editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: backward, bubbles: true }));
+        await Promise.resolve();
+      }
+      expect(visited).toEqual(backward ? ["C", "B", "A", "H2", "H1"] : ["H1", "H2", "A", "B", "C"]);
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("does not steal focus when an unchanged cell editor loses focus", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const outside = document.body.appendChild(document.createElement("button"));
+      outside.focus();
+      expect(document.activeElement).toBe(outside);
+      expect(parent.querySelector("textarea")).toBeNull();
+    } finally { view.destroy(); }
+  });
+
   it("provides block replacements through editor state so opening a Markdown view succeeds", () => {
     const source = [
       "Introduction",
@@ -453,6 +595,7 @@ describe("StructuralTableEditorController", () => {
     cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     const editor = cell.querySelector<HTMLTextAreaElement>(".structural-tables-cell-editor")!;
     expect(editor.getAttribute("cols")).toBe("1");
+    expect(editor.getAttribute("rows")).toBe("1");
     editor.value = "First";
     editor.setSelectionRange(5, 5);
 

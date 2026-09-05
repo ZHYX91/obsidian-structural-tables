@@ -153,7 +153,26 @@ export function getLanguage(): string {
   return "en";
 }
 
-export class App {}
+export const activeScopes: Scope[] = [];
+
+export class Scope {
+  readonly handlers: Array<{ key: string | null; callback: (event: KeyboardEvent) => boolean | void }> = [];
+  constructor(_parent?: Scope) {}
+  register(_modifiers: string[] | null, key: string | null, callback: (event: KeyboardEvent) => boolean | void): void {
+    this.handlers.push({ key, callback });
+  }
+}
+
+export class App {
+  readonly scope = new Scope();
+  readonly keymap = {
+    pushScope: (scope: Scope): void => { activeScopes.push(scope); },
+    popScope: (scope: Scope): void => {
+      const index = activeScopes.indexOf(scope);
+      if (index >= 0) activeScopes.splice(index, 1);
+    },
+  };
+}
 
 export class Modal {
   readonly contentEl: HTMLElement;

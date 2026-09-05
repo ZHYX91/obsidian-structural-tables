@@ -2,7 +2,9 @@ import type { Editor, EditorPosition, EditorSelection } from "obsidian";
 
 import { cellColumnAt } from "../core/operations";
 import { parseEditableTables } from "../core/parser";
-import type { StructuralCell, StructuralTable } from "../core/model";
+import type { StructuralCell, StructuralTable, TableCellCoordinate } from "../core/model";
+
+export type { TableCellCoordinate } from "../core/model";
 
 export interface StructuralTableSelection {
   table: StructuralTable;
@@ -12,11 +14,6 @@ export interface StructuralTableSelection {
   minColumn: number;
   maxColumn: number;
   rectangular: boolean;
-}
-
-export interface TableCellCoordinate {
-  row: number;
-  column: number;
 }
 
 export function structuralTableSelectionFromCoordinates(

@@ -9,7 +9,7 @@ export function renderStructuralTable(
   sourcePath: string,
   component: Component,
 ): HTMLTableElement {
-  const wrapper = container.createDiv({ cls: "structural-tables-container" });
+  const wrapper = container.createDiv({ cls: "structural-tables-container markdown-rendered" });
   const rendered = wrapper.createEl("table", { cls: "structural-tables-table" });
   const head = rendered.createEl("thead");
   const body = rendered.createEl("tbody");

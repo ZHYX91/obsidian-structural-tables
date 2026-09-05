@@ -35,6 +35,44 @@ function rawBlock(source: string): HTMLDivElement {
 }
 
 describe("StructuralTableReadingProcessor", () => {
+  it("binds richly formatted raw source by its section without consuming a later ordinary table", () => {
+    const structural = "| Region | Link |\n| --- || --- |\n| **North** | [Report](Report.md) &amp; ==highlight== |";
+    const ordinary = "| Name | Status |\n| --- | --- |\n| Alice | Ready |";
+    const source = `${structural}\n\n${ordinary}`;
+    const container = document.createElement("div");
+    const raw = container.appendChild(document.createElement("p"));
+    raw.innerHTML = "| Region | Link |<br>| --- || --- |<br>| <strong>North</strong> | <a>Report</a> &amp; <mark>highlight</mark> |";
+    const native = container.appendChild(document.createElement("table"));
+    native.innerHTML = "<tbody><tr><td>Alice</td><td>Ready</td></tr></tbody>";
+    const context = {
+      addChild: vi.fn(),
+      getSectionInfo: (element: HTMLElement) => ({ lineStart: 0, lineEnd: element === raw ? 2 : 6, text: source }),
+      sourcePath: "Report.md",
+    } as unknown as MarkdownPostProcessorContext;
+    new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, context);
+    expect(raw.parentElement).toBeNull();
+    expect(native.parentElement).toBe(container);
+    expect(container.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+  });
+
+  it("preserves a later native table when a raw row-header block cannot be mapped", () => {
+    const source = "| Region | Link |\n| --- || --- |\n| **North** | report |\n\n| Name | Status |\n| --- | --- |\n| Alice | Ready |";
+    const container = document.createElement("div");
+    const raw = container.appendChild(document.createElement("p"));
+    raw.textContent = "An unrelated renderer owns this block";
+    const native = container.appendChild(document.createElement("table"));
+    native.textContent = "Alice Ready";
+    const context = {
+      addChild: vi.fn(),
+      getSectionInfo: () => ({ lineStart: 0, lineEnd: 6, text: source }),
+      sourcePath: "Report.md",
+    } as unknown as MarkdownPostProcessorContext;
+    new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, context);
+    expect(native.parentElement).toBe(container);
+    expect(raw.parentElement).toBe(container);
+    expect(container.querySelector(".structural-tables-table")).toBeNull();
+  });
+
   it("renders row-header syntax that the Markdown host leaves as raw pipe text", () => {
     const table = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
     const source = `# Report\n\n${table}`;

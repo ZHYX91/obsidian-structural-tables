@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Add theme-following, grid, and three-line table styles independently of width and density; preserve existing explicit preferences.
+- Keep owned table blocks inside the text column with local horizontal scrolling, and align merged-cell edge styling with theme table tokens.
+- Handle Escape in an Obsidian cell-edit scope so cancellation retains the rendered table instead of focusing raw source.
+- Preserve in-place drafts and current source bindings when text or other tables are inserted before an unchanged table.
+- Traverse visible merged-cell anchors consistently with Tab and Shift+Tab, and leave composition keys to the active cell editor.
+- Reuse parsed tables during selection and settings updates instead of reparsing the whole note.
+- Bind richly formatted row-header blocks to their source lines and preserve later native tables when a raw block cannot be mapped.
+
 ## 0.4.1 - 2026-09-05
 
 - Bind each Reading View replacement to Obsidian's reported source-line range so later ordinary tables cannot be replaced with an earlier structural table.

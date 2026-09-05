@@ -21,9 +21,12 @@ export interface TableDiagnostic {
   column?: number;
 }
 
-export interface StructuralCell {
+export interface TableCellCoordinate {
   row: number;
   column: number;
+}
+
+export interface StructuralCell extends TableCellCoordinate {
   raw: string;
   content: string;
   role: CellRole;

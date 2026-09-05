@@ -31,11 +31,17 @@ function normalizeExpectedSourceBlock(source: string): string {
 export function rawStructuralTableElement(
   container: HTMLElement,
   table: StructuralTable,
+  ownsSourceRange?: (element: HTMLElement) => boolean,
 ): HTMLElement | undefined {
   const expected = normalizeExpectedSourceBlock(table.source);
+  const delimiter = normalizeSourceBlock(table.source.split(/\r\n|\r|\n/u)[table.delimiterLine - table.startLine] ?? "");
   const elements = [container, ...container.querySelectorAll<HTMLElement>("p, div")];
   return elements.reverse().find((element) => {
     if (element.closest("pre, code, table") !== null || element.querySelector("pre, table") !== null) return false;
-    return normalizeSourceBlock(renderedSourceText(element)) === expected;
+    const visible = normalizeSourceBlock(renderedSourceText(element));
+    // Source identity survives arbitrary inline Markdown rendering; the delimiter keeps
+    // nested embeds sharing their parent's section metadata from becoming the target.
+    return (delimiter.length > 0 && visible.includes(delimiter) && ownsSourceRange?.(element) === true)
+      || visible === expected;
   });
 }

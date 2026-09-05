@@ -45,11 +45,7 @@ export default defineConfig([
     },
   },
   {
-    files: [
-      "src/app/scheme-settings-renderer.ts",
-      "src/app/settings-tab.ts",
-      "src/ui/preview-modal.ts",
-    ],
+    files: ["src/app/settings-tab.ts"],
     rules: {
       "@typescript-eslint/no-deprecated": "off",
       "obsidianmd/prefer-create-el": "off",
@@ -57,24 +53,10 @@ export default defineConfig([
     },
   },
   {
-    files: ["src/ui/settings/**/*.ts"],
-    rules: {
-      "obsidianmd/prefer-create-el": "off",
-    },
-  },
-  {
-    files: ["src/config/settings-save-coordinator.ts"],
-    rules: {
-      "obsidianmd/prefer-window-timers": "off",
-    },
-  },
-  {
     files: [
       "src/app/plugin.ts",
-      "src/editor/table-live-preview.ts",
-      "src/editor/heading-display-extension.ts",
+      "src/editor/table-widget.ts",
       "src/reading/table-postprocessor.ts",
-      "src/reading/heading-postprocessor.ts",
     ],
     rules: {
       "obsidianmd/prefer-create-el": "off",

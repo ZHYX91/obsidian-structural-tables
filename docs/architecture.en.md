@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-28
+last_synced: 2026-09-05
 translation_of: architecture.zh-CN.md
 ---
 
@@ -31,6 +31,8 @@ Merges resolve only left or up, preventing directional cycles. Validation then c
 ## Rendering
 
 One shared DOM renderer serves the Reading view postprocessor and CodeMirror widget. Live Preview stores block decorations in a CodeMirror `StateField`, while a separate view plugin owns composition and view lifecycle. Structural tables always enter this path; ordinary GFM tables enter it only while the opt-in takeover setting is enabled. Refreshing that setting rebuilds editor decorations and Reading views without changing source. Each visible anchor cell carries block-end and inline-end flags derived from its row/column span, so CSS removes internal borders by grid geometry rather than DOM-child position. Row backgrounds sit below transparent data cells so zebra stripes can continue under row spans. The owned widget adds cell selection, row/column handles, a roving tab stop for each control group, and a focused textarea editor without moving the CodeMirror cursor into the replaced range. Mouse pointers own drag selection; touch pointers use a two-tap range state and deliberately preserve the host's initial pointer event for scrolling and long press. Reading view slices Obsidian's full section text to the exact reported source-line range before parsing, then maps either an Obsidian-native table or the exact raw source block emitted for row-header syntax; this prevents a later table from being substituted with an earlier one. Recursive renderer callbacks are ignored. Cell content uses Obsidian MarkdownRenderer, with component lifecycle cleanup.
+
+Live Preview separates immutable CodeMirror widget descriptions from DOM-owned interaction sessions. A source-position or table-index change rebinds an unchanged table to the current snapshot without recreating its textarea or dropping a draft. Parsed tables are cached in editor state until the document changes; selection, settings, and composition changes only rebuild decorations. Cell traversal belongs to the pure core and visits visible anchors in source order in both directions, skipping covered merge slots.
 
 <!-- section: editing -->
 ## Editing

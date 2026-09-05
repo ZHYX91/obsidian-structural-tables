@@ -5,6 +5,7 @@
 - Preserve column widths and row heights while editing long or merged cells by keeping rendered content in layout beneath the editor.
 - Keep empty cells at least one line tall under theme-following density so their editors fit within the row.
 - Apply density and touch minimums to logical rows, including rows fully covered by merged cells, so row handles retain usable spacing.
+- Preserve completed touch selections during long press so merge and other range actions remain available; start a new range by tapping outside it.
 - Keep compact and comfortable Live Preview cells at the touch minimum so adjacent row handles do not overlap on mobile.
 - Copy complete tables for Word with semantic merges, portable inline formatting, grid/three-line borders, and readable plain-text clipboard fallback; add an explicit whole-table context-menu action.
 - Restore keyboard focus after structural menu edits so undo/redo remains immediately available.

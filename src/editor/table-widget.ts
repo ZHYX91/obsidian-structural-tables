@@ -89,7 +89,6 @@ class StructuralTableInteraction {
   private selectionAnchor: TableCellCoordinate | null = null;
   private selectionHead: TableCellCoordinate | null = null;
   private touchRangeAnchor: TableCellCoordinate | null = null;
-  private touchRangeArmed = false;
   private lastTouchTap: { coordinate: TableCellCoordinate; at: number } | null = null;
   private pointerWindow: Window | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -307,7 +306,6 @@ class StructuralTableInteraction {
         && event.timeStamp - previous.at <= TOUCH_DOUBLE_TAP_MAX_MS) {
         this.lastTouchTap = null;
         this.touchRangeAnchor = null;
-        this.touchRangeArmed = false;
         event.preventDefault();
         event.stopPropagation();
         this.beginCellEdit(view, coordinate);
@@ -324,7 +322,6 @@ class StructuralTableInteraction {
     event.preventDefault();
     event.stopPropagation();
     this.touchRangeAnchor = null;
-    this.touchRangeArmed = false;
     if (!event.shiftKey || this.selectionAnchor === null) this.selectionAnchor = coordinate;
     this.selectionHead = coordinate;
     this.dragging = true;
@@ -334,19 +331,28 @@ class StructuralTableInteraction {
   }
 
   private startTouchSelection(coordinate: TableCellCoordinate): void {
-    if (!this.touchRangeArmed || this.touchRangeAnchor === null) {
+    // A completed range remains actionable by long press; tapping outside starts another range.
+    if (this.touchRangeAnchor === null && (this.selection?.cells.length ?? 0) > 1
+      && this.isCellSelected(coordinate)) return;
+    if (this.touchRangeAnchor === null) {
       this.touchRangeAnchor = coordinate;
-      this.touchRangeArmed = true;
       this.selectionAnchor = coordinate;
       this.selectionHead = coordinate;
     } else {
       this.selectionAnchor = this.touchRangeAnchor;
       this.selectionHead = coordinate;
       this.touchRangeAnchor = null;
-      this.touchRangeArmed = false;
+      // The range-ending tap is not the first tap of an edit gesture.
+      this.lastTouchTap = null;
     }
     this.dragging = false;
     this.updateSelection();
+  }
+
+  private isCellSelected(coordinate: TableCellCoordinate): boolean {
+    return this.selection?.cells.some((cell) => (
+      cell.anchorRow === coordinate.row && cell.anchorColumn === coordinate.column
+    )) ?? false;
   }
 
   private extendPointerSelection(event: PointerEvent): void {
@@ -407,7 +413,6 @@ class StructuralTableInteraction {
     this.selectionAnchor = null;
     this.selectionHead = null;
     this.touchRangeAnchor = null;
-    this.touchRangeArmed = false;
     this.clickEditCandidate = null;
     this.dragging = false;
     this.lastTouchTap = null;
@@ -464,11 +469,8 @@ class StructuralTableInteraction {
     event.preventDefault();
     event.stopPropagation();
     this.touchRangeAnchor = null;
-    this.touchRangeArmed = false;
-    const selected = this.selection?.cells.some((cell) => (
-      cell.anchorRow === coordinate.row && cell.anchorColumn === coordinate.column
-    )) ?? false;
-    if (!selected) {
+    this.lastTouchTap = null;
+    if (!this.isCellSelected(coordinate)) {
       this.selectionAnchor = coordinate;
       this.selectionHead = coordinate;
       this.updateSelection();
@@ -827,7 +829,6 @@ class StructuralTableInteraction {
 
   private selectBounds(first: TableCellCoordinate, last: TableCellCoordinate): void {
     this.touchRangeAnchor = null;
-    this.touchRangeArmed = false;
     this.selectionAnchor = first;
     this.selectionHead = last;
     this.updateSelection();

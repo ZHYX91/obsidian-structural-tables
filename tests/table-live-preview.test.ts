@@ -509,25 +509,51 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
-  it("uses two touch taps for a rectangular selection without suppressing native long press", () => {
+  it.each([200, 2_000])("preserves a touch rectangle through a subsequent long press after %ims", (delay) => {
     const source = "| A | B |\n| --- || --- |\n| C | D |\n| E | F |";
     const { parent, view } = mountEditor(source, { anchor: source.length });
     const first = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
     const last = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
 
-    const firstTap = dispatchPointerDown(first, "touch");
+    const firstTap = dispatchPointerDown(first, "touch", 1_000);
     first.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(firstTap.defaultPrevented).toBe(false);
     expect(first.getAttribute("aria-selected")).toBe("true");
     expect(first.querySelector(".structural-tables-cell-editor")).toBeNull();
 
-    const secondTap = dispatchPointerDown(last, "touch");
+    const secondTap = dispatchPointerDown(last, "touch", 2_000);
     last.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     expect(secondTap.defaultPrevented).toBe(false);
     expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
 
+    const longPress = dispatchPointerDown(last, "touch", 2_000 + delay);
+    expect(longPress.defaultPrevented).toBe(false);
+    expect(parent.querySelector("textarea")).toBeNull();
+    expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
     last.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
     expect(lastMenu?.items.map((item) => item.title)).toContain("Merge selected cells");
+    view.destroy();
+  });
+
+  it("starts a new touch range outside a completed rectangle and allows double-tap editing inside it", () => {
+    const source = "| A | B |\n| --- || --- |\n| C | D |\n| E | F |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    const cell = (row: number, column: number) => parent.querySelector<HTMLElement>(
+      `[data-structural-row='${row}'][data-structural-column='${column}']`,
+    )!;
+    dispatchPointerDown(cell(1, 0), "touch", 1_000);
+    dispatchPointerDown(cell(2, 1), "touch", 2_000);
+    expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+
+    dispatchPointerDown(cell(0, 0), "touch", 3_000);
+    expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(1);
+    dispatchPointerDown(cell(1, 1), "touch", 4_000);
+    expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+
+    dispatchPointerDown(cell(1, 0), "touch", 5_000);
+    expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+    dispatchPointerDown(cell(1, 0), "touch", 5_300);
+    expect(cell(1, 0).querySelector("textarea")).not.toBeNull();
     view.destroy();
   });
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.2 - 2026-09-05
 
 - Keep Live Preview row and column handles visible outside Obsidian's widget paint containment.
 - Add theme-following, grid, and three-line table styles independently of width and density; preserve existing explicit preferences.

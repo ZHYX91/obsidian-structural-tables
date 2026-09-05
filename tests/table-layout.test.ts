@@ -59,6 +59,19 @@ describe("table appearance", () => {
 });
 
 describe("explicit table layouts", () => {
+  it("keeps the owned handle gutter paintable without changing other editor widgets", () => {
+    document.head.appendChild(document.createElement("style")).textContent = styles;
+    document.head.appendChild(document.createElement("style")).textContent =
+      '.markdown-source-view.mod-cm6 .cm-content > [contenteditable="false"] { contain: paint !important; }';
+    document.body.innerHTML = `<div class="markdown-source-view mod-cm6"><div class="cm-content">
+      <div class="structural-tables-live-preview" contenteditable="false"><div class="structural-tables-container"></div></div>
+      <div class="other-widget" contenteditable="false"></div>
+    </div></div>`;
+    expect(getComputedStyle(document.querySelector(".structural-tables-live-preview")!).contain).toBe("layout style");
+    expect(getComputedStyle(document.querySelector(".other-widget")!).contain).toBe("paint");
+    expect(getComputedStyle(document.querySelector(".structural-tables-container")!).overflowX).toBe("auto");
+  });
+
   it.each(["content-left", "content-center", "pane"])("keeps %s sizing despite more specific theme rules", (layout) => {
     const plugin = document.head.appendChild(document.createElement("style"));
     plugin.textContent = styles;

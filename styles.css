@@ -30,6 +30,11 @@
   overflow: visible;
 }
 
+/* Obsidian's widget paint containment would clip the interactive outer gutter. */
+.markdown-source-view.mod-cm6 .cm-content > .structural-tables-live-preview[contenteditable="false"] {
+  contain: layout style !important;
+}
+
 :is(.structural-tables-container, .structural-tables-live-preview)[data-layout="pane"] {
   --structural-table-width: 100%;
 }

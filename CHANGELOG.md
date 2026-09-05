@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep Live Preview row and column handles visible outside Obsidian's widget paint containment.
 - Add theme-following, grid, and three-line table styles independently of width and density; preserve existing explicit preferences.
 - Keep owned table blocks inside the text column with local horizontal scrolling, and align merged-cell edge styling with theme table tokens.
 - Handle Escape in an Obsidian cell-edit scope so cancellation retains the rendered table instead of focusing raw source.

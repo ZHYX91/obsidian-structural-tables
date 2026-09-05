@@ -49,7 +49,9 @@ describe("settings tab UI", () => {
     );
     expect(styles).toContain('[data-structural-block-end="true"]');
     expect(styles).toContain('[data-structural-inline-end="true"]');
-    expect(styles).toContain("height: 2.5rem");
+    expect(styles).toContain("height: max(2.5rem, var(--structural-table-touch-cell-height, 0px))");
+    expect(styles).toContain("height: max(2rem, var(--structural-table-touch-cell-height, 0px))");
+    expect(styles).toMatch(/@media \(pointer: coarse\)[\s\S]*?--structural-table-touch-cell-height: 2\.75rem/u);
     expect(styles).toContain(".structural-tables-row-handle.is-revealed");
     expect(styles).toMatch(/\.structural-tables-live-preview \{[\s\S]*?overflow: visible;[\s\S]*?\}/u);
     expect(styles).toMatch(/\.structural-tables-row-handle \{[\s\S]*?inset-inline-start: calc\(-1 \* var\(--structural-table-handle-gutter\)\)/u);

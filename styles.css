@@ -213,12 +213,12 @@
 }
 
 :is(.structural-tables-container, .structural-tables-live-preview)[data-density="comfortable"] .structural-tables-table [data-structural-column] {
-  height: 2.5rem;
+  height: max(2.5rem, var(--structural-table-touch-cell-height, 0px));
   padding: var(--size-4-2) var(--size-4-3);
 }
 
 :is(.structural-tables-container, .structural-tables-live-preview)[data-density="compact"] .structural-tables-table [data-structural-column] {
-  height: 2rem;
+  height: max(2rem, var(--structural-table-touch-cell-height, 0px));
   padding: var(--size-2-1) var(--size-4-2);
 }
 
@@ -335,6 +335,7 @@
 @media (pointer: coarse) {
   .structural-tables-live-preview {
     --structural-table-handle-gutter: 2.75rem;
+    --structural-table-touch-cell-height: 2.75rem;
     /* Always-visible touch handles need their own space above the table. */
     padding-block-start: var(--structural-table-handle-gutter);
   }

@@ -2,6 +2,7 @@
 
 ## 0.4.2 - 2026-09-05
 
+- Keep compact and comfortable Live Preview cells at the touch minimum so adjacent row handles do not overlap on mobile.
 - Copy complete tables for Word with semantic merges, portable inline formatting, grid/three-line borders, and readable plain-text clipboard fallback; add an explicit whole-table context-menu action.
 - Restore keyboard focus after structural menu edits so undo/redo remains immediately available.
 - Import Excel clipboard fragments without outer table tags, preserve the first complete header span group, and paste single-cell line breaks without TSV quotes or trailing record separators.

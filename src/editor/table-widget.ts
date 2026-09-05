@@ -531,7 +531,6 @@ class StructuralTableInteraction {
     this.selectionHead = this.selectionAnchor;
     this.updateSelection();
 
-    const originalNodes = Array.from(element.childNodes);
     const editor = element.ownerDocument.createElement("textarea");
     editor.className = "structural-tables-cell-editor";
     editor.cols = 1;
@@ -541,15 +540,7 @@ class StructuralTableInteraction {
     editor.setAttribute("aria-label", t("editor.cell")
       .replace("{row}", String(anchor.row + 1))
       .replace("{column}", String(anchor.column + 1)));
-    // Keep the rendered content in layout: replacing it with a textarea removes
-    // its intrinsic width and can redistribute every column of an auto-layout table.
-    // Wrap bare text only so CSS can hide it without changing existing Markdown elements.
-    for (const node of originalNodes) {
-      if (node.nodeType !== 3) continue;
-      const span = element.ownerDocument.createElement("span");
-      element.replaceChild(span, node);
-      span.appendChild(node);
-    }
+    // The content layer continues to size the cell while the editor overlays it.
     element.classList.add("is-editing");
     element.appendChild(editor);
     let settled = false;
@@ -565,7 +556,7 @@ class StructuralTableInteraction {
 
     const restore = (focus: boolean): void => {
       element.classList.remove("is-editing");
-      element.replaceChildren(...originalNodes);
+      editor.remove();
       if (focus) element.focus({ preventScroll: true });
     };
     const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true): void => {

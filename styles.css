@@ -176,7 +176,12 @@
   transform: translateX(-50%);
 }
 
-.structural-tables-table :is(th, td).is-editing > :not(.structural-tables-cell-editor) {
+/* A shared content layer sizes every cell, including empty cells and active drafts. */
+.structural-tables-cell-content {
+  min-block-size: 1lh;
+}
+
+.structural-tables-table :is(th, td).is-editing > .structural-tables-cell-content {
   visibility: hidden;
 }
 
@@ -355,8 +360,7 @@
   }
 
   .structural-tables-live-preview .structural-tables-table th,
-  .structural-tables-live-preview .structural-tables-table td,
-  .structural-tables-cell-editor {
+  .structural-tables-live-preview .structural-tables-table td {
     height: 2.75rem;
     min-block-size: 2.75rem;
   }

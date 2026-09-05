@@ -36,7 +36,8 @@ export function renderStructuralTable(
         if (cell.role === "row_header") element.scope = cell.rowSpan > 1 ? "rowgroup" : "row";
         else if (cell.role === "column_header") element.scope = cell.columnSpan > 1 ? "colgroup" : "col";
       }
-      void MarkdownRenderer.render(app, cell.content, element, sourcePath, component);
+      const content = element.createDiv({ cls: "structural-tables-cell-content" });
+      void MarkdownRenderer.render(app, cell.content, content, sourcePath, component);
     });
   });
   return rendered;

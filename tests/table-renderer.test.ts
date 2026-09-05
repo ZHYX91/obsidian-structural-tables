@@ -26,6 +26,31 @@ beforeAll(() => {
 });
 
 describe("renderStructuralTable", () => {
+  it("gives empty and merged cells a persistent content layer without inserting placeholder text", () => {
+    const source = "| A | B | C |\n| --- | --- | --- |\n|  |  | < |\n| ^ | Value | End |";
+    const table = parseStructuralTables(source).tables[0]!;
+    const container = document.createElement("div");
+    const targets: HTMLElement[] = [];
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      targets.push(element);
+      element.textContent = text;
+    });
+    try {
+      const rendered = renderStructuralTable({} as App, table, container, "Content.md", new Component());
+      const cells = [...rendered.querySelectorAll<HTMLTableCellElement>("th, td")];
+      expect(targets).toHaveLength(cells.length);
+      for (const [index, cell] of cells.entries()) {
+        expect(cell.firstElementChild).toBe(targets[index]);
+        expect(targets[index]?.classList.contains("structural-tables-cell-content")).toBe(true);
+      }
+      expect(rendered.querySelector("[rowspan='2']")?.textContent).toBe("");
+      expect(rendered.querySelector("[colspan='2']")?.textContent).toBe("");
+      expect(table.source).toBe(source);
+    } finally {
+      render.mockRestore();
+    }
+  });
+
   it("identifies nested column groups without crossing row-spanning or terminal headers", () => {
     const source = [
       "| Region | Results | < | < | < |",

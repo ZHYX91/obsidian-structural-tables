@@ -678,8 +678,9 @@ describe("StructuralTableEditorController", () => {
     const source = "| Name | Value |\n| --- || --- |\n| Long | abcdefghijklmnopqrstuvwxyz |\n| Next | Short |";
     const { parent, view } = mountEditor(source, { anchor: source.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
-    const text = cell.appendChild(document.createTextNode("abcdefghijklmnopqrstuvwxyz"));
-    const link = cell.appendChild(document.createElement("a"));
+    const content = cell.querySelector<HTMLElement>(".structural-tables-cell-content")!;
+    const text = content.appendChild(document.createTextNode("abcdefghijklmnopqrstuvwxyz"));
+    const link = content.appendChild(document.createElement("a"));
     link.textContent = "Rendered link";
     const activated = vi.fn();
     link.addEventListener("click", activated);
@@ -688,7 +689,7 @@ describe("StructuralTableEditorController", () => {
     cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
     expect(text.isConnected).toBe(true);
-    expect(link.parentNode).toBe(cell);
+    expect(link.parentNode).toBe(content);
     expect(cell.classList.contains("is-editing")).toBe(true);
     expect(view.state.doc.toString()).toBe(source);
 

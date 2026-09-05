@@ -2,6 +2,7 @@
 
 ## 0.4.2 - 2026-09-05
 
+- Clarify nested column headers in three-line tables with inset group rules that respect row spans and leave the body unruled.
 - Reserve space above Live Preview tables for touch-sized column handles so they do not cover preceding text.
 - Keep Live Preview row and column handles visible outside Obsidian's widget paint containment.
 - Add theme-following, grid, and three-line table styles independently of width and density; preserve existing explicit preferences.

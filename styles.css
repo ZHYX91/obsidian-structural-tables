@@ -104,6 +104,16 @@
   border-block-end: 1px solid var(--text-normal) !important;
 }
 
+/* Group rules follow logical spans; leave gaps between adjacent column groups. */
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="three-line"] .structural-tables-table thead th[colspan][data-structural-header-end="false"]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0.5em;
+  inset-block-end: 0;
+  border-block-end: 1px solid var(--text-muted);
+  pointer-events: none;
+}
+
 .structural-tables-row-handle,
 .structural-tables-column-handle {
   position: absolute;

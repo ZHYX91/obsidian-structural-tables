@@ -25,6 +25,9 @@ export function renderStructuralTable(
       element.dataset.structuralRole = cell.role;
       element.dataset.structuralBlockEnd = String(cell.row + cell.rowSpan === table.rows.length);
       element.dataset.structuralInlineEnd = String(cell.column + cell.columnSpan === table.columnCount);
+      if (rowIndex < table.headerRowCount) {
+        element.dataset.structuralHeaderEnd = String(cell.row + cell.rowSpan === table.headerRowCount);
+      }
       if (cell.rowSpan > 1) element.rowSpan = cell.rowSpan;
       if (cell.columnSpan > 1) element.colSpan = cell.columnSpan;
       const alignment = table.alignments[cell.column] ?? "default";

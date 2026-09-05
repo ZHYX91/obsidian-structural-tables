@@ -26,6 +26,41 @@ beforeAll(() => {
 });
 
 describe("renderStructuralTable", () => {
+  it("identifies nested column groups without crossing row-spanning or terminal headers", () => {
+    const source = [
+      "| Region | Results | < | < | < |",
+      "| ^ | Sales | < | Costs | < |",
+      "| ^ | Q1 | Q2 | Q1 | Q2 |",
+      "| --- || --- | --- | --- | --- |",
+      "| North | 10 | 12 | 4 | 5 |",
+      "",
+      "| Region | Summary | < | Detail | < |",
+      "| ^ | ^ | ^ | A | B |",
+      "| --- || --- | --- | --- | --- |",
+      "| North | 10 | 12 | 4 | 5 |",
+    ].join("\n");
+    const tables = parseStructuralTables(source).tables;
+    expect(tables).toHaveLength(2);
+    const container = document.createElement("div");
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      element.textContent = text;
+    });
+    try {
+      for (const table of tables) {
+        expect(table.valid).toBe(true);
+        renderStructuralTable({} as App, table, container, "Headers.md", new Component());
+      }
+      const groups = container.querySelectorAll('thead th[colspan][data-structural-header-end="false"]');
+      expect([...groups].map((element) => element.textContent)).toEqual(["Results", "Sales", "Costs", "Detail"]);
+      const spanningHeaders = container.querySelectorAll('thead th[rowspan]');
+      expect([...spanningHeaders].map((element) => element.getAttribute("data-structural-header-end")))
+        .toEqual(["true", "true", "true"]);
+      expect(container.querySelector("tbody [data-structural-header-end]")).toBeNull();
+    } finally {
+      render.mockRestore();
+    }
+  });
+
   it.each(["<br>", "<br/>", "<br />"])("passes the exact %s spelling to Obsidian's renderer", (tag) => {
     const source = `| Name | Note |\n| --- || --- |\n| Alice | First${tag}Second |`;
     const table = parseStructuralTables(source).tables[0];

@@ -25,6 +25,7 @@
       },
       "steps": [
         "Open the valid table in Reading View and Live Preview",
+        "Open Complex headers in Three-line style in both views; inspect nested column groups, combined row/column spans, and the simple reference",
         "In Reading View, compare the later native alignment and empty-geometry references with their own Markdown source",
         "Compare the owned content-left table origin with the native ordinary-table reference",
         "Compare the empty three-column table's cell dimensions before and after merging and splitting cells",
@@ -44,6 +45,7 @@
       ],
       "expected": [
         "Column spans, row spans, multi-row headers, and row-header boundaries render consistently",
+        "Three-line group rules appear only under spanning titles with child headers, remain inset at each end, never cross row-spanning headers, and add no rules to the body or simple header",
         "Each later ordinary table renders its own rows and columns instead of repeating an earlier structural table",
         "Overlaid row and column handles do not shift the owned table's content-left alignment away from the native reference",
         "Comfortable and compact cell dimensions remain stable through merge and split",

@@ -163,7 +163,8 @@ describe("StructuralTableEditorController", () => {
     const escape = new KeyboardEvent("keydown", { key: "Escape", cancelable: true });
     expect(activeScopes[0]!.handlers.find((handler) => handler.key === "Escape")!.callback(escape)).toBe(false);
     expect(escape.defaultPrevented).toBe(true);
-    expect(activeScopes).toHaveLength(0);
+    expect(activeScopes).toHaveLength(1);
+    expect(activeScopes[0]!.handlers.some((handler) => handler.key === "F2")).toBe(true);
     expect(view.state.doc.toString()).toBe(screenshotTable);
     expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
     cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
@@ -281,6 +282,12 @@ describe("StructuralTableEditorController", () => {
       }
       expect(undo).toHaveBeenCalledTimes(2);
       expect(redo).toHaveBeenCalledTimes(2);
+      const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
+      expect(activeScopes[0]!.handlers.find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
+      expect(f2.defaultPrevented).toBe(true);
+      expect(parent.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("Committed");
+      expect(activeScopes).toHaveLength(1);
+      expect(activeScopes[0]!.handlers.some((handler) => handler.key === "Escape")).toBe(true);
     } finally { view.destroy(); }
   });
 

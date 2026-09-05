@@ -78,6 +78,7 @@ export class StructuralTableWidget extends WidgetType {
 
 class StructuralTableInteraction {
   private cellScope: Scope | null = null;
+  private navigationScope: Scope | null = null;
   private component: Component | null = null;
   private clickEditCandidate: TableCellCoordinate | null = null;
   private dragging = false;
@@ -136,6 +137,7 @@ class StructuralTableInteraction {
 
   destroy(): void {
     this.releaseCellScope();
+    this.releaseNavigationScope();
     this.pointerWindow?.removeEventListener("pointerup", this.endPointerSelection);
     this.pointerWindow?.removeEventListener("pointercancel", this.endPointerSelection);
     this.pointerWindow = null;
@@ -159,7 +161,21 @@ class StructuralTableInteraction {
     rendered.addEventListener("focusin", (event) => {
       const cell = this.cellForTarget(event.target);
       if (cell !== null) this.setRovingCell(cell);
+      if (cell === null || event.target !== cell) return;
+      this.releaseNavigationScope();
+      const scope = new Scope(this.app.scope);
+      scope.register([], "F2", (keyEvent) => {
+        const active = rendered.ownerDocument.activeElement;
+        const coordinate = this.coordinateFor(active);
+        if (coordinate === null || active !== this.cellForTarget(active)) return;
+        keyEvent.preventDefault();
+        this.beginCellEdit(view, coordinate);
+        return false;
+      });
+      this.navigationScope = scope;
+      this.app.keymap.pushScope(scope);
     });
+    rendered.addEventListener("focusout", () => this.releaseNavigationScope());
     rendered.addEventListener("pointerdown", (event) => this.startPointerSelection(event, view));
     rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event));
     rendered.addEventListener("pointermove", (event) => this.revealHandlesForPointer(event));
@@ -519,6 +535,7 @@ class StructuralTableInteraction {
     let settled = false;
     let composing = false;
     let contextMenuOpen = false;
+    this.releaseNavigationScope();
     const scope = new Scope(this.app.scope);
 
     const insertBreak = (start = editor.selectionStart, end = editor.selectionEnd): void => {
@@ -634,6 +651,12 @@ class StructuralTableInteraction {
     if (scope === null) return;
     this.app.keymap.popScope(scope);
     if (this.cellScope === scope) this.cellScope = null;
+  }
+
+  private releaseNavigationScope(): void {
+    if (this.navigationScope === null) return;
+    this.app.keymap.popScope(this.navigationScope);
+    this.navigationScope = null;
   }
 
   private adjacentCell(cell: TableCellCoordinate, direction: "backward" | "forward"): TableCellCoordinate | null {

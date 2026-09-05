@@ -3,6 +3,7 @@
 ## 0.4.2 - 2026-09-05
 
 - Restore cell focus after committing an edit and support document undo/redo from the focused table cell without intercepting draft history.
+- Own F2 while a table cell is focused so Obsidian's rename shortcut cannot intercept cell editing.
 - Clarify nested column headers in three-line tables with inset group rules that respect row spans and leave the body unruled.
 - Reserve space above Live Preview tables for touch-sized column handles so they do not cover preceding text.
 - Keep Live Preview row and column handles visible outside Obsidian's widget paint containment.

@@ -674,6 +674,33 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it.each(["Escape", "Enter"])("preserves rendered sizing content and restores the same nodes after %s", (key) => {
+    const source = "| Name | Value |\n| --- || --- |\n| Long | abcdefghijklmnopqrstuvwxyz |\n| Next | Short |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+    const text = cell.appendChild(document.createTextNode("abcdefghijklmnopqrstuvwxyz"));
+    const link = cell.appendChild(document.createElement("a"));
+    link.textContent = "Rendered link";
+    const activated = vi.fn();
+    link.addEventListener("click", activated);
+    const originalNodes = [...cell.childNodes];
+
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+    expect(text.isConnected).toBe(true);
+    expect(link.parentNode).toBe(cell);
+    expect(cell.classList.contains("is-editing")).toBe(true);
+    expect(view.state.doc.toString()).toBe(source);
+
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    expect([...cell.childNodes]).toEqual(originalNodes);
+    expect(cell.classList.contains("is-editing")).toBe(false);
+    expect(view.state.doc.toString()).toBe(source);
+    link.click();
+    expect(activated).toHaveBeenCalledOnce();
+    view.destroy();
+  });
+
   it("pastes multiline text and inserts cell breaks from Shift+Enter and the editor menu", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;

@@ -9,6 +9,10 @@ describe("table editing styles", () => {
     const editorRule = /\.structural-tables-cell-editor\s*\{(?<body>[^}]*)\}/u.exec(styles)?.groups?.body ?? "";
 
     expect(editorRule).toContain("appearance: none");
+    expect(editorRule).toContain("position: absolute");
+    expect(editorRule).toContain("inset: 0");
+    expect(editorRule).toContain("height: 100%");
+    expect(editorRule).toContain("padding: inherit");
     expect(editorRule).toContain("min-inline-size: 0");
     expect(editorRule).toContain("resize: none");
     expect(editorRule).toContain("border: 0 !important");

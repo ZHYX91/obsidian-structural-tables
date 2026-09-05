@@ -176,6 +176,7 @@ class StructuralTableInteraction {
     });
     rendered.addEventListener("keydown", (event) => {
       if (event.target !== this.cellForTarget(event.target)) return;
+      if (this.handleHistory(event, view)) return;
       if (this.moveCellFocus(event)) return;
       if (event.key !== "Enter" && event.key !== "F2") return;
       const coordinate = this.coordinateFor(event.target);
@@ -193,6 +194,23 @@ class StructuralTableInteraction {
   private readonly endPointerSelection = (): void => {
     this.dragging = false;
   };
+
+  private handleHistory(event: KeyboardEvent, view: EditorView): boolean {
+    if (event.defaultPrevented || event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return false;
+    const key = event.key.toLowerCase();
+    const redo = (key === "z" && event.shiftKey) || (key === "y" && event.ctrlKey && !event.shiftKey);
+    if (!redo && (key !== "z" || event.shiftKey)) return false;
+    const editor = view.state.field(editorInfoField, false)?.editor;
+    if (editor === undefined) return false;
+    const coordinate = this.coordinateFor(event.target);
+    if (coordinate === null) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    if (redo) editor.redo();
+    else editor.undo();
+    queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
+    return true;
+  }
 
   private coordinateFor(target: EventTarget | null): TableCellCoordinate | null {
     const cell = this.cellForTarget(target);
@@ -538,6 +556,7 @@ class StructuralTableInteraction {
         ...(focus ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
       if (next !== null) queueMicrotask(() => this.openCellAfterUpdate(view, next));
+      else if (focus) queueMicrotask(() => this.focusCellAfterUpdate(view, anchor));
     };
 
     const handleKey = (event: KeyboardEvent): void => {
@@ -622,10 +641,26 @@ class StructuralTableInteraction {
   }
 
   private openCellAfterUpdate(view: EditorView, coordinate: TableCellCoordinate): void {
+    this.interactionAfterUpdate(view)?.beginCellEdit(view, coordinate);
+  }
+
+  private focusCellAfterUpdate(view: EditorView, coordinate: TableCellCoordinate): void {
+    if (!view.dom.isConnected) return;
+    const interaction = this.interactionAfterUpdate(view);
+    const cell = interaction?.cellElement(coordinate);
+    if (cell == null) {
+      view.focus();
+      return;
+    }
+    interaction?.selectBounds(coordinate, coordinate);
+    cell.focus({ preventScroll: true });
+  }
+
+  private interactionAfterUpdate(view: EditorView): StructuralTableInteraction | undefined {
     const host = view.dom.querySelector<HTMLElement>(
       `[data-structural-source-table-index='${this.table.sourceTableIndex}']`,
     );
-    if (host !== null) interactions.get(host)?.beginCellEdit(view, coordinate);
+    return host === null ? undefined : interactions.get(host);
   }
 
   private installHandles(view: EditorView, host: HTMLElement, rendered: HTMLTableElement): void {

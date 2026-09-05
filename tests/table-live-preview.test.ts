@@ -3,7 +3,7 @@
 import { EditorState, Prec, StateField, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { App, editorInfoField, editorLivePreviewField, type Editor, type TFile } from "obsidian";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
 import type { StructuralTable } from "../src/core/model";
@@ -236,15 +236,51 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
-  it("does not steal focus when an unchanged cell editor loses focus", () => {
+  it.each([false, true])("does not steal focus when a cell editor loses focus (changed=%s)", async (changed) => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     try {
       parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!
         .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      if (changed) parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "Saved on blur";
       const outside = document.body.appendChild(document.createElement("button"));
       outside.focus();
+      await Promise.resolve();
       expect(document.activeElement).toBe(outside);
       expect(parent.querySelector("textarea")).toBeNull();
+    } finally { view.destroy(); }
+  });
+
+  it("restores keyboard focus to the committed cell and routes document history without intercepting draft history", async () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    try {
+      const undo = vi.fn();
+      const redo = vi.fn();
+      Object.assign(view.state.field(editorInfoField).editor!, { undo, redo });
+      const selector = "[data-structural-row='1'][data-structural-column='2']";
+      const oldCell = parent.querySelector<HTMLElement>(selector)!;
+      oldCell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "Committed";
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true }));
+      expect(undo).not.toHaveBeenCalled();
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await Promise.resolve();
+      const cell = parent.querySelector<HTMLElement>(selector)!;
+      expect(cell).not.toBe(oldCell);
+      expect(document.activeElement).toBe(cell);
+      expect(cell.tabIndex).toBe(0);
+      expect(view.state.doc.toString()).toContain("Committed");
+      for (const [key, ctrlKey, metaKey, shiftKey] of [
+        ["z", true, false, false], ["z", false, true, false],
+        ["z", true, false, true], ["y", true, false, false],
+      ] as const) {
+        const event = new KeyboardEvent("keydown", { key, ctrlKey, metaKey, shiftKey, bubbles: true, cancelable: true });
+        cell.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+        await Promise.resolve();
+      }
+      expect(undo).toHaveBeenCalledTimes(2);
+      expect(redo).toHaveBeenCalledTimes(2);
     } finally { view.destroy(); }
   });
 

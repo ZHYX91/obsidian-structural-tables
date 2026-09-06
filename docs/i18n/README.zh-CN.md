@@ -6,23 +6,23 @@ Structural Tables 在普通 Markdown 管道表格上增加合并单元格、多�
 
 ## 界面截图
 
-### 阅读视图
+### 阅读视图中的三线表
 
-结构语义会渲染为清晰、可访问的表格，而笔记仍保持普通管道表格 Markdown。
+用多行列表头组织分组列，用跨行合并的行表头归类相关记录。三线表在列分组下方增加短分组线，同时保持表体简洁。
 
-![Structural Tables 在阅读视图中显示合并单元格、多行表头和行表头](../assets/structural-tables-reading-view-en.png)
+![阅读视图中的三线表，包含分组列表头和按地区合并的行表头](../assets/structural-tables-reading-view-en.png)
 
 ### 实时预览
 
-光标离开表格即可查看渲染结果；桌面端单击单元格、触屏上双击单元格即可原位编辑。
+在实时预览中直接编辑单元格，合并表头始终保持可见。这里为同一张表选用了网格样式；桌面端单击单元格、触屏上双击单元格即可原位编辑。
 
-![Structural Tables 在实时预览中渲染表格](../assets/structural-tables-live-preview-en.png)
+![在实时预览中编辑营收单元格，网格表保留合并表头](../assets/structural-tables-live-preview-en.png)
 
-### 设置
+### 外观设置
 
-“常规”“视图”和“外观”将导入、渲染、普通表格接管、诊断、布局与样式设置清楚地分开。
+独立选择“跟随主题”“网格表”或“三线表”，并按需调整表格布局和密度。“常规”“视图”和“外观”三个页签让设置保持清晰。
 
-![Structural Tables 设置中的普通 Markdown 表格接管](../assets/structural-tables-settings-en.png)
+![外观设置中的三线表样式、布局、密度和交替行底色选项](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## 功能

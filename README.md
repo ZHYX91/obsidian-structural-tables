@@ -6,23 +6,23 @@ Structural Tables adds merged cells, multi-row column headers, and row headers t
 
 ## Screenshots
 
-### Reading view
+### Three-line table in Reading view
 
-Structural semantics render as a clean, accessible table while the note remains ordinary pipe-table Markdown.
+Group columns under multi-row headers and merge row headers across related records. Three-line styling adds short rules below column groups while keeping the table body uncluttered.
 
-![Structural Tables merged cells, multi-row headers, and row headers in Reading view](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-reading-view-en.png)
+![Three-line table with grouped column headers and merged regional row headers in Reading view](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-reading-view-en.png)
 
 ### Live Preview
 
-Leave the table to see its rendered structure; click a cell on desktop, or double-tap it on touch screens, to edit it in place.
+Edit cells directly in Live Preview while keeping merged headers visible. The same table is shown here with the optional grid style; click a cell on desktop, or double-tap it on touch screens, to edit it in place.
 
-![Structural Tables rendered in Live Preview](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-live-preview-en.png)
+![Editing a revenue cell in a grid table with merged headers in Live Preview](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-live-preview-en.png)
 
-### Settings
+### Appearance settings
 
-General, Views, and Appearance keep import, rendering, ordinary-table takeover, diagnostics, layout, and styling controls clearly separated.
+Choose Follow theme, Grid, or Three-line table independently of table layout and density. General, Views, and Appearance keep the settings organized in three tabs.
 
-![Structural Tables settings with ordinary Markdown table takeover](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-settings-en.png)
+![Appearance settings showing three-line table style, layout, density, and alternating rows](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## Features

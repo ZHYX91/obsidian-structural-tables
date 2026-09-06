@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 
-export const RELEASE_CORE_VERSION = "3.0.0";
+export const RELEASE_CORE_VERSION = "3.0.1";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
 export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
 export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
@@ -1596,14 +1596,20 @@ export async function validateGitHubEventPublication({
     "RELEASE_CORE_PUBLICATION_BOUNDARY");
   const event = JSON.parse((await readRegularFile(path.resolve(
     assertNonEmptyString(env.GITHUB_EVENT_PATH, "GitHub event path")), "GitHub event")).toString("utf8"));
+  await assertCurrentExactTag(path.resolve(projectRoot), bundle, commandRunner);
+  // Push events identify the ref object. An annotated tag has its own object ID;
+  // GITHUB_SHA and the exact-tag check above bind its peeled commit to the Bundle.
+  const pushedObject = env.GITHUB_EVENT_NAME === "push"
+    ? (await invokeText(commandRunner, "git", ["rev-parse", "--verify", ref],
+      { cwd: path.resolve(projectRoot) })).trim()
+    : null;
   assertCondition(event.repository?.full_name === repository &&
     ((env.GITHUB_EVENT_NAME === "push" && event.ref === ref &&
-      event.after === bundle.source.commit && event.deleted === false) ||
+      event.after === pushedObject && event.deleted === false) ||
      (env.GITHUB_EVENT_NAME === "workflow_dispatch" &&
       [ref, bundle.plugin.version].includes(event.ref) &&
       event.inputs?.mode === "publish")),
   "GitHub event does not authorize publication", "RELEASE_CORE_PUBLICATION_BOUNDARY");
-  await assertCurrentExactTag(path.resolve(projectRoot), bundle, commandRunner);
   return Object.freeze({
     kind: "obsidian-release-core/github-event-authorization-v1",
     status: "authorized", repository, tag: bundle.plugin.version,

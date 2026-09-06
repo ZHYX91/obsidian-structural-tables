@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const stems = ["product-requirements", "ux-spec", "architecture", "testing-strategy", "release"];
+const stems = ["product-requirements", "ux-spec", "architecture", "testing-strategy"];
 const commonKeys = ["doc_id", "language", "source_language", "translation_status", "status", "last_synced"];
 
 function frontmatter(source, file) {

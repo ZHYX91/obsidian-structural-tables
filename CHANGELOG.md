@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3 - 2026-09-06
+
+- Apply portable clipboard styles through Obsidian's DOM helper while preserving Word table borders, spacing, and column alignment.
+- Enforce the static-style assignment lint rule for clipboard rendering as part of local and release checks.
+
 ## 0.4.2 - 2026-09-05
 
 - Preserve column widths and row heights while editing long or merged cells by keeping rendered content in layout beneath the editor.

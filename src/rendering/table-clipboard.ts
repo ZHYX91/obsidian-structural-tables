@@ -46,9 +46,7 @@ export async function renderTableClipboard(
 ): Promise<{ html: string; text: string }> {
   const document = new DOMParser().parseFromString(structuralTableToHtml(table), "text/html");
   const output = document.querySelector("table")!;
-  output.style.borderCollapse = "collapse";
-  output.style.color = "#000000";
-  output.style.maxWidth = "100%";
+  output.setCssStyles({ borderCollapse: "collapse", color: "#000000", maxWidth: "100%" });
   const textTable: StructuralTable = { ...table, rows: table.rows.map((row) => ({
     ...row, cells: row.cells.map((cell) => ({ ...cell })),
   })) };
@@ -66,18 +64,21 @@ export async function renderTableClipboard(
         element.replaceChildren();
         for (const child of rendered.childNodes) appendPortableContent(child, element);
         textTable.rows[cell.row]!.cells[cell.column]!.content = portableText(element);
-        element.style.padding = "4pt 6pt";
-        element.style.verticalAlign = "middle";
-        if (!element.style.textAlign) element.style.textAlign = "left";
-        element.style.border = appearance === "grid" ? "0.5pt solid #808080" : "none";
+        const styles: Partial<CSSStyleDeclaration> = {
+          padding: "4pt 6pt",
+          verticalAlign: "middle",
+          textAlign: element.style.textAlign || "left",
+          border: appearance === "grid" ? "0.5pt solid #808080" : "none",
+        };
         if (appearance === "three-line") {
-          if (cell.row === 0) element.style.borderTop = "1.5pt solid #000000";
-          if (cell.row + cell.rowSpan === table.rows.length) element.style.borderBottom = "1.5pt solid #000000";
+          if (cell.row === 0) styles.borderTop = "1.5pt solid #000000";
+          if (cell.row + cell.rowSpan === table.rows.length) styles.borderBottom = "1.5pt solid #000000";
           else if (cell.row < table.headerRowCount) {
-            if (cell.row + cell.rowSpan === table.headerRowCount) element.style.borderBottom = "1pt solid #000000";
-            else if (cell.columnSpan > 1) element.style.borderBottom = "0.5pt solid #000000";
+            if (cell.row + cell.rowSpan === table.headerRowCount) styles.borderBottom = "1pt solid #000000";
+            else if (cell.columnSpan > 1) styles.borderBottom = "0.5pt solid #000000";
           }
         }
+        element.setCssStyles(styles);
       }
     }
     return { html: output.outerHTML, text: structuralTableToDelimited(textTable, "\t") };

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { App, Component, MarkdownRenderer } from "obsidian";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { parseEditableTables } from "../src/core/parser";
 import { copyHtml } from "../src/editor/table-interchange";
@@ -12,9 +12,33 @@ const source = `| Region | Sales | < |
 | North | Rich | 12 |
 | ^ | 8 | 11 |`;
 
+beforeAll(() => {
+  HTMLElement.prototype.setCssStyles = function setCssStyles(styles: Partial<CSSStyleDeclaration>): void {
+    Object.assign(this.style, styles);
+  };
+});
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("portable table clipboard", () => {
+  it.each(["theme", "grid", "three-line"] as const)("keeps portable layout and column alignment in %s exports", async (appearance) => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      element.textContent = text;
+    });
+    const result = await renderTableClipboard(new App(), parseEditableTables(source).tables[0]!, "", appearance);
+    const document = new DOMParser().parseFromString(result.html, "text/html");
+    const table = document.querySelector("table")!;
+    expect(table.style.borderCollapse).toBe("collapse");
+    expect(table.style.color).toBe("#000000");
+    expect(table.style.maxWidth).toBe("100%");
+    for (const cell of table.querySelectorAll<HTMLTableCellElement>("th, td")) {
+      expect(cell.style.padding).toBe("4pt 6pt");
+      expect(cell.style.verticalAlign).toBe("middle");
+      expect(cell.style.textAlign).toBe(cell.textContent === "Q2" || cell.textContent === "12" || cell.textContent === "11" ? "right" : "left");
+      expect(cell.style.borderLeftStyle).toBe(appearance === "grid" ? "solid" : "none");
+    }
+  });
+
   it("keeps semantic spans and rich inline content with a readable plain-text alternative", async () => {
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
       element.innerHTML = text === "Rich"

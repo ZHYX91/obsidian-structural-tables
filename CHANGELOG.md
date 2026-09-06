@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.4 - 2026-09-06
+
+- Retain the portable clipboard styling fix and its enforced lint checks.
+- Publish through a reproducible CI build with verified artifact provenance, independently of optional host acceptance.
+
 ## 0.4.3 - 2026-09-06
 
 - Apply portable clipboard styles through Obsidian's DOM helper while preserving Word table borders, spacing, and column alignment.

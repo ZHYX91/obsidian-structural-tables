@@ -49,7 +49,7 @@ describe("thin release adapter", () => {
     expect(Object.isFrozen(releaseConfig.acceptance)).toBe(true);
   });
 
-  it("binds release-core 2.0 bytes to the schema-2 lock", async () => {
+  it("binds release-core 3.0 bytes to the schema-2 lock", async () => {
     const runtime = readFileSync(runtimePath);
     const lockSource = readFileSync(lockPath, "utf8");
     const lock = JSON.parse(lockSource) as Record<string, unknown>;
@@ -58,7 +58,7 @@ describe("thin release adapter", () => {
     expect(lock).toEqual({
       schemaVersion: 2,
       package: "@zhyx/obsidian-release-core",
-      version: "2.0.0",
+      version: "3.0.0",
       runtime: "obsidian-release-core.mjs",
       sha256: digest,
     });

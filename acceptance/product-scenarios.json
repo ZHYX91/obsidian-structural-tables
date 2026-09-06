@@ -13,8 +13,8 @@
   },
   "scenarios": [
     {
-      "id": "render-preview-and-invalid-source",
-      "title": "Structural rendering, in-place editing, previewed formatting, and invalid-source preservation",
+      "id": "rendering",
+      "title": "Structural rendering and invalid source",
       "surfaces": [
         "desktop",
         "android-emulator"
@@ -28,43 +28,95 @@
         "Open Complex headers in Three-line style in both views; inspect nested column groups, combined row/column spans, and the simple reference",
         "In Reading View, compare the later native alignment and empty-geometry references with their own Markdown source",
         "Compare the owned content-left table origin with the native ordinary-table reference",
-        "Open Empty geometry and compare cell and editor dimensions before, during, and after editing, merging, and splitting, first with fresh theme density and then comfortable and compact densities",
         "Render cells containing <br>, <br/>, and <br /> in Reading View and Live Preview, then preview formatting",
-        "Open the in-place editor with a desktop single click or Android double-tap",
-        "On Android, select a rectangle with two taps, then separately long-press a selected cell and merge; split it, start a new range outside the selection, and double-tap a selected cell to edit",
-        "Compare the table and column geometry before and during cell editing, and inspect the editor border and resize affordance",
-        "Insert a break with Shift+Enter and the cell-editor context menu, then paste multiline text and a browser or Excel cell containing a line break",
-        "Hover cells in content-left and content-center layouts and inspect the corresponding row and column handles",
-        "Select an owned cell, move focus or the editor cursor outside it, then select a cell in the other owned table",
-        "Preview the format command before confirming a canonical rewrite",
-        "Confirm the rewrite aligns source pipes around ASCII, CJK, row-header dividers, alignment markers, escaped Wiki-link pipes, and code-span pipes without changing the note's line endings",
         "Open the invalid table and inspect its diagnostic",
-        "Open Editing checks; edit the introduction before a rendered table, then edit a cell; also keep a cell draft open while an unrelated source change shifts the table",
-        "Navigate forward and backward through vertically and horizontally merged cells with Tab and Shift+Tab",
-        "Render a row-header table containing emphasis and Markdown links beside an ordinary table",
-        "Open Width and format checks and inspect long unbroken content before and during editing in narrow and split panes",
-        "On desktop, compare default and Minimal theme table widths with note-level table-wide, table-max and table-100 classes; switch Theme/Grid/Three-line styles and all density/layout options, including merged cells and multi-row headers"
+        "Render a row-header table containing emphasis and Markdown links beside an ordinary table"
       ],
       "expected": [
         "Column spans, row spans, multi-row headers, and row-header boundaries render consistently",
         "Three-line group rules appear only under spanning titles with child headers, remain inset at each end, never cross row-spanning headers, and add no rules to the body or simple header",
         "Each later ordinary table renders its own rows and columns instead of repeating an earlier structural table",
         "Overlaid row and column handles do not shift the owned table's content-left alignment away from the native reference",
-        "Empty cells retain at least one line of content height in every density; cell and table geometry remains stable when entering or cancelling editing and usable through merge and split",
         "All three break-tag spellings produce a visual line break and formatting preserves the exact source spelling",
+        "Tab and Shift+Tab visit each visible anchor once without loops or skipped cells",
+        "Rich inline formatting preserves row-header rendering and never causes a later ordinary table to be replaced"
+      ]
+    },
+    {
+      "id": "editing-and-selection",
+      "title": "Cell editing, selection, focus and navigation",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open the in-place editor with a desktop single click or Android double-tap",
+        "On Android, select a rectangle with two taps, then separately long-press a selected cell and merge; split it, start a new range outside the selection, and double-tap a selected cell to edit",
+        "Compare the table and column geometry before and during cell editing, and inspect the editor border and resize affordance",
+        "Hover cells in content-left and content-center layouts and inspect the corresponding row and column handles",
+        "Select an owned cell, move focus or the editor cursor outside it, then select a cell in the other owned table",
+        "Open Editing checks; edit the introduction before a rendered table, then edit a cell; also keep a cell draft open while an unrelated source change shifts the table",
+        "Navigate forward and backward through vertically and horizontally merged cells with Tab and Shift+Tab"
+      ],
+      "expected": [
         "Desktop single-click editing works while Android retains double-tap editing and touch selection",
         "A subsequent long press preserves the completed touch rectangle and its range menu; tapping outside starts a new range and double-tapping still edits a cell",
         "Editing does not widen the table or its column and shows one outer focus border without an inner textarea border or resize grip",
-        "Editor and imported line breaks become canonical <br>, and semantic HTML export contains real break elements",
         "Only the hovered cell's row and column handles reveal, remain reachable without clipping, and align to the actual table rectangle; always-visible touch column handles reserve space without covering preceding text",
         "The previous cell and handles lose selected styling when focus or the editor cursor leaves, and selection never remains on two owned tables",
-        "No Markdown changes before explicit format confirmation",
-        "Every explicit rewrite remains parseable and pipe-aligned by display width while rendering alone never changes Markdown",
         "Invalid syntax retains its source and reports a bounded diagnostic",
-        "Unchanged tables retain current source bindings and open drafts after source shifts, including when preceding tables change their indexes",
-        "Tab and Shift+Tab visit each visible anchor once without loops or skipped cells",
-        "Rich inline formatting preserves row-header rendering and never causes a later ordinary table to be replaced",
+        "Unchanged tables retain current source bindings and open drafts after source shifts, including when preceding tables change their indexes"
+      ]
+    },
+    {
+      "id": "theme-and-geometry",
+      "title": "Theme, empty cells and bounded table geometry",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Empty geometry and compare cell and editor dimensions before, during, and after editing, merging, and splitting, first with fresh theme density and then comfortable and compact densities",
+        "Open Width and format checks and inspect long unbroken content before and during editing in narrow and split panes",
+        "On desktop, compare default and Minimal theme table widths with note-level table-wide, table-max and table-100 classes; switch Theme/Grid/Three-line styles and all density/layout options, including merged cells and multi-row headers"
+      ],
+      "expected": [
+        "Empty cells retain at least one line of content height in every density; cell and table geometry remains stable when entering or cancelling editing and usable through merge and split",
+        "Editing does not widen the table or its column and shows one outer focus border without an inner textarea border or resize grip",
         "Owned blocks stay inside the text column under theme width classes; wide content scrolls locally and does not widen the page"
+      ]
+    },
+    {
+      "id": "clipboard-and-format",
+      "title": "Multiline clipboard and source formatting",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Insert a break with Shift+Enter and the cell-editor context menu, then paste multiline text and a browser or Excel cell containing a line break",
+        "Preview the format command before confirming a canonical rewrite",
+        "Confirm the rewrite aligns source pipes around ASCII, CJK, row-header dividers, alignment markers, escaped Wiki-link pipes, and code-span pipes without changing the note's line endings"
+      ],
+      "expected": [
+        "Editor and imported line breaks become canonical <br>, and semantic HTML export contains real break elements",
+        "No Markdown changes before explicit format confirmation",
+        "Every explicit rewrite remains parseable and pipe-aligned by display width while rendering alone never changes Markdown"
       ]
     },
     {

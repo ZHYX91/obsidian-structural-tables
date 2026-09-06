@@ -56,4 +56,4 @@ In an explicitly named disposable Vault, test minimum and current Obsidian, ligh
 <!-- section: mobile -->
 ## Mobile
 
-Every mobile release candidate requires current Android-emulator evidence for startup, Reading view, Live Preview, two-tap rectangular selection, long-press menus, touch-sized handles, in-place editing, and Chinese/English IME composition. Record the AVD, OS, Obsidian version, candidate identity, and scenario result. Android physical devices and iOS are out of scope.
+A full optional mobile regression records current Android-emulator evidence for startup, Reading view, Live Preview, two-tap rectangular selection, long-press menus, touch-sized handles, in-place editing, and Chinese/English IME composition. Record the AVD, OS, Obsidian version, candidate identity, and scenario result. Android physical devices and iOS are out of scope.

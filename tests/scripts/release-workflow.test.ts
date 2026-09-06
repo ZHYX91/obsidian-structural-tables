@@ -17,22 +17,14 @@ describe("generated release workflow boundary", () => {
     expect(workflow).toBe(renderReleaseWorkflow(releaseConfig).toString("utf8"));
   });
 
-  it("has the exact manual v3 input surface", () => {
+  it("supports tag publication and a minimal manual input surface", () => {
     const inputs = workflow.match(/ {4}inputs:\n([\s\S]*?)\n\npermissions:/u)?.[1] ?? "";
     const names = [...inputs.matchAll(/^ {6}([a-z][a-z0-9_]+):$/gmu)]
       .map((match) => match[1]);
-    expect(names).toEqual([
-      "release_run_id",
-      "mode",
-      "candidate_commit",
-      "candidate_bundle_digest",
-      "acceptance_closure_digest",
-      "acceptance_closure_b64",
-      "release_authorization",
-      "authorization_digest",
-      "authorization_b64",
-    ]);
-    expect(workflow).not.toMatch(/^ {2}(?:push|pull_request|schedule):/mu);
+    expect(names).toEqual(["mode"]);
+    expect(workflow).toMatch(/^ {2}push:/mu);
+    expect(workflow).not.toMatch(/acceptance_closure|authorization_b64|release_authorization/u);
+    expect(workflow).not.toMatch(/^ {2}(?:pull_request|schedule):/mu);
   });
 
   it("performs one CI rebuild and no dist restoration", () => {
@@ -49,11 +41,11 @@ describe("generated release workflow boundary", () => {
     expect(verify).not.toContain("contents: write");
     expect(publish).toContain("github.event.inputs.mode == 'publish'");
     expect(publish).toContain("contents: write");
-    expect(publish).toContain("node scripts/release.mjs publication-boundary");
-    expect(publish).toContain("node scripts/release.mjs publication-preflight");
+    expect(publish).toContain("node scripts/release.mjs event-publication-boundary");
+    expect(publish).toContain("node scripts/release.mjs event-publication-preflight");
     expect(publish).toContain("node scripts/release.mjs stage-public-assets");
     expect(publish).toContain("uses: actions/attest@");
-    expect(publish).toContain("node scripts/release.mjs publish-github");
+    expect(publish).toContain("node scripts/release.mjs publish-github-event");
     expect(postVerify).toContain("node scripts/release.mjs post-verify");
     expect(workflow).not.toMatch(/git (?:tag|push)|gh release create/u);
   });

@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
-export const RELEASE_CORE_VERSION = "2.0.0";
+export const RELEASE_CORE_VERSION = "3.0.0";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
 export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
 export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
@@ -28,7 +28,7 @@ const pluginIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
 const gitObjectPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const hostCapabilities = Object.freeze(["touch.drag", "touch.longPress"]);
+const hostCapabilities = Object.freeze(["touch.drag", "touch.longPress", "touch.doubleTap"]);
 const zipDosDate = 0x0021;
 const zipDosTime = 0;
 const zipUtf8Flag = 0x0800;
@@ -1571,6 +1571,62 @@ export async function validatePublicationBoundary({
   });
 }
 
+// Versioned event authorization replaces required host acceptance in the default workflow.
+// Legacy closure commands remain available for callers that explicitly request them.
+export async function validateGitHubEventPublication({
+  projectRoot, config: configInput, verifiedBundle, bundleSha256,
+  commandRunner = defaultCommandRunner, env = process.env,
+}) {
+  const config = validateReleaseConfig(configInput);
+  const bundle = verifiedBundle.candidateBundle;
+  const repository = config.publication.repository;
+  const ref = `refs/tags/${bundle.plugin.version}`;
+  assertSha256(bundleSha256, "Expected Candidate Bundle digest");
+  assertCondition(bundleSha256 === verifiedBundle.bundleSha256,
+    "Expected Candidate Bundle digest does not match candidate-bundle.json",
+    "RELEASE_CORE_PUBLICATION_BOUNDARY");
+  assertCondition(env.GITHUB_ACTIONS === "true" && env.GITHUB_REPOSITORY === repository &&
+    env.GITHUB_REF_TYPE === "tag" && env.GITHUB_REF === ref &&
+    env.GITHUB_SHA === bundle.source.commit &&
+    env.GITHUB_WORKFLOW_REF === `${repository}/${config.build.workflow}@${ref}` &&
+    /^[1-9][0-9]*$/u.test(env.GITHUB_RUN_ID ?? "") &&
+    typeof env.GITHUB_ACTOR === "string" && env.GITHUB_ACTOR.length > 0,
+  "Publication requires the exact GitHub Actions tag/source/workflow event",
+    "RELEASE_CORE_PUBLICATION_BOUNDARY");
+  const event = JSON.parse((await readRegularFile(path.resolve(
+    assertNonEmptyString(env.GITHUB_EVENT_PATH, "GitHub event path")), "GitHub event")).toString("utf8"));
+  assertCondition(event.repository?.full_name === repository &&
+    ((env.GITHUB_EVENT_NAME === "push" && event.ref === ref &&
+      event.after === bundle.source.commit && event.deleted === false) ||
+     (env.GITHUB_EVENT_NAME === "workflow_dispatch" && event.ref === ref &&
+      event.inputs?.mode === "publish")),
+  "GitHub event does not authorize publication", "RELEASE_CORE_PUBLICATION_BOUNDARY");
+  await assertCurrentExactTag(path.resolve(projectRoot), bundle, commandRunner);
+  return Object.freeze({
+    kind: "obsidian-release-core/github-event-authorization-v1",
+    status: "authorized", repository, tag: bundle.plugin.version,
+    commit: bundle.source.commit, bundleSha256,
+    runId: env.GITHUB_RUN_ID, actor: env.GITHUB_ACTOR, event: env.GITHUB_EVENT_NAME,
+  });
+}
+
+async function verifyBuildProvenance({ projectRoot, config, verifiedBundle, commandRunner, env }) {
+  for (const asset of verifiedBundle.publicAssets) {
+    await invokeCommand(commandRunner, "gh", [
+      "attestation", "verify", path.join(verifiedBundle.bundleDirectory, asset.name),
+      "--repo", config.publication.repository,
+      "--signer-workflow", `${config.publication.repository}/${config.build.workflow}`,
+      "--source-ref", `refs/tags/${verifiedBundle.candidateBundle.plugin.version}`,
+      "--source-digest", verifiedBundle.candidateBundle.source.commit,
+      "--predicate-type", "https://slsa.dev/provenance/v1", "--deny-self-hosted-runners",
+    ], { cwd: projectRoot, env });
+  }
+}
+
+function draftBinding(verifiedBundle) {
+  return `<!-- release-core bundle-sha256:${verifiedBundle.bundleSha256} -->`;
+}
+
 function isHttp404(error) {
   if (error?.status === 404 || error?.cause?.status === 404) return true;
   return [error?.stderr, error?.cause?.stderr].some((value) => {
@@ -1625,9 +1681,24 @@ async function resolveRemoteTagCommit(commandRunner, repository, tag, options) {
 }
 
 async function fetchRelease(commandRunner, repository, tag, options, allow404) {
-  return githubJson(commandRunner,
+  const published = await githubJson(commandRunner,
     `repos/${repository}/releases/tags/${encodeURIComponent(tag)}`,
-    { ...options, allow404 });
+    { ...options, allow404: true });
+  if (published !== null) return published;
+  // The by-tag endpoint does not expose drafts. Authenticated release listing does.
+  for (let page = 1; page <= 100; page += 1) {
+    const records = await githubJson(commandRunner,
+      `repos/${repository}/releases?per_page=100&page=${page}`, options);
+    assertCondition(Array.isArray(records), "GitHub release listing must be an array", "RELEASE_CORE_GITHUB");
+    const matches = records.filter((record) => record.tag_name === tag);
+    assertCondition(matches.length <= 1, "Multiple GitHub releases use the same tag", "RELEASE_CORE_GITHUB");
+    if (matches.length === 1) return matches[0];
+    if (records.length < 100) {
+      assertCondition(allow404, `GitHub Release not found: ${tag}`, "RELEASE_CORE_GITHUB");
+      return null;
+    }
+  }
+  fail("GitHub release listing exceeded the lookup limit", "RELEASE_CORE_GITHUB");
 }
 
 async function verifyHostedRecord({
@@ -1637,15 +1708,19 @@ async function verifyHostedRecord({
   commandRunner,
   env,
   releaseRecord,
+  draft = false,
 }) {
   const repository = config.publication.repository;
   const candidateBundle = verifiedBundle.candidateBundle;
   const tag = candidateBundle.plugin.version;
   assertPlainObject(releaseRecord, "GitHub Release");
-  assertCondition(releaseRecord.tag_name === tag && releaseRecord.draft === false &&
-    releaseRecord.prerelease === false && releaseRecord.immutable === true &&
-    typeof releaseRecord.published_at === "string" && releaseRecord.published_at.length > 0,
-  "GitHub Release must be the exact immutable published stable tag", "RELEASE_CORE_GITHUB");
+  assertCondition(releaseRecord.tag_name === tag && releaseRecord.prerelease === false &&
+    (draft ? releaseRecord.draft === true &&
+      releaseRecord.target_commitish === candidateBundle.source.commit &&
+      releaseRecord.body?.includes(draftBinding(verifiedBundle)) :
+      releaseRecord.draft === false && releaseRecord.immutable === true &&
+      typeof releaseRecord.published_at === "string" && releaseRecord.published_at.length > 0),
+  "GitHub Release must be the exact owned draft or immutable published stable tag", "RELEASE_CORE_GITHUB");
   assertCondition(Array.isArray(releaseRecord.assets), "GitHub Release assets must be an array",
     "RELEASE_CORE_GITHUB");
   const expectedNames = verifiedBundle.publicAssets.map((record) => record.name);
@@ -1663,21 +1738,8 @@ async function verifyHostedRecord({
       { cwd: projectRoot, env });
     assertCondition(hosted.equals(verifiedBundle.publicFiles.get(asset.name)),
       `GitHub Release hosted bytes mismatch: ${asset.name}`, "RELEASE_CORE_GITHUB");
-    await invokeCommand(commandRunner, "gh", [
-      "attestation",
-      "verify",
-      path.join(verifiedBundle.bundleDirectory, asset.name),
-      "--repo",
-      repository,
-      "--signer-workflow",
-      `${repository}/.github/workflows/release.yml`,
-      "--source-ref",
-      `refs/tags/${tag}`,
-      "--source-digest",
-      candidateBundle.source.commit,
-      "--deny-self-hosted-runners",
-    ], { cwd: projectRoot, env });
   }
+  await verifyBuildProvenance({ projectRoot, config, verifiedBundle, commandRunner, env });
   const remoteTagCommit = await resolveRemoteTagCommit(commandRunner, repository, tag,
     { cwd: projectRoot, env });
   assertCondition(remoteTagCommit === candidateBundle.source.commit,
@@ -1728,16 +1790,12 @@ async function inspectExistingGitHubRelease({
   if (existing === null) {
     return Object.freeze({ status: "missing", repository, tag });
   }
-  const verified = await verifyPublishedRelease({
-    projectRoot,
-    config,
-    verifiedBundle,
-    commandRunner,
-    env,
-    releaseRecord: existing,
+  const verified = await verifyHostedRecord({
+    projectRoot, config, verifiedBundle, commandRunner, env,
+    releaseRecord: existing, draft: existing.draft === true,
   });
   return Object.freeze({
-    status: "exact",
+    status: existing.draft === true ? "draft" : "exact",
     repository,
     tag,
     commit: verified.commit,
@@ -1800,70 +1858,48 @@ async function publishGitHub({
   if (preflight.status === "exact") {
     return Object.freeze({ status: "noop", repository: config.publication.repository, tag });
   }
-  const arguments_ = ["release", "create", tag];
-  for (const record of verifiedBundle.publicAssets) {
-    arguments_.push(path.join(verifiedBundle.bundleDirectory, record.name));
+  // Proof is checked before creating even a draft. Release attestations are not build provenance.
+  await verifyBuildProvenance({ projectRoot, config, verifiedBundle, commandRunner, env });
+  if (preflight.status === "missing") {
+    let notes = "";
+    if (notesFile !== undefined) {
+      notes = (await readRegularFile(path.resolve(notesFile), "Release notes file")).toString("utf8");
+    }
+    const arguments_ = ["release", "create", tag,
+      ...verifiedBundle.publicAssets.map((record) => path.join(verifiedBundle.bundleDirectory, record.name)),
+      "--repo", config.publication.repository, "--verify-tag", "--draft", "--title", tag,
+      "--target", verifiedBundle.candidateBundle.source.commit,
+      "--notes", `${notes}\n\n${draftBinding(verifiedBundle)}`];
+    if (notesFile === undefined) arguments_.push("--generate-notes");
+    await invokeCommand(commandRunner, "gh", arguments_, { cwd: projectRoot, env });
   }
-  arguments_.push("--repo", config.publication.repository, "--verify-tag", "--title", tag);
-  if (notesFile !== undefined) {
-    const notesPath = path.resolve(notesFile);
-    await readRegularFile(notesPath, "Release notes file");
-    arguments_.push("--notes-file", notesPath);
-  } else {
-    arguments_.push("--generate-notes");
-  }
-  await invokeCommand(commandRunner, "gh", arguments_, { cwd: projectRoot, env });
+  const draft = await fetchRelease(commandRunner, config.publication.repository, tag,
+    { cwd: projectRoot, env }, false);
+  await verifyHostedRecord({ projectRoot, config, verifiedBundle, commandRunner, env,
+    releaseRecord: draft, draft: true });
+  await invokeCommand(commandRunner, "gh", ["release", "edit", tag, "--repo",
+    config.publication.repository, "--draft=false", "--latest"], { cwd: projectRoot, env });
   await verifyPublishedRelease({ projectRoot, config, verifiedBundle, commandRunner, env });
   return Object.freeze({ status: "created", repository: config.publication.repository, tag });
 }
 
 function workflowSource(npmVersion) {
   return `name: Release
-run-name: release \${{ inputs.release_run_id }}
+run-name: Release \${{ github.ref_name }} (\${{ github.event_name }})
 
 on:
+  push:
+    tags: ['*.*.*']
   workflow_dispatch:
     inputs:
-      release_run_id:
-        description: Stable workspace release-run UUID
-        required: true
-        type: string
       mode:
-        description: Explicit release operation
+        description: Verify only or publish the selected version tag
         required: true
         default: verify
         type: choice
         options:
           - verify
           - publish
-      candidate_commit:
-        description: Exact accepted source commit
-        required: true
-        type: string
-      candidate_bundle_digest:
-        description: SHA-256 of candidate-bundle.json
-        required: true
-        type: string
-      acceptance_closure_digest:
-        description: SHA-256 of the decoded acceptance closure
-        required: true
-        type: string
-      acceptance_closure_b64:
-        description: Canonical base64 acceptance closure
-        required: true
-        type: string
-      release_authorization:
-        description: Exact publication authorization phrase
-        required: true
-        type: string
-      authorization_digest:
-        description: SHA-256 of the decoded authorization record
-        required: true
-        type: string
-      authorization_b64:
-        description: Canonical base64 authorization record
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -1875,40 +1911,18 @@ concurrency:
 jobs:
   verify:
     name: Rebuild and verify exact Candidate Bundle
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
     outputs:
       bundle_artifact_id: \${{ steps.bundle.outputs.artifact-id }}
-      bundle_artifact_digest: \${{ steps.bundle.outputs.artifact-digest }}
+      bundle_digest: \${{ steps.identity.outputs.bundle_digest }}
     steps:
-      - name: Validate dispatch identifiers
-        shell: bash
-        env:
-          MODE: \${{ github.event.inputs.mode }}
-          RELEASE_RUN_ID: \${{ inputs.release_run_id }}
-          CANDIDATE_COMMIT: \${{ inputs.candidate_commit }}
-          CANDIDATE_BUNDLE_DIGEST: \${{ inputs.candidate_bundle_digest }}
-          ACCEPTANCE_CLOSURE_DIGEST: \${{ inputs.acceptance_closure_digest }}
-          AUTHORIZATION_DIGEST: \${{ inputs.authorization_digest }}
-        run: |
-          set -euo pipefail
-          [[ "$MODE" == "verify" || "$MODE" == "publish" ]]
-          [[ "$RELEASE_RUN_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]
-          [[ "$CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
-          [[ "$CANDIDATE_BUNDLE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$ACCEPTANCE_CLOSURE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$AUTHORIZATION_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          test "$CANDIDATE_COMMIT" = "$GITHUB_SHA"
-          [[ "$GITHUB_REF_TYPE" == "tag" ]]
-          [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$ ]]
-
       - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: \${{ inputs.candidate_commit }}
+          ref: \${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -1918,8 +1932,10 @@ jobs:
           DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse --verify HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse --verify "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          [[ "$GITHUB_REF_TYPE" == "tag" ]]
+          [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$ ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
           git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -1930,17 +1946,13 @@ jobs:
           cache: npm
 
       - name: Install exact npm
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --global npm@${npmVersion} --no-audit --no-fund
-          test "$(npm --version)" = "${npmVersion}"
+        run: npm install --global npm@${npmVersion} --no-audit --no-fund
 
       - name: Install locked dependencies
-        run: ${requiredInstallCommand}
+        run: npm ci --no-audit --no-fund
 
       - name: Run the one complete repository build and verification pass
-        run: ${requiredVerifyCommand}
+        run: npm run release:check
 
       - name: Build deterministic Candidate Bundle
         run: >-
@@ -1948,29 +1960,29 @@ jobs:
           --version "$GITHUB_REF_NAME"
           --output-dir "$RUNNER_TEMP/candidate-bundle"
 
-      - name: Verify source candidate and expected Bundle identity
+      - name: Verify source candidate and record Bundle identity
+        id: identity
         shell: bash
-        env:
-          CANDIDATE_BUNDLE_DIGEST: \${{ inputs.candidate_bundle_digest }}
         run: |
           set -euo pipefail
-          test "$(sha256sum "$RUNNER_TEMP/candidate-bundle/candidate-bundle.json" | cut -d ' ' -f 1)" = "$CANDIDATE_BUNDLE_DIGEST"
           node scripts/release.mjs verify-source --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          digest="$(sha256sum "$RUNNER_TEMP/candidate-bundle/candidate-bundle.json" | cut -d ' ' -f 1)"
+          printf 'bundle_digest=%s\\n' "$digest" >> "$GITHUB_OUTPUT"
 
       - name: Upload fixed Candidate Bundle
         id: bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: candidate-bundle-\${{ inputs.release_run_id }}
+          name: candidate-bundle-\${{ github.run_id }}-\${{ github.run_attempt }}
           path: \${{ runner.temp }}/candidate-bundle/
           if-no-files-found: error
           compression-level: 0
           overwrite: false
-          retention-days: 1
+          retention-days: 7
 
   publish:
     name: Publish explicitly authorized Candidate Bundle
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish')
     needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1980,11 +1992,13 @@ jobs:
       attestations: write
       contents: write
       id-token: write
+    env:
+      BUNDLE_DIGEST: \${{ needs.verify.outputs.bundle_digest }}
     steps:
       - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: \${{ inputs.candidate_commit }}
+          ref: \${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -2000,63 +2014,25 @@ jobs:
           path: \${{ runner.temp }}/candidate-bundle
           digest-mismatch: error
 
-      - name: Materialize exact acceptance and authorization evidence
-        env:
-          ACCEPTANCE_CLOSURE_B64: \${{ inputs.acceptance_closure_b64 }}
-          AUTHORIZATION_B64: \${{ inputs.authorization_b64 }}
-          RELEASE_PUBLISH_AUTHORIZATION: \${{ inputs.release_authorization }}
-        run: >-
-          node scripts/release.mjs materialize-evidence
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
-          --output-dir "$RUNNER_TEMP/release-evidence"
-          --run-id "\${{ inputs.release_run_id }}"
-          --bundle-digest "\${{ inputs.candidate_bundle_digest }}"
-          --acceptance-closure-digest "\${{ inputs.acceptance_closure_digest }}"
-          --authorization-digest "\${{ inputs.authorization_digest }}"
-
       - name: Verify transported Bundle without rebuilding
-        shell: bash
-        env:
-          ARTIFACT_DIGEST: \${{ needs.verify.outputs.bundle_artifact_digest }}
-        run: |
-          set -euo pipefail
-          [[ "$ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+        run: node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
-      - name: Verify publication boundary before attestation
-        env:
-          RELEASE_PUBLISH_AUTHORIZATION: \${{ inputs.release_authorization }}
+      - name: Verify publication event before attestation
         run: >-
-          node scripts/release.mjs publication-boundary
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
-          --bundle-digest "\${{ inputs.candidate_bundle_digest }}"
-          --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
-          --acceptance-closure-digest "\${{ inputs.acceptance_closure_digest }}"
+          node scripts/release.mjs event-publication-boundary
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle" --bundle-digest "$BUNDLE_DIGEST"
 
-      - name: Preflight immutable GitHub Release
+      - name: Preflight GitHub Release
         id: publication_preflight
         shell: bash
         env:
           GH_TOKEN: \${{ github.token }}
-          RELEASE_PUBLISH_AUTHORIZATION: \${{ inputs.release_authorization }}
         run: |
           set -euo pipefail
-          result_path="$RUNNER_TEMP/publication-preflight.json"
-          test ! -e "$result_path"
-          node scripts/release.mjs publication-preflight \
-            --bundle-dir "$RUNNER_TEMP/candidate-bundle" \
-            --bundle-digest "\${{ inputs.candidate_bundle_digest }}" \
-            --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json" \
-            --acceptance-closure-digest "\${{ inputs.acceptance_closure_digest }}" \
-            > "$result_path"
-          status="$(node --input-type=module - "$result_path" <<'NODE'
-          import assert from "node:assert/strict";
-          import { readFileSync } from "node:fs";
-          const result = JSON.parse(readFileSync(process.argv[2], "utf8"));
-          assert.ok(result.status === "missing" || result.status === "exact");
-          process.stdout.write(result.status);
-          NODE
-          )"
+          node scripts/release.mjs event-publication-preflight \\
+            --bundle-dir "$RUNNER_TEMP/candidate-bundle" --bundle-digest "$BUNDLE_DIGEST" \\
+            > "$RUNNER_TEMP/publication-preflight.json"
+          status="$(node -e 'const r=require(process.argv[1]); if(!["missing","draft","exact"].includes(r.status))process.exit(1); process.stdout.write(r.status)' "$RUNNER_TEMP/publication-preflight.json")"
           printf 'status=%s\\n' "$status" >> "$GITHUB_OUTPUT"
 
       - name: Stage exact public asset inventory
@@ -2072,24 +2048,17 @@ jobs:
         with:
           subject-path: \${{ runner.temp }}/release-public-assets/*
 
-      - name: Create or prove the exact GitHub Release
-        if: steps.publication_preflight.outputs.status == 'missing'
+      - name: Verify draft assets and publish immutable release
+        if: steps.publication_preflight.outputs.status != 'exact'
         env:
           GH_TOKEN: \${{ github.token }}
-          RELEASE_PUBLISH_AUTHORIZATION: \${{ inputs.release_authorization }}
         run: >-
-          node scripts/release.mjs publish-github
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
-          --bundle-digest "\${{ inputs.candidate_bundle_digest }}"
-          --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
-          --acceptance-closure-digest "\${{ inputs.acceptance_closure_digest }}"
+          node scripts/release.mjs publish-github-event
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle" --bundle-digest "$BUNDLE_DIGEST"
 
   post_verify:
     name: Verify immutable hosted release state
-    if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
-    needs:
-      - verify
-      - publish
+    needs: [verify, publish]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -2100,7 +2069,7 @@ jobs:
       - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: \${{ inputs.candidate_commit }}
+          ref: \${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -2117,16 +2086,12 @@ jobs:
           digest-mismatch: error
 
       - name: Reverify transported Bundle without rebuilding
-        run: >-
-          node scripts/release.mjs verify-transport
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+        run: node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
       - name: Verify immutable hosted bytes and provenance
         env:
           GH_TOKEN: \${{ github.token }}
-        run: >-
-          node scripts/release.mjs post-verify
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+        run: node scripts/release.mjs post-verify --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 `;
 }
 
@@ -2304,7 +2269,7 @@ function validatePortableProductEvidence(record) {
     new Set(record.scenario.requiredCapabilities).size ===
       record.scenario.requiredCapabilities.length &&
     record.scenario.requiredCapabilities.every((capability, index) =>
-      (capability === "touch.drag" || capability === "touch.longPress") &&
+      (capability === "touch.drag" || capability === "touch.longPress" || capability === "touch.doubleTap") &&
       (index === 0 || record.scenario.requiredCapabilities[index - 1]
         .localeCompare(capability, "en") < 0)),
   "Portable product evidence scenario capabilities are invalid");
@@ -2337,11 +2302,11 @@ function validatePortableAndroidHost(host) {
   assertExactKeys(host.inputDriver, driverKeys, driverKeys,
     "Portable Android emulator input driver");
   assertCondition(host.inputDriver.id === "android-emulator-grpc-v1" &&
-    host.inputDriver.version === "1.1.0" &&
+    ["1.1.0", "1.2.0"].includes(host.inputDriver.version) &&
     JSON.stringify(host.inputDriver.endpoint) ===
       JSON.stringify({ host: "127.0.0.1", port: "ephemeral" }) &&
     JSON.stringify(host.inputDriver.capabilities) ===
-      JSON.stringify(["touch.longPress", "touch.drag"]) &&
+      JSON.stringify(host.inputDriver.version === "1.1.0" ? ["touch.longPress", "touch.drag"] : ["touch.longPress", "touch.drag", "touch.doubleTap"]) &&
     JSON.stringify(host.inputDriver.rpcAllowlist) === JSON.stringify([
       "/android.emulation.control.EmulatorController/getStatus",
       "/android.emulation.control.EmulatorController/getScreenshot",
@@ -2375,7 +2340,7 @@ function validatePortableInputTraceSummary(trace, evidence) {
   assertExactKeys(trace.driver, ["id", "version", "rpcAllowlist"],
     ["id", "version", "rpcAllowlist"], "Portable Android input trace driver");
   assertCondition(trace.driver.id === "android-emulator-grpc-v1" &&
-    trace.driver.version === "1.1.0" &&
+    trace.driver.version === evidence.host.inputDriver.version &&
     JSON.stringify(trace.driver.rpcAllowlist) ===
       JSON.stringify(evidence.host.inputDriver.rpcAllowlist),
   "Portable Android input trace driver differs from its host profile");
@@ -2415,15 +2380,16 @@ function validatePortableInputTraceSummary(trace, evidence) {
   "Portable passed Android input trace has invalid timing or status");
   assertCondition(Number.isSafeInteger(trace.actionCount) && trace.actionCount > 0,
     "Portable passed Android input trace must contain actions");
-  assertExactKeys(trace.actions, ["tap", "longPress", "drag", "failed"],
-    ["tap", "longPress", "drag", "failed"], "Portable Android input trace actions");
+  const actionKeys = trace.driver.version === "1.1.0" ? ["tap", "longPress", "drag", "failed"] :
+    ["tap", "doubleTap", "longPress", "drag", "failed"];
+  assertExactKeys(trace.actions, actionKeys, actionKeys, "Portable Android input trace actions");
   assertCondition(Object.values(trace.actions).every((count) =>
     Number.isSafeInteger(count) && count >= 0) &&
-    trace.actions.tap + trace.actions.longPress + trace.actions.drag === trace.actionCount &&
+    trace.actions.tap + (trace.actions.doubleTap ?? 0) + trace.actions.longPress + trace.actions.drag === trace.actionCount &&
     trace.actions.failed === 0 && trace.residualTouches === 0,
   "Portable passed Android input trace action counts are invalid");
   for (const capability of evidence.scenario.requiredCapabilities) {
-    const action = capability === "touch.drag" ? "drag" : "longPress";
+    const action = capability.slice("touch.".length);
     assertCondition(trace.actions[action] > 0,
       `Portable Android input trace does not exercise ${capability}`);
   }
@@ -2827,6 +2793,19 @@ export async function runReleaseCli({
       verifiedBundle,
       outputDirectory: options.get("--output-dir"),
     });
+  }
+  if (["event-publication-boundary", "event-publication-preflight", "publish-github-event"].includes(command)) {
+    const options = parseCliOptions(arguments_, ["--bundle-dir", "--bundle-digest", "--notes-file"],
+      ["--bundle-dir", "--bundle-digest"]);
+    const verifiedBundle = await verifyTransportCandidateBundle({ projectRoot, config,
+      bundleDirectory: options.get("--bundle-dir"), commandRunner });
+    const boundary = await validateGitHubEventPublication({ projectRoot, config, verifiedBundle,
+      bundleSha256: options.get("--bundle-digest"), commandRunner, env });
+    if (command === "event-publication-boundary") return boundary;
+    if (command === "event-publication-preflight") return inspectExistingGitHubRelease({
+      projectRoot, config: validateReleaseConfig(config), verifiedBundle, commandRunner, env });
+    return publishGitHub({ projectRoot, config, verifiedBundle, boundary, commandRunner, env,
+      notesFile: options.get("--notes-file") });
   }
   if (command === "publication-boundary") {
     const options = parseCliOptions(arguments_, [

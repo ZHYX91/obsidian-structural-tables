@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-08-31
+last_synced: 2026-09-06
 translation_of: release.zh-CN.md
 ---
 
@@ -19,54 +19,34 @@ boundaries.
 <!-- section: boundaries -->
 ## Boundaries
 
-An ordinary tag push does not trigger publication. Commit, push, tag, workflow dispatch, GitHub
-Release, and production-Vault deployment are separately authorized; no local gate makes a remote
-write.
+An authorized stable version tag push triggers publication. Manual dispatch on the same tag supports verify-only or publish mode through the same workflow. Host acceptance is optional; publishing does not deploy to a Vault.
 
 <!-- section: version-source -->
 ## Version and source
 
-`manifest.json`, `package.json`, `package-lock.json`, and `versions.json` bind one canonical version
-and exact commit/tree. A clean worktree must pass `npm run release:check`; a same-version tag must be
-absent or already point at that commit.
+`manifest.json`, `package.json`, `package-lock.json`, and `versions.json` bind one version. CI checks out the exact event commit, verifies the tag and default-branch ancestry, installs pinned dependencies, and runs `npm run release:check` once.
 
 <!-- section: candidate-bundle -->
-## Candidate Bundle v3
+## Candidate Bundle
 
-The vendored release-core `2.0.0` and thin adapter create the sole Candidate Bundle v3 containing
-`main.js`, `manifest.json`, `styles.css`, `structural-tables-x.y.z.zip`, `SHA256SUMS`, and
-`candidate-bundle.json`. The versioned ZIP uses a `structural-tables/` root. The Bundle also binds
-the toolchain, core/config/workflow, product payload, scenario contract, and fixture hashes.
+The vendored release-core and thin adapter create a deterministic Candidate Bundle containing `main.js`, `manifest.json`, `styles.css`, `structural-tables-x.y.z.zip`, `SHA256SUMS`, and `candidate-bundle.json`. The ZIP contains one `structural-tables/` directory with files identical to the loose assets. The Bundle binds source, toolchain, build configuration, workflow, and acceptance fixtures.
 
 <!-- section: product-acceptance -->
-## Product acceptance
+## Optional product acceptance
 
-The same Bundle requires desktop and Android-emulator acceptance covering Reading View and Live
-Preview column spans, row spans, multi-row headers, row-header boundaries, preview-first format,
-and invalid-source preservation with a bounded diagnostic. Android physical devices and iOS are
-out of scope.
+Use `docs/ACCEPTANCE.md` for quick checks, targeted regression, or full regression. Record the exact candidate, host and theme versions, selected scope, and observed results. Missing, skipped, incomplete, or failed host checks do not prevent explicitly authorized publication and are never converted to passed. Android physical devices and iOS are outside the acceptance scope.
 
 <!-- section: standalone-workflow -->
 ## Standalone workflow
 
-The generated, checked-in standalone workflow accepts only explicit `workflow_dispatch`. Its
-read-only verify job performs one independent install and one complete `release:check` at the exact
-commit, rebuilds the Bundle, and source-verifies it. The publish job downloads the fixed artifact
-and performs transport verification without restoring `dist`.
+Tag push and manual dispatch use the same build, publish, and post-verification jobs. The read-only build job produces and verifies the Bundle. Publication downloads that fixed artifact without rebuilding and verifies the event, tag, commit, and Bundle digest before writing. Manual verify mode performs no publication.
 
 <!-- section: publication-verification -->
 ## Publication and verification
 
-The acceptance closure does not authorize publication; separate authorization binds the same
-Bundle and closure. Before the first mutation, the workflow deeply validates the records, tag, and
-read-only preflight. The public Release contains exactly the three loose assets and versioned ZIP;
-`SHA256SUMS` and `candidate-bundle.json` remain in the private Bundle. Post-verification reads back
-hosted bytes and provenance.
+Actions generates SLSA build provenance for the four public assets. The publisher verifies their source, tag and workflow, creates a draft, downloads and checks all draft assets, then publishes the immutable Release. A separate job checks the hosted release. Only the three loose files and versioned ZIP are public assets; Bundle metadata stays in the CI artifact. GitHub publication and Community Directory review are separate outcomes.
 
 <!-- section: failure-deployment -->
-## Failure, rollback, and deployment
+## Failure and deployment
 
-An existing same-tag Release is a zero-write no-op only when exact; any difference fails without
-overwrite and fixes use a new version. Production-Vault deployment requires separate authorization
-for the exact Vault and preserves `data.json`; candidate, host, publication, and deployment verdicts
-are reported separately.
+An exact existing immutable release is a verified no-op. A complete draft bound to the same Bundle can resume publication. Conflicting or incomplete assets fail without overwriting; inspect the failed operation before retrying. Never delete or retag automatically on verification failure. A deleted immutable tag name cannot be reused. Vault deployment requires separate authorization and preserves `data.json`.

@@ -1,49 +1,19 @@
 name: Release
-run-name: release ${{ inputs.release_run_id }}
+run-name: Release ${{ github.ref_name }} (${{ github.event_name }})
 
 on:
+  push:
+    tags: ['*.*.*']
   workflow_dispatch:
     inputs:
-      release_run_id:
-        description: Stable workspace release-run UUID
-        required: true
-        type: string
       mode:
-        description: Explicit release operation
+        description: Verify only or publish the selected version tag
         required: true
         default: verify
         type: choice
         options:
           - verify
           - publish
-      candidate_commit:
-        description: Exact accepted source commit
-        required: true
-        type: string
-      candidate_bundle_digest:
-        description: SHA-256 of candidate-bundle.json
-        required: true
-        type: string
-      acceptance_closure_digest:
-        description: SHA-256 of the decoded acceptance closure
-        required: true
-        type: string
-      acceptance_closure_b64:
-        description: Canonical base64 acceptance closure
-        required: true
-        type: string
-      release_authorization:
-        description: Exact publication authorization phrase
-        required: true
-        type: string
-      authorization_digest:
-        description: SHA-256 of the decoded authorization record
-        required: true
-        type: string
-      authorization_b64:
-        description: Canonical base64 authorization record
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -55,40 +25,18 @@ concurrency:
 jobs:
   verify:
     name: Rebuild and verify exact Candidate Bundle
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
     outputs:
       bundle_artifact_id: ${{ steps.bundle.outputs.artifact-id }}
-      bundle_artifact_digest: ${{ steps.bundle.outputs.artifact-digest }}
+      bundle_digest: ${{ steps.identity.outputs.bundle_digest }}
     steps:
-      - name: Validate dispatch identifiers
-        shell: bash
-        env:
-          MODE: ${{ github.event.inputs.mode }}
-          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
-          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
-          CANDIDATE_BUNDLE_DIGEST: ${{ inputs.candidate_bundle_digest }}
-          ACCEPTANCE_CLOSURE_DIGEST: ${{ inputs.acceptance_closure_digest }}
-          AUTHORIZATION_DIGEST: ${{ inputs.authorization_digest }}
-        run: |
-          set -euo pipefail
-          [[ "$MODE" == "verify" || "$MODE" == "publish" ]]
-          [[ "$RELEASE_RUN_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]
-          [[ "$CANDIDATE_COMMIT" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
-          [[ "$CANDIDATE_BUNDLE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$ACCEPTANCE_CLOSURE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          [[ "$AUTHORIZATION_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          test "$CANDIDATE_COMMIT" = "$GITHUB_SHA"
-          [[ "$GITHUB_REF_TYPE" == "tag" ]]
-          [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
-
       - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.candidate_commit }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -98,8 +46,10 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse --verify HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse --verify "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          [[ "$GITHUB_REF_TYPE" == "tag" ]]
+          [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
           git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -110,11 +60,7 @@ jobs:
           cache: npm
 
       - name: Install exact npm
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --global npm@11.17.0 --no-audit --no-fund
-          test "$(npm --version)" = "11.17.0"
+        run: npm install --global npm@11.17.0 --no-audit --no-fund
 
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
@@ -128,29 +74,29 @@ jobs:
           --version "$GITHUB_REF_NAME"
           --output-dir "$RUNNER_TEMP/candidate-bundle"
 
-      - name: Verify source candidate and expected Bundle identity
+      - name: Verify source candidate and record Bundle identity
+        id: identity
         shell: bash
-        env:
-          CANDIDATE_BUNDLE_DIGEST: ${{ inputs.candidate_bundle_digest }}
         run: |
           set -euo pipefail
-          test "$(sha256sum "$RUNNER_TEMP/candidate-bundle/candidate-bundle.json" | cut -d ' ' -f 1)" = "$CANDIDATE_BUNDLE_DIGEST"
           node scripts/release.mjs verify-source --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          digest="$(sha256sum "$RUNNER_TEMP/candidate-bundle/candidate-bundle.json" | cut -d ' ' -f 1)"
+          printf 'bundle_digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
 
       - name: Upload fixed Candidate Bundle
         id: bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: candidate-bundle-${{ inputs.release_run_id }}
+          name: candidate-bundle-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/candidate-bundle/
           if-no-files-found: error
           compression-level: 0
           overwrite: false
-          retention-days: 1
+          retention-days: 7
 
   publish:
     name: Publish explicitly authorized Candidate Bundle
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish')
     needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -160,11 +106,13 @@ jobs:
       attestations: write
       contents: write
       id-token: write
+    env:
+      BUNDLE_DIGEST: ${{ needs.verify.outputs.bundle_digest }}
     steps:
       - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.candidate_commit }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -180,58 +128,25 @@ jobs:
           path: ${{ runner.temp }}/candidate-bundle
           digest-mismatch: error
 
-      - name: Materialize exact acceptance and authorization evidence
-        env:
-          ACCEPTANCE_CLOSURE_B64: ${{ inputs.acceptance_closure_b64 }}
-          AUTHORIZATION_B64: ${{ inputs.authorization_b64 }}
-          RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
-        run: >-
-          node scripts/release.mjs materialize-evidence
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
-          --output-dir "$RUNNER_TEMP/release-evidence"
-          --run-id "${{ inputs.release_run_id }}"
-          --bundle-digest "${{ inputs.candidate_bundle_digest }}"
-          --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"
-          --authorization-digest "${{ inputs.authorization_digest }}"
-
       - name: Verify transported Bundle without rebuilding
-        shell: bash
-        env:
-          ARTIFACT_DIGEST: ${{ needs.verify.outputs.bundle_artifact_digest }}
-        run: |
-          set -euo pipefail
-          [[ "$ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+        run: node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
-      - name: Verify publication boundary before attestation
-        env:
-          RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
+      - name: Verify publication event before attestation
         run: >-
-          node scripts/release.mjs publication-boundary
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
-          --bundle-digest "${{ inputs.candidate_bundle_digest }}"
-          --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
-          --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"
+          node scripts/release.mjs event-publication-boundary
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle" --bundle-digest "$BUNDLE_DIGEST"
 
-      - name: Preflight immutable GitHub Release
+      - name: Preflight GitHub Release
         id: publication_preflight
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
         run: |
           set -euo pipefail
-          result_path="$RUNNER_TEMP/publication-preflight.json"
-          test ! -e "$result_path"
-          node scripts/release.mjs publication-preflight             --bundle-dir "$RUNNER_TEMP/candidate-bundle"             --bundle-digest "${{ inputs.candidate_bundle_digest }}"             --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"             --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"             > "$result_path"
-          status="$(node --input-type=module - "$result_path" <<'NODE'
-          import assert from "node:assert/strict";
-          import { readFileSync } from "node:fs";
-          const result = JSON.parse(readFileSync(process.argv[2], "utf8"));
-          assert.ok(result.status === "missing" || result.status === "exact");
-          process.stdout.write(result.status);
-          NODE
-          )"
+          node scripts/release.mjs event-publication-preflight \
+            --bundle-dir "$RUNNER_TEMP/candidate-bundle" --bundle-digest "$BUNDLE_DIGEST" \
+            > "$RUNNER_TEMP/publication-preflight.json"
+          status="$(node -e 'const r=require(process.argv[1]); if(!["missing","draft","exact"].includes(r.status))process.exit(1); process.stdout.write(r.status)' "$RUNNER_TEMP/publication-preflight.json")"
           printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
 
       - name: Stage exact public asset inventory
@@ -247,24 +162,17 @@ jobs:
         with:
           subject-path: ${{ runner.temp }}/release-public-assets/*
 
-      - name: Create or prove the exact GitHub Release
-        if: steps.publication_preflight.outputs.status == 'missing'
+      - name: Verify draft assets and publish immutable release
+        if: steps.publication_preflight.outputs.status != 'exact'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_PUBLISH_AUTHORIZATION: ${{ inputs.release_authorization }}
         run: >-
-          node scripts/release.mjs publish-github
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
-          --bundle-digest "${{ inputs.candidate_bundle_digest }}"
-          --acceptance-closure "$RUNNER_TEMP/release-evidence/acceptance-closure.json"
-          --acceptance-closure-digest "${{ inputs.acceptance_closure_digest }}"
+          node scripts/release.mjs publish-github-event
+          --bundle-dir "$RUNNER_TEMP/candidate-bundle" --bundle-digest "$BUNDLE_DIGEST"
 
   post_verify:
     name: Verify immutable hosted release state
-    if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'publish'
-    needs:
-      - verify
-      - publish
+    needs: [verify, publish]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -275,7 +183,7 @@ jobs:
       - name: Check out the exact source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.candidate_commit }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -292,13 +200,9 @@ jobs:
           digest-mismatch: error
 
       - name: Reverify transported Bundle without rebuilding
-        run: >-
-          node scripts/release.mjs verify-transport
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+        run: node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
       - name: Verify immutable hosted bytes and provenance
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          node scripts/release.mjs post-verify
-          --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+        run: node scripts/release.mjs post-verify --bundle-dir "$RUNNER_TEMP/candidate-bundle"

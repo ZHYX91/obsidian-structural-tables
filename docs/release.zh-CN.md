@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-08-31
+last_synced: 2026-09-06
 ---
 
 [English](release.en.md)
@@ -17,47 +17,34 @@ GitHub 发布与正式 Vault 部署是独立边界。
 <!-- section: boundaries -->
 ## 边界
 
-普通 tag push 不触发发布。commit、push、tag、workflow dispatch、GitHub Release 与正式 Vault
-部署分别授权；任何本地门禁都不会产生远端写入。
+获授权的稳定版本 tag push 触发发布。也可在同一 tag 上手动派发，选择只验证或发布，两种入口共用工作流。宿主验收可选；发布不会部署到 Vault。
 
 <!-- section: version-source -->
 ## 版本与源码
 
-`manifest.json`、`package.json`、`package-lock.json` 与 `versions.json` 必须绑定同一规范版本和精确
-commit/tree。干净工作树必须通过 `npm run release:check`，同名 tag 只能不存在或已指向该提交。
+`manifest.json`、`package.json`、`package-lock.json` 与 `versions.json` 绑定同一版本。CI 检出事件的精确提交，检查 tag 和默认分支包含关系，安装锁定依赖，并执行一次 `npm run release:check`。
 
 <!-- section: candidate-bundle -->
-## Candidate Bundle v3
+## Candidate Bundle
 
-vendored release-core `2.0.0` 与薄 adapter 创建唯一 Candidate Bundle v3，包含 `main.js`、
-`manifest.json`、`styles.css`、`structural-tables-x.y.z.zip`、`SHA256SUMS` 与
-`candidate-bundle.json`。版本 ZIP 使用 `structural-tables/` 根目录；Bundle 同时绑定工具链、
-core/config/workflow、产品 payload、场景合同及 fixture 哈希。
+仓库内固定的 release-core 与薄适配器生成确定性的 Candidate Bundle，包含 `main.js`、`manifest.json`、`styles.css`、`structural-tables-x.y.z.zip`、`SHA256SUMS` 和 `candidate-bundle.json`。ZIP 中只有一个 `structural-tables/` 目录，文件与松散资产一致。Bundle 同时绑定源码、工具链、构建配置、工作流和验收 fixture。
 
 <!-- section: product-acceptance -->
-## 产品验收
+## 可选产品验收
 
-同一 Bundle 必须通过桌面与 Android 模拟器验收，覆盖 Reading View 与 Live Preview 的 column
-span、row span、多行 header、row-header boundary，preview-first format，以及非法源码保持与有界
-诊断。Android 真机与 iOS 不在范围内。
+按照 `docs/ACCEPTANCE.md` 选择快速检查、针对性回归或完整回归。记录精确候选、宿主和主题版本、选择范围及实际结果。缺失、跳过、未完成或失败的宿主检查不阻止明确获授权的发布，也不能改记为通过。Android 实体设备和 iOS 不在验收范围内。
 
 <!-- section: standalone-workflow -->
 ## 独立工作流
 
-生成并签入的 standalone workflow 只接受显式 `workflow_dispatch`。只读 verify job 在精确
-commit 上执行一次独立安装与一次完整 `release:check`，重建并 source-verify Bundle；publish
-job 下载固定 artifact 后只做 transport verification，不恢复 `dist`。
+tag push 与手动派发共用构建、发布和发布后验证任务。只读构建任务生成并验证 Bundle；发布任务下载同一固定资产，不重复构建，在写入前验证事件、tag、提交和 Bundle 摘要。手动 verify 模式不执行发布。
 
 <!-- section: publication-verification -->
-## 发布与核验
+## 发布与验证
 
-acceptance closure 不授权发布；单独 authorization 绑定同一 Bundle 与 closure。首次 mutation
-前 workflow 深度验证记录、标签和只读 preflight。公共 Release 恰好包含三个 loose assets 与
-版本 ZIP；`SHA256SUMS` 和 `candidate-bundle.json` 仅属于私有 Bundle。发布后回读托管字节与
-provenance。
+Actions 为四个公开资产生成 SLSA 构建证明。发布器核对其源码、tag 和工作流，创建草稿，下载并检查全部草稿资产，然后正式发布 immutable Release。独立任务再检查已发布资产。公开附件仅为三个松散文件和版本 ZIP；Bundle 元数据保留在 CI artifact 中。GitHub 发布结果与 Community Directory 审核结果分别记录。
 
 <!-- section: failure-deployment -->
-## 失败、回退与部署
+## 失败与部署
 
-既有同 tag Release 只有完全一致时才是零写 no-op；任何差异都失败且不得覆盖，修复使用新版本。
-正式 Vault 部署需对精确 Vault 单独授权并保留 `data.json`；候选、宿主、发布与部署分别报告。
+精确匹配的既有 immutable Release 验证后不再写入。绑定同一 Bundle 的完整草稿可继续发布；冲突或不完整资产会停止，不覆盖原内容，重试前需检查失败操作。验证失败不自动删除或重打标签；删除过的 immutable 标签名称不能复用。Vault 部署需要单独授权，并保留 `data.json`。

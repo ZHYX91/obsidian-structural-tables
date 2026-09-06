@@ -12,6 +12,7 @@ import {
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { setTimeout as delay } from "node:timers/promises";
 
 export const RELEASE_CORE_VERSION = "3.0.0";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
@@ -1598,7 +1599,8 @@ export async function validateGitHubEventPublication({
   assertCondition(event.repository?.full_name === repository &&
     ((env.GITHUB_EVENT_NAME === "push" && event.ref === ref &&
       event.after === bundle.source.commit && event.deleted === false) ||
-     (env.GITHUB_EVENT_NAME === "workflow_dispatch" && event.ref === ref &&
+     (env.GITHUB_EVENT_NAME === "workflow_dispatch" &&
+      [ref, bundle.plugin.version].includes(event.ref) &&
       event.inputs?.mode === "publish")),
   "GitHub event does not authorize publication", "RELEASE_CORE_PUBLICATION_BOUNDARY");
   await assertCurrentExactTag(path.resolve(projectRoot), bundle, commandRunner);
@@ -1639,8 +1641,8 @@ function isHttp404(error) {
 async function githubJson(commandRunner, endpoint, { cwd, env, allow404 = false } = {}) {
   let source;
   try {
-    source = await invokeText(commandRunner, "gh", ["api", "--method", "GET", endpoint],
-      { cwd, env });
+    source = await retryGitHubRead(() => invokeText(commandRunner, "gh",
+      ["api", "--method", "GET", endpoint], { cwd, env }));
   } catch (error) {
     if (allow404 && isHttp404(error)) return null;
     throw error;
@@ -1653,15 +1655,27 @@ async function githubJson(commandRunner, endpoint, { cwd, env, allow404 = false 
 }
 
 async function githubAssetBytes(commandRunner, repository, assetId, { cwd, env } = {}) {
-  const result = await invokeCommand(commandRunner, "gh", [
+  const result = await retryGitHubRead(() => invokeCommand(commandRunner, "gh", [
     "api",
     "--method",
     "GET",
     "-H",
     "Accept: application/octet-stream",
     `repos/${repository}/releases/assets/${String(assetId)}`,
-  ], { cwd, env, encoding: "buffer" });
+  ], { cwd, env, encoding: "buffer" }));
   return Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout);
+}
+
+export async function retryGitHubRead(operation, wait = delay) {
+  for (let attempt = 0; ; attempt += 1) {
+    try { return await operation(); } catch (error) {
+      const detail = [error?.message, error?.stderr, error?.cause?.stderr]
+        .map(commandText).join("\n");
+      const transient = /\bHTTP(?:\/\d(?:\.\d)?)?\s+(?:502|503|504)\b|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN)\b|TLS handshake timeout|i\/o timeout/iu.test(detail);
+      if (attempt >= 2 || !transient) throw error;
+      await wait(1000 * (attempt + 1));
+    }
+  }
 }
 
 async function resolveRemoteTagCommit(commandRunner, repository, tag, options) {

@@ -38,8 +38,8 @@
         "Each later ordinary table renders its own rows and columns instead of repeating an earlier structural table",
         "Overlaid row and column handles do not shift the owned table's content-left alignment away from the native reference",
         "All three break-tag spellings produce a visual line break and formatting preserves the exact source spelling",
-        "Tab and Shift+Tab visit each visible anchor once without loops or skipped cells",
-        "Rich inline formatting preserves row-header rendering and never causes a later ordinary table to be replaced"
+        "Rich inline formatting preserves row-header rendering and never causes a later ordinary table to be replaced",
+        "Invalid syntax retains its source and reports a bounded diagnostic"
       ]
     },
     {
@@ -71,8 +71,8 @@
         "Editing does not widen the table or its column and shows one outer focus border without an inner textarea border or resize grip",
         "Only the hovered cell's row and column handles reveal, remain reachable without clipping, and align to the actual table rectangle; always-visible touch column handles reserve space without covering preceding text",
         "The previous cell and handles lose selected styling when focus or the editor cursor leaves, and selection never remains on two owned tables",
-        "Invalid syntax retains its source and reports a bounded diagnostic",
-        "Unchanged tables retain current source bindings and open drafts after source shifts, including when preceding tables change their indexes"
+        "Unchanged tables retain current source bindings and open drafts after source shifts, including when preceding tables change their indexes",
+        "Tab and Shift+Tab visit each visible anchor once without loops or skipped cells"
       ]
     },
     {

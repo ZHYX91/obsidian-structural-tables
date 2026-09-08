@@ -135,7 +135,7 @@ export class PromotedBaseRecordAdopter {
   ): Promise<PromotionMatch[]> {
     try {
       const source = await this.app.vault.cachedRead(sourceFile);
-      return promotionBlocks(source)
+      return promotionBlocks(source, sourceFile.path)
         .filter(({ tableId }) => tableIds.has(tableId))
         .map((metadata) => ({ sourceFile, metadata }));
     } catch {

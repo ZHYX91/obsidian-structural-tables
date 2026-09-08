@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.5 - 2026-09-08
+
+- Fix promoted Base columns and sorting by using property IDs instead of formula expressions, including numeric, Unicode, whitespace and escaped property names.
+- Preserve promotion identity as YAML configuration through native Base saves; keep legacy comment compatibility and verify unmarked Base recovery against its original manifest before writes.
+
 ## 0.4.4 - 2026-09-06
 
 - Retain the portable clipboard styling fix and its enforced lint checks.

@@ -199,7 +199,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.localizedCommands.push(this.addCommand({
       id: "restore-current-promoted-base-to-table",
       name: t("command.restorePromotedTable"),
-      editorCallback: (editor) => { void this.previewPromotedTableRestore(editor); },
+      editorCallback: (editor, info) => { void this.previewPromotedTableRestore(editor, info.file); },
     }));
     this.localizedCommands.push(this.addCommand({
       id: "create-record-for-current-promoted-base",
@@ -284,7 +284,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
       const t = createTranslator(this.settings.language);
       const offset = editor.posToOffset(editor.getCursor());
-      const promoted = promotionBlockAt(editor.getValue(), offset);
+      const promoted = promotionBlockAt(editor.getValue(), offset, info.file?.path);
       if (promoted !== null) {
         menu.addItem((item) => item
           .setSection("structural-tables-base")
@@ -295,7 +295,7 @@ export class StructuralTablesPlugin extends Plugin {
           .setSection("structural-tables-base")
           .setIcon("rotate-ccw")
           .setTitle(t("menu.restorePromotedTable"))
-          .onClick(() => { void this.previewPromotedTableRestore(editor); }));
+          .onClick(() => { void this.previewPromotedTableRestore(editor, info.file); }));
         return;
       }
       const current = this.currentTable(editor);
@@ -493,11 +493,11 @@ export class StructuralTablesPlugin extends Plugin {
     }
   }
 
-  private async previewPromotedTableRestore(editor: Editor): Promise<void> {
+  private async previewPromotedTableRestore(editor: Editor, sourceFile: TFile | null): Promise<void> {
     const service = this.basePromotionService;
     const t = createTranslator(this.settings.language);
     const offset = editor.posToOffset(editor.getCursor());
-    const metadata = promotionBlockAt(editor.getValue(), offset);
+    const metadata = promotionBlockAt(editor.getValue(), offset, sourceFile?.path);
     if (metadata === null || service === null) {
       new Notice(t("notice.noPromotedBase"));
       return;
@@ -582,7 +582,7 @@ export class StructuralTablesPlugin extends Plugin {
       new Notice(t("notice.noFile"));
       return;
     }
-    const metadata = promotionBlockAt(editor.getValue(), editor.posToOffset(editor.getCursor()));
+    const metadata = promotionBlockAt(editor.getValue(), editor.posToOffset(editor.getCursor()), sourceFile.path);
     if (metadata === null) {
       new Notice(t("notice.noPromotedBase"));
       return;

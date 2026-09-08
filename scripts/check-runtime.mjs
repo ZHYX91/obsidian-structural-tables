@@ -13,7 +13,9 @@ if (expectedNode !== nodeVersion) {
 if (process.versions.node !== nodeVersion) {
   throw new Error(`Expected Node ${nodeVersion}, received ${process.versions.node}`);
 }
-if (Object.keys(packageJson.dependencies ?? {}).length !== 0) {
+// The browser build bundles this offline YAML parser; no runtime package loader is needed.
+const bundledDependencies = { yaml: "2.9.0" };
+if (JSON.stringify(packageJson.dependencies ?? {}) !== JSON.stringify(bundledDependencies)) {
   throw new Error("Runtime dependencies must be reviewed and bundled intentionally.");
 }
 

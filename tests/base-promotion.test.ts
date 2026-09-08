@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { parse, stringify } from "yaml";
 
 import {
   buildBasePromotionPlan,
@@ -21,6 +22,75 @@ function table(source: string) {
 }
 
 describe("Base promotion planning", () => {
+  it("keeps special property IDs and ownership through YAML save, sorting and extra views", () => {
+    const names = ["1", "01", "abc", "中文", "😀", "Due Date", "a.b", 'a"b', "a\\b", "O'Reilly", "a:b", "bracket]", "file.name", "note[\"a\"]"];
+    const values = Object.fromEntries(names.map((name, index) => [name, `value ${index}`]));
+    const base = embeddedBaseSource({
+      tableId: "stb_special",
+      columns: names.map((key, sourceColumn) => ({ key, displayName: key, sourceColumn })),
+      records: [{ fileStem: "Record", values }], warnings: [], blockers: [],
+    }, "Records/_promotion.json");
+    const config = parse(base.split("\n").slice(1, -1).join("\n"));
+    expect(config.views[0].order).toEqual(names.map((name) => `note.${name}`));
+    expect(config.properties).toEqual(Object.fromEntries(names.map((name) => [`note.${name}`, { displayName: name }])));
+    config.views[0].sort = [{ property: "note.Due Date", direction: "ASC" }];
+    config.views.push({ type: "table", name: "Second", order: ["note.中文", "file.name", "formula.example"] });
+    const saved = `\`\`\`base\n${stringify(config)}\`\`\``;
+    expect(promotionBlocks(saved)[0]).toMatchObject({
+      tableId: "stb_special", manifestPath: "Records/_promotion.json", propertyKeys: names,
+    });
+    expect(saved).not.toContain("# structural-tables");
+    // Native Bases saves unambiguous note IDs without their namespace.
+    config.views[0].order = names.map((name) => /^(?:note|file|formula)\./u.test(name) ? `note.${name}` : name);
+    expect(promotionBlocks(`\`\`\`base\n${stringify(config)}\`\`\``)[0]?.propertyKeys).toEqual(names);
+  });
+
+  it("reads legacy expression IDs only as order items, including YAML single quotes", () => {
+    const source = `\`\`\`base
+# structural-tables-promotion: stb_old
+# structural-tables-manifest: "Records/_promotion.json"
+filters:
+  and:
+    - 'note.wrong'
+views:
+  - type: table
+    order:
+      - 'note["a"]'
+      - 'note.Due Date'
+      - note.中文
+      - file.name
+\`\`\``;
+    expect(promotionBlocks(source)[0]?.propertyKeys).toEqual(["a", "Due Date", "中文"]);
+  });
+
+  it("requires unique mandatory membership before suggesting recovery of unmarked Bases", () => {
+    const plan = buildBasePromotionPlan(table(`| a | b |\n| --- | --- |\n| 1 | 2 |`), "stb_unmarked");
+    const generated = embeddedBaseSource(plan, "Folder/_structural-table-records/stb_unmarked/_promotion.json");
+    const config = parse(generated.split("\n").slice(1, -1).join("\n"));
+    delete config["structural-tables"];
+    const unmarked = `\`\`\`base\n${stringify(config)}\`\`\``;
+    expect(promotionBlocks(unmarked)).toEqual([]);
+    expect(promotionBlocks(unmarked, "Folder/Source.md")[0]).toMatchObject({
+      tableId: "stb_unmarked", recoveredSourcePath: "Folder/Source.md",
+      manifestPath: "Folder/_structural-table-records/stb_unmarked/_promotion.json",
+    });
+    expect(promotionBlocks(`${unmarked}\n${unmarked}`, "Folder/Source.md")).toEqual([]);
+    config.filters = { or: [...config.filters.and, 'file.ext == "md"'] };
+    expect(promotionBlocks(`\`\`\`base\n${stringify(config)}\`\`\``, "Folder/Source.md")).toEqual([]);
+  });
+
+  it("refuses malformed, conflicting or unsafe ownership without falling back to recovery", () => {
+    const base = embeddedBaseSource(buildBasePromotionPlan(table(`| a | b |\n| --- | --- |\n| 1 | 2 |`), "stb_valid"), "Records/_promotion.json");
+    const config = parse(base.split("\n").slice(1, -1).join("\n"));
+    const invalid = [null, { version: 2 }, { ...config["structural-tables"], tableId: "stb_other" },
+      { ...config["structural-tables"], manifestPath: "../Records/_promotion.json" }];
+    for (const metadata of invalid) {
+      expect(promotionBlocks(`\`\`\`base\n${stringify({ ...config, "structural-tables": metadata })}\`\`\``, "Source.md")).toEqual([]);
+    }
+    expect(promotionBlocks(base.replace("filters:", '# structural-tables-promotion: stb_other\nfilters:'))).toEqual([]);
+    expect(promotionBlocks(base.replace("filters:", 'structural-tables: null\nfilters:'))).toEqual([]);
+  });
+
   it("creates stable unique property keys and path-independent record metadata", () => {
     const source = `| Name | Due Date | due date | structural_table_ids |
 | --- | --- | --- | --- |
@@ -69,9 +139,9 @@ describe("Base promotion planning", () => {
       "Column 7",
     ]);
     const base = embeddedBaseSource(plan, "Folder/numeric.json");
-    expect(base).toContain('  "1":\n    displayName: "1"');
-    expect(base).toContain('      - "note[\\"1\\"]"');
-    expect(base).toContain('      - "note[\\"123 Name\\"]"');
+    expect(base).toContain('  "note.1":\n    displayName: "1"');
+    expect(base).toContain('      - "note.1"');
+    expect(base).toContain('      - "note.123 Name"');
   });
 
   it("quotes punctuation in preserved Property keys and reads it back", () => {
@@ -81,8 +151,8 @@ describe("Base promotion planning", () => {
     const plan = buildBasePromotionPlan(table(source), "stb_punctuation");
     const base = embeddedBaseSource(plan, "Folder/punctuation.json");
 
-    expect(base).toContain('  "a:b":\n    displayName: "a:b"');
-    expect(base).toContain('      - "note[\\"O\'Reilly\\"]"');
+    expect(base).toContain('  "note.a:b":\n    displayName: "a:b"');
+    expect(base).toContain('      - "note.O\'Reilly"');
     expect(promotionBlocks(base)[0]?.propertyKeys).toEqual(["O'Reilly", "a:b", "bracket]"]);
   });
 
@@ -148,10 +218,10 @@ describe("Base promotion planning", () => {
 | Alice | Soon |`;
     const plan = buildBasePromotionPlan(table(source), "stb_abc");
     const base = embeddedBaseSource(plan, "People/_structural-table-records/stb_abc/_promotion.json");
-    expect(base).toContain("# structural-tables-promotion: stb_abc");
+    expect(parse(base.split("\n").slice(1, -1).join("\n"))["structural-tables"]).toEqual({ version: 1, tableId: "stb_abc", manifestPath: "People/_structural-table-records/stb_abc/_promotion.json" });
     expect(base).toContain('list(note["structural-tables"]).contains("stb_abc")');
-    expect(base).toContain("  \"姓名\":\n    displayName: \"姓名\"");
-    expect(base).toContain('      - "note[\\"Due Date\\"]"');
+    expect(base).toContain("  \"note.姓名\":\n    displayName: \"姓名\"");
+    expect(base).toContain('      - "note.Due Date"');
   });
 
   it("finds only plugin-owned Base blocks at the cursor", () => {

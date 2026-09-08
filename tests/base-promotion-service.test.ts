@@ -1,6 +1,7 @@
 import type { App, Editor, EditorPosition, TAbstractFile } from "obsidian";
 import { TFile, TFolder } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
+import { parse, stringify } from "yaml";
 
 import { BasePromotionService } from "../src/app/base-promotion-service";
 import {
@@ -165,6 +166,32 @@ function sourceTable() {
 }
 
 describe("Base promotion file transaction", () => {
+  it("recovers an unmarked saved Base only through its exact original manifest", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    const config = parse(editor.getValue().split("\n").slice(1, -1).join("\n"));
+    delete config["structural-tables"];
+    editor.mutate(`\`\`\`base\n${stringify(config)}\`\`\``);
+    const metadata = promotionBlockAt(editor.getValue(), 1, sourceFile.path)!;
+    expect(metadata.recoveredSourcePath).toBe(sourceFile.path);
+    expect(await service.restorationSource(metadata)).toBe(SOURCE);
+    const manifest = JSON.parse(prepared.manifestContent);
+    host.contents.set(prepared.manifestPath, JSON.stringify({ ...manifest, sourceFilePath: "Unrelated.md" }));
+    const before = [...host.contents];
+    await expect(service.createRecord(sourceFile, metadata)).rejects.toThrow("does not prove ownership");
+    await expect(service.adoptCreatedRecord(memoryFile("New.md"), sourceFile, metadata, true)).rejects.toThrow("does not prove ownership");
+    expect([...host.contents]).toEqual(before);
+    expect(host.renamed).toEqual([]);
+    host.contents.set(prepared.manifestPath, prepared.manifestContent);
+    await service.restore(editor as unknown as Editor, metadata);
+    expect(editor.getValue()).toBe(SOURCE);
+    expect(prepared.records.every(({ path }) => host.contents.has(path))).toBe(true);
+  });
+
   it("creates records and a manifest before replacing the source table", async () => {
     const host = memoryHost();
     const sourceFile = memoryFile("Folder/People.md");

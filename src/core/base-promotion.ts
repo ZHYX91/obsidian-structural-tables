@@ -1,5 +1,6 @@
 import type { StructuralTable } from "./model";
 import { projectStructuralTable } from "./interchange";
+import { parseDocument } from "yaml";
 
 export const TABLE_MEMBERSHIP_PROPERTY = "structural-tables";
 export const LEGACY_TABLE_MEMBERSHIP_PROPERTY = "structural_table_ids";
@@ -56,6 +57,7 @@ export interface PromotionBlockMetadata {
   propertyKeys: string[];
   range: { from: number; to: number };
   source: string;
+  recoveredSourcePath?: string;
 }
 
 interface SourceLine {
@@ -229,53 +231,68 @@ export function migrateLegacyPromotionBlocks(source: string): { source: string; 
 export function embeddedBaseSource(plan: BasePromotionPlan, manifestPath: string): string {
   const lines = [
     "```base",
-    `# structural-tables-promotion: ${plan.tableId}`,
-    `# structural-tables-manifest: ${yamlString(manifestPath)}`,
+    "structural-tables:",
+    "  version: 1",
+    `  tableId: ${yamlString(plan.tableId)}`,
+    `  manifestPath: ${yamlString(manifestPath)}`,
     "filters:",
     "  and:",
     `    - 'list(note[${yamlString(TABLE_MEMBERSHIP_PROPERTY)}]).contains(${yamlString(plan.tableId)})'`,
     "properties:",
   ];
   for (const column of plan.columns) {
-    lines.push(`  ${yamlString(column.key)}:`);
+    lines.push(`  ${yamlString(`note.${column.key}`)}:`);
     lines.push(`    displayName: ${yamlString(column.displayName)}`);
   }
   lines.push("views:", "  - type: table", "    name: Table", "    order:");
   for (const column of plan.columns) {
-    lines.push(`      - ${yamlString(`note[${yamlString(column.key)}]`)}`);
+    lines.push(`      - ${yamlString(`note.${column.key}`)}`);
   }
   lines.push("```");
   return lines.join("\n");
 }
 
-function propertyKeysFromBlock(block: string): string[] {
-  const keys: string[] = [];
-  for (const line of block.split(/\r?\n|\r/gu)) {
-    const item = /^\s+-\s+(.+?)\s*$/u.exec(line)?.[1];
-    if (item === undefined) continue;
-    let expression = item;
-    if (expression.startsWith('"')) {
-      try {
-        const parsed = JSON.parse(expression) as unknown;
-        if (typeof parsed !== "string") continue;
-        expression = parsed;
-      } catch {
-        continue;
-      }
-    }
-    if (expression.startsWith("note.") && !expression.slice(5).includes(" ")) {
-      keys.push(expression.slice(5));
-      continue;
-    }
-    if (!expression.startsWith("note[") || !expression.endsWith("]")) continue;
-    try {
-      const parsed = JSON.parse(expression.slice(5, -1)) as unknown;
-      if (typeof parsed === "string") keys.push(parsed);
-    } catch {
-      continue;
-    }
+function object(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown> : null;
+}
+
+function propertyKeysFromConfig(config: Record<string, unknown>, legacyExpressionIds: boolean): string[] {
+  const ids: unknown[] = [];
+  for (const view of Array.isArray(config.views) ? config.views : []) {
+    const order = object(view)?.order;
+    if (Array.isArray(order)) ids.push(...order as unknown[]);
   }
-  return keys;
+  const keys = ids.flatMap((id): string[] => {
+    if (typeof id !== "string") return [];
+    if (id.startsWith("note.")) return [id.slice(5)];
+    if (id.startsWith("file.") || id.startsWith("formula.")) return [];
+    // Compatibility with the erroneous expression-shaped IDs in older promotions.
+    if (legacyExpressionIds && id.startsWith("note[") && id.endsWith("]")) {
+      try {
+        const key: unknown = JSON.parse(id.slice(5, -1));
+        return typeof key === "string" ? [key] : [];
+      } catch { return []; }
+    }
+    return [id];
+  });
+  return [...new Set(keys)];
+}
+
+function mandatoryMemberships(filters: unknown): { tableId: string; property: TableMembershipProperty }[] {
+  if (typeof filters === "string") {
+    const match = /^list\(note(?:\["(structural-tables|structural_table_ids)"\]|\.(structural_table_ids))\)\.contains\("(stb_[\w-]+)"\)$/u.exec(filters.trim());
+    if (match === null) return [];
+    return [{ tableId: match[3]!, property: (match[1] ?? match[2]) as TableMembershipProperty }];
+  }
+  const and = object(filters)?.and;
+  return Array.isArray(and) ? and.flatMap(mandatoryMemberships) : [];
+}
+
+function safeManifestPath(value: unknown): value is string {
+  return typeof value === "string" && value !== "" && !/[\\\r\n:]/u.test(value)
+    && !value.startsWith("/") && !value.split("/").some((part) => part === ".." || part === "." || part === "")
+    && value.endsWith(".json");
 }
 
 function sourceLines(source: string): SourceLine[] {
@@ -315,7 +332,7 @@ function closesFence(line: string, opening: FenceOpening): boolean {
     && fence.length >= opening.length;
 }
 
-export function promotionBlocks(source: string): PromotionBlockMetadata[] {
+export function promotionBlocks(source: string, sourceFilePath?: string): PromotionBlockMetadata[] {
   const blocks: PromotionBlockMetadata[] = [];
   const lines = sourceLines(source);
   for (let index = 0; index < lines.length; index += 1) {
@@ -335,29 +352,48 @@ export function promotionBlocks(source: string): PromotionBlockMetadata[] {
     const from = openingLine.from;
     const to = closingLine.contentTo;
     const block = source.slice(from, to);
-    const tableId = /^# structural-tables-promotion: ([^\s]+)$/mu.exec(block)?.[1];
-    const manifestLiteral = /^# structural-tables-manifest: (.+)$/mu.exec(block)?.[1];
-    if (tableId === undefined || manifestLiteral === undefined) continue;
-    let manifestPath: string;
+    let config: Record<string, unknown> | null;
     try {
-      const parsed = JSON.parse(manifestLiteral) as unknown;
-      if (typeof parsed !== "string") continue;
-      manifestPath = parsed;
-    } catch {
-      continue;
+      const document = parseDocument(source.slice(openingLine.to, closingLine.from).replace(/\r\n|\r/gu, "\n"));
+      if (document.errors.length > 0) continue;
+      config = object(document.toJS({ maxAliasCount: 0 }));
+    } catch { continue; }
+    if (config === null) continue;
+    const memberships = mandatoryMemberships(config.filters);
+    const commentId = /^# structural-tables-promotion: ([^\s]+)$/mu.exec(block)?.[1];
+    const manifestLiteral = /^# structural-tables-manifest: (.+)$/mu.exec(block)?.[1];
+    let commentPath: unknown;
+    if (manifestLiteral !== undefined) {
+      try { commentPath = JSON.parse(manifestLiteral); } catch { continue; }
     }
-    const propertyKeys = propertyKeysFromBlock(block);
-    const membershipProperty = block.includes(`note[${yamlString(TABLE_MEMBERSHIP_PROPERTY)}]`)
-      ? TABLE_MEMBERSHIP_PROPERTY
-      : block.includes(`note.${LEGACY_TABLE_MEMBERSHIP_PROPERTY}`)
-          || block.includes(`note[${yamlString(LEGACY_TABLE_MEMBERSHIP_PROPERTY)}]`)
-        ? LEGACY_TABLE_MEMBERSHIP_PROPERTY
-        : null;
-    blocks.push({ tableId, manifestPath, membershipProperty, propertyKeys, range: { from, to }, source: block });
+    const durable = object(config["structural-tables"]);
+    let tableId: unknown = commentId;
+    let manifestPath: unknown = commentPath;
+    let recoveredSourcePath: string | undefined;
+    if (Object.prototype.hasOwnProperty.call(config, "structural-tables")) {
+      if (durable?.version !== 1) continue;
+      tableId = durable.tableId;
+      manifestPath = durable.manifestPath;
+      if ((commentId !== undefined && commentId !== tableId)
+        || (commentPath !== undefined && commentPath !== manifestPath)
+        || memberships.length !== 1 || memberships[0]?.tableId !== tableId) continue;
+    } else if (commentId === undefined && manifestLiteral === undefined && sourceFilePath !== undefined) {
+      if (memberships.length !== 1) continue;
+      tableId = memberships[0]?.tableId;
+      const slash = sourceFilePath.lastIndexOf("/");
+      const parent = slash < 0 ? "" : sourceFilePath.slice(0, slash + 1);
+      manifestPath = `${parent}_structural-table-records/${String(tableId)}/_promotion.json`;
+      recoveredSourcePath = sourceFilePath;
+    }
+    if (typeof tableId !== "string" || !/^stb_[\w-]+$/u.test(tableId) || !safeManifestPath(manifestPath)) continue;
+    const propertyKeys = propertyKeysFromConfig(config, durable === null);
+    const membershipProperty = memberships.find((membership) => membership.tableId === tableId)?.property ?? null;
+    blocks.push({ tableId, manifestPath, membershipProperty, propertyKeys, range: { from, to }, source: block,
+      ...(recoveredSourcePath === undefined ? {} : { recoveredSourcePath }) });
   }
-  return blocks;
+  return blocks.filter((block) => blocks.filter((other) => other.tableId === block.tableId).length === 1);
 }
 
-export function promotionBlockAt(source: string, offset: number): PromotionBlockMetadata | null {
-  return promotionBlocks(source).find(({ range }) => offset >= range.from && offset <= range.to) ?? null;
+export function promotionBlockAt(source: string, offset: number, sourceFilePath?: string): PromotionBlockMetadata | null {
+  return promotionBlocks(source, sourceFilePath).find(({ range }) => offset >= range.from && offset <= range.to) ?? null;
 }

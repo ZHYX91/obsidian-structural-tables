@@ -187,7 +187,7 @@ export class BasePromotionService {
   }
 
   async restore(editor: Editor, expected: PromotionBlockMetadata): Promise<void> {
-    const current = promotionBlockAt(editor.getValue(), expected.range.from + 1);
+    const current = promotionBlockAt(editor.getValue(), expected.range.from + 1, expected.recoveredSourcePath);
     if (current === null || current.source !== expected.source || current.tableId !== expected.tableId) {
       throw new Error("The promoted Base changed before it could be restored.");
     }
@@ -204,6 +204,7 @@ export class BasePromotionService {
   }
 
   async createRecord(sourceFile: TFile, metadata: PromotionBlockMetadata): Promise<TFile> {
+    if (metadata.recoveredSourcePath !== undefined) await this.readManifest(metadata);
     const directory = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, metadata.tableId);
     await this.ensureFolder(directory);
     let path = joinedPath(directory, "Record.md");
@@ -227,6 +228,7 @@ export class BasePromotionService {
     metadata: PromotionBlockMetadata,
     moveToInbox: boolean,
   ): Promise<AdoptedBaseRecord> {
+    if (metadata.recoveredSourcePath !== undefined) await this.readManifest(metadata);
     if (!moveToInbox) return { file: recordFile, adopted: true, moved: false };
 
     const directory = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, metadata.tableId);
@@ -271,6 +273,13 @@ export class BasePromotionService {
     const manifest = promotionManifest(JSON.parse(await this.app.vault.read(manifestFile)) as unknown);
     if (manifest === null || manifest.tableId !== expected.tableId) {
       throw new Error("The promotion manifest does not match this Base.");
+    }
+    if (expected.recoveredSourcePath !== undefined) {
+      const original = promotionBlockAt(manifest.replacementSource, 1);
+      if (manifest.sourceFilePath !== expected.recoveredSourcePath
+        || original?.tableId !== expected.tableId || original.manifestPath !== expected.manifestPath) {
+        throw new Error("The recovery manifest does not prove ownership of this Base.");
+      }
     }
     return manifest;
   }

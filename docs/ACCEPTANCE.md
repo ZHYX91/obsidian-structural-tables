@@ -28,7 +28,7 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Bases-disabled upgrade refusal.
 - [ ] Ordinary and structural right-click Base-upgrade labels.
 - [ ] The explicit multi-row/merged-header and row-header flattening preview.
-- [ ] Numeric, leading-zero, canonical-duplicate, reserved, and blank header promotion with bracket references and legacy dot-reference recognition.
+- [ ] Numeric, leading-zero, canonical-duplicate, reserved, and blank header promotion with property IDs, emoji/whitespace/dot/quote/backslash names, and legacy expression-order recognition.
 - [ ] Windows reserved filename stems with and without extensions.
 - [ ] Promoted Base recognition and migration under LF, CRLF, CR, tilde fences, and longer-fence examples.
 - [ ] Visible merged-data blocker text, exact coordinates/spans, disabled confirmation, and zero writes.
@@ -40,6 +40,8 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Previewed per-file legacy-property migration with toggle-synchronized counts, default-off membership-scoped `structural_record_id` cleanup, stale and concurrent-change refusal, and rollback that preserves unrelated concurrent edits.
 - [ ] Restoration that keeps records.
 - [ ] Missing-manifest refusal.
+- [ ] Nonempty visible cell values and correct display names after promotion; native sort/edit/save/reopen and multiple views retain ownership without comments.
+- [ ] Unmarked recovery requires a unique mandatory membership and exact original manifest proof; conflicting, duplicated, moved or unrelated sources cause no writes.
 
 ### Ownership, geometry and interactions
 

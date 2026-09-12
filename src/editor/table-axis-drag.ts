@@ -109,6 +109,9 @@ export class TableAxisDrag {
     event.preventDefault();
     const table = this.current();
     const rect = this.rendered.getBoundingClientRect();
+    const containerRect = this.rendered.closest(".structural-tables-container")?.getBoundingClientRect();
+    const visibleLeft = containerRect !== undefined && containerRect.width > 0 ? Math.max(rect.left, containerRect.left) : rect.left;
+    const visibleRight = containerRect !== undefined && containerRect.width > 0 ? Math.min(rect.right, containerRect.right) : rect.right;
     const hostRect = this.host.getBoundingClientRect();
     const { axis, start, end } = session.selection;
     const boundaries = tableAxisBoundaries(this.rendered, axis, axis === "row" ? table.rows.length : table.columnCount);
@@ -131,11 +134,11 @@ export class TableAxisDrag {
         allowed: reorderTableAxis(table, axis, start, end, destination).changed };
     }
     this.host.dataset.reorderState = session.preview.allowed ? "allowed" : "blocked";
-    this.line.hidden = false;
+    this.line.hidden = axis === "column" && (boundaries[destination]! < visibleLeft || boundaries[destination]! > visibleRight);
     this.line.dataset.axis = axis;
-    this.line.style.left = `${axis === "row" ? rect.left - hostRect.left : boundaries[destination]! - hostRect.left}px`;
+    this.line.style.left = `${axis === "row" ? visibleLeft - hostRect.left : boundaries[destination]! - hostRect.left}px`;
     this.line.style.top = `${axis === "row" ? boundaries[destination]! - hostRect.top : rect.top - hostRect.top}px`;
-    this.line.style.width = `${axis === "row" ? rect.width : 2}px`;
+    this.line.style.width = `${axis === "row" ? Math.max(0, visibleRight - visibleLeft) : 2}px`;
     this.line.style.height = `${axis === "row" ? 2 : rect.height}px`;
   };
 

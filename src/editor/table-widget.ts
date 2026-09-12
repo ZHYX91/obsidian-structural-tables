@@ -913,11 +913,13 @@ class StructuralTableInteraction {
     const positionHandles = (): void => {
       const hostRect = host.getBoundingClientRect();
       const tableRect = rendered.getBoundingClientRect();
+      const containerRect = rendered.closest(".structural-tables-container")?.getBoundingClientRect();
+      const scrollRect = containerRect !== undefined && containerRect.width > 0 ? containerRect : tableRect;
       const rtl = rendered.ownerDocument.defaultView?.getComputedStyle(rendered).direction === "rtl";
-      const inlineStart = rtl ? hostRect.right - tableRect.right : tableRect.left - hostRect.left;
       const gutter = parseFloat(rendered.ownerDocument.defaultView?.getComputedStyle(addColumn).width ?? "24") || 24;
-      const left = Math.max(0, tableRect.left - hostRect.left);
-      const right = Math.min(hostRect.width - gutter, tableRect.right - hostRect.left);
+      const left = Math.max(scrollRect.left, tableRect.left) - hostRect.left;
+      const right = Math.min(scrollRect.right, tableRect.right) - hostRect.left;
+      const inlineStart = rtl ? hostRect.width - right : left;
       addRow.style.top = `${tableRect.bottom - hostRect.top}px`;
       addRow.style.left = `${left}px`;
       addRow.style.width = `${Math.max(gutter, right - left)}px`;
@@ -934,7 +936,9 @@ class StructuralTableInteraction {
       });
       const columns = tableAxisBoundaries(rendered, "column", this.table.columnCount);
       columnHandles.forEach((handle, column) => {
-        handle.style.left = `${(columns[column]! + columns[column + 1]!) / 2 - hostRect.left}px`;
+        const center = (columns[column]! + columns[column + 1]!) / 2;
+        handle.hidden = center < scrollRect.left || center > scrollRect.right;
+        handle.style.left = `${center - hostRect.left}px`;
         handle.style.setProperty(
           "inset-block-start",
           `calc(${tableRect.top - hostRect.top}px - var(--structural-table-handle-gutter))`,

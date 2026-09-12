@@ -33,11 +33,12 @@
 
 .structural-tables-live-preview > .structural-tables-container {
   box-sizing: border-box;
-  padding-inline-end: var(--structural-table-handle-gutter);
+  width: calc(100% - var(--structural-table-handle-gutter));
+  margin-inline-end: var(--structural-table-handle-gutter);
 }
 
-.structural-tables-add-row,
-.structural-tables-add-column {
+.structural-tables-live-preview > button.structural-tables-add-row,
+.structural-tables-live-preview > button.structural-tables-add-column {
   position: absolute;
   z-index: 2;
   display: grid;
@@ -47,6 +48,7 @@
   margin: 0;
   padding: 0;
   border: 0;
+  border-radius: var(--radius-s);
   box-shadow: none;
   background: transparent;
   color: var(--text-muted);
@@ -58,10 +60,7 @@
 .structural-tables-add-row { height: var(--structural-table-handle-gutter); }
 .structural-tables-add-column { width: var(--structural-table-handle-gutter); }
 
-.structural-tables-add-row:hover,
-.structural-tables-add-column:hover,
-.structural-tables-add-row:focus-visible,
-.structural-tables-add-column:focus-visible {
+.structural-tables-live-preview > button:is(.structural-tables-add-row, .structural-tables-add-column):is(:hover, :focus-visible) {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
@@ -183,6 +182,8 @@
 
 .structural-tables-row-handle.is-selected,
 .structural-tables-column-handle.is-selected { cursor: grab; }
+
+.structural-tables-column-handle[hidden] { display: none; }
 
 .structural-tables-live-preview[data-reorder-state="allowed"],
 .structural-tables-live-preview[data-reorder-state="allowed"] button { cursor: grabbing; }

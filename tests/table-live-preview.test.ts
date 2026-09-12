@@ -22,6 +22,15 @@ class NativeTableWidget extends WidgetType {
   }
 }
 
+class NativeCalloutWidget extends WidgetType {
+  override toDOM(): HTMLElement {
+    const element = document.createElement("div");
+    element.className = "callout";
+    element.innerHTML = "<div class='callout-title'>Note</div><div class='callout-content'><table><thead><tr><th>A</th><th>&lt;</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table></div>";
+    return element;
+  }
+}
+
 const screenshotTable = [
   "|  |  |  |  |  |",
   "| --- | --- | --- | --- | --- |",
@@ -106,6 +115,19 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it("mounts the shared cell editor inside a native callout and releases ownership on disable", async () => {
+    const source = "> [!note]\n> | A | < |\n> | --- | --- |\n> | x | y |\n\nEnd";
+    const native = EditorView.decorations.of(Decoration.set([
+      Decoration.replace({ widget: new NativeCalloutWidget(), block: true }).range(0, source.indexOf("\n\n")),
+    ]));
+    const { parent, view, updateSettings } = mountEditor(source, { anchor: source.length }, [native]);
+    await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview th")?.getAttribute("colspan")).toBe("2"));
+    expect(parent.querySelector(".callout-title")?.textContent).toBe("Note");
+    updateSettings({ enableLivePreview: false });
+    await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).toBeNull());
+    expect(parent.querySelectorAll(".callout th")).toHaveLength(2);
+    view.destroy();
+  });
   it.each([false, true])("keeps the new cell scope when focus transfers directly between cell editors (changed=%s)", async (changed) => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cells = parent.querySelectorAll<HTMLElement>("[data-structural-row='0'][data-structural-column]");

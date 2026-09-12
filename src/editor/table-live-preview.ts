@@ -11,6 +11,8 @@ import { parseEditableTables } from "../core/parser";
 import { diagnosticText } from "../rendering/table-renderer";
 import { clearTableWidgetSelection, StructuralTableWidget } from "./table-widget";
 import { mapTablesThroughProseEdit } from "./table-parse-cache";
+import { calloutRanges } from "../core/source-lines";
+import { CalloutTables } from "./callout-tables";
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
@@ -21,6 +23,7 @@ interface DecorationEntry {
 }
 
 interface StructuralTableDecorationState {
+  callouts: readonly { from: number; to: number }[];
   composing: boolean;
   tables: readonly StructuralTable[] | null;
   decorations: DecorationSet;
@@ -46,7 +49,7 @@ export class StructuralTableEditorController {
       if (!settingsProvider().enableLivePreview || !state.field(editorLivePreviewField, false)) return null;
       return cached ?? parseEditableTables(state.doc.toString()).tables;
     };
-    const buildDecorations = (state: EditorState, tables: readonly StructuralTable[] | null): DecorationSet => {
+    const buildDecorations = (state: EditorState, tables: readonly StructuralTable[] | null, callouts: readonly { from: number; to: number }[]): DecorationSet => {
       const settings = settingsProvider();
       const livePreview = state.field(editorLivePreviewField, false) ?? false;
       if (!livePreview || !settings.enableLivePreview) return Decoration.none;
@@ -54,6 +57,7 @@ export class StructuralTableEditorController {
       const selections = state.selection.ranges;
       const entries: DecorationEntry[] = [];
       for (const table of tables ?? []) {
+        if (callouts.some((range) => table.range.from >= range.from && table.range.to <= range.to)) continue;
         if (!table.structural && !settings.takeOverOrdinaryTables) continue;
         const active = selections.some((selection) => selection.empty
           ? selection.from >= table.range.from && selection.from < table.range.to
@@ -97,23 +101,29 @@ export class StructuralTableEditorController {
     const decorationField = StateField.define<StructuralTableDecorationState>({
       create: (state) => {
         const tables = readTables(state, null);
-        return { composing: false, tables, decorations: buildDecorations(state, tables) };
+        const callouts = calloutRanges(state.doc.toString());
+        return { composing: false, tables, callouts, decorations: buildDecorations(state, tables, callouts) };
       },
       update: (value, transaction) => {
         const composition = transaction.effects.find((effect) => effect.is(structuralTableComposition));
         const composing = composition?.value ?? value.composing;
         if (!shouldRebuild(transaction)) return value;
-        const tables = readTables(transaction.state, transaction.docChanged
-          ? mapTablesThroughProseEdit(value.tables, transaction) : value.tables);
+        const mapped = transaction.docChanged ? mapTablesThroughProseEdit(value.tables, transaction) : value.tables;
+        const tables = readTables(transaction.state, mapped);
+        const callouts = !transaction.docChanged ? value.callouts : mapped === null
+          ? calloutRanges(transaction.state.doc.toString())
+          : value.callouts.map((range) => ({ from: transaction.changes.mapPos(range.from, 1), to: transaction.changes.mapPos(range.to, -1) }));
         return {
           composing,
           tables,
-          decorations: composing ? Decoration.none : buildDecorations(transaction.state, tables),
+          callouts,
+          decorations: composing ? Decoration.none : buildDecorations(transaction.state, tables, callouts),
         };
       },
       provide: (field) => Prec.highest(EditorView.decorations.from(field, (value) => value.decorations)),
     });
     const viewTracker = ViewPlugin.fromClass(class {
+      private readonly calloutTables: CalloutTables;
       private readonly clearOtherSelections = (event: Event): void => {
         const target = event.target;
         for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
@@ -123,12 +133,25 @@ export class StructuralTableEditorController {
       };
 
       constructor(private readonly view: EditorView) {
+        this.calloutTables = new CalloutTables(view, () => {
+          const value = view.state.field(decorationField);
+          const settings = settingsProvider();
+          const sourcePath = view.state.field(editorInfoField, false)?.file?.path ?? "";
+          return {
+            tables: value.tables ?? [], ranges: value.callouts,
+            owns: (table) => !value.composing && settings.enableLivePreview
+              && Boolean(view.state.field(editorLivePreviewField, false))
+              && table.valid && (table.structural || settings.takeOverOrdinaryTables),
+            widget: (table) => new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote),
+          };
+        });
         views.add(view);
         view.dom.addEventListener("pointerdown", this.clearOtherSelections, true);
         view.dom.addEventListener("focusin", this.clearOtherSelections, true);
       }
 
       update(update: ViewUpdate): void {
+        this.calloutTables.schedule();
         if (!update.transactions.some((transaction) => transaction.selection !== undefined)) return;
         for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
           clearTableWidgetSelection(host);
@@ -136,6 +159,7 @@ export class StructuralTableEditorController {
       }
 
       destroy(): void {
+        this.calloutTables.destroy();
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
         this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);
         views.delete(this.view);

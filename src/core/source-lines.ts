@@ -24,3 +24,18 @@ export function withoutSourcePrefixes(source: string): string {
 export function withSourcePrefix(source: string, prefix: string): string {
   return source.split(/(\r\n|\r|\n)/u).map((part, index) => index % 2 === 0 ? prefix + part : part).join("");
 }
+
+export function calloutRanges(source: string): { from: number; to: number }[] {
+  const { lines, offsets } = sourceLines(source);
+  const ranges: { from: number; to: number }[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const opening = /^((?: {0,3}>[\t ]?)+)\[![^\]]+\]/u.exec(lines[index] ?? "");
+    if (opening === null) continue;
+    const depth = opening[1]!.split(">").length - 1;
+    let end = index;
+    while (end + 1 < lines.length && sourcePrefix(lines[end + 1] ?? "").split(">").length - 1 >= depth) end += 1;
+    ranges.push({ from: offsets[index]!, to: offsets[end]! + lines[end]!.length });
+    index = end;
+  }
+  return ranges;
+}

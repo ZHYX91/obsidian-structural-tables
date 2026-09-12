@@ -1105,6 +1105,37 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it.each(["insertLineBreak", "insertParagraph"])("commits a selected neighbouring cell before soft-keyboard %s can replace its text", async (inputType) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Software | Applications |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const hostInput = vi.fn();
+    parent.addEventListener("beforeinput", hostInput);
+    try {
+      parent.querySelector("[data-structural-row='1'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      parent.querySelector("[data-structural-row='1'][data-structural-column='1']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = parent.querySelector("textarea")!;
+      expect(editor.value).toBe("Applications");
+      expect(editor.selectionEnd - editor.selectionStart).toBe(editor.value.length);
+      const enter = new InputEvent("beforeinput", { inputType, bubbles: true, cancelable: true });
+      editor.dispatchEvent(enter);
+      expect(enter.defaultPrevented).toBe(true);
+      expect(hostInput).not.toHaveBeenCalled();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(undo(view)).toBe(false);
+
+      parent.querySelector("[data-structural-row='1'][data-structural-column='1']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      parent.querySelector("textarea")!.value = "Updated";
+      parent.querySelector("textarea")!.dispatchEvent(new InputEvent("beforeinput", { inputType, bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(view.state.doc.toString()).toContain("Updated"));
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it("keeps the cell editor open during IME composition and uses Tab as one undoable commit", async () => {
     let documentChanges = 0;
     const listener = EditorView.updateListener.of((update) => {
@@ -1117,6 +1148,11 @@ describe("StructuralTableEditorController", () => {
     editor.value = "输入";
     editor.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "输" }));
     editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    const composingInput = new InputEvent("beforeinput", {
+      inputType: "insertLineBreak", isComposing: true, bubbles: true, cancelable: true,
+    });
+    editor.dispatchEvent(composingInput);
+    expect(composingInput.defaultPrevented).toBe(false);
     expect(cell.querySelector(".structural-tables-cell-editor")).toBe(editor);
     expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
 

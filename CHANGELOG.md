@@ -6,6 +6,7 @@
 - Append a data row when Tab leaves the final visible cell, committing the draft and insertion together for undo.
 - Reorder explicitly selected rows or columns by dragging their handles; support Shift-click and touch range selection.
 - Preserve content, alignment and container prefixes while refusing drops that split merged cells or cross header boundaries.
+- Handle soft-keyboard Enter before a line break can replace selected cell text.
 
 ## 0.4.7 - 2026-09-13
 

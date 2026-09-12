@@ -737,6 +737,16 @@ class StructuralTableInteraction {
     this.cellScope = scope;
     this.app.keymap.pushScope(scope);
     editor.addEventListener("keydown", handleKey);
+    editor.addEventListener("beforeinput", (event) => {
+      // Soft keyboards can insert a line break before sending a useful keydown.
+      // Commit the draft before that insertion replaces the selected cell text.
+      event.stopPropagation();
+      if (event.defaultPrevented || composing || event.isComposing) return;
+      if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
+        event.preventDefault();
+        finish(true);
+      }
+    });
     editor.addEventListener("paste", (event) => {
       const html = event.clipboardData?.getData("text/html") ?? "";
       const pasted = singleCellTextFromClipboardHtml(html) ?? event.clipboardData?.getData("text/plain");

@@ -6,6 +6,7 @@ import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { adjacentTableCell } from "../core/table-navigation";
+import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
 import { editCellContent, normalizeTableCellInput } from "../core/operations";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
@@ -36,6 +37,28 @@ interface PendingCellFocus {
   edit: boolean;
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
+
+export function restoreTableHistoryFocus(view: EditorView,
+  target: TableHistoryTarget,
+  settings: StructuralTablesSettings): void {
+  if (view.state.field(editorInfoField, false)?.file?.path !== target.sourcePath) return;
+  const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
+    candidate.range.from === target.from && candidate.source === target.after);
+  if (table === undefined || !table.valid) return;
+  const state = view.state;
+  const pending: PendingCellFocus = {
+    from: target.from, source: target.after, sourcePath: target.sourcePath, coordinate: target.coordinate, edit: false,
+  };
+  pendingCellFocus.set(view, pending);
+  queueMicrotask(() => {
+    if (view.state !== state || !view.dom.isConnected || pendingCellFocus.get(view) !== pending) return;
+    if (!table.structural && !settings.takeOverOrdinaryTables) {
+      pendingCellFocus.delete(view);
+      view.focus();
+    }
+    view.dispatch({ effects: EditorView.scrollIntoView(table.range.from, { y: "nearest" }) });
+  });
+}
 
 export function cancelPendingTableFocus(view: EditorView): void {
   pendingCellFocus.delete(view);
@@ -636,6 +659,7 @@ class StructuralTableInteraction {
       const nativeCallout = this.host?.closest(".callout") != null;
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
+        ...(nativeCallout ? tableWriteHistory(current, result.source, this.sourcePath, anchor) : {}),
         ...(focus && !nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
       if (nativeCallout && (focus || next !== null)) this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null);
@@ -900,6 +924,7 @@ class StructuralTableInteraction {
       const nativeCallout = this.host?.closest(".callout") != null;
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
+        ...(nativeCallout ? tableWriteHistory(current, result.source, this.sourcePath, coordinate) : {}),
         ...(!nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
       if (nativeCallout) this.restoreCalloutFocus(view, result.source, coordinate, false);

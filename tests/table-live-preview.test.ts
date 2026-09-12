@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { EditorState, Prec, StateField, type Extension } from "@codemirror/state";
+import { history, redo, undo } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { App, MarkdownRenderer, editorInfoField, editorLivePreviewField, type Editor, type TFile } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -146,16 +147,17 @@ describe("StructuralTableEditorController", () => {
       expect(view.state.doc.toString()).not.toContain("| < |");
     } finally { view.destroy(); }
   });
-  it("waits for a rebuilt callout before restoring cell focus after a commit", async () => {
+  it("restores a rebuilt Callout cell after commit and host command undo/redo", async () => {
     vi.stubGlobal("createDiv", (options: { cls: string }) => {
       const element = document.createElement("div"); element.className = options.cls; return element;
     });
     let completeRender: (() => void) | undefined;
+    let delayUpdated = true;
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
       const source = args[1] as string;
       const container = args[2] as HTMLElement;
       if (container.className !== "structural-tables-container") return;
-      if (source.includes("Updated")) await new Promise<void>((resolve) => { completeRender = resolve; });
+      if (source.includes("Updated") && delayUpdated) await new Promise<void>((resolve) => { completeRender = resolve; });
       container.innerHTML = new NativeCalloutWidget().toDOM().querySelector(".callout-content")!.innerHTML
         .replace("<td>y</td>", source.includes("Updated") ? "<td>Updated</td>" : "<td>y</td>");
     });
@@ -177,7 +179,7 @@ describe("StructuralTableEditorController", () => {
       provide: (field) => EditorView.decorations.from(field),
     });
     const source = "Before\n\n> [!note]\n> | A | < |\n> | --- | --- |\n> | x | y |\n\nEnd";
-    const { parent, view } = mountEditor(source, { anchor: 0 }, [native]);
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native, history()]);
     await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
     const cell = parent.querySelector<HTMLElement>(".callout [data-structural-row='1'][data-structural-column='1']")!;
     cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
@@ -189,6 +191,24 @@ describe("StructuralTableEditorController", () => {
     completeRender!();
     await vi.waitFor(() => expect(document.activeElement).toBe(parent.querySelector(".callout [data-structural-row='1'][data-structural-column='1']")));
     expect(view.state.doc.toString()).toContain("Updated");
+    delayUpdated = false;
+    const external = document.body.appendChild(document.createElement("button"));
+    external.focus();
+    expect(undo(view)).toBe(true);
+    await vi.waitFor(() => {
+      const restored = parent.querySelector(".callout [data-structural-row='1'][data-structural-column='1']");
+      expect(view.state.doc.toString()).toBe(source);
+      expect(restored).not.toBeNull();
+      expect(document.activeElement).toBe(restored);
+    });
+    external.focus();
+    expect(redo(view)).toBe(true);
+    await vi.waitFor(() => {
+      const restored = parent.querySelector(".callout [data-structural-row='1'][data-structural-column='1']");
+      expect(view.state.doc.toString()).toContain("Updated");
+      expect(restored).not.toBeNull();
+      expect(document.activeElement).toBe(restored);
+    });
     view.destroy();
   });
   it("mounts the shared cell editor inside a native callout and releases ownership on disable", async () => {

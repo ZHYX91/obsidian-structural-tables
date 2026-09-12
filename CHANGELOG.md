@@ -5,6 +5,7 @@
 - Match Callout tables to their source in both views using native-rendered content, including rich row headers and multiple header rows.
 - Preserve the correct edit destination across nested Callouts, mixed tables and identical tables; leave ambiguous targets untouched.
 - Restore cell focus after asynchronous Callout rendering so commits and undo/redo do not expose the entire Callout source.
+- Retain Callout cell targets in the host history so mobile command-palette undo and redo return to the edited table.
 
 ## 0.4.6 - 2026-09-12
 

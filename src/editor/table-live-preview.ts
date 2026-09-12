@@ -9,7 +9,8 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
 import { diagnosticText } from "../rendering/table-renderer";
-import { cancelPendingTableFocus, clearTableWidgetSelection, mapPendingTableFocus, StructuralTableWidget } from "./table-widget";
+import { cancelPendingTableFocus, clearTableWidgetSelection, mapPendingTableFocus, restoreTableHistoryFocus, StructuralTableWidget } from "./table-widget";
+import { tableHistory, tableHistoryTarget } from "./table-history";
 import { mapTablesThroughProseEdit } from "./table-parse-cache";
 import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
@@ -158,6 +159,13 @@ export class StructuralTableEditorController {
           this.calloutTables.mapChanges(update.changes);
           mapPendingTableFocus(update.view, update.changes);
         }
+        for (const transaction of update.transactions) {
+          if (!settingsProvider().enableLivePreview || !this.view.state.field(editorLivePreviewField, false)) continue;
+          if (!transaction.isUserEvent("undo") && !transaction.isUserEvent("redo")) continue;
+          for (const effect of transaction.effects) {
+            if (effect.is(tableHistoryTarget)) restoreTableHistoryFocus(this.view, effect.value, settingsProvider());
+          }
+        }
         this.calloutTables.schedule();
         if (!update.transactions.some((transaction) => transaction.selection !== undefined)) return;
         for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
@@ -183,7 +191,7 @@ export class StructuralTableEditorController {
         return false;
       },
     });
-    return [decorationField, viewTracker, compositionHandlers];
+    return [decorationField, viewTracker, compositionHandlers, tableHistory];
   }
 
   refresh(): void {

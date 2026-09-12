@@ -37,6 +37,8 @@ Live Preview separates immutable CodeMirror widget descriptions from DOM-owned i
 
 Native Callout blocks use a source-owned mounting session rather than reverse DOM offsets or unchecked table indexes. The editor resolves the source block with CodeMirror's forward position mapping; both views compare native-rendered block signatures, including rich raw paragraphs and multi-block headers. Identical tables use source order only when the complete matching target inventory agrees. Embedded-note targets and ambiguous mappings stay untouched. Editor mounts track changes by source range and exact source, and pending cell focus is fulfilled only when the matching replacement mounts. Host mutations retry pending mappings; diagnostics distinguish missing DOM, rendering, failed rendering, unmatched or ambiguous targets, and mounted tables.
 
+Callout writes carry invertible focus targets in CodeMirror's own history, isolated from adjacent prose edits. Undo and redo restore the exact source/path target after remounting, including commands invoked outside a cell. Unrecorded source changes map those targets through the host history; no parallel undo stack is maintained.
+
 <!-- section: editing -->
 ## Editing
 

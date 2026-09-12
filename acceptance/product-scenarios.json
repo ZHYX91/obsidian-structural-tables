@@ -13,6 +13,38 @@
   },
   "scenarios": [
     {
+      "id": "table-growth-and-reorder",
+      "title": "Edge insertion, terminal Tab and explicit axis dragging",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.drag"
+        ]
+      },
+      "steps": [
+        "Open Table controls in Live Preview. Use bottom/right add buttons, including with an active cell draft; commit, undo and redo",
+        "On desktop, Tab from the final visible cell adds one data row and opens its first cell; Shift+Tab at the first cell creates nothing",
+        "Use the bottom button on the header-only table; inspect header roles and the new data row",
+        "Select a row handle, then drag it to a new data-row position; repeat for a column and verify content and alignment after undo/redo",
+        "Select a range with Shift-click on desktop or two handle taps on Android, then drag a selected handle to move the range",
+        "Try a first-gesture drag, partial merged rows/columns, a destination inside a merged group and crossing header boundaries; cancel a valid drag with Escape on desktop or by releasing outside",
+        "Repeat insertion and row reorder inside the Callout and deep list; inspect saved prefixes and Reading View",
+        "Inspect controls and drop markers in left, centered and full-width layouts, narrow/wide tables, and light/dark theme; verify no page overflow or clipped touch targets"
+      ],
+      "expected": [
+        "Insertion and any active draft write atomically, retain content and prefixes, and focus the new cell; header-only tables gain data rows",
+        "A first gesture only selects; a subsequent selected-handle drag performs one validated reorder on drop and retains the moved axis selection",
+        "Content, complete merged rectangles and column alignment move together; invalid and cancelled drops leave source unchanged",
+        "Controls remain reachable and align with the table, local horizontal scrolling stays usable, and Reading View has no editing controls",
+        "Hardware Tab and Escape claims apply to desktop; Android uses the declared touch driver"
+      ]
+    },
+    {
       "id": "callout-mapping",
       "title": "Callout source mapping and asynchronous cell focus",
       "surfaces": [

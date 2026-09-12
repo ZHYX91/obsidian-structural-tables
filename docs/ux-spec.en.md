@@ -24,6 +24,10 @@ Show the semantic table while every CodeMirror cursor and selection is outside i
 
 Escape is owned by an Obsidian keymap scope for the active cell session, preventing the host shortcut from moving focus into raw table source. The scope is removed on commit, cancellation, blur, or widget destruction. Owned blocks stay within the text column and scroll wide content locally; explicit layouts override theme sizing without changing native tables.
 
+Bottom and right edge buttons append a data row or column and open the new cell. Tab from the last visible cell commits its draft and appends a data row in one undoable write; Shift+Tab at the first cell does not grow the table. Only-header tables keep their header count when growing downward. An insertion initiated while editing includes the draft in the same validated write.
+
+Axis reordering requires explicit handle selection before a second drag gesture. Shift-click or two touch taps on handles selects a range. Dragging cells still selects cells. Valid drop lines use the accent color; blocked lines use the error color. Partial merged groups, destinations that split a merge, and header/data crossings are refused without changing source. Escape, pointer cancellation, source replacement and releasing outside cancel. Complete groups retain content, alignment and container prefixes; the moved handles remain selected. Context menus remain available for keyboard movement.
+
 <!-- section: reading-view -->
 ## Reading view
 

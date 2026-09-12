@@ -7,7 +7,8 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { adjacentTableCell } from "../core/table-navigation";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
-import { editCellContent, normalizeTableCellInput } from "../core/operations";
+import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, normalizeTableCellInput, reorderTableAxis, type TableAxis } from "../core/operations";
+import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
 import { renderStructuralTable } from "../rendering/table-renderer";
@@ -35,6 +36,7 @@ interface PendingCellFocus {
   sourcePath: string;
   coordinate: TableCellCoordinate;
   edit: boolean;
+  axisSelection?: AxisSelection;
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
 
@@ -146,6 +148,11 @@ class StructuralTableInteraction {
   private pointerWindow: Window | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private host: HTMLElement | null = null;
+  private finishActiveOperation: ((operation: TableOperation, next: TableCellCoordinate) => void) | null = null;
+  private axisSelection: AxisSelection | null = null;
+  private axisAnchor = 0;
+  private touchAxisAnchor: { axis: TableAxis; index: number } | null = null;
+  private axisDrag: TableAxisDrag | null = null;
 
   constructor(
     private readonly app: App,
@@ -191,13 +198,20 @@ class StructuralTableInteraction {
       if (!host.isConnected || pending === undefined || pending.from !== this.table.range.from
         || pending.source !== this.table.source || pending.sourcePath !== this.sourcePath) return;
       pendingCellFocus.delete(view);
-      if (pending.edit) this.beginCellEdit(view, pending.coordinate);
+      if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
+      else if (pending.edit) {
+        this.beginCellEdit(view, pending.coordinate);
+        this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      }
       else this.focusCellAfterUpdate(view, pending.coordinate);
     });
     return host;
   }
 
   destroy(): void {
+    this.axisDrag?.destroy();
+    this.axisDrag = null;
+    this.finishActiveOperation = null;
     this.releaseCellScope();
     this.releaseNavigationScope();
     this.pointerWindow?.removeEventListener("pointerup", this.endPointerSelection);
@@ -381,6 +395,8 @@ class StructuralTableInteraction {
       && (event.target as Element).closest("textarea, input, a") !== null) return;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
+    this.axisSelection = null;
+    this.touchAxisAnchor = null;
     if (event.pointerType === "touch") {
       const previous = this.lastTouchTap;
       this.lastTouchTap = { coordinate, at: event.timeStamp };
@@ -494,6 +510,8 @@ class StructuralTableInteraction {
   }
 
   private clearSelection(): void {
+    this.axisSelection = null;
+    this.touchAxisAnchor = null;
     this.selection = null;
     this.selectionAnchor = null;
     this.selectionHead = null;
@@ -600,6 +618,8 @@ class StructuralTableInteraction {
   }
 
   private beginCellEdit(view: EditorView, coordinate: TableCellCoordinate): void {
+    this.axisSelection = null;
+    this.touchAxisAnchor = null;
     const cell = this.table.rows[coordinate.row]?.cells[coordinate.column];
     const anchor = cell === undefined ? undefined : this.table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
     const element = anchor === undefined ? null : this.cellElement(anchor);
@@ -646,9 +666,10 @@ class StructuralTableInteraction {
       editor.remove();
       if (focus) element.focus({ preventScroll: true });
     };
-    const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true): void => {
+    const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation): void => {
       if (settled) return;
       settled = true;
+      this.finishActiveOperation = null;
       this.releaseCellScope(scope);
       if (!commit) {
         restore(focus);
@@ -660,7 +681,9 @@ class StructuralTableInteraction {
         new Notice(t("notice.staleTable"));
         return;
       }
-      const result = editCellContent(current, anchor.row, anchor.column, editor.value);
+      const result = operation === undefined
+        ? editCellContent(current, anchor.row, anchor.column, editor.value)
+        : editCellAndTransform(current, anchor.row, anchor.column, editor.value, operation);
       if (!result.changed) {
         restore(focus);
         if (result.code !== "cell-edited") new Notice(operationNotice(t, result.code));
@@ -676,6 +699,9 @@ class StructuralTableInteraction {
       if (nativeCallout && (focus || next !== null)) this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null);
       else if (next !== null) queueMicrotask(() => this.openCellAfterUpdate(view, next));
       else if (focus) queueMicrotask(() => this.focusCellAfterUpdate(view, anchor));
+    };
+    this.finishActiveOperation = (operation, next) => {
+      if (!composing) finish(true, next, true, operation);
     };
 
     const handleKey = (event: KeyboardEvent): void => {
@@ -695,7 +721,10 @@ class StructuralTableInteraction {
       } else if (event.key === "Tab") {
         event.preventDefault();
         event.stopPropagation();
-        finish(true, this.adjacentCell(anchor, event.shiftKey ? "backward" : "forward"));
+        const next = this.adjacentCell(anchor, event.shiftKey ? "backward" : "forward");
+        if (next === null && !event.shiftKey) {
+          finish(true, { row: this.table.rows.length, column: 0 }, true, appendTableRow);
+        } else finish(true, next);
       }
     };
     // Obsidian handles Escape in its app scope before DOM bubbling. Own that
@@ -767,7 +796,9 @@ class StructuralTableInteraction {
   }
 
   private openCellAfterUpdate(view: EditorView, coordinate: TableCellCoordinate): void {
-    this.interactionAfterUpdate(view)?.beginCellEdit(view, coordinate);
+    const interaction = this.interactionAfterUpdate(view);
+    interaction?.beginCellEdit(view, coordinate);
+    interaction?.cellElement(coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }
 
   private focusCellAfterUpdate(view: EditorView, coordinate: TableCellCoordinate): void {
@@ -791,6 +822,67 @@ class StructuralTableInteraction {
 
   private installHandles(view: EditorView, host: HTMLElement, rendered: HTMLTableElement): void {
     const t = createTranslator(this.getSettings().language);
+    const addButton = (axis: "row" | "column"): HTMLButtonElement => {
+      const button = host.createEl("button", { cls: `structural-tables-add-${axis}` });
+      button.type = "button";
+      button.textContent = "+";
+      button.setAttribute("aria-label", t(axis === "row" ? "handle.addRow" : "handle.addColumn"));
+      button.title = button.getAttribute("aria-label")!;
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      button.addEventListener("click", () => {
+        const next = axis === "row" ? { row: this.table.rows.length, column: 0 }
+          : { row: 0, column: this.table.columnCount };
+        const operation: TableOperation = axis === "row" ? appendTableRow
+          : (table) => insertTableColumn(table, table.columnCount - 1, "after");
+        if (this.finishActiveOperation !== null) this.finishActiveOperation(operation, next);
+        else this.applyMenuOperation(view, operation, next);
+      });
+      return button;
+    };
+    const addRow = addButton("row");
+    const addColumn = addButton("column");
+    this.axisDrag = new TableAxisDrag(host, rendered, () => this.table, () => this.axisSelection,
+      (selection, destination) => {
+        const { axis, start, end } = selection;
+        const movedStart = destination > end ? destination - (end - start + 1) : destination;
+        const nextSelection = { axis, start: movedStart, end: movedStart + end - start };
+        this.applyMenuOperation(view, (table) => reorderTableAxis(table, axis, start, end, destination),
+          axis === "row" ? { row: movedStart, column: 0 } : { row: 0, column: movedStart }, nextSelection);
+      });
+    const installAxisHandle = (handle: HTMLButtonElement, axis: TableAxis, index: number): void => {
+      handle.addEventListener("pointerdown", (event) => {
+        if (this.axisDrag?.start(event, axis, index)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const touchAnchor = event.pointerType === "touch" ? this.touchAxisAnchor : null;
+        const extendTouch = touchAnchor?.axis === axis && touchAnchor.index !== index;
+        if (extendTouch) this.axisAnchor = touchAnchor.index;
+        else if (!event.shiftKey || this.axisSelection?.axis !== axis) this.axisAnchor = index;
+        this.selectAxis({ axis, start: Math.min(this.axisAnchor, index), end: Math.max(this.axisAnchor, index) });
+        this.touchAxisAnchor = event.pointerType === "touch" && !extendTouch ? { axis, index } : null;
+        handle.focus({ preventScroll: true });
+      });
+      handle.addEventListener("click", () => {
+        if (this.axisDrag?.consumeClick()) return;
+        if (this.axisSelection?.axis !== axis || index < this.axisSelection.start || index > this.axisSelection.end) {
+          this.axisAnchor = index;
+          this.selectAxis({ axis, start: index, end: index });
+        }
+      });
+      handle.addEventListener("contextmenu", (event) => {
+        this.touchAxisAnchor = null;
+        event.preventDefault();
+        event.stopPropagation();
+        if (this.axisSelection?.axis !== axis || index < this.axisSelection.start || index > this.axisSelection.end) {
+          this.axisAnchor = index;
+          this.selectAxis({ axis, start: index, end: index });
+        }
+        this.showSelectionMenu(event, view);
+      });
+    };
     const rowHandles = this.table.rows.map((_row, row) => {
       const handle = host.ownerDocument.createElement("button");
       handle.type = "button";
@@ -798,21 +890,8 @@ class StructuralTableInteraction {
       handle.dataset.structuralRowHandle = String(row);
       handle.textContent = "⋮";
       handle.setAttribute("aria-label", withCount(t("handle.row"), row + 1));
-      handle.addEventListener("pointerdown", (event) => {
-        if (event.pointerType !== "touch") {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        this.selectBounds({ row, column: 0 }, { row, column: this.table.columnCount - 1 });
-        handle.focus({ preventScroll: true });
-      });
-      handle.addEventListener("click", () => {
-        this.selectBounds({ row, column: 0 }, { row, column: this.table.columnCount - 1 });
-      });
-      handle.addEventListener("contextmenu", (event) => {
-        this.selectBounds({ row, column: 0 }, { row, column: this.table.columnCount - 1 });
-        this.showSelectionMenu(event, view);
-      });
+      handle.title = t("handle.dragHint");
+      installAxisHandle(handle, "row", row);
       host.appendChild(handle);
       return handle;
     });
@@ -823,21 +902,8 @@ class StructuralTableInteraction {
       handle.dataset.structuralColumnHandle = String(column);
       handle.textContent = "⋯";
       handle.setAttribute("aria-label", withCount(t("handle.column"), column + 1));
-      handle.addEventListener("pointerdown", (event) => {
-        if (event.pointerType !== "touch") {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        this.selectBounds({ row: 0, column }, { row: this.table.rows.length - 1, column });
-        handle.focus({ preventScroll: true });
-      });
-      handle.addEventListener("click", () => {
-        this.selectBounds({ row: 0, column }, { row: this.table.rows.length - 1, column });
-      });
-      handle.addEventListener("contextmenu", (event) => {
-        this.selectBounds({ row: 0, column }, { row: this.table.rows.length - 1, column });
-        this.showSelectionMenu(event, view);
-      });
+      handle.title = t("handle.dragHint");
+      installAxisHandle(handle, "column", column);
       host.appendChild(handle);
       return handle;
     });
@@ -849,6 +915,15 @@ class StructuralTableInteraction {
       const tableRect = rendered.getBoundingClientRect();
       const rtl = rendered.ownerDocument.defaultView?.getComputedStyle(rendered).direction === "rtl";
       const inlineStart = rtl ? hostRect.right - tableRect.right : tableRect.left - hostRect.left;
+      const gutter = parseFloat(rendered.ownerDocument.defaultView?.getComputedStyle(addColumn).width ?? "24") || 24;
+      const left = Math.max(0, tableRect.left - hostRect.left);
+      const right = Math.min(hostRect.width - gutter, tableRect.right - hostRect.left);
+      addRow.style.top = `${tableRect.bottom - hostRect.top}px`;
+      addRow.style.left = `${left}px`;
+      addRow.style.width = `${Math.max(gutter, right - left)}px`;
+      addColumn.style.top = `${tableRect.top - hostRect.top}px`;
+      addColumn.style.left = `${rtl ? Math.max(0, left - gutter) : Math.max(0, right)}px`;
+      addColumn.style.height = `${tableRect.height}px`;
       rowHandles.forEach((handle, row) => {
         const rowRect = rendered.rows.item(row)?.getBoundingClientRect();
         const fallback = (row + 0.5) / this.table.rows.length;
@@ -857,19 +932,9 @@ class StructuralTableInteraction {
           : rowRect.top - hostRect.top + rowRect.height / 2}px`;
         handle.style.setProperty("inset-inline-start", `calc(${inlineStart}px - var(--structural-table-handle-gutter))`);
       });
+      const columns = tableAxisBoundaries(rendered, "column", this.table.columnCount);
       columnHandles.forEach((handle, column) => {
-        let left: number | null = null;
-        for (const element of rendered.querySelectorAll<HTMLElement>("[data-structural-column]")) {
-          const start = Number(element.dataset.structuralColumn);
-          const span = Number(element.getAttribute("colspan") ?? "1");
-          if (column < start || column >= start + span) continue;
-          const rect = element.getBoundingClientRect();
-          if (rect.width > 0) left = rect.left - hostRect.left + rect.width * ((column - start + 0.5) / span);
-          break;
-        }
-        const fallback = tableRect.left - hostRect.left
-          + (column + 0.5) / this.table.columnCount * Math.max(0, tableRect.width);
-        handle.style.left = `${left ?? fallback}px`;
+        handle.style.left = `${(columns[column]! + columns[column + 1]!) / 2 - hostRect.left}px`;
         handle.style.setProperty(
           "inset-block-start",
           `calc(${tableRect.top - hostRect.top}px - var(--structural-table-handle-gutter))`,
@@ -916,13 +981,29 @@ class StructuralTableInteraction {
   }
 
   private selectBounds(first: TableCellCoordinate, last: TableCellCoordinate): void {
+    this.axisSelection = null;
+    this.touchAxisAnchor = null;
     this.touchRangeAnchor = null;
     this.selectionAnchor = first;
     this.selectionHead = last;
     this.updateSelection();
   }
 
-  private applyMenuOperation(view: EditorView, operation: TableOperation): void {
+  private selectAxis(selection: AxisSelection): void {
+    const { axis, start, end } = selection;
+    this.selectBounds(axis === "row" ? { row: start, column: 0 } : { row: 0, column: start },
+      axis === "row" ? { row: end, column: this.table.columnCount - 1 } : { row: this.table.rows.length - 1, column: end });
+    this.axisSelection = selection;
+  }
+
+  private focusAxis(selection: AxisSelection): void {
+    this.selectAxis(selection);
+    this.axisAnchor = selection.start;
+    this.host?.querySelector<HTMLElement>(`[data-structural-${selection.axis}-handle='${selection.start}']`)
+      ?.focus({ preventScroll: true });
+  }
+
+  private applyMenuOperation(view: EditorView, operation: TableOperation, next?: TableCellCoordinate, axisSelection?: AxisSelection): void {
     const t = createTranslator(this.getSettings().language);
     const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
     if (current === null) {
@@ -931,14 +1012,19 @@ class StructuralTableInteraction {
     }
     const result = operation(current);
     if (result.changed) {
-      const coordinate = this.selectionAnchor ?? { row: 0, column: 0 };
+      const coordinate = next ?? this.selectionAnchor ?? { row: 0, column: 0 };
       const nativeCallout = this.host?.closest(".callout") != null;
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
         ...(nativeCallout ? tableWriteHistory(current, result.source, this.sourcePath, coordinate) : {}),
         ...(!nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
-      if (nativeCallout) this.restoreCalloutFocus(view, result.source, coordinate, false);
+      if (nativeCallout) {
+        this.restoreCalloutFocus(view, result.source, coordinate, next !== undefined && axisSelection === undefined);
+        const pending = pendingCellFocus.get(view);
+        if (pending !== undefined && axisSelection !== undefined) pending.axisSelection = axisSelection;
+      } else if (axisSelection !== undefined) queueMicrotask(() => this.interactionAfterUpdate(view)?.focusAxis(axisSelection));
+      else if (next !== undefined) queueMicrotask(() => this.openCellAfterUpdate(view, coordinate));
       else queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     }
     new Notice(operationNotice(t, result.code));

@@ -62,10 +62,12 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 2. Use an exact `<` cell to merge left, an exact `^` cell to merge up, or one adjacent `||` inside the delimiter row to mark the columns on its left as row headers.
 3. Leave the table in Live Preview, or switch to Reading view, to see the rendered structure.
 4. Click a rendered cell on desktop, double-tap it on a touch screen, or select it and press Enter/F2, to edit it in place. Shift+Enter or **Insert line break in cell** from the editor's context menu inserts `<br>`; Enter commits, Escape cancels, and Tab/Shift+Tab commits and moves through visible cells in source order, skipping merged placeholders.
-5. Use the row/column handles, drag across cells with a mouse, or tap the first and last cell of a rectangle on Android. Then right-click or long-press to insert, safely delete, move, align, merge, split, or set headers.
-6. Paste an HTML table from a browser, Excel, or Google Sheets to preserve supported row and column spans and cell line breaks.
-7. Open the command palette to preview and confirm canonical formatting, copy the current valid table as HTML, GFM, TSV, or CSV, preview a flatten-to-GFM conversion, or migrate a Sheets Extended row-header separator. Explicit table writes align source pipes by display width, including around CJK text, without touching the note during rendering.
-8. Right-click a table and choose **Upgrade to Base…**. Structural tables use **Expand structure and upgrade to Base…**, whose preview explains flattened header paths, ordinary row-header properties, repeated merged row-header values, and any blocking merged data cell before files can be created.
+5. Use **+** below the table to add a data row or **+** on its right edge to add a column. Tab from the final visible cell adds a data row and opens its first cell; the edit and insertion undo together.
+6. Use the row/column handles, drag across cells with a mouse, or tap the first and last cell of a rectangle on Android. Then right-click or long-press to insert, safely delete, move, align, merge, split, or set headers.
+7. Select a row or column handle first, then drag a selected handle to reorder. Shift-click another handle on desktop, or tap another handle on Android, to select a range. Red drop markers indicate a blocked move: include complete merged cells and stay within the same header/data region. Escape or releasing outside the table cancels a drag.
+8. Paste an HTML table from a browser, Excel, or Google Sheets to preserve supported row and column spans and cell line breaks.
+9. Open the command palette to preview and confirm canonical formatting, copy the current valid table as HTML, GFM, TSV, or CSV, preview a flatten-to-GFM conversion, or migrate a Sheets Extended row-header separator. Explicit table writes align source pipes by display width, including around CJK text, without touching the note during rendering.
+10. Right-click a table and choose **Upgrade to Base…**. Structural tables use **Expand structure and upgrade to Base…**, whose preview explains flattened header paths, ordinary row-header properties, repeated merged row-header values, and any blocking merged data cell before files can be created.
 
 ```markdown
 | Region  | Sales | <   |

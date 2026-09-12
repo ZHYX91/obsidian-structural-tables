@@ -281,6 +281,37 @@ export function insertTableRow(
   return resultFromOwnedGrid(table, grid, "row-inserted", "Row inserted.", headerRowCount, table.rowHeaderColumnCount, table.alignments);
 }
 
+/** Append a data row, even when the existing table contains only headers. */
+export function appendTableRow(table: StructuralTable): OperationResult {
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
+  const grid = ownedGrid(table);
+  grid.owners.push(Array.from({ length: table.columnCount }, (_unused, column) => {
+    const owner = `append-row:${column}`;
+    grid.contents.set(owner, "");
+    return owner;
+  }));
+  return resultFromOwnedGrid(table, grid, "row-inserted", "Row inserted.",
+    table.headerRowCount, table.rowHeaderColumnCount, table.alignments);
+}
+
+/** A terminal Tab is one write: either both the edit and new row succeed, or neither does. */
+export function editCellAndAppendRow(table: StructuralTable, row: number, column: number, input: string): OperationResult {
+  return editCellAndTransform(table, row, column, input, appendTableRow);
+}
+
+export function editCellAndTransform(table: StructuralTable, row: number, column: number, input: string,
+  transform: (current: StructuralTable) => OperationResult): OperationResult {
+  const edited = editCellContent(table, row, column, input);
+  if (!edited.changed && edited.code !== "cell-edited") return edited;
+  const unprefixed = edited.source.split(/\r\n|\r|\n/)
+    .map((line) => line.slice(table.sourcePrefix.length)).join(lineEnding(edited.source));
+  const current = edited.changed ? parseEditableTables(unprefixed).tables[0] : table;
+  if (current === undefined) return { changed: false, code: "invalid-result", message: "The edited table is unavailable.", source: table.source };
+  const appended = transform({ ...current, sourcePrefix: table.sourcePrefix });
+  return appended.changed ? appended : { ...appended, source: table.source };
+}
+
 export function insertTableColumn(
   table: StructuralTable,
   column: number,
@@ -347,21 +378,46 @@ export function deleteTableColumns(table: StructuralTable, startColumn: number, 
   return resultFromOwnedGrid(table, { ...grid, owners }, "columns-deleted", "Columns deleted.", table.headerRowCount, Math.max(0, rowHeaderColumnCount), alignments);
 }
 
-function movedIndexes(length: number, start: number, end: number, direction: MoveDirection): number[] | null {
-  if (start < 0 || end < start || end >= length) return null;
-  const indexes = Array.from({ length }, (_unused, index) => index);
-  if (direction === "backward") {
-    if (start === 0) return null;
-    const preceding = indexes[start - 1];
-    if (preceding === undefined) return null;
-    indexes.splice(start - 1, end - start + 2, ...indexes.slice(start, end + 1), preceding);
-  } else {
-    if (end === length - 1) return null;
-    const following = indexes[end + 1];
-    if (following === undefined) return null;
-    indexes.splice(start, end - start + 2, following, ...indexes.slice(start, end + 1));
+export type TableAxis = "row" | "column";
+
+/** Destination is a boundary in the original table (0 through axis length). */
+export function reorderTableAxis(table: StructuralTable, axis: TableAxis,
+  start: number, end: number, destination: number): OperationResult {
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
+  const length = axis === "row" ? table.rows.length : table.columnCount;
+  const min = Math.min(start, end);
+  const max = Math.max(start, end);
+  const code = axis === "row" ? "row-moved" : "column-moved";
+  const refuse = (message: string): OperationResult => ({ changed: false, code: "invalid-result", message, source: table.source });
+  if (![min, max, destination].every(Number.isInteger) || min < 0 || max >= length || destination < 0 || destination > length) {
+    return refuse("The selected range or destination is unavailable.");
   }
-  return indexes;
+  if (destination >= min && destination <= max + 1) {
+    return { changed: false, code, message: "The selection is already at that position.", source: table.source };
+  }
+  // Moving only part of a span is never an implicit split or expansion.
+  for (const row of table.rows) for (const cell of row.cells) {
+    if (cell.covered) continue;
+    const first = axis === "row" ? cell.row : cell.column;
+    const last = first + (axis === "row" ? cell.rowSpan : cell.columnSpan) - 1;
+    if (first <= max && last >= min && (first < min || last > max)) {
+      return refuse("Select every row or column of an existing merged cell before moving it.");
+    }
+  }
+  const indexes = Array.from({ length }, (_unused, index) => index);
+  const selected = indexes.splice(min, max - min + 1);
+  indexes.splice(destination > max ? destination - selected.length : destination, 0, ...selected);
+  const boundary = axis === "row" ? table.headerRowCount : table.rowHeaderColumnCount;
+  if (indexes.some((original, position) => (original < boundary) !== (position < boundary))) {
+    return refuse("Rows and columns cannot cross a header boundary.");
+  }
+  const grid = ownedGrid(table);
+  const owners = axis === "row" ? indexes.map((index) => grid.owners[index]!)
+    : grid.owners.map((row) => indexes.map((index) => row[index]!));
+  const alignments = axis === "row" ? table.alignments : indexes.map((index) => table.alignments[index]!);
+  return resultFromOwnedGrid(table, { ...grid, owners }, code, "Selection moved.",
+    table.headerRowCount, table.rowHeaderColumnCount, alignments);
 }
 
 export function moveTableRows(
@@ -372,17 +428,7 @@ export function moveTableRows(
 ): OperationResult {
   const min = Math.min(startRow, endRow);
   const max = Math.max(startRow, endRow);
-  const blocked = unavailable(table, min);
-  if (blocked !== null || table.rows[max] === undefined) return blocked ?? { changed: false, code: "row-unavailable", message: "The selected row is unavailable.", source: table.source };
-  const target = direction === "backward" ? min - 1 : max + 1;
-  if (target < 0 || target >= table.rows.length || (min < table.headerRowCount) !== (target < table.headerRowCount)) {
-    return { changed: false, code: "invalid-result", message: "Rows cannot move across the column-header boundary.", source: table.source };
-  }
-  const indexes = movedIndexes(table.rows.length, min, max, direction);
-  if (indexes === null) return { changed: false, code: "invalid-result", message: "The selected rows cannot move farther.", source: table.source };
-  const grid = ownedGrid(table);
-  const owners = indexes.map((index) => grid.owners[index] ?? []);
-  return resultFromOwnedGrid(table, { ...grid, owners }, "row-moved", "Rows moved.", table.headerRowCount, table.rowHeaderColumnCount, table.alignments);
+  return reorderTableAxis(table, "row", min, max, direction === "backward" ? min - 1 : max + 2);
 }
 
 export function moveTableColumns(
@@ -393,18 +439,7 @@ export function moveTableColumns(
 ): OperationResult {
   const min = Math.min(startColumn, endColumn);
   const max = Math.max(startColumn, endColumn);
-  const blocked = unavailable(table, undefined, min);
-  if (blocked !== null || max >= table.columnCount) return blocked ?? { changed: false, code: "cell-unavailable", message: "The selected column is unavailable.", source: table.source };
-  const target = direction === "backward" ? min - 1 : max + 1;
-  if (target < 0 || target >= table.columnCount || (min < table.rowHeaderColumnCount) !== (target < table.rowHeaderColumnCount)) {
-    return { changed: false, code: "invalid-result", message: "Columns cannot move across the row-header boundary.", source: table.source };
-  }
-  const indexes = movedIndexes(table.columnCount, min, max, direction);
-  if (indexes === null) return { changed: false, code: "invalid-result", message: "The selected columns cannot move farther.", source: table.source };
-  const grid = ownedGrid(table);
-  const owners = grid.owners.map((row) => indexes.map((index) => row[index] ?? ""));
-  const alignments = indexes.map((index) => table.alignments[index] ?? "default");
-  return resultFromOwnedGrid(table, { ...grid, owners }, "column-moved", "Columns moved.", table.headerRowCount, table.rowHeaderColumnCount, alignments);
+  return reorderTableAxis(table, "column", min, max, direction === "backward" ? min - 1 : max + 2);
 }
 
 export function alignTableColumns(

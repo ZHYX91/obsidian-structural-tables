@@ -36,6 +36,8 @@ Cover missing anchors, nonrectangles, role crossing, edge/multiple/spaced `||`, 
 
 Cover safe merges, non-empty refusal, splitting, insert/delete/move/alignment transformations, merged-anchor migration, Wiki-link pipe escaping without double escapes, canonical `<br>` insertion from Shift+Enter, the cell-editor menu and multiline paste, and canonical formatting. Serializer tests assert display-column pipe alignment for ASCII, CJK, combining marks, and emoji; preserve `||`, alignment markers, escaped pipes, Wiki links, code spans, and LF/CRLF/CR; and reparse every result. DOM tests cover ordinary takeover and release, full owned menus, semantic header roles, cell-proxied handle reveal, centered-table handle coordinates, selection clearing on editor-cursor movement and cross-table pointer transfer, an editor constrained to one column with a single outer border, one-transaction Tab commit, and IME composition. Settings tests cover the default-off takeover flag; pure, idempotent normalization; unversioned-to-schema-1 migration; current-schema loading; future and malformed explicit-schema refusal without writes; immutable serialized snapshots; visible failure and retry states; and unload flushing.
 
+Growth/reorder tests cover header-only data-row insertion, terminal Tab through merged anchors, atomic draft-plus-insertion undo, explicit first selection, touch and Shift handle ranges, exact content/alignment permutations, merge and role-boundary refusal, RTL boundaries, pointer identity, cancellation and source replacement. Real-host checks cover add-control geometry, horizontal overflow and moved-handle focus in Callouts and list continuations.
+
 <!-- section: interchange -->
 ## Interchange cases
 

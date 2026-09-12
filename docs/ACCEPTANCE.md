@@ -54,6 +54,9 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Theme-following, grid, and three-line styles with logical merged edges.
 - [ ] Span-aware outer borders, native-aligned table origin with handles outside layout, stable comfortable/compact cell dimensions and coarse-pointer touch minimums before and after merges, zebra continuity through row spans, selection clearing when focus/editor cursor leaves or another table receives the pointer, visible focus, one Tab stop per cell/row-handle/column-handle group, LTR/RTL arrow movement, and owned-table handles hidden at rest but revealed for the hovered cell's row and column or retained by keyboard focus/selection without clipping.
 - [ ] Drag selection, insert/delete/move/alignment/merge/split/header menus.
+- [ ] Bottom/right add controls at content-left, content-center and full width; no page overflow or clipped touch targets. Active drafts and insertion commit/undo together. Header-only tables gain data rows.
+- [ ] Terminal Tab appends one data row and opens its first cell; Shift+Tab from the first cell creates nothing. Recheck nested Callout focus and undo.
+- [ ] A first handle gesture only selects. A subsequent drag moves selected rows/columns; Shift-click or two handle taps selects a range. Verify exact content, column alignment and prefixes after reorder and undo/redo. Partial merges, split destinations and header crossings show a blocked marker and leave source unchanged; Escape, pointer cancellation, leaving the table and source replacement cancel safely.
 - [ ] All four table layouts in narrow and split panes, with theme-following as the fresh default and owned blocks confined to the text column.
 - [ ] Optional alternating rows.
 - [ ] Refusal without content loss.

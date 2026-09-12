@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.8 - 2026-09-13
+
+- Add bottom and right edge controls for new rows and columns, with focus in the new cell.
+- Append a data row when Tab leaves the final visible cell, committing the draft and insertion together for undo.
+- Reorder explicitly selected rows or columns by dragging their handles; support Shift-click and touch range selection.
+- Preserve content, alignment and container prefixes while refusing drops that split merged cells or cross header boundaries.
+
 ## 0.4.7 - 2026-09-13
 
 - Match Callout tables to their source in both views using native-rendered content, including rich row headers and multiple header rows.

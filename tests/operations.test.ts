@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   alignTableColumns,
+  appendTableRow,
+  editCellAndAppendRow,
   cellColumnAt,
   deleteTableColumns,
   deleteTableRows,
@@ -13,6 +15,7 @@ import {
   moveTableColumns,
   moveTableRows,
   normalizeTableCellInput,
+  reorderTableAxis,
   setHeaderRowCount,
   setRowHeaderColumnCount,
   splitCell,
@@ -22,6 +25,59 @@ import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 const source = "| Group | < |\n| A | B |\n| --- | --- |\n| 1 |  |";
 
 describe("table operations", () => {
+  it("reorders complete merged row groups atomically and refuses split destinations", () => {
+    const text = "> | H | V |\n> | --- || --- |\n> | A | B |\n> | ^ | C |\n> | Z | D |";
+    const table = parseStructuralTables(text).tables[0]!;
+    expect(reorderTableAxis(table, "row", 1, 1, 4).changed).toBe(false);
+    expect(reorderTableAxis(table, "row", 3, 3, 2).changed).toBe(false);
+    expect(reorderTableAxis(table, "row", 1, 2, 0).changed).toBe(false);
+    const moved = reorderTableAxis(table, "row", 1, 2, 4);
+    expect(moved.changed).toBe(true);
+    const next = parseStructuralTables(moved.source).tables[0]!;
+    expect(next.rows.map((row) => row.cells[0]!.raw.trim())).toEqual(["H", "Z", "A", "^"]);
+    expect(next.rows[2]!.cells[0]!.rowSpan).toBe(2);
+    expect(moved.source.split("\n").every((line) => line.startsWith("> |"))).toBe(true);
+    expect(table.source).toBe(text);
+    expect(reorderTableAxis(table, "row", 1, 2, 2)).toMatchObject({ changed: false, source: text });
+  });
+
+  it("moves column alignment with content and protects row headers and horizontal spans", () => {
+    const table = parseStructuralTables("| R | A | B | C |\n| --- || :--- | ---: | :---: |\n| Z | 1 | 2 | 3 |").tables[0]!;
+    const moved = reorderTableAxis(table, "column", 1, 1, 4);
+    const next = parseStructuralTables(moved.source).tables[0]!;
+    expect(next.rows[1]!.cells.map((cell) => cell.content)).toEqual(["Z", "2", "3", "1"]);
+    expect(next.alignments).toEqual(["default", "right", "center", "left"]);
+    expect(reorderTableAxis(table, "column", 0, 0, 4).changed).toBe(false);
+    expect(reorderTableAxis(table, "column", 1, 1, NaN).changed).toBe(false);
+    const merged = parseStructuralTables("| R | A | < | C |\n| --- || --- | --- | --- |\n| Z | 1 | 2 | 3 |").tables[0]!;
+    expect(reorderTableAxis(merged, "column", 1, 1, 4).changed).toBe(false);
+    expect(reorderTableAxis(merged, "column", 3, 3, 2).changed).toBe(false);
+    expect(reorderTableAxis(merged, "column", 1, 2, 4).changed).toBe(true);
+  });
+  it("appends a data row to header-only tables without changing header roles", () => {
+    const table = parseStructuralTables("| Group | < |\r\n| Name | Value |\r\n| --- | --- |").tables[0]!;
+    const result = appendTableRow(table);
+    const next = parseStructuralTables(result.source).tables[0]!;
+    expect(next.headerRowCount).toBe(2);
+    expect(next.rows).toHaveLength(3);
+    expect(next.rows[2]!.cells.every((cell) => !cell.covered && cell.content === "")).toBe(true);
+    expect(result.source).toContain("\r\n");
+  });
+
+  it("commits terminal-cell content and appends atomically with deep-list prefixes", () => {
+    const table = parseStructuralTables("| H | V |\r| --- || --- |\r| A | B |").tables[0]!;
+    const nested = { ...table, sourcePrefix: "    ", source: table.source.split("\r").map((line) => `    ${line}`).join("\r") };
+    const result = editCellAndAppendRow(nested, 1, 1, "Saved | value");
+    expect(result.changed).toBe(true);
+    expect(result.source.split("\r").every((line) => line.startsWith("    |"))).toBe(true);
+    const next = parseStructuralTables(result.source.replace(/^ {4}/gm, "")).tables[0]!;
+    expect(next.rows).toHaveLength(3);
+    expect(next.rows[1]!.cells[1]!.raw).toContain("Saved \\| value");
+    expect(next.rowHeaderColumnCount).toBe(1);
+    const invalid = editCellAndAppendRow(nested, 99, 0, "New content");
+    expect(invalid.changed).toBe(false);
+    expect(invalid.source).toBe(nested.source);
+  });
   it("merges an empty cell and validates the candidate", () => {
     const table = parseStructuralTables(source).tables[0]!;
     const result = mergeCell(table, 2, 1, "left");

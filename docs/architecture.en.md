@@ -22,6 +22,8 @@ translation_of: architecture.zh-CN.md
 
 The parser scans GFM delimiter candidates with at least three hyphens, skips BOM-prefixed frontmatter closed by either `---` or `...`, fenced code, and indented code, respects escaped pipes and code spans, and emits source ranges, role grids, merge anchors, and diagnostics.
 
+Row/column reorder is a pure axis permutation shared by menu movement and drag/drop. It rejects partial span selections and role changes before validating the resulting owner grid. Insertion and an active cell draft compose into one candidate source and one host transaction. The DOM drag controller owns only selection gestures, measured boundaries, feedback and cancellation; source validation and writing remain in the shared operation path.
+
 <!-- section: validation -->
 ## Validation
 

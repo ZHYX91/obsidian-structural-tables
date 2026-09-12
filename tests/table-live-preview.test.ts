@@ -8,6 +8,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
 import type { StructuralTable } from "../src/core/model";
+import { parseEditableTables } from "../src/core/parser";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
 import { activeScopes, lastMenu } from "./mocks/obsidian";
 
@@ -118,6 +119,115 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it("moves a two-tap handle range in one history transaction and keeps its handles selected", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n| C | D |\n| E | F |\n\nEnd";
+    const rectangle = (left: number, top: number, width: number, height: number): DOMRect =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("structural-tables-live-preview")) return rectangle(0, 0, 300, 230);
+      if (this.tagName === "TABLE") return rectangle(40, 20, 200, 160);
+      if (this.tagName === "TR") {
+        const index = [...this.closest("table")!.rows].indexOf(this as HTMLTableRowElement);
+        return rectangle(40, 20 + index * 40, 200, 40);
+      }
+      if (this.dataset.structuralColumn !== undefined) return rectangle(40 + Number(this.dataset.structuralColumn) * 100,
+        20 + Number(this.dataset.structuralRow) * 40, 100, 40);
+      return rectangle(0, 0, 0, 0);
+    });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const pointer = (type: string, y: number) => new PointerEvent(type,
+      { pointerId: 1, isPrimary: true, button: 0, pointerType: "touch", clientX: 25, clientY: y, bubbles: true, cancelable: true });
+    try {
+      const first = parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!;
+      const second = parent.querySelector<HTMLElement>("[data-structural-row-handle='2']")!;
+      first.dispatchEvent(pointer("pointerdown", 80));
+      window.dispatchEvent(pointer("pointerup", 80));
+      second.dispatchEvent(pointer("pointerdown", 120));
+      window.dispatchEvent(pointer("pointerup", 120));
+      expect(parent.querySelectorAll(".structural-tables-row-handle.is-selected")).toHaveLength(2);
+      first.dispatchEvent(pointer("pointerdown", 80));
+      window.dispatchEvent(pointer("pointermove", 180));
+      window.dispatchEvent(pointer("pointerup", 180));
+      await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[0]!.content).toBe("E"));
+      await vi.waitFor(() => expect(parent.querySelectorAll(".structural-tables-row-handle.is-selected")).toHaveLength(2));
+      expect((document.activeElement as HTMLElement).dataset.structuralRowHandle).toBe("2");
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("cancels an armed axis drag when external content replaces its source", () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n| C | D |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    const pointer = (type: string, y: number) => new PointerEvent(type,
+      { pointerId: 1, isPrimary: true, button: 0, pointerType: "mouse", clientX: 25, clientY: y, bubbles: true, cancelable: true });
+    try {
+      const handle = parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!;
+      handle.dispatchEvent(pointer("pointerdown", 80));
+      window.dispatchEvent(pointer("pointerup", 80));
+      handle.dispatchEvent(pointer("pointerdown", 80));
+      const from = source.indexOf("| A") + 2;
+      view.dispatch({ changes: { from, to: from + 1, insert: "Changed" } });
+      const changed = view.state.doc.toString();
+      window.dispatchEvent(pointer("pointermove", 200));
+      window.dispatchEvent(pointer("pointerup", 200));
+      expect(view.state.doc.toString()).toBe(changed);
+      expect(parent.querySelector("[data-reorder-state]")).toBeNull();
+    } finally { view.destroy(); }
+  });
+  it("terminal Tab appends one row, opens its first cell and undoes the edit with the row", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "Saved";
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(parent.querySelector("[data-structural-row='2'][data-structural-column='0'] textarea")).not.toBeNull());
+      expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows).toHaveLength(3);
+      expect(view.state.doc.toString()).toContain("Saved");
+      parent.querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("adds a column together with an active draft and focuses the new header", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      cell.querySelector<HTMLTextAreaElement>("textarea")!.value = "Draft";
+      parent.querySelector<HTMLButtonElement>(".structural-tables-add-column")!.click();
+      await vi.waitFor(() => expect(parent.querySelector("[data-structural-row='0'][data-structural-column='2'] textarea")).not.toBeNull());
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(table.columnCount).toBe(3);
+      expect(table.rows[1]!.cells[1]!.content).toBe("Draft");
+      parent.querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("adds a bottom data row to a header-only table and preserves backward Tab at the start", async () => {
+    const source = "Before\n\n| H | < |\n| --- | --- |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      parent.querySelector<HTMLButtonElement>(".structural-tables-add-row")!.click();
+      await vi.waitFor(() => expect(parent.querySelector("[data-structural-row='1'][data-structural-column='0'] textarea")).not.toBeNull());
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(table.headerRowCount).toBe(1);
+      expect(table.rows).toHaveLength(2);
+      const editor = parent.querySelector("textarea")!;
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }));
+      await vi.waitFor(() => expect(parent.querySelector("[data-structural-row='0'][data-structural-column='0'] textarea")).not.toBeNull());
+      const before = view.state.doc.toString();
+      parent.querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }));
+      expect(view.state.doc.toString()).toBe(before);
+    } finally { view.destroy(); }
+  });
   it("returns native focus to the table source when splitting a Callout's last merged cell", async () => {
     vi.stubGlobal("createDiv", (options: { cls: string }) => {
       const element = document.createElement("div"); element.className = options.cls; return element;
@@ -371,8 +481,13 @@ describe("StructuralTableEditorController", () => {
         await Promise.resolve();
       }
       expect(visited).toEqual(backward ? ["C", "B", "A", "H2", "H1"] : ["H1", "H2", "A", "B", "C"]);
-      expect(parent.querySelector("textarea")).toBeNull();
-      expect(view.state.doc.toString()).toBe(source);
+      if (backward) {
+        expect(parent.querySelector("textarea")).toBeNull();
+        expect(view.state.doc.toString()).toBe(source);
+      } else {
+        expect(parent.querySelector("[data-structural-row='3'][data-structural-column='0'] textarea")).not.toBeNull();
+        expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows).toHaveLength(4);
+      }
     } finally { view.destroy(); }
   });
 

@@ -28,6 +28,48 @@
   max-width: 100%;
   min-width: 0;
   overflow: visible;
+  padding-block-end: var(--structural-table-handle-gutter);
+}
+
+.structural-tables-live-preview > .structural-tables-container {
+  box-sizing: border-box;
+  padding-inline-end: var(--structural-table-handle-gutter);
+}
+
+.structural-tables-add-row,
+.structural-tables-add-column {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-ui-medium);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.structural-tables-add-row { height: var(--structural-table-handle-gutter); }
+.structural-tables-add-column { width: var(--structural-table-handle-gutter); }
+
+.structural-tables-add-row:hover,
+.structural-tables-add-column:hover,
+.structural-tables-add-row:focus-visible,
+.structural-tables-add-column:focus-visible {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.structural-tables-add-row:focus-visible,
+.structural-tables-add-column:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
 }
 
 /* Obsidian's widget paint containment would clip the interactive outer gutter. */
@@ -134,8 +176,29 @@
   color: var(--text-faint);
   line-height: 1;
   cursor: pointer;
+  touch-action: none;
   opacity: 0;
   transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.structural-tables-row-handle.is-selected,
+.structural-tables-column-handle.is-selected { cursor: grab; }
+
+.structural-tables-live-preview[data-reorder-state="allowed"],
+.structural-tables-live-preview[data-reorder-state="allowed"] button { cursor: grabbing; }
+
+.structural-tables-live-preview[data-reorder-state="blocked"],
+.structural-tables-live-preview[data-reorder-state="blocked"] button { cursor: not-allowed; }
+
+.structural-tables-drop-line {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  background: var(--interactive-accent);
+}
+
+.structural-tables-live-preview[data-reorder-state="blocked"] .structural-tables-drop-line {
+  background: var(--text-error);
 }
 
 .structural-tables-row-handle:hover,

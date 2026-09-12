@@ -39,7 +39,7 @@ export class StructuralTableReadingProcessor {
     private readonly getSettings: () => StructuralTablesSettings,
   ) {}
 
-  process(container: HTMLElement, context: MarkdownPostProcessorContext): void | Promise<void> {
+  process(container: HTMLElement, context: MarkdownPostProcessorContext): void {
     if (container.closest(".structural-tables-container, [data-structural-tables-processed='true']") !== null) return;
     const settings = this.getSettings();
     if (!settings.enableReadingView) return;
@@ -60,7 +60,11 @@ export class StructuralTableReadingProcessor {
       }));
     if (parsed.length === 0) return;
     if (container.matches(".callout") || container.querySelector(".callout") !== null) {
-      return this.processCallout(container, context, parsed, section.text);
+      // Native comparison rendering shares Obsidian's render queue. Returning
+      // its promise would hold the current section open while waiting on itself.
+      // The render child and source checks below own this deferred work instead.
+      void this.processCallout(container, context, parsed, section.text);
+      return;
     }
     const candidates = renderedTables(container);
     let candidateIndex = 0;

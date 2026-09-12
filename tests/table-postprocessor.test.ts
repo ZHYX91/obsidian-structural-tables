@@ -46,16 +46,23 @@ describe("StructuralTableReadingProcessor", () => {
     vi.stubGlobal("createDiv", (options: { cls: string }) => {
       const element = document.createElement("div"); element.className = options.cls; return element;
     });
+    let releaseRender!: () => void;
+    const renderQueue = new Promise<void>((resolve) => { releaseRender = resolve; });
     const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      await renderQueue;
       const target = args[2] as HTMLElement;
       if (target.className === "structural-tables-container") target.innerHTML = (args[1] as string).includes("Software") ? raw : native;
     });
     try {
-      await new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, {
+      const result = new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, {
         addChild: vi.fn(), sourcePath: "Callout.md",
         getSectionInfo: () => ({ text: source, lineStart: 0, lineEnd: 7 }),
       } as unknown as MarkdownPostProcessorContext);
-      expect(container.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+      expect(result).toBeUndefined();
+      expect(container.querySelector(".structural-tables-table")).toBeNull();
+      // Obsidian can finish the outer section before servicing nested rendering.
+      releaseRender();
+      await vi.waitFor(() => expect(container.querySelectorAll(".structural-tables-table")).toHaveLength(1));
       expect(container.querySelector("tbody th")?.getAttribute("scope")).toBe("row");
       expect([...container.querySelectorAll("table")].pop()?.textContent).toBe("PlainTableKeptNative");
     } finally { render.mockRestore(); vi.unstubAllGlobals(); }

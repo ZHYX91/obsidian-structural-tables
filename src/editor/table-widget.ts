@@ -853,6 +853,11 @@ class StructuralTableInteraction {
           axis === "row" ? { row: movedStart, column: 0 } : { row: 0, column: movedStart }, nextSelection);
       });
     const installAxisHandle = (handle: HTMLButtonElement, axis: TableAxis, index: number): void => {
+      // Obsidian listens to touch events separately from pointer events for sidebar swipes.
+      // Keep those gestures local to the handle without disabling its native long-press menu.
+      for (const type of ["touchstart", "touchmove", "touchend", "touchcancel"] as const) {
+        handle.addEventListener(type, (event) => event.stopPropagation(), { passive: true });
+      }
       handle.addEventListener("pointerdown", (event) => {
         if (this.axisDrag?.start(event, axis, index)) return;
         event.preventDefault();

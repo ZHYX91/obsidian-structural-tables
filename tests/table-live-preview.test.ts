@@ -663,6 +663,25 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it("keeps handle touches out of host swipe gestures while allowing cell scrolling and handle menus", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const swipe = vi.fn();
+    for (const type of ["touchstart", "touchmove", "touchend", "touchcancel"]) parent.addEventListener(type, swipe);
+    const handle = parent.querySelector<HTMLElement>("[data-structural-column-handle='1']")!;
+    for (const type of ["touchstart", "touchmove", "touchend", "touchcancel"]) {
+      const touch = new Event(type, { bubbles: true, cancelable: true });
+      handle.dispatchEvent(touch);
+      expect(touch.defaultPrevented).toBe(false);
+    }
+    expect(swipe).not.toHaveBeenCalled();
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+    cell.dispatchEvent(new Event("touchmove", { bubbles: true, cancelable: true }));
+    expect(swipe).toHaveBeenCalledOnce();
+    handle.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    expect(lastMenu?.items.length).toBeGreaterThan(0);
+    view.destroy();
+  });
+
   it("reveals only the row and column handles corresponding to the hovered cell", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;

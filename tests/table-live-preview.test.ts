@@ -151,8 +151,12 @@ describe("StructuralTableEditorController", () => {
       await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[0]!.content).toBe("E"));
       await vi.waitFor(() => expect(parent.querySelectorAll(".structural-tables-row-handle.is-selected")).toHaveLength(2));
       expect((document.activeElement as HTMLElement).dataset.structuralRowHandle).toBe("2");
-      expect(undo(view)).toBe(true);
+      Object.assign(view.state.field(editorInfoField).editor!, { undo: () => undo(view), redo: () => redo(view) });
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }));
       expect(view.state.doc.toString()).toBe(source);
+      await Promise.resolve();
+      document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[0]!.content).toBe("E");
     } finally { view.destroy(); }
   });
 

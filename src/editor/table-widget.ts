@@ -287,14 +287,14 @@ class StructuralTableInteraction {
     this.dragging = false;
   };
 
-  private handleHistory(event: KeyboardEvent, view: EditorView): boolean {
+  private handleHistory(event: KeyboardEvent, view: EditorView,
+    coordinate = this.coordinateFor(event.target)): boolean {
     if (event.defaultPrevented || event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return false;
     const key = event.key.toLowerCase();
     const redo = (key === "z" && event.shiftKey) || (key === "y" && event.ctrlKey && !event.shiftKey);
     if (!redo && (key !== "z" || event.shiftKey)) return false;
     const editor = view.state.field(editorInfoField, false)?.editor;
     if (editor === undefined) return false;
-    const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return false;
     event.preventDefault();
     event.stopPropagation();
@@ -930,8 +930,8 @@ class StructuralTableInteraction {
       host.appendChild(handle);
       return handle;
     });
-    this.installRovingHandles(rowHandles, "vertical", rendered);
-    this.installRovingHandles(columnHandles, "horizontal", rendered);
+    this.installRovingHandles(rowHandles, "vertical", rendered, view);
+    this.installRovingHandles(columnHandles, "horizontal", rendered, view);
     host.addEventListener("pointerleave", () => this.clearRevealedHandles());
     const positionHandles = (): void => {
       const hostRect = host.getBoundingClientRect();
@@ -981,6 +981,7 @@ class StructuralTableInteraction {
     handles: HTMLButtonElement[],
     orientation: "horizontal" | "vertical",
     rendered: HTMLTableElement,
+    view: EditorView,
   ): void {
     handles.forEach((handle, index) => {
       handle.tabIndex = index === 0 ? 0 : -1;
@@ -988,6 +989,8 @@ class StructuralTableInteraction {
         handles.forEach((candidate) => { candidate.tabIndex = candidate === handle ? 0 : -1; });
       });
       handle.addEventListener("keydown", (event) => {
+        if (this.handleHistory(event, view, orientation === "vertical"
+          ? { row: index, column: 0 } : { row: 0, column: index })) return;
         const rtl = rendered.ownerDocument.defaultView?.getComputedStyle(rendered).direction === "rtl";
         const previousKey = orientation === "vertical" ? "ArrowUp" : rtl ? "ArrowRight" : "ArrowLeft";
         const nextKey = orientation === "vertical" ? "ArrowDown" : rtl ? "ArrowLeft" : "ArrowRight";

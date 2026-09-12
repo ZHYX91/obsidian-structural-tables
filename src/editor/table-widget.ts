@@ -38,6 +38,17 @@ interface PendingCellFocus {
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
 
+function focusNativeTable(view: EditorView, table: StructuralTable, coordinate: TableCellCoordinate): void {
+  cancelPendingTableFocus(view);
+  const row = table.rows[Math.min(coordinate.row, table.rows.length - 1)];
+  const line = view.state.doc.line((row?.sourceLine ?? table.startLine) + 1);
+  const anchor = Math.min(line.to, line.from + table.sourcePrefix.length + 1);
+  // Native editing uses the source caret. Move it before focusing, otherwise
+  // mobile keyboards reveal an unrelated old caret (often the document start).
+  view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "nearest" }) });
+  view.focus();
+}
+
 export function restoreTableHistoryFocus(view: EditorView,
   target: TableHistoryTarget,
   settings: StructuralTablesSettings): void {
@@ -53,8 +64,8 @@ export function restoreTableHistoryFocus(view: EditorView,
   queueMicrotask(() => {
     if (view.state !== state || !view.dom.isConnected || pendingCellFocus.get(view) !== pending) return;
     if (!table.structural && !settings.takeOverOrdinaryTables) {
-      pendingCellFocus.delete(view);
-      view.focus();
+      focusNativeTable(view, table, target.coordinate);
+      return;
     }
     view.dispatch({ effects: EditorView.scrollIntoView(table.range.from, { y: "nearest" }) });
   });
@@ -287,12 +298,12 @@ class StructuralTableInteraction {
     edit: boolean, reveal = false): void {
     const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
       candidate.range.from === this.table.range.from && candidate.source === source);
-    if (table === undefined || !table.valid
-      || (!table.structural && !this.getSettings().takeOverOrdinaryTables)) {
-      // A split can return the table to native ownership. No widget will arrive
-      // to accept focus, so return keyboard history to the existing editor caret.
+    if (table === undefined || !table.valid) {
       cancelPendingTableFocus(view);
-      view.focus();
+      return;
+    }
+    if (!table.structural && !this.getSettings().takeOverOrdinaryTables) {
+      focusNativeTable(view, table, coordinate);
       return;
     }
     pendingCellFocus.set(view, {

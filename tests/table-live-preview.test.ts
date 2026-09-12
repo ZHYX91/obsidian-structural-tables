@@ -118,7 +118,7 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
-  it("returns keyboard focus to the editor when splitting a Callout's last merged cell", async () => {
+  it("returns native focus to the table source when splitting a Callout's last merged cell", async () => {
     vi.stubGlobal("createDiv", (options: { cls: string }) => {
       const element = document.createElement("div"); element.className = options.cls; return element;
     });
@@ -135,7 +135,7 @@ describe("StructuralTableEditorController", () => {
       update: (value, transaction) => value.map(transaction.changes),
       provide: (field) => EditorView.decorations.from(field),
     });
-    const { parent, view } = mountEditor(source, { anchor: 0 }, [native]);
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native, history()]);
     try {
       await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
       const cell = parent.querySelector<HTMLElement>(".callout [data-structural-row='0'][data-structural-column='0']")!;
@@ -143,8 +143,18 @@ describe("StructuralTableEditorController", () => {
       lastMenu?.items.find((item) => item.title === "Split merged cell")?.callback?.();
       await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).toBeNull());
       expect(view.hasFocus).toBe(true);
-      expect(view.state.selection.main.anchor).toBe(0);
+      // A host block widget can move the caret to its boundary; it must never
+      // remain at the old paragraph before the Callout.
+      expect(view.state.selection.main.anchor).toBeGreaterThanOrEqual(source.indexOf("> | A"));
+      expect(view.state.selection.main.anchor).toBeLessThanOrEqual(view.state.doc.toString().indexOf("\n\nEnd") + 1);
       expect(view.state.doc.toString()).not.toContain("| < |");
+      expect(undo(view)).toBe(true);
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      expect(redo(view)).toBe(true);
+      await vi.waitFor(() => {
+        expect(view.hasFocus).toBe(true);
+        expect(view.state.selection.main.anchor).toBeGreaterThanOrEqual(source.indexOf("> | A"));
+      });
     } finally { view.destroy(); }
   });
   it("restores a rebuilt Callout cell after commit and host command undo/redo", async () => {

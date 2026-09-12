@@ -6,6 +6,7 @@
 - Preserve the correct edit destination across nested Callouts, mixed tables and identical tables; leave ambiguous targets untouched.
 - Restore cell focus after asynchronous Callout rendering so commits and undo/redo do not expose the entire Callout source.
 - Retain Callout cell targets in the host history so mobile command-palette undo and redo return to the edited table.
+- Move the native caret to the table when splitting its last merged cell, avoiding a mobile jump to an unrelated source position.
 
 ## 0.4.6 - 2026-09-12
 

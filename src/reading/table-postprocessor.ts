@@ -40,7 +40,16 @@ export class StructuralTableReadingProcessor {
     if (section === null || section === undefined) return;
     const source = sectionSource(section.text, section.lineStart, section.lineEnd);
     if (source === null) return;
-    const parsed = parseEditableTables(source).tables;
+    // Parse with the note's container and protected-region context intact, then
+    // translate source lines into this renderer section's coordinate system.
+    const parsed = parseEditableTables(section.text).tables
+      .filter((table) => table.startLine >= section.lineStart && table.endLine <= section.lineEnd)
+      .map((table) => ({
+        ...table,
+        startLine: table.startLine - section.lineStart,
+        endLine: table.endLine - section.lineStart,
+        delimiterLine: table.delimiterLine - section.lineStart,
+      }));
     if (parsed.length === 0) return;
     const candidates = renderedTables(container);
     let candidateIndex = 0;

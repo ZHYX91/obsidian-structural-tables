@@ -155,6 +155,7 @@ export function buildBasePromotionPlan(
   tableId: string,
 ): BasePromotionPlan {
   if (!table.valid) throw new Error("The table must be valid before promotion.");
+  if (table.sourcePrefix !== "") throw new Error("Move the table outside its Markdown container before upgrading to Base.");
   const projection = projectStructuralTable(table);
   if (projection.rows.length === 0) throw new Error("The table must contain at least one data row.");
   const columns = uniqueColumns(table, projection.columnNames);

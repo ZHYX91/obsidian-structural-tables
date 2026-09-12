@@ -13,6 +13,34 @@
   },
   "scenarios": [
     {
+      "id": "source-containers",
+      "title": "Container rendering and safe source writes",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open Container checks in Reading View and Live Preview; inspect callout, nested quote, list and deep list tables",
+        "Edit Alpha in the callout table and One in the list table; commit, undo and redo",
+        "Format a container table with preview and confirmation; split and merge its header",
+        "Inspect source after writes and verify every container prefix, YAML scalar and fenced example",
+        "Edit the plain paragraph before the tables, then edit a table cell to verify the shifted source binding"
+      ],
+      "expected": [
+        "All four tables render with merged headers in both views",
+        "Editing and formatting retain quote markers and list indentation; undo and redo restore exact content",
+        "YAML and fenced examples remain untouched and are never acquired as editable tables",
+        "Safe prose edits leave table rendering and subsequent cell edits correctly bound"
+      ]
+    },
+    {
       "id": "rendering",
       "title": "Structural rendering and invalid source",
       "surfaces": [

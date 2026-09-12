@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.6 - 2026-09-12
+
+- Render structural tables inside blockquotes and callouts, and preserve container prefixes through formatting, cell edits, structural operations, and GFM replacement.
+- Preserve list continuation indentation while excluding nested code examples; refuse nested Base promotion before any writes.
+- Keep YAML block scalars protected and parse LF, CRLF, and CR with exact source offsets.
+- Reuse parsed tables for safe plain-paragraph edits in Live Preview, retaining full parsing for structural changes.
+- Update the release transport to recover from temporary GitHub read failures and resume verified drafts.
+
 ## 0.4.5 - 2026-09-08
 
 - Fix promoted Base columns and sorting by using property IDs instead of formula expressions, including numeric, Unicode, whitespace and escaped property names.

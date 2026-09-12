@@ -30,6 +30,7 @@ import {
 } from "../core/interchange";
 import { parseEditableTables, parseStructuralTables } from "../core/parser";
 import { serializeStructuralTable } from "../core/serializer";
+import { withSourcePrefix } from "../core/source-lines";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import type { StructuralTable } from "../core/model";
 import {
@@ -406,7 +407,7 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const t = createTranslator(this.settings.language);
-    const source = structuralTableToPlainGfm(current.table);
+    const source = withSourcePrefix(structuralTableToPlainGfm(current.table), current.table.sourcePrefix);
     new ConversionPreviewModal(this.app, {
       title: t("modal.convertGfm.title"),
       description: t("modal.convertGfm.desc"),

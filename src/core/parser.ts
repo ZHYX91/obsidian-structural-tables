@@ -8,6 +8,7 @@ import type {
   StructuralTable,
   TableDiagnostic,
 } from "./model";
+import { sourceLines, sourcePrefix } from "./source-lines";
 
 interface ParsedRow {
   cells: string[];
@@ -215,30 +216,39 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
   }
 }
 
-function lineOffsets(source: string): { lines: string[]; offsets: number[] } {
-  const lines = source.split("\n");
-  const offsets: number[] = [];
-  let offset = 0;
-  for (const line of lines) {
-    offsets.push(offset);
-    offset += line.length + 1;
-  }
-  return { lines, offsets };
-}
-
 function ignoredLines(lines: string[]): Set<number> {
   const ignored = new Set<number>();
   let fence: { character: "`" | "~"; length: number } | null = null;
-  let frontmatter = lines[0]?.replace(/^\uFEFF/u, "").trim() === "---";
+  let frontmatter = /^---[\t ]*$/u.test(lines[0]?.replace(/^\uFEFF/u, "") ?? "");
+  let quoteDepth = 0;
+  let listIndents: number[] = [];
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
+    const original = lines[index] ?? "";
     if (frontmatter) {
       ignored.add(index);
-      if (index > 0 && (line.trim() === "---" || line.trim() === "...")) {
+      if (index > 0 && /^(?:---|\.\.\.)[\t ]*$/u.test(original)) {
         frontmatter = false;
       }
       continue;
     }
+    let quote = /^(?: {0,3}>[\t ]?)*/u.exec(original)?.[0] ?? "";
+    let depth = quote.split(">").length - 1;
+    if (fence !== null && depth >= quoteDepth) {
+      quote = (quote.match(/ {0,3}>[\t ]?/gu) ?? []).slice(0, quoteDepth).join("");
+      depth = quoteDepth;
+    }
+    if (depth !== quoteDepth) {
+      fence = null;
+      listIndents = [];
+      quoteDepth = depth;
+    }
+    const unquoted = original.slice(quote.length);
+    const indent = /^ */u.exec(unquoted)?.[0].length ?? 0;
+    if (unquoted.trim() !== "") {
+      while (listIndents.length > 0 && indent < listIndents[listIndents.length - 1]!) listIndents.pop();
+    }
+    const listIndent = listIndents[listIndents.length - 1] ?? 0;
+    const line = unquoted.slice(listIndent);
     if (fence !== null) {
       ignored.add(index);
       const closing = /^ {0,3}(`{3,}|~{3,})[\t ]*$/u.exec(line);
@@ -255,13 +265,17 @@ function ignoredLines(lines: string[]): Set<number> {
       continue;
     }
     if (/^(?: {4}|\t)/u.test(line)) ignored.add(index);
+    const list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
+    if (list !== null) listIndents.push(listIndent + list[0].length);
   }
   return ignored;
 }
 
 function parseTables(source: string, includeOrdinary: boolean): ParseResult {
-  const { lines, offsets } = lineOffsets(source);
-  const ignored = ignoredLines(lines);
+  const { lines: originalLines, offsets } = sourceLines(source);
+  const ignored = ignoredLines(originalLines);
+  const prefixes = originalLines.map(sourcePrefix);
+  const lines = originalLines.map((line, index) => line.slice(prefixes[index]?.length ?? 0));
   const tables: StructuralTable[] = [];
   const consumed = new Set<number>();
   let sourceTableIndex = 0;
@@ -269,21 +283,23 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     if (ignored.has(delimiterLine) || consumed.has(delimiterLine)) continue;
     const delimiter = parseDelimiter(lines[delimiterLine] ?? "", delimiterLine);
     if (delimiter === null) continue;
+    const prefix = prefixes[delimiterLine] ?? "";
+    const sameContainer = (line: number): boolean => prefixes[line] === prefix;
     const headerRows: { line: number; parsed: ParsedRow }[] = [];
     const immediateLine = delimiterLine - 1;
-    const immediateHeader = ignored.has(immediateLine) ? null : parsePipeRow(lines[immediateLine] ?? "");
+    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : parsePipeRow(lines[immediateLine] ?? "");
     if (immediateHeader === null) continue;
     headerRows.push({ line: immediateLine, parsed: immediateHeader });
     if (immediateHeader.cells.length === delimiter.columnCount) {
       for (let line = delimiterLine - 2; line >= 0; line -= 1) {
-        const parsed = ignored.has(line) ? null : parsePipeRow(lines[line] ?? "");
+        const parsed = ignored.has(line) || !sameContainer(line) ? null : parsePipeRow(lines[line] ?? "");
         if (parsed === null || parsed.cells.length !== delimiter.columnCount) break;
         headerRows.unshift({ line, parsed });
       }
     }
     const bodyRows: { line: number; parsed: ParsedRow }[] = [];
     for (let line = delimiterLine + 1; line < lines.length; line += 1) {
-      if (ignored.has(line) || (lines[line] ?? "").trim() === "") break;
+      if (ignored.has(line) || !sameContainer(line) || (lines[line] ?? "").trim() === "") break;
       const parsed = parsePipeRow(lines[line] ?? "");
       if (parsed === null) break;
       bodyRows.push({ line, parsed });
@@ -332,9 +348,10 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     });
     if (rows.every((row) => row.cells.length === delimiter.columnCount)) resolveMerges(rows, diagnostics);
     const from = offsets[startLine] ?? 0;
-    const lastLine = lines[endLine] ?? "";
+    const lastLine = originalLines[endLine] ?? "";
     const to = (offsets[endLine] ?? from) + lastLine.length;
     tables.push({
+      sourcePrefix: prefix,
       range: { from, to },
       sourceTableIndex: tableIndex,
       startLine,

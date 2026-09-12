@@ -183,7 +183,7 @@ export function migrateSheetsExtendedTable(table: StructuralTable): SheetsExtend
   const candidate = sourceWithoutColumn(table, separatorColumn);
   const parsed = parseEditableTables(candidate).tables[0];
   if (parsed === undefined || !parsed.valid) return null;
-  return { separatorColumn, source: serializeStructuralTable(parsed) };
+  return { separatorColumn, source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }) };
 }
 
 export function enabledConflictingPlugins(enabledPluginIds: Iterable<string>): string[] {

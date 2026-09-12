@@ -1,3 +1,4 @@
+import { withoutSourcePrefixes } from "../core/source-lines";
 import type { StructuralTable } from "../core/model";
 
 export function renderedTableFor<T>(candidates: readonly T[], table: StructuralTable): T | undefined {
@@ -33,8 +34,8 @@ export function rawStructuralTableElement(
   table: StructuralTable,
   ownsSourceRange?: (element: HTMLElement) => boolean,
 ): HTMLElement | undefined {
-  const expected = normalizeExpectedSourceBlock(table.source);
-  const delimiter = normalizeSourceBlock(table.source.split(/\r\n|\r|\n/u)[table.delimiterLine - table.startLine] ?? "");
+  const expected = normalizeExpectedSourceBlock(withoutSourcePrefixes(table.source));
+  const delimiter = normalizeSourceBlock(withoutSourcePrefixes(table.source).split(/\r\n|\r|\n/u)[table.delimiterLine - table.startLine] ?? "");
   const elements = [container, ...container.querySelectorAll<HTMLElement>("p, div")];
   return elements.reverse().find((element) => {
     if (element.closest("pre, code, table") !== null || element.querySelector("pre, table") !== null) return false;

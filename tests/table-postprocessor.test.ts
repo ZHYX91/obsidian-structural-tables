@@ -35,6 +35,32 @@ function rawBlock(source: string): HTMLDivElement {
 }
 
 describe("StructuralTableReadingProcessor", () => {
+  it.each(["> ", ">> ", "    "])("renders a container table in an isolated section %j", (prefix) => {
+    const bare = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
+    const source = "- outer\n  - inner\n\n" + bare.split("\n").map((line) => prefix + line).join("\n");
+    const container = document.createElement("div");
+    container.appendChild(rawBlock(bare));
+    const render = vi.spyOn(MarkdownRenderer, "render");
+    const context = {
+      addChild: vi.fn(), sourcePath: "Report.md",
+      getSectionInfo: () => ({ lineStart: 3, lineEnd: 5, text: source }),
+    } as unknown as MarkdownPostProcessorContext;
+    new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, context);
+    expect(container.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+    expect(render.mock.calls.map((call) => call[1])).toContain("North");
+    render.mockRestore();
+  });
+
+  it("does not acquire YAML scalar text when the section omits the frontmatter delimiters", () => {
+    const bare = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
+    const source = "---\nexample: |\n" + bare.split("\n").map((line) => "  " + line).join("\n") + "\n---";
+    const container = rawBlock(bare);
+    new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, {
+      addChild: vi.fn(), sourcePath: "Report.md",
+      getSectionInfo: () => ({ lineStart: 2, lineEnd: 4, text: source }),
+    } as unknown as MarkdownPostProcessorContext);
+    expect(container.querySelector(".structural-tables-table")).toBeNull();
+  });
   it("binds richly formatted raw source by its section without consuming a later ordinary table", () => {
     const structural = "| Region | Link |\n| --- || --- |\n| **North** | [Report](Report.md) &amp; ==highlight== |";
     const ordinary = "| Name | Status |\n| --- | --- |\n| Alice | Ready |";

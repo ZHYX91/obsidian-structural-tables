@@ -44,6 +44,7 @@ export interface StructuralRow {
 }
 
 export interface StructuralTable {
+  sourcePrefix: string;
   range: SourceRange;
   sourceTableIndex: number;
   startLine: number;

@@ -1,6 +1,7 @@
 import type { ColumnAlignment, StructuralTable } from "./model";
 import { parseEditableTables, parseStructuralTables } from "./parser";
 import { serializeStructuralTable } from "./serializer";
+import { sourcePrefix } from "./source-lines";
 
 export type MergeDirection = "left" | "up";
 
@@ -177,7 +178,7 @@ function resultFromOwnedGrid(
       source: table.source,
     };
   }
-  return { changed: true, code, message, source: serializeStructuralTable(parsed) };
+  return { changed: true, code, message, source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }) };
 }
 
 function unavailable(table: StructuralTable, row?: number, column?: number): OperationResult | null {
@@ -255,7 +256,7 @@ export function editCellContent(
   if (parsed === null || !parsed.valid) {
     return { changed: false, code: "invalid-result", message: "That edit would create an invalid table.", source: table.source };
   }
-  return { changed: true, code: "cell-edited", message: "Cell updated.", source: serializeStructuralTable(parsed) };
+  return { changed: true, code: "cell-edited", message: "Cell updated.", source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }) };
 }
 
 export function insertTableRow(
@@ -451,7 +452,7 @@ export function mergeCell(
   if (parsed === null || !parsed.valid) {
     return { changed: false, code: "invalid-result", message: parsed?.diagnostics[0]?.message ?? "That merge would create an invalid table.", source: table.source };
   }
-  return { changed: true, code: "merged", message: "Cells merged.", source: serializeStructuralTable(parsed) };
+  return { changed: true, code: "merged", message: "Cells merged.", source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }) };
 }
 
 export function mergeCellRange(
@@ -520,7 +521,7 @@ export function mergeCellRange(
   if (parsed === null || !parsed.valid) {
     return { changed: false, code: "invalid-result", message: parsed?.diagnostics[0]?.message ?? "That merge would create an invalid table.", source: table.source };
   }
-  return { changed: true, code: "merged", message: "Cells merged.", source: serializeStructuralTable(parsed) };
+  return { changed: true, code: "merged", message: "Cells merged.", source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }) };
 }
 
 export function splitCell(table: StructuralTable, row: number, column: number): OperationResult {
@@ -553,7 +554,7 @@ export function splitCell(table: StructuralTable, row: number, column: number): 
     changed: true,
     code: "split",
     message: "Merged cell split.",
-    source: parsed === null ? candidateSource : serializeStructuralTable(parsed),
+    source: parsed === null ? candidateSource : serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
   };
 }
 
@@ -574,7 +575,7 @@ export function setHeaderRowCount(table: StructuralTable, count: number): Operat
     changed: true,
     code: "header-rows-set",
     message: "Column-header rows updated.",
-    source: parsed === null ? candidateSource : serializeStructuralTable(parsed),
+    source: parsed === null ? candidateSource : serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
   };
 }
 
@@ -595,11 +596,14 @@ export function setRowHeaderColumnCount(table: StructuralTable, count: number): 
     changed: true,
     code: "row-headers-set",
     message: "Row-header columns updated.",
-    source: parsed === null ? candidateSource : serializeStructuralTable(parsed),
+    source: parsed === null ? candidateSource : serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
   };
 }
 
 export function cellColumnAt(line: string, character: number): number | null {
+  const prefix = sourcePrefix(line);
+  line = line.slice(prefix.length);
+  character -= prefix.length;
   let column = line.trimStart().startsWith("|") ? -1 : 0;
   let escaped = false;
   let codeTicks = 0;

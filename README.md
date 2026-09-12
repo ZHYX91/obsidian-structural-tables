@@ -4,6 +4,8 @@
 
 Structural Tables adds merged cells, multi-row column headers, and row headers to ordinary pipe-table Markdown while keeping the source readable and portable.
 
+Tables in blockquotes, callouts and list continuations retain their container when formatted or edited. Keep the same prefix on every table row. Move a nested table to the top level before upgrading it to Base.
+
 ## Screenshots
 
 ### Three-line table in Reading view

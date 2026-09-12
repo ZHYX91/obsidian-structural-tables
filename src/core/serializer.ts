@@ -118,7 +118,7 @@ export function serializeStructuralTable(table: StructuralTable): string {
     lines.push(serializeRow(cells, widths));
   }
   if (table.rows.length === table.headerRowCount) lines.push(delimiter);
-  return lines.join(sourceLineEnding(table.source));
+  return lines.map((line) => table.sourcePrefix + line).join(sourceLineEnding(table.source));
 }
 
 function sourceLineEnding(source: string): "\r\n" | "\r" | "\n" {

@@ -10,6 +10,7 @@ import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
 import { diagnosticText } from "../rendering/table-renderer";
 import { clearTableWidgetSelection, StructuralTableWidget } from "./table-widget";
+import { mapTablesThroughProseEdit } from "./table-parse-cache";
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
@@ -102,7 +103,8 @@ export class StructuralTableEditorController {
         const composition = transaction.effects.find((effect) => effect.is(structuralTableComposition));
         const composing = composition?.value ?? value.composing;
         if (!shouldRebuild(transaction)) return value;
-        const tables = readTables(transaction.state, transaction.docChanged ? null : value.tables);
+        const tables = readTables(transaction.state, transaction.docChanged
+          ? mapTablesThroughProseEdit(value.tables, transaction) : value.tables);
         return {
           composing,
           tables,

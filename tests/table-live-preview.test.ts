@@ -2,7 +2,7 @@
 
 import { EditorState, Prec, StateField, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
-import { App, editorInfoField, editorLivePreviewField, type Editor, type TFile } from "obsidian";
+import { App, MarkdownRenderer, editorInfoField, editorLivePreviewField, type Editor, type TFile } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
@@ -56,6 +56,8 @@ beforeAll(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   document.body.replaceChildren();
 });
 
@@ -115,7 +117,63 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it("waits for a rebuilt callout before restoring cell focus after a commit", async () => {
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div"); element.className = options.cls; return element;
+    });
+    let completeRender: (() => void) | undefined;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const source = args[1] as string;
+      const container = args[2] as HTMLElement;
+      if (container.className !== "structural-tables-container") return;
+      if (source.includes("Updated")) await new Promise<void>((resolve) => { completeRender = resolve; });
+      container.innerHTML = new NativeCalloutWidget().toDOM().querySelector(".callout-content")!.innerHTML
+        .replace("<td>y</td>", source.includes("Updated") ? "<td>Updated</td>" : "<td>y</td>");
+    });
+    class RebuiltCallout extends NativeCalloutWidget {
+      constructor(private readonly updated: boolean) { super(); }
+      override toDOM(): HTMLElement {
+        const element = super.toDOM();
+        if (this.updated) element.querySelectorAll("td")[1]!.textContent = "Updated";
+        return element;
+      }
+    }
+    const nativeFor = (source: string) => Decoration.set([
+      Decoration.replace({ widget: new RebuiltCallout(source.includes("Updated")), block: true })
+        .range(source.indexOf("> [!note]"), source.indexOf("\n\nEnd")),
+    ]);
+    const native = StateField.define({
+      create: (state) => nativeFor(state.doc.toString()),
+      update: (value, transaction) => transaction.docChanged ? nativeFor(transaction.newDoc.toString()) : value,
+      provide: (field) => EditorView.decorations.from(field),
+    });
+    const source = "Before\n\n> [!note]\n> | A | < |\n> | --- | --- |\n> | x | y |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native]);
+    await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+    const cell = parent.querySelector<HTMLElement>(".callout [data-structural-row='1'][data-structural-column='1']")!;
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+    editor.value = "Updated";
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    expect(view.state.selection.main.anchor).toBe(0);
+    await vi.waitFor(() => expect(completeRender).toBeDefined());
+    completeRender!();
+    await vi.waitFor(() => expect(document.activeElement).toBe(parent.querySelector(".callout [data-structural-row='1'][data-structural-column='1']")));
+    expect(view.state.doc.toString()).toContain("Updated");
+    view.destroy();
+  });
   it("mounts the shared cell editor inside a native callout and releases ownership on disable", async () => {
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div");
+      element.className = options.cls;
+      return element;
+    });
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const container = args[2] as HTMLElement;
+      if (container.className === "structural-tables-container") {
+        container.innerHTML = new NativeCalloutWidget().toDOM().querySelector(".callout-content")!.innerHTML;
+      }
+    });
     const source = "> [!note]\n> | A | < |\n> | --- | --- |\n> | x | y |\n\nEnd";
     const native = EditorView.decorations.of(Decoration.set([
       Decoration.replace({ widget: new NativeCalloutWidget(), block: true }).range(0, source.indexOf("\n\n")),

@@ -13,6 +13,33 @@
   },
   "scenarios": [
     {
+      "id": "callout-mapping",
+      "title": "Callout source mapping and asynchronous cell focus",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open Callout mapping in Reading View and Live Preview; inspect every positive case and both protected/invalid examples",
+        "Edit the second identical table, commit, undo and redo; inspect the unchanged first table and exact quote prefixes",
+        "Edit rich row-header content; traverse cells, fold and reopen a Callout, and switch views",
+        "Use the merged-header context menu to split and undo; verify focus and rendered ownership after each operation"
+      ],
+      "expected": [
+        "All nine valid structural tables render; the ordinary neighbour remains native unless takeover is enabled",
+        "Rich row headers, multiple header rows, nested and list Callouts retain their structure in both views",
+        "Only the selected table is written; commit and undo/redo restore the rendered cell without exposing whole-Callout source",
+        "Fenced examples and invalid row-header syntax stay uneditable; view changes and folding preserve saved source"
+      ]
+    },
+    {
       "id": "source-containers",
       "title": "Container rendering and safe source writes",
       "surfaces": [

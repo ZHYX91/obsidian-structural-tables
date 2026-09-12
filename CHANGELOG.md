@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.7 - 2026-09-13
+
+- Match Callout tables to their source in both views using native-rendered content, including rich row headers and multiple header rows.
+- Preserve the correct edit destination across nested Callouts, mixed tables and identical tables; leave ambiguous targets untouched.
+- Restore cell focus after asynchronous Callout rendering so commits and undo/redo do not expose the entire Callout source.
+
 ## 0.4.6 - 2026-09-12
 
 - Render structural tables inside blockquotes and callouts, and preserve container prefixes through formatting, cell edits, structural operations, and GFM replacement.

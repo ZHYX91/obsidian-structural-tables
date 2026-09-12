@@ -4,6 +4,13 @@ import type { StructuralTablesSettings } from "../config/settings";
 import { parseEditableTables } from "../core/parser";
 import { diagnosticText, renderStructuralTable } from "../rendering/table-renderer";
 import { rawStructuralTableElement } from "./table-mapping";
+import type { StructuralTable } from "../core/model";
+import { calloutBlocks, matchingBlocks, renderTableSignatures } from "../rendering/native-table-mapping";
+
+class CalloutRenderSession extends MarkdownRenderChild {
+  active = true;
+  override onunload(): void { this.active = false; }
+}
 
 function renderedTables(container: HTMLElement): HTMLTableElement[] {
   const tables = Array.from(container.querySelectorAll<HTMLTableElement>("table"));
@@ -26,12 +33,13 @@ function sectionSource(
 }
 
 export class StructuralTableReadingProcessor {
+  private readonly calloutSessions = new WeakMap<HTMLElement, CalloutRenderSession>();
   constructor(
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
   ) {}
 
-  process(container: HTMLElement, context: MarkdownPostProcessorContext): void {
+  process(container: HTMLElement, context: MarkdownPostProcessorContext): void | Promise<void> {
     if (container.closest(".structural-tables-container, [data-structural-tables-processed='true']") !== null) return;
     const settings = this.getSettings();
     if (!settings.enableReadingView) return;
@@ -51,6 +59,9 @@ export class StructuralTableReadingProcessor {
         delimiterLine: table.delimiterLine - section.lineStart,
       }));
     if (parsed.length === 0) return;
+    if (container.matches(".callout") || container.querySelector(".callout") !== null) {
+      return this.processCallout(container, context, parsed, section.text);
+    }
     const candidates = renderedTables(container);
     let candidateIndex = 0;
     parsed.forEach((table) => {
@@ -89,5 +100,49 @@ export class StructuralTableReadingProcessor {
       wrapper.dataset.tableKind = table.structural ? "structural" : "ordinary";
       existing.replaceWith(wrapper);
     });
+  }
+
+  private async processCallout(container: HTMLElement, context: MarkdownPostProcessorContext,
+    tables: readonly StructuralTable[], source: string): Promise<void> {
+    const session = new CalloutRenderSession(container);
+    this.calloutSessions.set(container, session);
+    context.addChild(session);
+    const templates = await Promise.all(tables.map(async (table) => {
+      try { return await renderTableSignatures(this.app, table, context.sourcePath); }
+      catch { return []; }
+    }));
+    if (!session.active || this.calloutSessions.get(container) !== session
+      || context.getSectionInfo(container)?.text !== source) return;
+    const settings = this.getSettings();
+    if (!settings.enableReadingView) return;
+    const blocks = calloutBlocks(container, new Map());
+    const plans = tables.map((table, index) => ({ table, key: JSON.stringify(templates[index]),
+      matches: matchingBlocks(blocks, templates[index]!) }));
+    for (const plan of plans) {
+      if (!plan.table.structural && !settings.takeOverOrdinaryTables) continue;
+      const peers = plans.filter((other) => other.key === plan.key);
+      const targets = plan.matches.length === peers.length ? plan.matches[peers.indexOf(plan)] : undefined;
+      if (targets === undefined || plans.some((other) => other.key !== plan.key
+        && other.matches.some((match) => match.some((element) => targets.includes(element))))) continue;
+      if (!plan.table.valid) {
+        if (settings.showDiagnostics) for (const target of targets) {
+          target.classList.add("structural-tables-invalid");
+          target.title = diagnosticText(plan.table);
+        }
+        continue;
+      }
+      const staging = container.ownerDocument.createElement("div");
+      const rendered = renderStructuralTable(this.app, plan.table, staging, context.sourcePath, session);
+      const wrapper = rendered.parentElement;
+      if (wrapper === null) continue;
+      wrapper.dataset.layout = settings.layout;
+      wrapper.dataset.appearance = settings.appearance;
+      wrapper.dataset.density = settings.density;
+      wrapper.dataset.zebra = String(settings.zebraRows);
+      wrapper.dataset.tableKind = plan.table.structural ? "structural" : "ordinary";
+      wrapper.dataset.structuralTablesProcessed = "true";
+      targets[0]!.before(wrapper);
+      for (const target of targets) target.remove();
+    }
   }
 }

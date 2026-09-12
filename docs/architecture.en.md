@@ -34,6 +34,9 @@ One shared DOM renderer serves the Reading view postprocessor and CodeMirror wid
 
 Live Preview separates immutable CodeMirror widget descriptions from DOM-owned interaction sessions. A source-position or table-index change rebinds an unchanged table to the current snapshot without recreating its textarea or dropping a draft. Parsed tables are cached in editor state until the document changes; selection, settings, and composition changes only rebuild decorations. Cell traversal belongs to the pure core and visits visible anchors in source order in both directions, skipping covered merge slots.
 
+
+Native Callout blocks use a source-owned mounting session rather than reverse DOM offsets or unchecked table indexes. The editor resolves the source block with CodeMirror's forward position mapping; both views compare native-rendered block signatures, including rich raw paragraphs and multi-block headers. Identical tables use source order only when the complete matching target inventory agrees. Embedded-note targets and ambiguous mappings stay untouched. Editor mounts track changes by source range and exact source, and pending cell focus is fulfilled only when the matching replacement mounts. Host mutations retry pending mappings; diagnostics distinguish missing DOM, rendering, failed rendering, unmatched or ambiguous targets, and mounted tables.
+
 <!-- section: editing -->
 ## Editing
 

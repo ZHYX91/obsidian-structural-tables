@@ -29,7 +29,7 @@ export function calloutRanges(source: string): { from: number; to: number }[] {
   const { lines, offsets } = sourceLines(source);
   const ranges: { from: number; to: number }[] = [];
   for (let index = 0; index < lines.length; index += 1) {
-    const opening = /^((?: {0,3}>[\t ]?)+)\[![^\]]+\]/u.exec(lines[index] ?? "");
+    const opening = /^([\t ]*(?:>[\t ]*)+)\[![^\]]+\]/u.exec(lines[index] ?? "");
     if (opening === null) continue;
     const depth = opening[1]!.split(">").length - 1;
     let end = index;

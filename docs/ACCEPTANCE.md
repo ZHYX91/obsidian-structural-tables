@@ -9,6 +9,8 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 ### Rendering and cell editing
 
 - [ ] Reading view.
+- [ ] Callout mapping: custom and foldable callouts, rich row headers, multiple header rows, nested callouts, mixed ordinary/structural tables, identical tables, and list continuations in both views. Fenced examples and invalid syntax remain uneditable.
+- [ ] Edit the second of two identical callout tables, commit and undo/redo; only the selected source table changes, quote prefixes remain, and focus returns to its rendered cell without revealing the whole callout source. Test Tab traversal, folding/reopening and view switching after edits.
 - [ ] Live Preview desktop single-click, touch-screen double-tap, and Enter/F2 cell editing with one outer border, no inner textarea border or resize grip, and no table/column expansion.
 - [ ] Exact `<br>`, `<br/>`, and `<br />` visual rendering plus spelling preservation through format preview.
 - [ ] Shift+Enter and the cell-editor context menu inserting canonical `<br>`.

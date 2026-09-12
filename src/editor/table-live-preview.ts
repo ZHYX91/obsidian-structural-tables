@@ -9,10 +9,11 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
 import { diagnosticText } from "../rendering/table-renderer";
-import { clearTableWidgetSelection, StructuralTableWidget } from "./table-widget";
+import { cancelPendingTableFocus, clearTableWidgetSelection, mapPendingTableFocus, StructuralTableWidget } from "./table-widget";
 import { mapTablesThroughProseEdit } from "./table-parse-cache";
 import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
+import { renderTableSignatures } from "../rendering/native-table-mapping";
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
@@ -125,6 +126,7 @@ export class StructuralTableEditorController {
     const viewTracker = ViewPlugin.fromClass(class {
       private readonly calloutTables: CalloutTables;
       private readonly clearOtherSelections = (event: Event): void => {
+        cancelPendingTableFocus(this.view);
         const target = event.target;
         for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
           if (target !== null && target instanceof host.ownerDocument.defaultView!.Node && host.contains(target)) continue;
@@ -138,7 +140,8 @@ export class StructuralTableEditorController {
           const settings = settingsProvider();
           const sourcePath = view.state.field(editorInfoField, false)?.file?.path ?? "";
           return {
-            tables: value.tables ?? [], ranges: value.callouts,
+            tables: value.tables ?? [], ranges: value.callouts, sourcePath,
+            render: (table) => renderTableSignatures(app, table, sourcePath),
             owns: (table) => !value.composing && settings.enableLivePreview
               && Boolean(view.state.field(editorLivePreviewField, false))
               && table.valid && (table.structural || settings.takeOverOrdinaryTables),
@@ -151,6 +154,10 @@ export class StructuralTableEditorController {
       }
 
       update(update: ViewUpdate): void {
+        if (update.docChanged) {
+          this.calloutTables.mapChanges(update.changes);
+          mapPendingTableFocus(update.view, update.changes);
+        }
         this.calloutTables.schedule();
         if (!update.transactions.some((transaction) => transaction.selection !== undefined)) return;
         for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
@@ -159,6 +166,7 @@ export class StructuralTableEditorController {
       }
 
       destroy(): void {
+        cancelPendingTableFocus(this.view);
         this.calloutTables.destroy();
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
         this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);

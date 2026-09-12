@@ -1,4 +1,5 @@
 import { EditorView, WidgetType } from "@codemirror/view";
+import type { ChangeDesc } from "@codemirror/state";
 import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
@@ -7,6 +8,7 @@ import type { StructuralTable } from "../core/model";
 import { adjacentTableCell } from "../core/table-navigation";
 import { editCellContent, normalizeTableCellInput } from "../core/operations";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+import { parseEditableTables } from "../core/parser";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import { renderTableClipboard } from "../rendering/table-clipboard";
 import { copyHtml, singleCellTextFromClipboardHtml } from "./table-interchange";
@@ -26,6 +28,23 @@ import {
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
 const interactions = new WeakMap<HTMLElement, StructuralTableInteraction>();
+interface PendingCellFocus {
+  from: number;
+  source: string;
+  sourcePath: string;
+  coordinate: TableCellCoordinate;
+  edit: boolean;
+}
+const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
+
+export function cancelPendingTableFocus(view: EditorView): void {
+  pendingCellFocus.delete(view);
+}
+
+export function mapPendingTableFocus(view: EditorView, changes: ChangeDesc): void {
+  const pending = pendingCellFocus.get(view);
+  if (pending !== undefined) pending.from = changes.mapPos(pending.from, 1);
+}
 
 export function clearTableWidgetSelection(host: HTMLElement): void {
   const EventConstructor = host.ownerDocument.defaultView?.Event;
@@ -133,6 +152,14 @@ class StructuralTableInteraction {
         this.clearSelection();
       }
     });
+    queueMicrotask(() => {
+      const pending = pendingCellFocus.get(view);
+      if (!host.isConnected || pending === undefined || pending.from !== this.table.range.from
+        || pending.source !== this.table.source || pending.sourcePath !== this.sourcePath) return;
+      pendingCellFocus.delete(view);
+      if (pending.edit) this.beginCellEdit(view, pending.coordinate);
+      else this.focusCellAfterUpdate(view, pending.coordinate);
+    });
     return host;
   }
 
@@ -223,9 +250,15 @@ class StructuralTableInteraction {
     if (coordinate === null) return false;
     event.preventDefault();
     event.stopPropagation();
+    const nativeCallout = this.host?.closest(".callout") != null;
     if (redo) editor.redo();
     else editor.undo();
-    queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
+    if (nativeCallout) {
+      const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) => candidate.range.from === this.table.range.from);
+      if (table !== undefined) pendingCellFocus.set(view, {
+        from: table.range.from, source: table.source, sourcePath: this.sourcePath, coordinate, edit: false,
+      });
+    } else queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     return true;
   }
 
@@ -582,11 +615,16 @@ class StructuralTableInteraction {
         if (next !== null) queueMicrotask(() => this.beginCellEdit(view, next));
         return;
       }
+      const nativeCallout = this.host?.closest(".callout") != null;
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
-        ...(focus ? { selection: { anchor: current.range.from + result.source.length } } : {}),
+        ...(focus && !nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
-      if (next !== null) queueMicrotask(() => this.openCellAfterUpdate(view, next));
+      if (nativeCallout && (focus || next !== null)) pendingCellFocus.set(view, {
+        from: current.range.from, source: result.source, sourcePath: this.sourcePath,
+        coordinate: next ?? anchor, edit: next !== null,
+      });
+      else if (next !== null) queueMicrotask(() => this.openCellAfterUpdate(view, next));
       else if (focus) queueMicrotask(() => this.focusCellAfterUpdate(view, anchor));
     };
 
@@ -844,11 +882,15 @@ class StructuralTableInteraction {
     const result = operation(current);
     if (result.changed) {
       const coordinate = this.selectionAnchor ?? { row: 0, column: 0 };
+      const nativeCallout = this.host?.closest(".callout") != null;
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
-        selection: { anchor: current.range.from + result.source.length },
+        ...(!nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
-      queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
+      if (nativeCallout) pendingCellFocus.set(view, {
+        from: current.range.from, source: result.source, sourcePath: this.sourcePath, coordinate, edit: false,
+      });
+      else queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     }
     new Notice(operationNotice(t, result.code));
   }

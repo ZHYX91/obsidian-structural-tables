@@ -35,6 +35,31 @@ function rawBlock(source: string): HTMLDivElement {
 }
 
 describe("StructuralTableReadingProcessor", () => {
+  it("maps rich callout source with coarse section metadata and preserves the ordinary neighbour", async () => {
+    const structural = "> | Name | Value |\n> | --- || --- |\n> | **Software** | Applications |";
+    const ordinary = "> | Plain | Table |\n> | --- | --- |\n> | Kept | Native |";
+    const source = `> [!navbox] Mixed\n${structural}\n>\n${ordinary}`;
+    const raw = "<p>| Name | Value |<br>| --- || --- |<br>| <strong>Software</strong> | Applications |</p>";
+    const native = "<table><thead><tr><th>Plain</th><th>Table</th></tr></thead><tbody><tr><td>Kept</td><td>Native</td></tr></tbody></table>";
+    const container = document.createElement("div");
+    container.innerHTML = `<div class="callout"><div class="callout-content">${raw}${native}</div></div>`;
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div"); element.className = options.cls; return element;
+    });
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const target = args[2] as HTMLElement;
+      if (target.className === "structural-tables-container") target.innerHTML = (args[1] as string).includes("Software") ? raw : native;
+    });
+    try {
+      await new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, {
+        addChild: vi.fn(), sourcePath: "Callout.md",
+        getSectionInfo: () => ({ text: source, lineStart: 0, lineEnd: 7 }),
+      } as unknown as MarkdownPostProcessorContext);
+      expect(container.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+      expect(container.querySelector("tbody th")?.getAttribute("scope")).toBe("row");
+      expect([...container.querySelectorAll("table")].pop()?.textContent).toBe("PlainTableKeptNative");
+    } finally { render.mockRestore(); vi.unstubAllGlobals(); }
+  });
   it.each(["> ", ">> ", "    "])("renders a container table in an isolated section %j", (prefix) => {
     const bare = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
     const source = "- outer\n  - inner\n\n" + bare.split("\n").map((line) => prefix + line).join("\n");

@@ -228,6 +228,63 @@ describe("StructuralTableEditorController", () => {
       expect(view.state.doc.toString()).toBe(before);
     } finally { view.destroy(); }
   });
+  it.each(["row", "column"] as const)("keeps Callout add-%s activation local and opens the new cell after a rebuild", async (axis) => {
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div"); element.className = options.cls; return element;
+    });
+    const nativeTable = (source: string): HTMLElement => {
+      const table = document.createElement("table");
+      const parsed = parseEditableTables(source).tables[0]!;
+      parsed.rows.forEach((row, index) => {
+        const section = table.querySelector(index < parsed.headerRowCount ? "thead" : "tbody")
+          ?? table.appendChild(document.createElement(index < parsed.headerRowCount ? "thead" : "tbody"));
+        const tr = section.appendChild(document.createElement("tr"));
+        row.cells.forEach((cell) => {
+          tr.appendChild(document.createElement(index < parsed.headerRowCount ? "th" : "td")).textContent = cell.content;
+        });
+      });
+      return table;
+    };
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const container = args[2] as HTMLElement;
+      if (container.className === "structural-tables-container") container.replaceChildren(nativeTable(args[1] as string));
+    });
+    class GrowingCallout extends NativeCalloutWidget {
+      constructor(private readonly source: string) { super(); }
+      override toDOM(): HTMLElement {
+        const element = super.toDOM();
+        element.querySelector(".callout-content")!.replaceChildren(nativeTable(this.source));
+        return element;
+      }
+    }
+    const nativeFor = (source: string) => Decoration.set([
+      Decoration.replace({ widget: new GrowingCallout(source), block: true })
+        .range(source.indexOf("> [!note]"), source.indexOf("\n\nEnd")),
+    ]);
+    const native = StateField.define({
+      create: (state) => nativeFor(state.doc.toString()),
+      update: (value, transaction) => transaction.docChanged ? nativeFor(transaction.newDoc.toString()) : value,
+      provide: (field) => EditorView.decorations.from(field),
+    });
+    const source = "Before\n\n> [!note]\n> | A | < |\n> | --- | --- |\n> | x | y |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native, history()]);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      const activateNativeSource = vi.fn(() => view.dispatch({ selection: { anchor: source.indexOf("> | A") } }));
+      parent.querySelector(".callout")!.addEventListener("click", activateNativeSource);
+      parent.querySelector<HTMLButtonElement>(`.structural-tables-add-${axis}`)!.click();
+      expect(activateNativeSource).not.toHaveBeenCalled();
+      const coordinate = axis === "row" ? "[data-structural-row='2'][data-structural-column='0']"
+        : "[data-structural-row='0'][data-structural-column='2']";
+      await vi.waitFor(() => expect(parent.querySelector(`.callout ${coordinate} textarea`)).not.toBeNull());
+      expect(document.activeElement).toBe(parent.querySelector(`.callout ${coordinate} textarea`));
+      expect(view.state.doc.toString().split("\n").filter((line) => line.includes("|")).every((line) => line.startsWith("> "))).toBe(true);
+      parent.querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it("returns native focus to the table source when splitting a Callout's last merged cell", async () => {
     vi.stubGlobal("createDiv", (options: { cls: string }) => {
       const element = document.createElement("div"); element.className = options.cls; return element;

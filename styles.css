@@ -37,6 +37,13 @@
   margin-inline-end: var(--structural-table-handle-gutter);
 }
 
+/* Native Callout content clips its children; keep control gutters inside it. */
+.callout .structural-tables-live-preview {
+  box-sizing: border-box;
+  padding-inline-start: var(--structural-table-handle-gutter);
+  padding-block-start: var(--structural-table-handle-gutter);
+}
+
 .structural-tables-live-preview > button.structural-tables-add-row,
 .structural-tables-live-preview > button.structural-tables-add-column {
   position: absolute;

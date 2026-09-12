@@ -832,7 +832,9 @@ class StructuralTableInteraction {
         event.preventDefault();
         event.stopPropagation();
       });
-      button.addEventListener("click", () => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
         const next = axis === "row" ? { row: this.table.rows.length, column: 0 }
           : { row: 0, column: this.table.columnCount };
         const operation: TableOperation = axis === "row" ? appendTableRow

@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 
-export const RELEASE_CORE_VERSION = "3.0.1";
+export const RELEASE_CORE_VERSION = "3.0.2";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
 export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
 export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
@@ -555,6 +555,7 @@ export async function defaultCommandRunner(command, arguments_, options = {}) {
       encoding,
       maxBuffer: 64 * 1024 * 1024,
       windowsHide: true,
+      timeout: options.timeoutMs,
     });
     return { stdout: result.stdout, stderr: result.stderr, exitCode: 0 };
   } catch (error) {
@@ -1644,44 +1645,123 @@ function isHttp404(error) {
   });
 }
 
-async function githubJson(commandRunner, endpoint, { cwd, env, allow404 = false } = {}) {
-  let source;
+function parseGitHubJson(source, endpoint) {
   try {
-    source = await retryGitHubRead(() => invokeText(commandRunner, "gh",
-      ["api", "--method", "GET", endpoint], { cwd, env }));
+    return JSON.parse(source);
+  } catch (error) {
+    const truncated = source.trim().length === 0 ||
+      /Unexpected end|Unterminated string/iu.test(error.message);
+    fail(`GitHub API returned ${truncated ? "incomplete" : "invalid"} JSON for ${endpoint}`,
+      truncated ? "RELEASE_CORE_GITHUB_RESPONSE" : "RELEASE_CORE_GITHUB", { cause: error });
+  }
+}
+
+async function githubJson(commandRunner, endpoint, {
+  cwd, env, allow404 = false, retryNotFound = false, accept = (record) => record,
+} = {}) {
+  try {
+    return await retryGitHubRead(async (timeoutMs) => accept(parseGitHubJson(
+      await invokeText(commandRunner, "gh", ["api", "--method", "GET", endpoint],
+        { cwd, env, timeoutMs }), endpoint)), delay, { retryNotFound });
   } catch (error) {
     if (allow404 && isHttp404(error)) return null;
     throw error;
   }
+}
+
+async function githubMutationJson(commandRunner, arguments_, options, context) {
   try {
-    return JSON.parse(source);
+    return parseGitHubJson(await invokeText(commandRunner, "gh", arguments_, options), arguments_.at(-1));
   } catch (error) {
-    fail(`GitHub API returned invalid JSON for ${endpoint}`, "RELEASE_CORE_GITHUB", { cause: error });
+    releaseProgress("mutation-not-confirmed", context);
+    throw error;
   }
 }
 
 async function githubAssetBytes(commandRunner, repository, assetId, { cwd, env } = {}) {
-  const result = await retryGitHubRead(() => invokeCommand(commandRunner, "gh", [
+  const result = await retryGitHubRead((timeoutMs) => invokeCommand(commandRunner, "gh", [
     "api",
     "--method",
     "GET",
     "-H",
     "Accept: application/octet-stream",
     `repos/${repository}/releases/assets/${String(assetId)}`,
-  ], { cwd, env, encoding: "buffer" }));
+  ], { cwd, env, encoding: "buffer", timeoutMs }), delay, { retryNotFound: true });
   return Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout);
 }
 
-export async function retryGitHubRead(operation, wait = delay) {
+function releaseProgress(stage, detail = {}) {
+  process.stderr.write(`[release-core] ${JSON.stringify({ stage, ...detail })}\n`);
+}
+
+export async function retryGitHubRead(operation, wait = delay, {
+  now = Date.now, retryNotFound = false,
+} = {}) {
+  const deadline = now() + 60_000;
+  const delays = [2000, 4000, 8000, 16000, 16000];
   for (let attempt = 0; ; attempt += 1) {
-    try { return await operation(); } catch (error) {
+    try { return await operation(Math.min(15_000, deadline - now())); } catch (error) {
       const detail = [error?.message, error?.stderr, error?.cause?.stderr]
         .map(commandText).join("\n");
-      const transient = /\bHTTP(?:\/\d(?:\.\d)?)?\s+(?:502|503|504)\b|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN)\b|TLS handshake timeout|i\/o timeout/iu.test(detail);
-      if (attempt >= 2 || !transient) throw error;
-      await wait(1000 * (attempt + 1));
+      const denied = [401, 403].includes(error?.status ?? error?.cause?.status) ||
+        /\bHTTP(?:\/\d(?:\.\d)?)?\s+(?:401|403)\b/iu.test(detail);
+      const transient = error.code === "RELEASE_CORE_GITHUB_RESPONSE" ||
+        error.code === "RELEASE_CORE_GITHUB_PENDING" ||
+        (retryNotFound && isHttp404(error)) || error?.cause?.killed === true ||
+        /\bHTTP(?:\/\d(?:\.\d)?)?\s+(?:502|503|504)\b|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN)\b|TLS handshake timeout|i\/o timeout|unexpected end of JSON input/iu.test(detail);
+      const remaining = deadline - now();
+      if (denied || attempt >= delays.length || !transient || remaining <= delays[attempt]) throw error;
+      releaseProgress("read-retry", { attempt: attempt + 1, delayMs: delays[attempt] });
+      await wait(delays[attempt]);
+      if (now() >= deadline) throw error;
     }
   }
+}
+
+function releaseId(record) {
+  assertCondition(Number.isSafeInteger(record?.id) && record.id > 0,
+    "GitHub Release must have a positive numeric ID", "RELEASE_CORE_GITHUB");
+  return record.id;
+}
+
+function assertOwnedDraft(record, verifiedBundle) {
+  assertCondition(record.tag_name === verifiedBundle.candidateBundle.plugin.version &&
+    record.draft === true && record.prerelease === false &&
+    record.target_commitish === verifiedBundle.candidateBundle.source.commit &&
+    record.body?.includes(draftBinding(verifiedBundle)),
+  "GitHub Release must be the exact owned draft", "RELEASE_CORE_GITHUB");
+}
+
+async function readReleaseById(commandRunner, repository, id, verifiedBundle, options,
+  published = false, completeAssets = false) {
+  return githubJson(commandRunner, `repos/${repository}/releases/${id}`, {
+    ...options, retryNotFound: true,
+    accept(record) {
+      assertCondition(releaseId(record) === id &&
+        record.tag_name === verifiedBundle.candidateBundle.plugin.version && record.prerelease === false,
+      "GitHub Release ID or tag identity changed", "RELEASE_CORE_GITHUB");
+      if (record.draft === true) assertOwnedDraft(record, verifiedBundle);
+      if (completeAssets) {
+        const expected = verifiedBundle.publicAssets.map((asset) => asset.name);
+        assertCondition(Array.isArray(record.assets), "GitHub Release assets must be an array", "RELEASE_CORE_GITHUB");
+        const actual = record.assets.map((asset) => asset?.name);
+        assertCondition(new Set(actual).size === actual.length && actual.every((name) => expected.includes(name)),
+          "GitHub Release asset inventory contains unexpected or duplicate files", "RELEASE_CORE_GITHUB");
+        // Inspect every visible asset before waiting for the remaining uploaded names.
+        for (const asset of record.assets) {
+          const wanted = verifiedBundle.publicAssets.find((item) => item.name === asset.name);
+          assertCondition(asset.state === "uploaded" && asset.size === wanted.size &&
+            asset.digest === `sha256:${wanted.sha256}`,
+          `GitHub Release asset metadata mismatch: ${asset.name}`, "RELEASE_CORE_GITHUB");
+        }
+        if (actual.length < expected.length) fail("Uploaded assets are not visible yet", "RELEASE_CORE_GITHUB_PENDING");
+      }
+      if (published && (record.draft === true || record.immutable === false || record.published_at === null)) {
+        fail("Published Release state is not visible yet", "RELEASE_CORE_GITHUB_PENDING");
+      }
+      return record;
+    },
+  });
 }
 
 async function resolveRemoteTagCommit(commandRunner, repository, tag, options) {
@@ -1729,11 +1809,13 @@ async function verifyHostedRecord({
   env,
   releaseRecord,
   draft = false,
+  allowMissingAssets = false,
 }) {
   const repository = config.publication.repository;
   const candidateBundle = verifiedBundle.candidateBundle;
   const tag = candidateBundle.plugin.version;
   assertPlainObject(releaseRecord, "GitHub Release");
+  releaseId(releaseRecord);
   assertCondition(releaseRecord.tag_name === tag && releaseRecord.prerelease === false &&
     (draft ? releaseRecord.draft === true &&
       releaseRecord.target_commitish === candidateBundle.source.commit &&
@@ -1744,8 +1826,15 @@ async function verifyHostedRecord({
   assertCondition(Array.isArray(releaseRecord.assets), "GitHub Release assets must be an array",
     "RELEASE_CORE_GITHUB");
   const expectedNames = verifiedBundle.publicAssets.map((record) => record.name);
-  assertExactNameList(releaseRecord.assets.map((asset) => asset?.name), expectedNames,
-    "GitHub Release public asset inventory");
+  if (draft && allowMissingAssets) {
+    const names = releaseRecord.assets.map((asset) => asset?.name);
+    assertCondition(new Set(names).size === names.length &&
+      names.every((name) => expectedNames.includes(name)),
+    "GitHub draft asset inventory contains unexpected or duplicate files", "RELEASE_CORE_GITHUB");
+  } else {
+    assertExactNameList(releaseRecord.assets.map((asset) => asset?.name), expectedNames,
+      "GitHub Release public asset inventory");
+  }
   const expectedByName = new Map(verifiedBundle.publicAssets.map((record) => [record.name, record]));
   for (const asset of releaseRecord.assets) {
     assertPlainObject(asset, `GitHub Release asset ${String(asset?.name)}`);
@@ -1769,7 +1858,7 @@ async function verifyHostedRecord({
     repository,
     tag,
     commit: remoteTagCommit,
-    assetCount: expectedNames.length,
+    assetCount: releaseRecord.assets.length,
   });
 }
 
@@ -1812,7 +1901,7 @@ async function inspectExistingGitHubRelease({
   }
   const verified = await verifyHostedRecord({
     projectRoot, config, verifiedBundle, commandRunner, env,
-    releaseRecord: existing, draft: existing.draft === true,
+    releaseRecord: existing, draft: existing.draft === true, allowMissingAssets: true,
   });
   return Object.freeze({
     status: existing.draft === true ? "draft" : "exact",
@@ -1820,6 +1909,7 @@ async function inspectExistingGitHubRelease({
     tag,
     commit: verified.commit,
     assetCount: verified.assetCount,
+    releaseId: releaseId(existing),
   });
 }
 
@@ -1876,30 +1966,62 @@ async function publishGitHub({
     env,
   });
   if (preflight.status === "exact") {
+    releaseProgress("verified", { tag, releaseId: preflight.releaseId });
     return Object.freeze({ status: "noop", repository: config.publication.repository, tag });
   }
   // Proof is checked before creating even a draft. Release attestations are not build provenance.
   await verifyBuildProvenance({ projectRoot, config, verifiedBundle, commandRunner, env });
+  const repository = config.publication.repository;
+  const options = { cwd: projectRoot, env };
+  let id = preflight.releaseId;
   if (preflight.status === "missing") {
     let notes = "";
     if (notesFile !== undefined) {
       notes = (await readRegularFile(path.resolve(notesFile), "Release notes file")).toString("utf8");
     }
-    const arguments_ = ["release", "create", tag,
-      ...verifiedBundle.publicAssets.map((record) => path.join(verifiedBundle.bundleDirectory, record.name)),
-      "--repo", config.publication.repository, "--verify-tag", "--draft", "--title", tag,
-      "--target", verifiedBundle.candidateBundle.source.commit,
-      "--notes", `${notes}\n\n${draftBinding(verifiedBundle)}`];
-    if (notesFile === undefined) arguments_.push("--generate-notes");
-    await invokeCommand(commandRunner, "gh", arguments_, { cwd: projectRoot, env });
+    // Resolve the already-authorized tag before POST: the API must never create a missing tag.
+    assertCondition(await resolveRemoteTagCommit(commandRunner, repository, tag, options) ===
+      verifiedBundle.candidateBundle.source.commit,
+    "GitHub tag source commit differs from Candidate Bundle source", "RELEASE_CORE_GITHUB");
+    const endpoint = `repos/${repository}/releases`;
+    const arguments_ = ["api", "--method", "POST", "--raw-field", `tag_name=${tag}`,
+      "--raw-field", `target_commitish=${verifiedBundle.candidateBundle.source.commit}`,
+      "--raw-field", `name=${tag}`, "--raw-field", `body=${notes}\n\n${draftBinding(verifiedBundle)}`,
+      "--field", "draft=true", "--field", "prerelease=false",
+      "--field", `generate_release_notes=${notesFile === undefined}`, endpoint];
+    // Mutations are issued once. An uncertain response is reconciled on the next authorized run.
+    const created = await githubMutationJson(commandRunner, arguments_, options, { tag, operation: "create-draft" });
+    assertOwnedDraft(created, verifiedBundle);
+    id = releaseId(created);
+    releaseProgress("draft-created", { tag, releaseId: id });
+  } else {
+    releaseProgress("draft-resumed", { tag, releaseId: id });
   }
-  const draft = await fetchRelease(commandRunner, config.publication.repository, tag,
-    { cwd: projectRoot, env }, false);
+  let draft = await readReleaseById(commandRunner, repository, id, verifiedBundle, options);
+  await verifyHostedRecord({ projectRoot, config, verifiedBundle, commandRunner, env,
+    releaseRecord: draft, draft: true, allowMissingAssets: true });
+  const uploaded = new Set(draft.assets.map((asset) => asset.name));
+  for (const asset of verifiedBundle.publicAssets) {
+    if (uploaded.has(asset.name)) continue;
+    const endpoint = `https://uploads.github.com/repos/${repository}/releases/${id}/assets?name=${encodeURIComponent(asset.name)}`;
+    await githubMutationJson(commandRunner, ["api", "--method", "POST",
+      "-H", "Content-Type: application/octet-stream",
+      "--input", path.join(verifiedBundle.bundleDirectory, asset.name), endpoint], options,
+    { tag, releaseId: id, operation: "upload", asset: asset.name });
+    releaseProgress("asset-uploaded", { tag, releaseId: id, asset: asset.name });
+  }
+  draft = await readReleaseById(commandRunner, repository, id, verifiedBundle, options, false, true);
   await verifyHostedRecord({ projectRoot, config, verifiedBundle, commandRunner, env,
     releaseRecord: draft, draft: true });
-  await invokeCommand(commandRunner, "gh", ["release", "edit", tag, "--repo",
-    config.publication.repository, "--draft=false", "--latest"], { cwd: projectRoot, env });
-  await verifyPublishedRelease({ projectRoot, config, verifiedBundle, commandRunner, env });
+  releaseProgress("draft-verified", { tag, releaseId: id });
+  await githubMutationJson(commandRunner, ["api", "--method", "PATCH", "--field", "draft=false",
+    "--raw-field", "make_latest=true", `repos/${repository}/releases/${id}`], options,
+  { tag, releaseId: id, operation: "publish" });
+  releaseProgress("published-verification-pending", { tag, releaseId: id });
+  const published = await readReleaseById(commandRunner, repository, id, verifiedBundle, options, true, true);
+  await verifyPublishedRelease({ projectRoot, config, verifiedBundle, commandRunner, env,
+    releaseRecord: published });
+  releaseProgress("verified", { tag, releaseId: id });
   return Object.freeze({ status: "created", repository: config.publication.repository, tag });
 }
 

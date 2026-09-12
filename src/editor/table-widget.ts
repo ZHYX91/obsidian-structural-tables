@@ -255,11 +255,29 @@ class StructuralTableInteraction {
     else editor.undo();
     if (nativeCallout) {
       const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) => candidate.range.from === this.table.range.from);
-      if (table !== undefined) pendingCellFocus.set(view, {
-        from: table.range.from, source: table.source, sourcePath: this.sourcePath, coordinate, edit: false,
-      });
+      if (table !== undefined) this.restoreCalloutFocus(view, table.source, coordinate, false, true);
     } else queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     return true;
+  }
+
+  private restoreCalloutFocus(view: EditorView, source: string, coordinate: TableCellCoordinate,
+    edit: boolean, reveal = false): void {
+    const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
+      candidate.range.from === this.table.range.from && candidate.source === source);
+    if (table === undefined || !table.valid
+      || (!table.structural && !this.getSettings().takeOverOrdinaryTables)) {
+      // A split can return the table to native ownership. No widget will arrive
+      // to accept focus, so return keyboard history to the existing editor caret.
+      cancelPendingTableFocus(view);
+      view.focus();
+      return;
+    }
+    pendingCellFocus.set(view, {
+      from: table.range.from, source, sourcePath: this.sourcePath, coordinate, edit,
+    });
+    // Host history requests scrolling to its source caret, which may be far
+    // outside this Callout. Keep the restored table in the mounted viewport.
+    if (reveal) view.dispatch({ effects: EditorView.scrollIntoView(table.range.from, { y: "nearest" }) });
   }
 
   private coordinateFor(target: EventTarget | null): TableCellCoordinate | null {
@@ -620,10 +638,7 @@ class StructuralTableInteraction {
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
         ...(focus && !nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
-      if (nativeCallout && (focus || next !== null)) pendingCellFocus.set(view, {
-        from: current.range.from, source: result.source, sourcePath: this.sourcePath,
-        coordinate: next ?? anchor, edit: next !== null,
-      });
+      if (nativeCallout && (focus || next !== null)) this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null);
       else if (next !== null) queueMicrotask(() => this.openCellAfterUpdate(view, next));
       else if (focus) queueMicrotask(() => this.focusCellAfterUpdate(view, anchor));
     };
@@ -887,9 +902,7 @@ class StructuralTableInteraction {
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
         ...(!nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
-      if (nativeCallout) pendingCellFocus.set(view, {
-        from: current.range.from, source: result.source, sourcePath: this.sourcePath, coordinate, edit: false,
-      });
+      if (nativeCallout) this.restoreCalloutFocus(view, result.source, coordinate, false);
       else queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     }
     new Notice(operationNotice(t, result.code));

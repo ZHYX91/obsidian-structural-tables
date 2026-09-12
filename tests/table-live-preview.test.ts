@@ -117,6 +117,35 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it("returns keyboard focus to the editor when splitting a Callout's last merged cell", async () => {
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div"); element.className = options.cls; return element;
+    });
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const container = args[2] as HTMLElement;
+      if (container.className === "structural-tables-container") {
+        container.innerHTML = new NativeCalloutWidget().toDOM().querySelector(".callout-content")!.innerHTML;
+      }
+    });
+    const source = "Before\n\n> [!note]\n> | A | < |\n> | --- | --- |\n> | x | y |\n\nEnd";
+    const native = StateField.define({
+      create: () => Decoration.set([Decoration.replace({ widget: new NativeCalloutWidget(), block: true })
+        .range(source.indexOf("> [!note]"), source.indexOf("\n\nEnd"))]),
+      update: (value, transaction) => value.map(transaction.changes),
+      provide: (field) => EditorView.decorations.from(field),
+    });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native]);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      const cell = parent.querySelector<HTMLElement>(".callout [data-structural-row='0'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Split merged cell")?.callback?.();
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).toBeNull());
+      expect(view.hasFocus).toBe(true);
+      expect(view.state.selection.main.anchor).toBe(0);
+      expect(view.state.doc.toString()).not.toContain("| < |");
+    } finally { view.destroy(); }
+  });
   it("waits for a rebuilt callout before restoring cell focus after a commit", async () => {
     vi.stubGlobal("createDiv", (options: { cls: string }) => {
       const element = document.createElement("div"); element.className = options.cls; return element;

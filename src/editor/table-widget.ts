@@ -742,6 +742,12 @@ class StructuralTableInteraction {
       // Commit the draft before that insertion replaces the selected cell text.
       event.stopPropagation();
       if (event.defaultPrevented || composing || event.isComposing) return;
+      // Gboard may replace the selection with an empty insertText before Enter.
+      // Explicit deletion uses delete input types and must remain available.
+      if (event.inputType === "insertText" && event.data === "" && editor.selectionStart !== editor.selectionEnd) {
+        event.preventDefault();
+        return;
+      }
       if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
         event.preventDefault();
         finish(true);

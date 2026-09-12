@@ -1136,6 +1136,43 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it("preserves selected text through Gboard's empty replacement before Enter while allowing deliberate deletion", () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Software | Applications |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const open = () => {
+      parent.querySelector("[data-structural-row='1'][data-structural-column='1']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      return parent.querySelector("textarea")!;
+    };
+    try {
+      const editor = open();
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Unidentified", bubbles: true }));
+      const empty = new InputEvent("beforeinput", { inputType: "insertText", data: "", bubbles: true, cancelable: true });
+      // Simulate the browser's default replacement only when it was not cancelled.
+      if (editor.dispatchEvent(empty)) editor.setRangeText("", editor.selectionStart, editor.selectionEnd, "end");
+      editor.dispatchEvent(new KeyboardEvent("keyup", { key: "Unidentified", bubbles: true }));
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      expect(empty.defaultPrevented).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+
+      const deleting = open();
+      const deletion = new InputEvent("beforeinput", { inputType: "deleteContentBackward", data: null, bubbles: true, cancelable: true });
+      expect(deleting.dispatchEvent(deletion)).toBe(true);
+      deleting.setRangeText("", deleting.selectionStart, deleting.selectionEnd, "end");
+      deleting.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      expect(view.state.doc.toString()).not.toContain("Applications");
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+
+      const composing = open();
+      composing.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      const compositionInput = new InputEvent("beforeinput", { inputType: "insertText", data: "", bubbles: true, cancelable: true });
+      expect(composing.dispatchEvent(compositionInput)).toBe(true);
+      composing.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    } finally { view.destroy(); }
+  });
+
   it("keeps the cell editor open during IME composition and uses Tab as one undoable commit", async () => {
     let documentChanges = 0;
     const listener = EditorView.updateListener.of((update) => {

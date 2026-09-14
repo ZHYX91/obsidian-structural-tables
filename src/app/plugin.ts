@@ -7,7 +7,7 @@ import {
   type TFile,
 } from "obsidian";
 
-import { createTranslator, operationNotice, type Translate } from "../config/i18n";
+import { createTranslator, diagnosticNotice, operationNotice, type Translate } from "../config/i18n";
 import {
   DEFAULT_SETTINGS,
   cloneSettings,
@@ -59,7 +59,6 @@ import { BasePromotionModal } from "./base-promotion-modal";
 import { BasePromotionService } from "./base-promotion-service";
 import { BasePropertyMigrationModal } from "./base-property-migration-modal";
 import { BasePropertyMigrationService } from "./base-property-migration-service";
-import { PromotedBaseRecordAdopter } from "./promoted-base-record-adopter";
 
 const TEMPLATE = `| Region | Sales | < |
 | Quarter | Q1 | Q2 |
@@ -109,24 +108,6 @@ export class StructuralTablesPlugin extends Plugin {
     const basePromotionService = new BasePromotionService(this.app, this.manifest.version);
     this.basePromotionService = basePromotionService;
     this.basePropertyMigrationService = new BasePropertyMigrationService(this.app);
-    const baseRecordAdopter = new PromotedBaseRecordAdopter(this.app, basePromotionService, {
-      adopted: ({ file }) => new Notice(
-        createTranslator(this.settings.language)("notice.recordAdopted").replace("{path}", file.path),
-      ),
-      ambiguous: () => new Notice(
-        createTranslator(this.settings.language)("notice.recordAdoptionAmbiguous"),
-        8000,
-      ),
-      incompatible: () => new Notice(
-        createTranslator(this.settings.language)("notice.recordAdoptionIncompatible"),
-        8000,
-      ),
-      failed: (_file, error) => new Notice(
-        createTranslator(this.settings.language)("notice.recordAdoptionFailed")
-          .replace("{message}", errorMessage(error)),
-        8000,
-      ),
-    });
     this.registerEditorExtension(this.editorController.createExtension());
     const reading = new StructuralTableReadingProcessor(this.app, () => this.settings);
     this.registerMarkdownPostProcessor((element, context) => reading.process(element, context));
@@ -135,14 +116,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.registerCommands();
     this.registerEditorMenu();
     this.registerHtmlTablePaste();
-    this.app.workspace.onLayoutReady(() => {
-      this.registerEvent(this.app.vault.on("create", (file) => baseRecordAdopter.handleCreated(file)));
-      this.registerEvent(this.app.metadataCache.on("changed", (file, _data, cache) => {
-        void baseRecordAdopter.handleMetadataChanged(file, cache);
-      }));
-      this.registerInterval(window.setInterval(() => baseRecordAdopter.pruneExpired(), 30_000));
-      this.warnAboutPluginConflicts();
-    });
+    this.app.workspace.onLayoutReady(() => this.warnAboutPluginConflicts());
   }
 
   override onunload(): void {
@@ -251,9 +225,12 @@ export class StructuralTablesPlugin extends Plugin {
       editorCallback: (editor) => {
         const tables = parseStructuralTables(editor.getValue()).tables;
         const diagnostics = tables.flatMap((table) => table.diagnostics);
+        const t = createTranslator(this.settings.language);
         new Notice(diagnostics.length === 0
-          ? createTranslator(this.settings.language)("notice.valid")
-          : diagnostics.map((diagnostic) => `Line ${diagnostic.row + 1}: ${diagnostic.message}`).join("\n"));
+          ? t("notice.valid")
+          : diagnostics.map((diagnostic) => t("notice.diagnosticLine")
+            .replace("{line}", String(diagnostic.sourceLine + 1))
+            .replace("{message}", diagnosticNotice(t, diagnostic.code))).join("\n"));
       },
     }));
   }

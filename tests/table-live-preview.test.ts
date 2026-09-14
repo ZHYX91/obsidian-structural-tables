@@ -795,6 +795,32 @@ describe("StructuralTableEditorController", () => {
     }
   });
 
+  it("keeps a visible column handle as the keyboard tab stop after horizontal clipping", () => {
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect(): DOMRect {
+      if (this.classList.contains("structural-tables-live-preview")) {
+        return { left: 0, right: 500, top: 0, bottom: 240, width: 500, height: 240, x: 0, y: 0, toJSON: () => ({}) };
+      }
+      if (this.classList.contains("structural-tables-container")) {
+        return { left: 200, right: 400, top: 20, bottom: 220, width: 200, height: 200, x: 200, y: 20, toJSON: () => ({}) };
+      }
+      if (this.classList.contains("structural-tables-table")) {
+        return { left: 0, right: 500, top: 20, bottom: 220, width: 500, height: 200, x: 0, y: 20, toJSON: () => ({}) };
+      }
+      return originalRect.call(this);
+    };
+    try {
+      const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+      const columns = Array.from(parent.querySelectorAll<HTMLButtonElement>("[data-structural-column-handle]"));
+      const visible = columns.filter((handle) => !handle.hidden);
+      expect(visible.length).toBeGreaterThan(0);
+      expect(columns.filter((handle) => handle.tabIndex === 0)).toEqual([visible[0]]);
+      view.destroy();
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalRect;
+    }
+  });
+
   it("uses one tab stop per cell and handle group with arrow-key navigation", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cells = Array.from(parent.querySelectorAll<HTMLElement>(
@@ -806,11 +832,14 @@ describe("StructuralTableEditorController", () => {
     expect(rows.filter((handle) => handle.tabIndex === 0)).toEqual([rows[0]]);
     expect(columns.filter((handle) => handle.tabIndex === 0)).toEqual([columns[0]]);
 
+    const reveal = vi.fn();
+    if (cells[1] !== undefined) cells[1].scrollIntoView = reveal;
     cells[0]?.focus();
     cells[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     expect(document.activeElement).toBe(cells[1]);
     expect(cells.filter((cell) => cell.tabIndex === 0)).toEqual([cells[1]]);
     expect(cells[1]?.getAttribute("aria-selected")).toBe("true");
+    expect(reveal).toHaveBeenCalled();
 
     rows[0]?.focus();
     rows[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
@@ -1005,12 +1034,30 @@ describe("StructuralTableEditorController", () => {
       value: { getData: () => "[[Target|Alias]]" },
     });
     editor.dispatchEvent(paste);
-    expect(editor.value).toBe(String.raw`[[Target\|Alias]]`);
+    expect(editor.value).toBe("[[Target|Alias]]");
     editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await Promise.resolve();
 
     expect(view.state.doc.toString()).toContain(String.raw`[[Target\|Alias]]`);
     expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+    view.destroy();
+  });
+
+  it("preserves clipboard boundary spaces inside an existing cell draft", () => {
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = cell.querySelector<HTMLTextAreaElement>(".structural-tables-cell-editor")!;
+    editor.value = "HelloWorld";
+    editor.setSelectionRange(5, 5);
+    const paste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", {
+      value: { getData: (type: string) => type === "text/html" ? "" : " brave " },
+    });
+
+    editor.dispatchEvent(paste);
+
+    expect(editor.value).toBe("Hello brave World");
     view.destroy();
   });
 
@@ -1067,6 +1114,8 @@ describe("StructuralTableEditorController", () => {
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
     cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     const editor = cell.querySelector<HTMLTextAreaElement>(".structural-tables-cell-editor")!;
+    const sizer = cell.querySelector<HTMLElement>(".structural-tables-cell-editor-sizer")!;
+    expect(sizer).not.toBeNull();
     expect(editor.getAttribute("cols")).toBe("1");
     expect(editor.getAttribute("rows")).toBe("1");
     editor.value = "First";
@@ -1086,6 +1135,7 @@ describe("StructuralTableEditorController", () => {
     expect(item).toBeDefined();
     item?.callback?.();
     expect(editor.value).toBe("First<br><br>Second<br>Third");
+    expect(sizer.textContent).toBe("First\n\nSecond\nThird");
     expect(cell.querySelector(".structural-tables-cell-editor")).toBe(editor);
     view.destroy();
   });

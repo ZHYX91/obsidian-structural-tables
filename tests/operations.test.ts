@@ -14,6 +14,7 @@ import {
   mergeCellRange,
   moveTableColumns,
   moveTableRows,
+  normalizeTableCellFragment,
   normalizeTableCellInput,
   reorderTableAxis,
   setHeaderRowCount,
@@ -184,6 +185,11 @@ describe("table operations", () => {
     expect(normalizeTableCellInput(String.raw`[[Target\|Alias]]`)).toBe(String.raw`[[Target\|Alias]]`);
     expect(normalizeTableCellInput("![[Image.png|300]]")).toBe(String.raw`![[Image.png\|300]]`);
     expect(normalizeTableCellInput("`a|b` | c")).toBe("`a|b` \\| c");
+    expect(normalizeTableCellInput("\\`literal|tail")).toBe("\\`literal\\|tail");
+    expect(normalizeTableCellInput("`literal|tail")).toBe("`literal\\|tail");
+    expect(normalizeTableCellFragment(" brave ")).toBe(" brave ");
+    expect(normalizeTableCellFragment("[[Target|Alias]]")).toBe("[[Target|Alias]]");
+    expect(normalizeTableCellFragment("First\nSecond")).toBe("First<br>Second");
     expect(normalizeTableCellInput("^")).toBe(String.raw`\^`);
     expect(normalizeTableCellInput("First\r\nSecond\rThird\nFourth"))
       .toBe("First<br>Second<br>Third<br>Fourth");
@@ -235,7 +241,7 @@ describe("table operations", () => {
     const rows = moveTableRows(table, 2, 2, "backward");
     expect(rows).toMatchObject({ changed: true, code: "row-moved" });
     expect(parseStructuralTables(rows.source).tables[0]?.rows[1]?.cells[0]?.content).toBe("B");
-    expect(moveTableColumns(table, 0, 0, "forward")).toMatchObject({ changed: false, code: "invalid-result" });
+    expect(moveTableColumns(table, 0, 0, "forward")).toMatchObject({ changed: false, code: "move-crosses-role" });
 
     const multiHeader = parseStructuralTables("| A | B | C |\n| D | E | F |\n| --- | --- | --- |\n| 1 | 2 | 3 |").tables[0]!;
     const columns = moveTableColumns(multiHeader, 2, 2, "backward");
@@ -243,7 +249,7 @@ describe("table operations", () => {
     expect(parseStructuralTables(columns.source).tables[0]?.rows[0]?.cells[1]?.content).toBe("C");
 
     const merged = parseStructuralTables("| H | V |\n| --- | --- |\n| A | 1 |\n| ^ | 2 |\n| B | 3 |").tables[0]!;
-    expect(moveTableRows(merged, 2, 2, "forward")).toMatchObject({ changed: false, code: "invalid-result" });
+    expect(moveTableRows(merged, 2, 2, "forward")).toMatchObject({ changed: false, code: "move-partial-merge" });
   });
 
   it("updates column alignment without changing cell content", () => {

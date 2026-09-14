@@ -38,7 +38,6 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] `structural-tables` list membership without a per-record identity property.
 - [ ] Path-independent results after rename/move.
 - [ ] Later-record creation after moving the host note.
-- [ ] Native Base New organization into the current host inbox with collision suffixing, preservation of user moves, and fail-closed ambiguity, invalid/conflicting metadata, or move failure.
 - [ ] Previewed per-file legacy-property migration with toggle-synchronized counts, default-off membership-scoped `structural_record_id` cleanup, stale and concurrent-change refusal, and rollback that preserves unrelated concurrent edits.
 - [ ] Restoration that keeps records.
 - [ ] Missing-manifest refusal.

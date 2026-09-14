@@ -17,6 +17,7 @@ export interface TableDiagnostic {
     | "merge-nonrectangular"
     | "row-width";
   message: string;
+  sourceLine: number;
   row: number;
   column?: number;
 }

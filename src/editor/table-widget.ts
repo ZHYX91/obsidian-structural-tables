@@ -7,7 +7,7 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { adjacentTableCell } from "../core/table-navigation";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
-import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, normalizeTableCellInput, reorderTableAxis, type TableAxis } from "../core/operations";
+import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, normalizeTableCellFragment, reorderTableAxis, type TableAxis } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
@@ -385,6 +385,7 @@ class StructuralTableInteraction {
     if (resolved !== null) this.selectBounds(resolved, resolved);
     this.setRovingCell(element);
     element.focus({ preventScroll: true });
+    element.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     return true;
   }
 
@@ -647,9 +648,18 @@ class StructuralTableInteraction {
     editor.setAttribute("aria-label", t("editor.cell")
       .replace("{row}", String(anchor.row + 1))
       .replace("{column}", String(anchor.column + 1)));
-    // The content layer continues to size the cell while the editor overlays it.
+    const sizer = element.ownerDocument.createElement("div");
+    sizer.className = "structural-tables-cell-editor-sizer";
+    const contentWidth = element.querySelector<HTMLElement>(".structural-tables-cell-content")?.getBoundingClientRect().width ?? 0;
+    if (contentWidth > 0) sizer.style.inlineSize = `${contentWidth}px`;
+    const updateSizer = (): void => {
+      sizer.textContent = editor.value.replace(/<br\s*\/?>/giu, "\n") || "\u00a0";
+    };
+    // The hidden draft sizer lets long edits grow vertically without changing the table width.
     element.classList.add("is-editing");
+    element.appendChild(sizer);
     element.appendChild(editor);
+    updateSizer();
     let settled = false;
     let composing = false;
     let contextMenuOpen = false;
@@ -658,38 +668,49 @@ class StructuralTableInteraction {
 
     const insertBreak = (start = editor.selectionStart, end = editor.selectionEnd): void => {
       editor.setRangeText("<br>", start, end, "end");
+      updateSizer();
       editor.focus({ preventScroll: true });
     };
 
     const restore = (focus: boolean): void => {
       element.classList.remove("is-editing");
+      sizer.remove();
       editor.remove();
       if (focus) element.focus({ preventScroll: true });
     };
-    const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation): void => {
-      if (settled) return;
+    const settle = (): void => {
       settled = true;
       this.finishActiveOperation = null;
       this.releaseCellScope(scope);
+    };
+    const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation): void => {
+      if (settled) return;
       if (!commit) {
+        settle();
         restore(focus);
         return;
       }
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) {
-        restore(focus);
         new Notice(t("notice.staleTable"));
+        editor.focus({ preventScroll: true });
         return;
       }
       const result = operation === undefined
         ? editCellContent(current, anchor.row, anchor.column, editor.value)
         : editCellAndTransform(current, anchor.row, anchor.column, editor.value, operation);
       if (!result.changed) {
+        if (result.code !== "cell-edited") {
+          new Notice(operationNotice(t, result.code));
+          editor.focus({ preventScroll: true });
+          return;
+        }
+        settle();
         restore(focus);
-        if (result.code !== "cell-edited") new Notice(operationNotice(t, result.code));
         if (next !== null) queueMicrotask(() => this.beginCellEdit(view, next));
         return;
       }
+      settle();
       const nativeCallout = this.host?.closest(".callout") != null;
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
@@ -737,6 +758,7 @@ class StructuralTableInteraction {
     this.cellScope = scope;
     this.app.keymap.pushScope(scope);
     editor.addEventListener("keydown", handleKey);
+    editor.addEventListener("input", updateSizer);
     editor.addEventListener("beforeinput", (event) => {
       // Soft keyboards can insert a line break before sending a useful keydown.
       // Commit the draft before that insertion replaces the selected cell text.
@@ -760,7 +782,8 @@ class StructuralTableInteraction {
       event.preventDefault();
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
-      editor.setRangeText(normalizeTableCellInput(pasted), start, end, "end");
+      editor.setRangeText(normalizeTableCellFragment(pasted), start, end, "end");
+      updateSizer();
     });
     editor.addEventListener("contextmenu", (event) => {
       event.preventDefault();
@@ -869,7 +892,7 @@ class StructuralTableInteraction {
         const nextSelection = { axis, start: movedStart, end: movedStart + end - start };
         this.applyMenuOperation(view, (table) => reorderTableAxis(table, axis, start, end, destination),
           axis === "row" ? { row: movedStart, column: 0 } : { row: 0, column: movedStart }, nextSelection);
-      });
+      }, (result) => new Notice(operationNotice(t, result.code)));
     const installAxisHandle = (handle: HTMLButtonElement, axis: TableAxis, index: number): void => {
       // Obsidian listens to touch events separately from pointer events for sidebar swipes.
       // Keep those gestures local to the handle without disabling its native long-press menu.
@@ -967,6 +990,13 @@ class StructuralTableInteraction {
           `calc(${tableRect.top - hostRect.top}px - var(--structural-table-handle-gutter))`,
         );
       });
+      const currentColumnTabStop = columnHandles.find((handle) => handle.tabIndex === 0);
+      if (currentColumnTabStop?.hidden !== false) {
+        const visible = columnHandles.find((handle) => !handle.hidden);
+        if (visible !== undefined) {
+          columnHandles.forEach((handle) => { handle.tabIndex = handle === visible ? 0 : -1; });
+        }
+      }
     };
     positionHandles();
     const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
@@ -1004,6 +1034,10 @@ class StructuralTableInteraction {
         event.stopPropagation();
         if (targetIndex === index) return;
         const target = handles[targetIndex];
+        const coordinate = orientation === "vertical"
+          ? { row: targetIndex, column: 0 } : { row: 0, column: targetIndex };
+        this.cellElement(coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+        if (target !== undefined) target.hidden = false;
         target?.focus({ preventScroll: true });
         target?.click();
       });

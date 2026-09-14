@@ -16,10 +16,13 @@ function setup() {
     if (typeof options === "object" && typeof options.cls === "string") element.className = options.cls;
     return element;
   };
-  const rendered = host.appendChild(document.createElement("table"));
+  const scroller = host.appendChild(document.createElement("div"));
+  scroller.className = "structural-tables-container";
+  const rendered = scroller.appendChild(document.createElement("table"));
   rendered.innerHTML = table.rows.map((row) => `<tr>${row.cells.map((cell) =>
     `<td data-structural-column="${cell.column}">${cell.content}</td>`).join("")}</tr>`).join("");
   vi.spyOn(host, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 260, 210));
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(bounds(40, 20, 200, 160));
   vi.spyOn(rendered, "getBoundingClientRect").mockReturnValue(bounds(40, 20, 200, 160));
   [...rendered.rows].forEach((row, index) => {
     vi.spyOn(row, "getBoundingClientRect").mockReturnValue(bounds(40, 20 + index * 40, 200, 40));
@@ -28,10 +31,11 @@ function setup() {
   });
   let selection: AxisSelection | null = null;
   const move = vi.fn();
-  const controller = new TableAxisDrag(host, rendered, () => table, () => selection, move);
+  const blocked = vi.fn();
+  const controller = new TableAxisDrag(host, rendered, () => table, () => selection, move, blocked);
   const pointer = (type: string, x: number, y: number, pointerId = 1) => new PointerEvent(type,
     { clientX: x, clientY: y, pointerId, pointerType: "touch", button: 0, isPrimary: true, bubbles: true, cancelable: true });
-  return { host, rendered, move, controller, pointer, select: (value: AxisSelection) => { selection = value; } };
+  return { host, scroller, rendered, move, blocked, controller, pointer, select: (value: AxisSelection) => { selection = value; } };
 }
 
 afterEach(() => { vi.restoreAllMocks(); document.body.replaceChildren(); });
@@ -59,13 +63,15 @@ describe("explicit axis dragging", () => {
   });
 
   it("rejects a header drop and cancels Escape, pointer cancellation and outside drops", () => {
-    const { controller, pointer, select, move, host } = setup();
+    const { controller, pointer, select, move, blocked, host } = setup();
     try {
       select({ axis: "row", start: 1, end: 1 });
       controller.start(pointer("pointerdown", 25, 80), "row", 1);
       window.dispatchEvent(pointer("pointermove", 25, 20));
       expect(host.dataset.reorderState).toBe("blocked");
       window.dispatchEvent(pointer("pointerup", 25, 20));
+      expect(blocked).toHaveBeenCalledOnce();
+      expect(blocked.mock.calls[0]?.[0]).toMatchObject({ changed: false, code: "move-crosses-role" });
       for (const cancel of [new KeyboardEvent("keydown", { key: "Escape" }), pointer("pointercancel", 25, 180), pointer("pointerup", 900, 900)]) {
         controller.start(pointer("pointerdown", 25, 80), "row", 1);
         window.dispatchEvent(pointer("pointermove", 25, 180));
@@ -74,6 +80,18 @@ describe("explicit axis dragging", () => {
       }
       expect(move).not.toHaveBeenCalled();
       expect(host.querySelector<HTMLElement>(".structural-tables-drop-line")!.hidden).toBe(true);
+    } finally { controller.destroy(); }
+  });
+
+  it("scrolls a clipped table while dragging a column near the horizontal edge", () => {
+    const { controller, pointer, select, scroller } = setup();
+    const scrollBy = vi.fn();
+    scroller.scrollBy = scrollBy;
+    try {
+      select({ axis: "column", start: 1, end: 1 });
+      expect(controller.start(pointer("pointerdown", 190, 10), "column", 1)).toBe(true);
+      window.dispatchEvent(pointer("pointermove", 238, 80));
+      expect(scrollBy).toHaveBeenCalledWith({ left: 24, behavior: "auto" });
     } finally { controller.destroy(); }
   });
 

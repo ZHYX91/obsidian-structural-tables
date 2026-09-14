@@ -258,7 +258,15 @@
 }
 
 .structural-tables-table :is(th, td).is-editing > .structural-tables-cell-content {
+  display: none;
+}
+
+.structural-tables-cell-editor-sizer {
+  min-block-size: 1lh;
   visibility: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
 }
 
 .structural-tables-cell-editor {
@@ -297,7 +305,7 @@
 
 .structural-tables-live-preview .structural-tables-table :is(th, td).is-selected {
   background: var(--text-selection);
-  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
 }
 
 :is(.structural-tables-container, .structural-tables-live-preview)[data-density="comfortable"] {

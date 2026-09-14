@@ -1,6 +1,7 @@
 import { getLanguage } from "obsidian";
 
 import type { OperationCode } from "../core/operations";
+import type { TableDiagnostic } from "../core/model";
 import type { InterfaceLanguage } from "./settings";
 
 const en = {
@@ -66,10 +67,6 @@ const en = {
   "notice.promoteFailed": "Could not upgrade the table: {message}",
   "notice.promoted": "Table upgraded to Base. Recovery manifest: {path}",
   "notice.recordCreated": "New Base record created: {path}",
-  "notice.recordAdopted": "New Base record organized: {path}",
-  "notice.recordAdoptionAmbiguous": "The new note matches more than one Structural Tables Base, so it was left in place.",
-  "notice.recordAdoptionIncompatible": "The new note has invalid or conflicting Structural Tables membership properties, so it was left unchanged.",
-  "notice.recordAdoptionFailed": "The new Base record was left in place because it could not be organized: {message}",
   "notice.restoreFailed": "Could not restore the table: {message}",
   "notice.restored": "Original table restored. Generated record notes were kept.",
   "promotion.blocker.mergedDataCell": "Split the merged data cell at row {row}, column {column} ({rowSpan} × {columnSpan}) before upgrading.",
@@ -81,6 +78,14 @@ const en = {
   "notice.sheetsNotDetected": "No unambiguous Sheets Extended separator column was found.",
   "notice.staleTable": "The table changed. Reopen the cell or menu and try again.",
   "notice.valid": "All structural tables are valid.",
+  "notice.diagnosticLine": "Line {line}: {message}",
+  "diagnostic.boundaryAtEdge": "The row-header divider (||) must be between two delimiter cells.",
+  "diagnostic.boundaryCount": "A delimiter row can contain at most one row-header divider (||).",
+  "diagnostic.boundaryToken": "A row-header divider must be an adjacent || with no spaces between the pipes.",
+  "diagnostic.mergeBoundary": "A merged cell cannot cross header or data-region boundaries.",
+  "diagnostic.mergeMissingAnchor": "A merge marker has no valid content cell to merge with.",
+  "diagnostic.mergeNonrectangular": "Merged cells must form one complete rectangle.",
+  "diagnostic.rowWidth": "This row does not have the same number of cells as the delimiter row.",
   "handle.column": "Select column {count}",
   "handle.row": "Select row {count}",
   "handle.addRow": "Add row",
@@ -127,6 +132,9 @@ const en = {
   "operation.mergeInvalidSelection": "Select a rectangular range of at least two cells.",
   "operation.mergePartialExisting": "The selection must include each existing merged cell in full.",
   "operation.merged": "Cells merged.",
+  "operation.moveCrossesRole": "Rows and columns cannot cross a header boundary.",
+  "operation.movePartialMerge": "Select every row or column of an existing merged cell before moving it.",
+  "operation.moveUnavailable": "The selected range or drop position is unavailable.",
   "operation.noAdjacentCell": "There is no cell in that direction.",
   "operation.notMerged": "The selected cell is not merged.",
   "operation.rowHeaderCountInvalid": "Row headers must start at the left and leave at least one data column.",
@@ -245,10 +253,6 @@ const zh: Record<TranslationKey, string> = {
   "notice.promoteFailed": "无法升级表格：{message}",
   "notice.promoted": "表格已升级为 Base。恢复清单：{path}",
   "notice.recordCreated": "已创建新的 Base 记录：{path}",
-  "notice.recordAdopted": "新的 Base 记录已整理：{path}",
-  "notice.recordAdoptionAmbiguous": "新笔记同时匹配多个 Structural Tables Base，已保留在原位置。",
-  "notice.recordAdoptionIncompatible": "新笔记中的 Structural Tables 成员属性无效或互相冲突，因此未作修改。",
-  "notice.recordAdoptionFailed": "无法整理新的 Base 记录，已保留在原位置：{message}",
   "notice.restoreFailed": "无法恢复表格：{message}",
   "notice.restored": "已恢复原表格，并保留生成的记录笔记。",
   "promotion.blocker.mergedDataCell": "请先拆分第 {row} 行、第 {column} 列的数据区合并单元格（{rowSpan} × {columnSpan}），再进行升级。",
@@ -260,6 +264,14 @@ const zh: Record<TranslationKey, string> = {
   "notice.sheetsNotDetected": "未找到唯一且明确的 Sheets Extended 分隔列。",
   "notice.staleTable": "表格已发生变化，请重新打开单元格或菜单后重试。",
   "notice.valid": "所有结构表格均有效。",
+  "notice.diagnosticLine": "第 {line} 行：{message}",
+  "diagnostic.boundaryAtEdge": "行标题分隔符（||）必须位于两个分隔单元格之间。",
+  "diagnostic.boundaryCount": "分隔行最多只能包含一个行标题分隔符（||）。",
+  "diagnostic.boundaryToken": "行标题分隔符必须写成相邻的 ||，两条竖线之间不能有空格。",
+  "diagnostic.mergeBoundary": "合并单元格不能跨越标题区与数据区边界。",
+  "diagnostic.mergeMissingAnchor": "合并标记没有可合并的有效内容单元格。",
+  "diagnostic.mergeNonrectangular": "合并单元格必须形成一个完整矩形。",
+  "diagnostic.rowWidth": "该行的单元格数量与分隔行不一致。",
   "handle.column": "选择第 {count} 列",
   "handle.row": "选择第 {count} 行",
   "handle.addRow": "添加行",
@@ -306,6 +318,9 @@ const zh: Record<TranslationKey, string> = {
   "operation.mergeInvalidSelection": "请选择至少两个单元格组成的矩形区域。",
   "operation.mergePartialExisting": "选区必须完整包含其中已有的合并单元格。",
   "operation.merged": "已合并单元格。",
+  "operation.moveCrossesRole": "行或列不能跨越标题区边界。",
+  "operation.movePartialMerge": "移动前必须完整选中已有合并单元格覆盖的所有行或列。",
+  "operation.moveUnavailable": "所选范围或放置位置不可用。",
   "operation.noAdjacentCell": "该方向没有可合并的单元格。",
   "operation.notMerged": "所选单元格没有合并。",
   "operation.rowHeaderCountInvalid": "行标题必须从最左列开始，并至少保留一列数据。",
@@ -367,6 +382,20 @@ export function createTranslator(language: InterfaceLanguage): Translate {
   return (key) => selected[key];
 }
 
+const diagnosticKeys: Record<TableDiagnostic["code"], TranslationKey> = {
+  "boundary-at-edge": "diagnostic.boundaryAtEdge",
+  "boundary-count": "diagnostic.boundaryCount",
+  "boundary-token": "diagnostic.boundaryToken",
+  "merge-boundary": "diagnostic.mergeBoundary",
+  "merge-missing-anchor": "diagnostic.mergeMissingAnchor",
+  "merge-nonrectangular": "diagnostic.mergeNonrectangular",
+  "row-width": "diagnostic.rowWidth",
+};
+
+export function diagnosticNotice(t: Translate, code: TableDiagnostic["code"]): string {
+  return t(diagnosticKeys[code]);
+}
+
 const operationKeys: Record<OperationCode, TranslationKey> = {
   "already-merged": "operation.alreadyMerged",
   "cell-unavailable": "operation.cellUnavailable",
@@ -383,6 +412,9 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
   "merge-invalid-selection": "operation.mergeInvalidSelection",
   "merge-partial-existing": "operation.mergePartialExisting",
   merged: "operation.merged",
+  "move-crosses-role": "operation.moveCrossesRole",
+  "move-partial-merge": "operation.movePartialMerge",
+  "move-unavailable": "operation.moveUnavailable",
   "no-adjacent-cell": "operation.noAdjacentCell",
   "not-merged": "operation.notMerged",
   "row-header-count-invalid": "operation.rowHeaderCountInvalid",

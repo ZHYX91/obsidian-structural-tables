@@ -235,7 +235,7 @@ describe("table operations", () => {
     const rows = moveTableRows(table, 2, 2, "backward");
     expect(rows).toMatchObject({ changed: true, code: "row-moved" });
     expect(parseStructuralTables(rows.source).tables[0]?.rows[1]?.cells[0]?.content).toBe("B");
-    expect(moveTableColumns(table, 0, 0, "forward")).toMatchObject({ changed: false, code: "invalid-result" });
+    expect(moveTableColumns(table, 0, 0, "forward")).toMatchObject({ changed: false, code: "move-crosses-header" });
 
     const multiHeader = parseStructuralTables("| A | B | C |\n| D | E | F |\n| --- | --- | --- |\n| 1 | 2 | 3 |").tables[0]!;
     const columns = moveTableColumns(multiHeader, 2, 2, "backward");
@@ -243,7 +243,7 @@ describe("table operations", () => {
     expect(parseStructuralTables(columns.source).tables[0]?.rows[0]?.cells[1]?.content).toBe("C");
 
     const merged = parseStructuralTables("| H | V |\n| --- | --- |\n| A | 1 |\n| ^ | 2 |\n| B | 3 |").tables[0]!;
-    expect(moveTableRows(merged, 2, 2, "forward")).toMatchObject({ changed: false, code: "invalid-result" });
+    expect(moveTableRows(merged, 2, 2, "forward")).toMatchObject({ changed: false, code: "move-partial-merge" });
   });
 
   it("updates column alignment without changing cell content", () => {

@@ -1,6 +1,7 @@
 import { getLanguage } from "obsidian";
 
 import type { OperationCode } from "../core/operations";
+import type { TableDiagnostic } from "../core/model";
 import type { InterfaceLanguage } from "./settings";
 
 const en = {
@@ -81,6 +82,14 @@ const en = {
   "notice.sheetsNotDetected": "No unambiguous Sheets Extended separator column was found.",
   "notice.staleTable": "The table changed. Reopen the cell or menu and try again.",
   "notice.valid": "All structural tables are valid.",
+  "notice.validationLine": "Line {line}: {message}",
+  "diagnostic.boundaryAtEdge": "The row-header divider must be between two delimiter cells.",
+  "diagnostic.boundaryCount": "A delimiter row can contain at most one row-header divider.",
+  "diagnostic.boundaryToken": "A row-header divider must use adjacent pipes with no spaces.",
+  "diagnostic.mergeBoundary": "A merged cell cannot cross header or data-region boundaries.",
+  "diagnostic.mergeMissingAnchor": "A merge marker must resolve to an existing content cell.",
+  "diagnostic.mergeNonrectangular": "Merged cells must form one complete rectangle.",
+  "diagnostic.rowWidth": "This row does not match the delimiter column count.",
   "handle.column": "Select column {count}",
   "handle.row": "Select row {count}",
   "handle.addRow": "Add row",
@@ -126,6 +135,9 @@ const en = {
   "operation.mergeCrossesRole": "A merge cannot cross a header or data-region boundary.",
   "operation.mergeInvalidSelection": "Select a rectangular range of at least two cells.",
   "operation.mergePartialExisting": "The selection must include each existing merged cell in full.",
+  "operation.moveCrossesHeader": "Rows and columns cannot cross a header boundary.",
+  "operation.movePartialMerge": "Select the whole merged cell before moving this range.",
+  "operation.moveSelectionUnavailable": "The selected range or destination is unavailable.",
   "operation.merged": "Cells merged.",
   "operation.noAdjacentCell": "There is no cell in that direction.",
   "operation.notMerged": "The selected cell is not merged.",
@@ -260,6 +272,14 @@ const zh: Record<TranslationKey, string> = {
   "notice.sheetsNotDetected": "未找到唯一且明确的 Sheets Extended 分隔列。",
   "notice.staleTable": "表格已发生变化，请重新打开单元格或菜单后重试。",
   "notice.valid": "所有结构表格均有效。",
+  "notice.validationLine": "第 {line} 行：{message}",
+  "diagnostic.boundaryAtEdge": "行表头分隔符必须位于两个分隔单元格之间。",
+  "diagnostic.boundaryCount": "分隔行最多只能包含一个行表头分隔符。",
+  "diagnostic.boundaryToken": "行表头分隔符必须使用中间没有空格的相邻竖线。",
+  "diagnostic.mergeBoundary": "合并单元格不能跨越表头区与数据区边界。",
+  "diagnostic.mergeMissingAnchor": "合并标记必须指向已有的内容单元格。",
+  "diagnostic.mergeNonrectangular": "合并单元格必须组成完整矩形。",
+  "diagnostic.rowWidth": "该行的列数与分隔行不一致。",
   "handle.column": "选择第 {count} 列",
   "handle.row": "选择第 {count} 行",
   "handle.addRow": "添加行",
@@ -305,6 +325,9 @@ const zh: Record<TranslationKey, string> = {
   "operation.mergeCrossesRole": "合并不能跨越表头或数据区域边界。",
   "operation.mergeInvalidSelection": "请选择至少两个单元格组成的矩形区域。",
   "operation.mergePartialExisting": "选区必须完整包含其中已有的合并单元格。",
+  "operation.moveCrossesHeader": "行或列不能跨越表头边界移动。",
+  "operation.movePartialMerge": "请完整选择合并单元格后再移动该范围。",
+  "operation.moveSelectionUnavailable": "所选范围或目标位置不可用。",
   "operation.merged": "已合并单元格。",
   "operation.noAdjacentCell": "该方向没有可合并的单元格。",
   "operation.notMerged": "所选单元格没有合并。",
@@ -382,6 +405,9 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
   "merge-crosses-role": "operation.mergeCrossesRole",
   "merge-invalid-selection": "operation.mergeInvalidSelection",
   "merge-partial-existing": "operation.mergePartialExisting",
+  "move-crosses-header": "operation.moveCrossesHeader",
+  "move-partial-merge": "operation.movePartialMerge",
+  "move-selection-unavailable": "operation.moveSelectionUnavailable",
   merged: "operation.merged",
   "no-adjacent-cell": "operation.noAdjacentCell",
   "not-merged": "operation.notMerged",
@@ -398,6 +424,20 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
 
 export function operationNotice(t: Translate, code: OperationCode): string {
   return t(operationKeys[code]);
+}
+
+const diagnosticKeys: Record<TableDiagnostic["code"], TranslationKey> = {
+  "boundary-at-edge": "diagnostic.boundaryAtEdge",
+  "boundary-count": "diagnostic.boundaryCount",
+  "boundary-token": "diagnostic.boundaryToken",
+  "merge-boundary": "diagnostic.mergeBoundary",
+  "merge-missing-anchor": "diagnostic.mergeMissingAnchor",
+  "merge-nonrectangular": "diagnostic.mergeNonrectangular",
+  "row-width": "diagnostic.rowWidth",
+};
+
+export function diagnosticNotice(t: Translate, diagnostic: TableDiagnostic): string {
+  return t(diagnosticKeys[diagnostic.code]);
 }
 
 export function withCount(template: string, count: number): string {

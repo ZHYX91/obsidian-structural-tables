@@ -55,6 +55,9 @@ beforeAll(() => {
   HTMLElement.prototype.createDiv = function createDiv(options?: ObsidianElementOptions): HTMLDivElement {
     return this.createEl("div", options);
   };
+  HTMLElement.prototype.setCssProps = function setCssProps(props: Record<string, string>): void {
+    for (const [name, value] of Object.entries(props)) this.style.setProperty(name, value);
+  };
 });
 
 afterEach(() => {
@@ -1059,6 +1062,26 @@ describe("StructuralTableEditorController", () => {
     expect(view.state.doc.toString()).toBe(source);
     link.click();
     expect(activated).toHaveBeenCalledOnce();
+    view.destroy();
+  });
+
+  it("expands the editing row for a long draft and restores its height on cancel", () => {
+    const source = "| Name | Value |\n| --- || --- |\n| A | Short |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+    vi.spyOn(cell, "getBoundingClientRect").mockReturnValue({
+      left: 0, top: 0, width: 120, height: 32, right: 120, bottom: 32, x: 0, y: 0, toJSON: () => ({}),
+    });
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+    const row = cell.closest<HTMLTableRowElement>("tr")!;
+    Object.defineProperty(editor, "scrollHeight", { configurable: true, get: () => 144 });
+
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(row.style.getPropertyValue("--structural-table-edit-row-height")).toBe("144px");
+
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(row.style.getPropertyValue("--structural-table-edit-row-height")).toBe("0px");
     view.destroy();
   });
 

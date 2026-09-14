@@ -1,8 +1,9 @@
 import { App, MarkdownRenderChild, type MarkdownPostProcessorContext } from "obsidian";
 
+import { createTranslator, diagnosticNotice } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import { parseEditableTables } from "../core/parser";
-import { diagnosticText, renderStructuralTable } from "../rendering/table-renderer";
+import { renderStructuralTable } from "../rendering/table-renderer";
 import { rawStructuralTableElement } from "./table-mapping";
 import type { StructuralTable } from "../core/model";
 import { calloutBlocks, matchingBlocks, renderTableSignatures } from "../rendering/native-table-mapping";
@@ -30,6 +31,11 @@ function sectionSource(
   const lines = text.split(/\r\n|\r|\n/gu);
   if (lineStart >= lines.length) return null;
   return lines.slice(lineStart, Math.min(lineEnd + 1, lines.length)).join(ending);
+}
+
+function diagnosticTitle(table: StructuralTable, settings: StructuralTablesSettings): string {
+  const t = createTranslator(settings.language);
+  return table.diagnostics.map((diagnostic) => diagnosticNotice(t, diagnostic)).join(" ");
 }
 
 export class StructuralTableReadingProcessor {
@@ -84,7 +90,7 @@ export class StructuralTableReadingProcessor {
       if (!table.valid) {
         if (settings.showDiagnostics) {
           existing.classList.add("structural-tables-invalid");
-          existing.title = diagnosticText(table);
+          existing.title = diagnosticTitle(table, settings);
         }
         return;
       }
@@ -131,7 +137,7 @@ export class StructuralTableReadingProcessor {
       if (!plan.table.valid) {
         if (settings.showDiagnostics) for (const target of targets) {
           target.classList.add("structural-tables-invalid");
-          target.title = diagnosticText(plan.table);
+          target.title = diagnosticTitle(plan.table, settings);
         }
         continue;
       }

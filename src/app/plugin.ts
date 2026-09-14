@@ -7,7 +7,7 @@ import {
   type TFile,
 } from "obsidian";
 
-import { createTranslator, operationNotice, type Translate } from "../config/i18n";
+import { createTranslator, diagnosticNotice, operationNotice, type Translate } from "../config/i18n";
 import {
   DEFAULT_SETTINGS,
   cloneSettings,
@@ -249,11 +249,14 @@ export class StructuralTablesPlugin extends Plugin {
       id: "validate-current-note",
       name: t("command.validate"),
       editorCallback: (editor) => {
+        const t = createTranslator(this.settings.language);
         const tables = parseStructuralTables(editor.getValue()).tables;
         const diagnostics = tables.flatMap((table) => table.diagnostics);
         new Notice(diagnostics.length === 0
-          ? createTranslator(this.settings.language)("notice.valid")
-          : diagnostics.map((diagnostic) => `Line ${diagnostic.row + 1}: ${diagnostic.message}`).join("\n"));
+          ? t("notice.valid")
+          : diagnostics.map((diagnostic) => t("notice.validationLine")
+            .replace("{line}", String(diagnostic.row + 1))
+            .replace("{message}", diagnosticNotice(t, diagnostic))).join("\n"));
       },
     }));
   }

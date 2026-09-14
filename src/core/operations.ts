@@ -2,6 +2,7 @@ import type { ColumnAlignment, StructuralTable } from "./model";
 import { parseEditableTables, parseStructuralTables } from "./parser";
 import { serializeStructuralTable } from "./serializer";
 import { sourcePrefix } from "./source-lines";
+import { normalizeTableCellText } from "./table-cell-syntax";
 
 export type MergeDirection = "left" | "up";
 
@@ -20,6 +21,9 @@ export type OperationCode =
   | "merge-crosses-role"
   | "merge-invalid-selection"
   | "merge-partial-existing"
+  | "move-crosses-header"
+  | "move-partial-merge"
+  | "move-selection-unavailable"
   | "merged"
   | "no-adjacent-cell"
   | "not-merged"
@@ -194,38 +198,14 @@ function unavailable(table: StructuralTable, row?: number, column?: number): Ope
   return null;
 }
 
-/** Escapes Markdown table separators while preserving existing escapes and code spans. */
+/** Normalize a complete cell before committing it to Markdown. */
 export function normalizeTableCellInput(input: string): string {
-  const singleLine = input.replace(/\r\n|\r|\n/gu, "<br>").trim();
-  let output = "";
-  let codeTicks = 0;
-  for (let index = 0; index < singleLine.length; index += 1) {
-    const character = singleLine[index] ?? "";
-    if (character === "\\") {
-      let run = 1;
-      while (singleLine[index + run] === "\\") run += 1;
-      output += "\\".repeat(run);
-      const next = singleLine[index + run];
-      if (next === "|" && run % 2 === 1) {
-        output += "|";
-        index += run;
-      } else {
-        index += run - 1;
-      }
-      continue;
-    }
-    if (character === "`") {
-      let run = 1;
-      while (singleLine[index + run] === "`") run += 1;
-      output += "`".repeat(run);
-      if (codeTicks === 0) codeTicks = run;
-      else if (codeTicks === run) codeTicks = 0;
-      index += run - 1;
-      continue;
-    }
-    output += character === "|" && codeTicks === 0 ? "\\|" : character;
-  }
-  return output === "<" || output === "^" ? `\\${output}` : output;
+  return normalizeTableCellText(input, true);
+}
+
+/** Normalize pasted text without discarding fragment boundary whitespace. */
+export function normalizeTableCellFragment(input: string): string {
+  return normalizeTableCellText(input, false);
 }
 
 export function editCellContent(
@@ -389,9 +369,9 @@ export function reorderTableAxis(table: StructuralTable, axis: TableAxis,
   const min = Math.min(start, end);
   const max = Math.max(start, end);
   const code = axis === "row" ? "row-moved" : "column-moved";
-  const refuse = (message: string): OperationResult => ({ changed: false, code: "invalid-result", message, source: table.source });
+  const refuse = (code: OperationCode, message: string): OperationResult => ({ changed: false, code, message, source: table.source });
   if (![min, max, destination].every(Number.isInteger) || min < 0 || max >= length || destination < 0 || destination > length) {
-    return refuse("The selected range or destination is unavailable.");
+    return refuse("move-selection-unavailable", "The selected range or destination is unavailable.");
   }
   if (destination >= min && destination <= max + 1) {
     return { changed: false, code, message: "The selection is already at that position.", source: table.source };
@@ -402,7 +382,7 @@ export function reorderTableAxis(table: StructuralTable, axis: TableAxis,
     const first = axis === "row" ? cell.row : cell.column;
     const last = first + (axis === "row" ? cell.rowSpan : cell.columnSpan) - 1;
     if (first <= max && last >= min && (first < min || last > max)) {
-      return refuse("Select every row or column of an existing merged cell before moving it.");
+      return refuse("move-partial-merge", "Select every row or column of an existing merged cell before moving it.");
     }
   }
   const indexes = Array.from({ length }, (_unused, index) => index);
@@ -410,7 +390,7 @@ export function reorderTableAxis(table: StructuralTable, axis: TableAxis,
   indexes.splice(destination > max ? destination - selected.length : destination, 0, ...selected);
   const boundary = axis === "row" ? table.headerRowCount : table.rowHeaderColumnCount;
   if (indexes.some((original, position) => (original < boundary) !== (position < boundary))) {
-    return refuse("Rows and columns cannot cross a header boundary.");
+    return refuse("move-crosses-header", "Rows and columns cannot cross a header boundary.");
   }
   const grid = ownedGrid(table);
   const owners = axis === "row" ? indexes.map((index) => grid.owners[index]!)

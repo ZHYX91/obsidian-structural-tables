@@ -143,7 +143,7 @@ describe("native Base record adoption", () => {
     );
   });
 
-  it("finds a unique generated Base when Obsidian makes the new note active", async () => {
+  it("does not infer move authority by scanning the vault when the new note is already active", async () => {
     const test = context();
     const host = testFile("Folder/People.md");
     const record = testFile("Untitled.md");
@@ -154,12 +154,7 @@ describe("native Base record adoption", () => {
     test.adopter.handleCreated(record);
     await test.adopter.handleMetadataChanged(record, metadata(["stb_people"]));
 
-    expect(test.adoptCreatedRecord).toHaveBeenCalledWith(
-      record,
-      host,
-      expect.objectContaining({ tableId: "stb_people" }),
-      true,
-    );
+    expect(test.adoptCreatedRecord).not.toHaveBeenCalled();
   });
 
   it("leaves unknown and ambiguous notes untouched", async () => {

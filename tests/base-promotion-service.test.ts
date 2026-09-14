@@ -60,6 +60,7 @@ interface MemoryHost {
   renamed: { from: string; to: string }[];
   renameError?: Error;
   afterCreate?: (path: string) => void;
+  afterRead?: (path: string) => void;
 }
 
 function memoryFile(path: string): TFile {
@@ -105,7 +106,10 @@ function memoryHost(): MemoryHost {
       host.afterCreate?.(path);
       return file;
     },
-    read: async (file: TFile) => contents.get(file.path) ?? "",
+    read: async (file: TFile) => {
+      host.afterRead?.(file.path);
+      return contents.get(file.path) ?? "";
+    },
   };
   host.app = {
     vault,
@@ -268,6 +272,25 @@ describe("Base promotion file transaction", () => {
 
     expect(editor.getValue()).toBe(SOURCE);
     expect(host.files.has(prepared.records[0]?.path ?? "")).toBe(true);
+  });
+
+  it("re-resolves a moved Base after reading its manifest before restoring", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"));
+    if (metadata === null) throw new Error("Expected promotion metadata.");
+    host.afterRead = (path) => {
+      if (path === prepared.manifestPath) editor.mutate(`Intro\n${editor.getValue()}`);
+    };
+
+    await service.restore(editor as unknown as Editor, metadata);
+
+    expect(editor.getValue()).toBe(`Intro\n${SOURCE}`);
   });
 
   it("restores schema version 1 manifests regardless of their producer version", async () => {

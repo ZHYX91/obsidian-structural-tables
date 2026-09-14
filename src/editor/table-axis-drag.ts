@@ -1,5 +1,5 @@
 import type { StructuralTable } from "../core/model";
-import { reorderTableAxis, type TableAxis } from "../core/operations";
+import { reorderTableAxis, type OperationResult, type TableAxis } from "../core/operations";
 
 export interface AxisSelection { axis: TableAxis; start: number; end: number }
 
@@ -34,7 +34,7 @@ interface DragSession {
   y: number;
   moved: boolean;
   destination: number | null;
-  preview?: { source: string; destination: number; allowed: boolean };
+  preview?: { source: string; destination: number; result: OperationResult };
 }
 
 /** Only a second gesture on an explicitly selected axis can reorder it. */
@@ -47,7 +47,8 @@ export class TableAxisDrag {
   constructor(private readonly host: HTMLElement, private readonly rendered: HTMLTableElement,
     private readonly current: () => StructuralTable,
     private readonly selected: () => AxisSelection | null,
-    private readonly move: (selection: AxisSelection, destination: number) => void) {
+    private readonly move: (selection: AxisSelection, destination: number) => void,
+    private readonly blocked?: (result: OperationResult) => void) {
     this.line = host.createDiv({ cls: "structural-tables-drop-line" });
     this.line.hidden = true;
     this.window = host.ownerDocument.defaultView;
@@ -108,8 +109,16 @@ export class TableAxisDrag {
     this.suppressClick = true;
     event.preventDefault();
     const table = this.current();
+    const container = this.rendered.closest<HTMLElement>(".structural-tables-container");
+    const initialContainerRect = container?.getBoundingClientRect();
+    if (session.selection.axis === "column" && container !== null && initialContainerRect !== undefined) {
+      const edge = Math.min(32, initialContainerRect.width / 4);
+      const delta = event.clientX < initialContainerRect.left + edge ? -24
+        : event.clientX > initialContainerRect.right - edge ? 24 : 0;
+      if (delta !== 0 && typeof container.scrollBy === "function") container.scrollBy({ left: delta, behavior: "auto" });
+    }
     const rect = this.rendered.getBoundingClientRect();
-    const containerRect = this.rendered.closest(".structural-tables-container")?.getBoundingClientRect();
+    const containerRect = container?.getBoundingClientRect();
     const visibleLeft = containerRect !== undefined && containerRect.width > 0 ? Math.max(rect.left, containerRect.left) : rect.left;
     const visibleRight = containerRect !== undefined && containerRect.width > 0 ? Math.min(rect.right, containerRect.right) : rect.right;
     const hostRect = this.host.getBoundingClientRect();
@@ -131,10 +140,13 @@ export class TableAxisDrag {
     session.destination = destination;
     if (session.preview?.source !== table.source || session.preview.destination !== destination) {
       session.preview = { source: table.source, destination,
-        allowed: reorderTableAxis(table, axis, start, end, destination).changed };
+        result: reorderTableAxis(table, axis, start, end, destination) };
     }
-    this.host.dataset.reorderState = session.preview.allowed ? "allowed" : "blocked";
-    this.line.hidden = axis === "column" && (boundaries[destination]! < visibleLeft || boundaries[destination]! > visibleRight);
+    const noOp = !session.preview.result.changed
+      && (session.preview.result.code === "row-moved" || session.preview.result.code === "column-moved");
+    if (noOp) delete this.host.dataset.reorderState;
+    else this.host.dataset.reorderState = session.preview.result.changed ? "allowed" : "blocked";
+    this.line.hidden = noOp || (axis === "column" && (boundaries[destination]! < visibleLeft || boundaries[destination]! > visibleRight));
     this.line.dataset.axis = axis;
     this.line.style.left = `${axis === "row" ? visibleLeft - hostRect.left : boundaries[destination]! - hostRect.left}px`;
     this.line.style.top = `${axis === "row" ? boundaries[destination]! - hostRect.top : rect.top - hostRect.top}px`;
@@ -147,8 +159,13 @@ export class TableAxisDrag {
     if (session === null || session.pointerId !== event.pointerId) return;
     if (session.moved) this.onMove(event);
     const destination = session.destination;
+    const preview = session.preview;
     const allowed = this.host.dataset.reorderState === "allowed";
     this.cancel();
-    if (session.moved && allowed && destination !== null) this.move(session.selection, destination);
+    if (!session.moved || destination === null) return;
+    if (allowed) this.move(session.selection, destination);
+    else if (preview !== undefined && preview.result.code !== "row-moved" && preview.result.code !== "column-moved") {
+      this.blocked?.(preview.result);
+    }
   };
 }

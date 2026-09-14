@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createTranslator, operationNotice, withCount } from "../src/config/i18n";
+import { createTranslator, diagnosticNotice, operationNotice, withCount } from "../src/config/i18n";
 
 describe("i18n", () => {
   it("labels automatic language as following Obsidian", () => {
@@ -21,9 +21,11 @@ describe("i18n", () => {
     expect(createTranslator("zh-CN")("menu.flattenAndPromoteBase")).toBe("展开结构并升级为 Base…");
   });
 
-  it("localizes operation notices and count templates", () => {
+  it("localizes operation notices, diagnostics and count templates", () => {
     const t = createTranslator("zh-CN");
     expect(operationNotice(t, "merged")).toBe("已合并单元格。");
+    expect(operationNotice(t, "move-crosses-role")).toBe("行或列不能跨越标题区边界。");
+    expect(diagnosticNotice(t, "row-width")).toBe("该行的单元格数量与分隔行不一致。");
     expect(withCount(t("menu.setHeaderRows"), 3)).toBe("将前 3 行设为列标题");
   });
 });

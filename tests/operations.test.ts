@@ -14,6 +14,7 @@ import {
   mergeCellRange,
   moveTableColumns,
   moveTableRows,
+  normalizeTableCellFragment,
   normalizeTableCellInput,
   reorderTableAxis,
   setHeaderRowCount,
@@ -184,6 +185,11 @@ describe("table operations", () => {
     expect(normalizeTableCellInput(String.raw`[[Target\|Alias]]`)).toBe(String.raw`[[Target\|Alias]]`);
     expect(normalizeTableCellInput("![[Image.png|300]]")).toBe(String.raw`![[Image.png\|300]]`);
     expect(normalizeTableCellInput("`a|b` | c")).toBe("`a|b` \\| c");
+    expect(normalizeTableCellInput("\\`literal|tail")).toBe("\\`literal\\|tail");
+    expect(normalizeTableCellInput("`literal|tail")).toBe("`literal\\|tail");
+    expect(normalizeTableCellFragment(" brave ")).toBe(" brave ");
+    expect(normalizeTableCellFragment("[[Target|Alias]]")).toBe("[[Target|Alias]]");
+    expect(normalizeTableCellFragment("First\nSecond")).toBe("First<br>Second");
     expect(normalizeTableCellInput("^")).toBe(String.raw`\^`);
     expect(normalizeTableCellInput("First\r\nSecond\rThird\nFourth"))
       .toBe("First<br>Second<br>Third<br>Fourth");

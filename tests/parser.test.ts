@@ -81,6 +81,18 @@ describe("parseStructuralTables", () => {
     expect(table?.columnCount).toBe(2);
   });
 
+  it("treats unmatched and escaped backticks as text instead of swallowing separators", () => {
+    const unmatched = "| A | B | C |\n| --- || --- | --- |\n| `literal | tail | z |";
+    const escaped = "| A | B | C |\n| --- || --- | --- |\n| \\`literal | tail | z |";
+    expect(parseStructuralTables(unmatched).tables[0]).toMatchObject({ valid: true, columnCount: 3 });
+    expect(parseStructuralTables(escaped).tables[0]).toMatchObject({ valid: true, columnCount: 3 });
+  });
+
+  it("keeps a pipe inside a closed code span non-structural", () => {
+    const source = "| A | B | C |\n| --- || --- | --- |\n| `a|b` | tail | z |";
+    expect(parseStructuralTables(source).tables[0]).toMatchObject({ valid: true, columnCount: 3 });
+  });
+
   it.each([
     ["missing anchor", "| < | B |\n| --- | --- |\n| 1 | 2 |", "merge-missing-anchor"],
     ["nonrectangle", "| A | < |\n| --- | --- |\n| ^ | B |", "merge-nonrectangular"],
@@ -94,6 +106,7 @@ describe("parseStructuralTables", () => {
     const table = parseStructuralTables(source).tables[0];
     expect(table?.valid).toBe(false);
     expect(table?.diagnostics.some((diagnostic) => diagnostic.code === code)).toBe(true);
+    expect(table?.diagnostics.every((diagnostic) => Number.isInteger(diagnostic.sourceLine))).toBe(true);
     expect(table?.source).toBe(source);
   });
 });

@@ -7,7 +7,6 @@ import { BasePromotionService } from "../src/app/base-promotion-service";
 import {
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
   promotionBlockAt,
-  TABLE_MEMBERSHIP_PROPERTY,
 } from "../src/core/base-promotion";
 import { parseEditableTables } from "../src/core/parser";
 
@@ -54,12 +53,10 @@ interface MemoryHost {
   app: App;
   contents: Map<string, string>;
   files: Map<string, TAbstractFile>;
-  frontmatters: Map<string, Record<string, unknown>>;
   trashed: string[];
   opened: string[];
-  renamed: { from: string; to: string }[];
-  renameError?: Error;
   afterCreate?: (path: string) => void;
+  afterRead?: (path: string) => void;
 }
 
 function memoryFile(path: string): TFile {
@@ -81,12 +78,10 @@ function memoryFolder(path: string): TFolder {
 function memoryHost(): MemoryHost {
   const contents = new Map<string, string>();
   const files = new Map<string, TAbstractFile>();
-  const frontmatters = new Map<string, Record<string, unknown>>();
   const trashed: string[] = [];
   const opened: string[] = [];
-  const renamed: { from: string; to: string }[] = [];
   for (const folder of ["Folder", "Moved"]) files.set(folder, memoryFolder(folder));
-  const host = { contents, files, frontmatters, trashed, opened, renamed } as MemoryHost;
+  const host = { contents, files, trashed, opened } as MemoryHost;
   const vault = {
     getAbstractFileByPath: (path: string) => files.get(path) ?? null,
     getFileByPath: (path: string) => {
@@ -105,42 +100,21 @@ function memoryHost(): MemoryHost {
       host.afterCreate?.(path);
       return file;
     },
-    read: async (file: TFile) => contents.get(file.path) ?? "",
+    read: async (file: TFile) => {
+      const content = contents.get(file.path) ?? "";
+      host.afterRead?.(file.path);
+      return content;
+    },
   };
   host.app = {
     vault,
     fileManager: {
-      processFrontMatter: async (file: TFile, update: (frontmatter: Record<string, unknown>) => void) => {
-        const frontmatter = { ...frontmatters.get(file.path) };
-        update(frontmatter);
-        frontmatters.set(file.path, frontmatter);
-      },
-      renameFile: async (file: TAbstractFile, newPath: string) => {
-        if (host.renameError !== undefined) throw host.renameError;
-        const oldPath = file.path;
-        const content = contents.get(oldPath);
-        const frontmatter = frontmatters.get(oldPath);
-        files.delete(oldPath);
-        contents.delete(oldPath);
-        frontmatters.delete(oldPath);
-        Object.assign(file, {
-          path: newPath,
-          name: newPath.split("/").pop() ?? "",
-          basename: (newPath.split("/").pop() ?? "").replace(/\.[^.]+$/u, ""),
-          extension: newPath.includes(".") ? newPath.split(".").pop() ?? "" : "",
-        });
-        files.set(newPath, file);
-        if (content !== undefined) contents.set(newPath, content);
-        if (frontmatter !== undefined) frontmatters.set(newPath, frontmatter);
-        renamed.push({ from: oldPath, to: newPath });
-      },
       trashFile: async (file: TAbstractFile) => {
         trashed.push(file.path);
         for (const path of [...files.keys()]) {
           if (path === file.path || path.startsWith(`${file.path}/`)) {
             files.delete(path);
             contents.delete(path);
-            frontmatters.delete(path);
           }
         }
       },
@@ -183,9 +157,7 @@ describe("Base promotion file transaction", () => {
     host.contents.set(prepared.manifestPath, JSON.stringify({ ...manifest, sourceFilePath: "Unrelated.md" }));
     const before = [...host.contents];
     await expect(service.createRecord(sourceFile, metadata)).rejects.toThrow("does not prove ownership");
-    await expect(service.adoptCreatedRecord(memoryFile("New.md"), sourceFile, metadata, true)).rejects.toThrow("does not prove ownership");
     expect([...host.contents]).toEqual(before);
-    expect(host.renamed).toEqual([]);
     host.contents.set(prepared.manifestPath, prepared.manifestContent);
     await service.restore(editor as unknown as Editor, metadata);
     expect(editor.getValue()).toBe(SOURCE);
@@ -251,6 +223,52 @@ describe("Base promotion file transaction", () => {
     expect(editor.getValue()).toBe(source);
     expect(host.files.has(prepared.directoryPath)).toBe(false);
     expect(host.trashed).toEqual([]);
+  });
+
+  it("relocates an unchanged Base after concurrent prose shifts during manifest read", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"));
+    if (metadata === null) throw new Error("Expected promotion metadata.");
+    let shifted = false;
+    host.afterRead = (path) => {
+      if (!shifted && path === prepared.manifestPath) {
+        shifted = true;
+        editor.mutate(`Concurrent prose\n${editor.getValue()}`);
+      }
+    };
+
+    await service.restore(editor as unknown as Editor, metadata);
+
+    expect(editor.getValue()).toBe(`Concurrent prose\n${SOURCE}`);
+  });
+
+  it("refuses restoration when the Base changes during manifest read", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"));
+    if (metadata === null) throw new Error("Expected promotion metadata.");
+    let changed = false;
+    host.afterRead = (path) => {
+      if (!changed && path === prepared.manifestPath) {
+        changed = true;
+        editor.mutate(editor.getValue().replace("name: Table", "name: Changed"));
+      }
+    };
+
+    await expect(service.restore(editor as unknown as Editor, metadata))
+      .rejects.toThrow("changed while its recovery manifest was being read");
+    expect(editor.getValue()).toContain("name: Changed");
   });
 
   it("restores the original table without deleting generated notes", async () => {
@@ -335,90 +353,6 @@ views:
     expect(metadata.membershipProperty).toBe(LEGACY_TABLE_MEMBERSHIP_PROPERTY);
     expect(host.contents.get(created.path)).toContain("structural_table_ids:");
     expect(host.contents.get(created.path)).not.toContain("structural-tables:");
-  });
-
-  it("organizes a native Base record without changing its properties or body", async () => {
-    const host = memoryHost();
-    const sourceFile = memoryFile("Moved/People.md");
-    const recordFile = memoryFile("Untitled.md");
-    host.files.set(sourceFile.path, sourceFile);
-    host.files.set(recordFile.path, recordFile);
-    host.contents.set(recordFile.path, "---\nname: Alice\n---\nKept body\n");
-    host.frontmatters.set(recordFile.path, {
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
-      name: "Alice",
-    });
-    const collisionPath = "Moved/_structural-table-records/stb_native/Untitled.md";
-    host.files.set(collisionPath, memoryFile(collisionPath));
-    const service = new BasePromotionService(host.app);
-
-    const result = await service.adoptCreatedRecord(recordFile, sourceFile, {
-      tableId: "stb_native",
-      manifestPath: "Moved/manifest.json",
-      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
-      propertyKeys: ["name"],
-      range: { from: 0, to: 1 },
-      source: "base",
-    }, true);
-
-    expect(result).toMatchObject({ adopted: true, moved: true });
-    expect(recordFile.path).toBe("Moved/_structural-table-records/stb_native/Untitled 2.md");
-    expect(host.frontmatters.get(recordFile.path)).toMatchObject({
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
-      name: "Alice",
-    });
-    expect(host.contents.get(recordFile.path)).toBe("---\nname: Alice\n---\nKept body\n");
-  });
-
-  it("does not write identity or move a record the user already organized", async () => {
-    const host = memoryHost();
-    const sourceFile = memoryFile("Moved/People.md");
-    const recordFile = memoryFile("People/Sales/Alice.md");
-    host.files.set(recordFile.path, recordFile);
-    host.frontmatters.set(recordFile.path, { [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"] });
-    const service = new BasePromotionService(host.app);
-
-    const result = await service.adoptCreatedRecord(recordFile, sourceFile, {
-      tableId: "stb_native",
-      manifestPath: "Moved/manifest.json",
-      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
-      propertyKeys: [],
-      range: { from: 0, to: 1 },
-      source: "base",
-    }, false);
-
-    expect(result).toMatchObject({ adopted: true, moved: false });
-    expect(recordFile.path).toBe("People/Sales/Alice.md");
-    expect(host.renamed).toEqual([]);
-    expect(host.frontmatters.get(recordFile.path)).toEqual({
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
-    });
-  });
-
-  it("keeps the source note unchanged when moving it fails", async () => {
-    const host = memoryHost();
-    const sourceFile = memoryFile("Moved/People.md");
-    const recordFile = memoryFile("Untitled.md");
-    host.files.set(recordFile.path, recordFile);
-    host.contents.set(recordFile.path, "Body stays\n");
-    host.frontmatters.set(recordFile.path, { [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"] });
-    host.renameError = new Error("move failed");
-    const service = new BasePromotionService(host.app);
-
-    await expect(service.adoptCreatedRecord(recordFile, sourceFile, {
-      tableId: "stb_native",
-      manifestPath: "Moved/manifest.json",
-      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
-      propertyKeys: [],
-      range: { from: 0, to: 1 },
-      source: "base",
-    }, true)).rejects.toThrow("move failed");
-
-    expect(recordFile.path).toBe("Untitled.md");
-    expect(host.contents.get(recordFile.path)).toBe("Body stays\n");
-    expect(host.frontmatters.get(recordFile.path)).toEqual({
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
-    });
   });
 
   it("refuses a target collision before creating or trashing anything", async () => {

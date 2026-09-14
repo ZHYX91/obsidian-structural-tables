@@ -9,10 +9,10 @@ import type {
   TableDiagnostic,
 } from "./model";
 import { sourceLines, sourcePrefix } from "./source-lines";
+import { splitTablePipeRow } from "./table-inline";
 
 interface ParsedRow {
   cells: string[];
-  exactEmptySegments: number[];
 }
 
 interface ParsedDelimiter {
@@ -25,48 +25,8 @@ interface ParsedDelimiter {
 const DELIMITER_CELL = /^:?-{3,}:?$/u;
 
 function parsePipeRow(line: string): ParsedRow | null {
-  if (!line.includes("|")) return null;
-  const segments: string[] = [];
-  let current = "";
-  let escaped = false;
-  let codeTicks = 0;
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index] ?? "";
-    if (escaped) {
-      current += character;
-      escaped = false;
-      continue;
-    }
-    if (character === "\\") {
-      current += character;
-      escaped = true;
-      continue;
-    }
-    if (character === "`") {
-      let run = 1;
-      while (line[index + run] === "`") run += 1;
-      current += "`".repeat(run);
-      if (codeTicks === 0) codeTicks = run;
-      else if (codeTicks === run) codeTicks = 0;
-      index += run - 1;
-      continue;
-    }
-    if (character === "|" && codeTicks === 0) {
-      segments.push(current);
-      current = "";
-    } else {
-      current += character;
-    }
-  }
-  segments.push(current);
-  if (segments.length < 2) return null;
-  if ((segments[0] ?? "").trim() === "") segments.shift();
-  if ((segments[segments.length - 1] ?? "").trim() === "") segments.pop();
-  if (segments.length === 0) return null;
-  return {
-    cells: segments,
-    exactEmptySegments: segments.flatMap((segment, index) => segment === "" ? [index] : []),
-  };
+  const cells = splitTablePipeRow(line);
+  return cells === null ? null : { cells };
 }
 
 function alignmentFor(token: string): ColumnAlignment {
@@ -87,6 +47,7 @@ function parseDelimiter(line: string, sourceLine: number): ParsedDelimiter | nul
     diagnostics.push({
       code: "boundary-token",
       message: "A row-header divider must be an adjacent || with no spaces between the pipes.",
+      sourceLine,
       row: sourceLine,
       column: nonExactEmpty,
     });
@@ -95,6 +56,7 @@ function parseDelimiter(line: string, sourceLine: number): ParsedDelimiter | nul
     diagnostics.push({
       code: "boundary-count",
       message: "A delimiter row can contain at most one row-header divider (||).",
+      sourceLine,
       row: sourceLine,
     });
   }
@@ -103,6 +65,7 @@ function parseDelimiter(line: string, sourceLine: number): ParsedDelimiter | nul
     diagnostics.push({
       code: "boundary-at-edge",
       message: "The row-header divider (||) must be between two delimiter cells.",
+      sourceLine,
       row: sourceLine,
       column: boundary,
     });
@@ -148,6 +111,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
           diagnostics.push({
             code: "merge-missing-anchor",
             message: `Merge marker ${cell.marker === "left" ? "<" : "^"} has no cell to merge with.`,
+            sourceLine: rows[cell.row]?.sourceLine ?? cell.row,
             row: cell.row,
             column: cell.column,
           });
@@ -160,6 +124,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
           diagnostics.push({
             code: "merge-missing-anchor",
             message: "Merge markers must resolve to a content cell.",
+            sourceLine: rows[cell.row]?.sourceLine ?? cell.row,
             row: cell.row,
             column: cell.column,
           });
@@ -169,6 +134,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
           diagnostics.push({
             code: "merge-boundary",
             message: "A merged cell cannot cross header or data-region boundaries.",
+            sourceLine: rows[cell.row]?.sourceLine ?? cell.row,
             row: cell.row,
             column: cell.column,
           });
@@ -202,6 +168,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
       diagnostics.push({
         code: "merge-nonrectangular",
         message: "Merged cells must form one complete rectangle.",
+        sourceLine: rows[anchorRow]?.sourceLine ?? anchorRow,
         row: anchorRow,
         column: anchorColumn,
       });
@@ -325,6 +292,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
         diagnostics.push({
           code: "row-width",
           message: `Expected ${delimiter.columnCount} cells, received ${parsed.cells.length}.`,
+          sourceLine: line,
           row,
         });
       }

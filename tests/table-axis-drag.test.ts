@@ -16,10 +16,17 @@ function setup() {
     if (typeof options === "object" && typeof options.cls === "string") element.className = options.cls;
     return element;
   };
-  const rendered = host.appendChild(document.createElement("table"));
+  const scroller = host.appendChild(document.createElement("div"));
+  scroller.className = "structural-tables-container";
+  Object.defineProperties(scroller, {
+    clientWidth: { configurable: true, value: 200 },
+    scrollWidth: { configurable: true, value: 400 },
+  });
+  const rendered = scroller.appendChild(document.createElement("table"));
   rendered.innerHTML = table.rows.map((row) => `<tr>${row.cells.map((cell) =>
     `<td data-structural-column="${cell.column}">${cell.content}</td>`).join("")}</tr>`).join("");
   vi.spyOn(host, "getBoundingClientRect").mockReturnValue(bounds(0, 0, 260, 210));
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(bounds(40, 20, 200, 160));
   vi.spyOn(rendered, "getBoundingClientRect").mockReturnValue(bounds(40, 20, 200, 160));
   [...rendered.rows].forEach((row, index) => {
     vi.spyOn(row, "getBoundingClientRect").mockReturnValue(bounds(40, 20 + index * 40, 200, 40));
@@ -28,10 +35,10 @@ function setup() {
   });
   let selection: AxisSelection | null = null;
   const move = vi.fn();
-  const controller = new TableAxisDrag(host, rendered, () => table, () => selection, move);
+  const controller = new TableAxisDrag(host, rendered, () => table, () => selection, (result) => result.message, move);
   const pointer = (type: string, x: number, y: number, pointerId = 1) => new PointerEvent(type,
     { clientX: x, clientY: y, pointerId, pointerType: "touch", button: 0, isPrimary: true, bubbles: true, cancelable: true });
-  return { host, rendered, move, controller, pointer, select: (value: AxisSelection) => { selection = value; } };
+  return { host, scroller, rendered, move, controller, pointer, select: (value: AxisSelection) => { selection = value; } };
 }
 
 afterEach(() => { vi.restoreAllMocks(); document.body.replaceChildren(); });
@@ -58,14 +65,18 @@ describe("explicit axis dragging", () => {
     } finally { controller.destroy(); }
   });
 
-  it("rejects a header drop and cancels Escape, pointer cancellation and outside drops", () => {
+  it("shows why a header drop is blocked and clears the feedback on cancellation", () => {
     const { controller, pointer, select, move, host } = setup();
     try {
       select({ axis: "row", start: 1, end: 1 });
       controller.start(pointer("pointerdown", 25, 80), "row", 1);
       window.dispatchEvent(pointer("pointermove", 25, 20));
       expect(host.dataset.reorderState).toBe("blocked");
+      const hint = host.querySelector<HTMLElement>(".structural-tables-drop-hint")!;
+      expect(hint.hidden).toBe(false);
+      expect(hint.textContent).toContain("header boundary");
       window.dispatchEvent(pointer("pointerup", 25, 20));
+      expect(hint.hidden).toBe(true);
       for (const cancel of [new KeyboardEvent("keydown", { key: "Escape" }), pointer("pointercancel", 25, 180), pointer("pointerup", 900, 900)]) {
         controller.start(pointer("pointerdown", 25, 80), "row", 1);
         window.dispatchEvent(pointer("pointermove", 25, 180));
@@ -74,6 +85,16 @@ describe("explicit axis dragging", () => {
       }
       expect(move).not.toHaveBeenCalled();
       expect(host.querySelector<HTMLElement>(".structural-tables-drop-line")!.hidden).toBe(true);
+    } finally { controller.destroy(); }
+  });
+
+  it("auto-scrolls a wide table when a column drag approaches the horizontal edge", () => {
+    const { controller, pointer, select, scroller } = setup();
+    try {
+      select({ axis: "column", start: 0, end: 0 });
+      expect(controller.start(pointer("pointerdown", 60, 10), "column", 0)).toBe(true);
+      window.dispatchEvent(pointer("pointermove", 232, 10));
+      expect(scroller.scrollLeft).toBeGreaterThan(0);
     } finally { controller.destroy(); }
   });
 

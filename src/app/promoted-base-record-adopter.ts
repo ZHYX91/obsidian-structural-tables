@@ -114,19 +114,12 @@ export class PromotedBaseRecordAdopter {
     expectedSource: TFile | null,
     tableIds: ReadonlySet<string>,
   ): Promise<MatchResult> {
-    if (expectedSource !== null && expectedSource !== recordFile) {
-      const matches = await this.matchesInFile(expectedSource, tableIds);
-      if (matches.length === 1) return { match: matches[0] ?? null, ambiguous: false };
-      if (matches.length > 1) return { match: null, ambiguous: true };
+    if (expectedSource === null || expectedSource === recordFile) {
+      return { match: null, ambiguous: false };
     }
-
-    const matches: PromotionMatch[] = [];
-    for (const sourceFile of this.app.vault.getMarkdownFiles()) {
-      if (sourceFile === recordFile || sourceFile === expectedSource) continue;
-      matches.push(...await this.matchesInFile(sourceFile, tableIds));
-      if (matches.length > 1) return { match: null, ambiguous: true };
-    }
-    return { match: matches[0] ?? null, ambiguous: false };
+    const matches = await this.matchesInFile(expectedSource, tableIds);
+    if (matches.length === 1) return { match: matches[0] ?? null, ambiguous: false };
+    return { match: null, ambiguous: matches.length > 1 };
   }
 
   private async matchesInFile(

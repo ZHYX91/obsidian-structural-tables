@@ -42,7 +42,3 @@ export function renderStructuralTable(
   });
   return rendered;
 }
-
-export function diagnosticText(table: StructuralTable): string {
-  return table.diagnostics.map((diagnostic) => diagnostic.message).join(" ");
-}

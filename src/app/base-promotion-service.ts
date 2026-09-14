@@ -11,6 +11,7 @@ import {
   buildBasePromotionPlan,
   embeddedBaseSource,
   promotionBlockAt,
+  promotionBlocks,
   TABLE_MEMBERSHIP_PROPERTY,
   type BasePromotionPlan,
   type PromotionBlockMetadata,
@@ -106,6 +107,14 @@ function uniqueRecordPaths(directory: string, plan: BasePromotionPlan): Prepared
   });
 }
 
+function matchingPromotionBlock(editor: Editor, expected: PromotionBlockMetadata): PromotionBlockMetadata | null {
+  const matches = promotionBlocks(editor.getValue(), expected.recoveredSourcePath).filter((candidate) =>
+    candidate.tableId === expected.tableId
+    && candidate.manifestPath === expected.manifestPath
+    && candidate.source === expected.source);
+  return matches.length === 1 ? matches[0] ?? null : null;
+}
+
 function promotionManifest(value: unknown): PromotionManifest | null {
   if (typeof value !== "object" || value === null) return null;
   const source = value as Partial<PromotionManifest>;
@@ -187,11 +196,14 @@ export class BasePromotionService {
   }
 
   async restore(editor: Editor, expected: PromotionBlockMetadata): Promise<void> {
-    const current = promotionBlockAt(editor.getValue(), expected.range.from + 1, expected.recoveredSourcePath);
-    if (current === null || current.source !== expected.source || current.tableId !== expected.tableId) {
+    if (matchingPromotionBlock(editor, expected) === null) {
       throw new Error("The promoted Base changed before it could be restored.");
     }
     const manifest = await this.readManifest(expected);
+    const current = matchingPromotionBlock(editor, expected);
+    if (current === null) {
+      throw new Error("The promoted Base changed while its recovery manifest was being read.");
+    }
     editor.replaceRange(
       manifest.originalTableSource,
       editor.offsetToPos(current.range.from),

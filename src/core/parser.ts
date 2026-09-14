@@ -9,11 +9,7 @@ import type {
   TableDiagnostic,
 } from "./model";
 import { sourceLines, sourcePrefix } from "./source-lines";
-
-interface ParsedRow {
-  cells: string[];
-  exactEmptySegments: number[];
-}
+import { splitTablePipeRow, type ParsedTablePipeRow } from "./table-cell-syntax";
 
 interface ParsedDelimiter {
   alignments: ColumnAlignment[];
@@ -24,51 +20,6 @@ interface ParsedDelimiter {
 
 const DELIMITER_CELL = /^:?-{3,}:?$/u;
 
-function parsePipeRow(line: string): ParsedRow | null {
-  if (!line.includes("|")) return null;
-  const segments: string[] = [];
-  let current = "";
-  let escaped = false;
-  let codeTicks = 0;
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index] ?? "";
-    if (escaped) {
-      current += character;
-      escaped = false;
-      continue;
-    }
-    if (character === "\\") {
-      current += character;
-      escaped = true;
-      continue;
-    }
-    if (character === "`") {
-      let run = 1;
-      while (line[index + run] === "`") run += 1;
-      current += "`".repeat(run);
-      if (codeTicks === 0) codeTicks = run;
-      else if (codeTicks === run) codeTicks = 0;
-      index += run - 1;
-      continue;
-    }
-    if (character === "|" && codeTicks === 0) {
-      segments.push(current);
-      current = "";
-    } else {
-      current += character;
-    }
-  }
-  segments.push(current);
-  if (segments.length < 2) return null;
-  if ((segments[0] ?? "").trim() === "") segments.shift();
-  if ((segments[segments.length - 1] ?? "").trim() === "") segments.pop();
-  if (segments.length === 0) return null;
-  return {
-    cells: segments,
-    exactEmptySegments: segments.flatMap((segment, index) => segment === "" ? [index] : []),
-  };
-}
-
 function alignmentFor(token: string): ColumnAlignment {
   const trimmed = token.trim();
   if (trimmed.startsWith(":") && trimmed.endsWith(":")) return "center";
@@ -78,7 +29,7 @@ function alignmentFor(token: string): ColumnAlignment {
 }
 
 function parseDelimiter(line: string, sourceLine: number): ParsedDelimiter | null {
-  const parsed = parsePipeRow(line);
+  const parsed = splitTablePipeRow(line);
   if (parsed === null) return null;
   const diagnostics: TableDiagnostic[] = [];
   const boundaryIndexes = parsed.cells.flatMap((cell, index) => cell.trim() === "" ? [index] : []);
@@ -148,7 +99,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
           diagnostics.push({
             code: "merge-missing-anchor",
             message: `Merge marker ${cell.marker === "left" ? "<" : "^"} has no cell to merge with.`,
-            row: cell.row,
+            row: rows[cell.row]?.sourceLine ?? cell.row,
             column: cell.column,
           });
           continue;
@@ -160,7 +111,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
           diagnostics.push({
             code: "merge-missing-anchor",
             message: "Merge markers must resolve to a content cell.",
-            row: cell.row,
+            row: rows[cell.row]?.sourceLine ?? cell.row,
             column: cell.column,
           });
           continue;
@@ -169,7 +120,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
           diagnostics.push({
             code: "merge-boundary",
             message: "A merged cell cannot cross header or data-region boundaries.",
-            row: cell.row,
+            row: rows[cell.row]?.sourceLine ?? cell.row,
             column: cell.column,
           });
         }
@@ -202,7 +153,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
       diagnostics.push({
         code: "merge-nonrectangular",
         message: "Merged cells must form one complete rectangle.",
-        row: anchorRow,
+        row: rows[anchorRow]?.sourceLine ?? anchorRow,
         column: anchorColumn,
       });
       continue;
@@ -285,22 +236,22 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     if (delimiter === null) continue;
     const prefix = prefixes[delimiterLine] ?? "";
     const sameContainer = (line: number): boolean => prefixes[line] === prefix;
-    const headerRows: { line: number; parsed: ParsedRow }[] = [];
+    const headerRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
     const immediateLine = delimiterLine - 1;
-    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : parsePipeRow(lines[immediateLine] ?? "");
+    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : splitTablePipeRow(lines[immediateLine] ?? "");
     if (immediateHeader === null) continue;
     headerRows.push({ line: immediateLine, parsed: immediateHeader });
     if (immediateHeader.cells.length === delimiter.columnCount) {
       for (let line = delimiterLine - 2; line >= 0; line -= 1) {
-        const parsed = ignored.has(line) || !sameContainer(line) ? null : parsePipeRow(lines[line] ?? "");
+        const parsed = ignored.has(line) || !sameContainer(line) ? null : splitTablePipeRow(lines[line] ?? "");
         if (parsed === null || parsed.cells.length !== delimiter.columnCount) break;
         headerRows.unshift({ line, parsed });
       }
     }
-    const bodyRows: { line: number; parsed: ParsedRow }[] = [];
+    const bodyRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
     for (let line = delimiterLine + 1; line < lines.length; line += 1) {
       if (ignored.has(line) || !sameContainer(line) || (lines[line] ?? "").trim() === "") break;
-      const parsed = parsePipeRow(lines[line] ?? "");
+      const parsed = splitTablePipeRow(lines[line] ?? "");
       if (parsed === null) break;
       bodyRows.push({ line, parsed });
     }
@@ -325,7 +276,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
         diagnostics.push({
           code: "row-width",
           message: `Expected ${delimiter.columnCount} cells, received ${parsed.cells.length}.`,
-          row,
+          row: line,
         });
       }
       const cells = parsed.cells.slice(0, delimiter.columnCount).map((raw, column): StructuralCell => {

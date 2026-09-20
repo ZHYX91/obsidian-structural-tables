@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.9 - 2026-09-20
+
+- Revalidate Base restoration after asynchronous reads and reject changed or ambiguous targets.
+- Keep rejected cell edits open and recover interrupted drafts after view replacement through a copyable, session-scoped recovery dialog.
+- Remove inferred native Base record adoption; only the explicit plugin command creates records in the host inbox.
+- Unify pipe/backtick syntax handling and preserve pasted fragments until whole-cell commit.
+- Localize diagnostics with document line numbers and reuse safe CJK prose parsing snapshots.
+- Keep keyboard navigation and visible column-handle Tab entries reachable in wide tables.
+- Bound long-draft editor height, explain blocked reordering, and continue horizontal edge scrolling while dragging.
+
 ## 0.4.8 - 2026-09-13
 
 - Add bottom and right edge controls for new rows and columns, with focus in the new cell.

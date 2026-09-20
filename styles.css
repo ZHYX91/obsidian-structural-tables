@@ -498,3 +498,7 @@
   background: color-mix(in srgb, var(--text-error) 12%, transparent);
   color: var(--text-normal);
 }
+
+.structural-tables-recovered-draft { display: block; width: 100%; margin-block: 0.5rem; }
+
+.structural-tables-cell-editor.is-measuring { height: 0; }

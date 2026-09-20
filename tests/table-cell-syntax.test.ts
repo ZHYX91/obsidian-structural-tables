@@ -28,7 +28,7 @@ describe("table cell syntax", () => {
 
   it("preserves fragment boundary whitespace during paste normalization", () => {
     expect(normalizeTableCellFragment(" brave ")).toBe(" brave ");
-    expect(normalizeTableCellFragment(" a|b ")).toBe(" a\\|b ");
+    expect(normalizeTableCellFragment(" a|b ")).toBe(" a|b ");
   });
 
   it("reports diagnostics using document source line coordinates", () => {

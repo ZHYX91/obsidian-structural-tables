@@ -40,6 +40,7 @@ interface DragSession {
 /** Only a second gesture on an explicitly selected axis can reorder it. */
 export class TableAxisDrag {
   private session: DragSession | null = null;
+  private scrollFrame: number | null = null;
   private suppressClick = false;
   private readonly line: HTMLElement;
   private readonly hint: HTMLElement;
@@ -94,6 +95,8 @@ export class TableAxisDrag {
   }
 
   private readonly cancel = (): void => {
+    if (this.scrollFrame !== null) this.window?.cancelAnimationFrame(this.scrollFrame);
+    this.scrollFrame = null;
     this.session = null;
     this.line.hidden = true;
     this.hint.hidden = true;
@@ -131,7 +134,21 @@ export class TableAxisDrag {
     const table = this.current();
     const { axis, start, end } = session.selection;
     const scroller = this.rendered.closest<HTMLElement>(".structural-tables-container");
-    if (axis === "column" && scroller !== null) this.scrollColumnEdge(scroller, event.clientX);
+    if (this.scrollFrame !== null) this.window?.cancelAnimationFrame(this.scrollFrame);
+    this.scrollFrame = null;
+    const scrollBounds = scroller?.getBoundingClientRect();
+    if (axis === "column" && scroller !== null && scrollBounds !== undefined
+      && event.clientY >= scrollBounds.top - 48 && event.clientY <= scrollBounds.bottom + 48
+      && event.clientX >= scrollBounds.left - 48 && event.clientX <= scrollBounds.right + 48) {
+      const previous = scroller.scrollLeft;
+      this.scrollColumnEdge(scroller, event.clientX);
+      if (scroller.scrollLeft !== previous && this.window !== null) {
+        this.scrollFrame = this.window.requestAnimationFrame(() => {
+          this.scrollFrame = null;
+          this.onMove(event);
+        });
+      }
+    }
     const rect = this.rendered.getBoundingClientRect();
     const containerRect = scroller?.getBoundingClientRect();
     const visibleLeft = containerRect !== undefined && containerRect.width > 0 ? Math.max(rect.left, containerRect.left) : rect.left;

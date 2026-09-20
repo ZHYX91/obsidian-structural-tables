@@ -59,7 +59,7 @@ import { BasePromotionModal } from "./base-promotion-modal";
 import { BasePromotionService } from "./base-promotion-service";
 import { BasePropertyMigrationModal } from "./base-property-migration-modal";
 import { BasePropertyMigrationService } from "./base-property-migration-service";
-import { PromotedBaseRecordAdopter } from "./promoted-base-record-adopter";
+import { showRecoveredCellDrafts } from "../editor/cell-draft-recovery";
 
 const TEMPLATE = `| Region | Sales | < |
 | Quarter | Q1 | Q2 |
@@ -109,38 +109,20 @@ export class StructuralTablesPlugin extends Plugin {
     const basePromotionService = new BasePromotionService(this.app, this.manifest.version);
     this.basePromotionService = basePromotionService;
     this.basePropertyMigrationService = new BasePropertyMigrationService(this.app);
-    const baseRecordAdopter = new PromotedBaseRecordAdopter(this.app, basePromotionService, {
-      adopted: ({ file }) => new Notice(
-        createTranslator(this.settings.language)("notice.recordAdopted").replace("{path}", file.path),
-      ),
-      ambiguous: () => new Notice(
-        createTranslator(this.settings.language)("notice.recordAdoptionAmbiguous"),
-        8000,
-      ),
-      incompatible: () => new Notice(
-        createTranslator(this.settings.language)("notice.recordAdoptionIncompatible"),
-        8000,
-      ),
-      failed: (_file, error) => new Notice(
-        createTranslator(this.settings.language)("notice.recordAdoptionFailed")
-          .replace("{message}", errorMessage(error)),
-        8000,
-      ),
-    });
     this.registerEditorExtension(this.editorController.createExtension());
     const reading = new StructuralTableReadingProcessor(this.app, () => this.settings);
     this.registerMarkdownPostProcessor((element, context) => reading.process(element, context));
     new NativeTableMenuBridge(this.app, () => this.settings, promote).register(this);
     this.addSettingTab(new StructuralTablesSettingTab(this.app, this));
     this.registerCommands();
+    this.localizedCommands.push(this.addCommand({
+      id: "recover-cell-drafts",
+      name: createTranslator(this.settings.language)("command.recoverDrafts"),
+      callback: () => showRecoveredCellDrafts(this.app, createTranslator(this.settings.language)),
+    }));
     this.registerEditorMenu();
     this.registerHtmlTablePaste();
     this.app.workspace.onLayoutReady(() => {
-      this.registerEvent(this.app.vault.on("create", (file) => baseRecordAdopter.handleCreated(file)));
-      this.registerEvent(this.app.metadataCache.on("changed", (file, _data, cache) => {
-        void baseRecordAdopter.handleMetadataChanged(file, cache);
-      }));
-      this.registerInterval(window.setInterval(() => baseRecordAdopter.pruneExpired(), 30_000));
       this.warnAboutPluginConflicts();
     });
   }
@@ -264,6 +246,7 @@ export class StructuralTablesPlugin extends Plugin {
   private refreshCommandNames(): void {
     const t = createTranslator(this.settings.language);
     const names: Record<string, string> = {
+      "recover-cell-drafts": t("command.recoverDrafts"),
       "convert-current-sheets-extended-table": t("command.migrateSheets"),
       "convert-current-table-to-plain-gfm": t("command.convertGfm"),
       "copy-current-table-as-csv": t("command.copyCsv"),

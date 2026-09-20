@@ -38,7 +38,8 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] `structural-tables` list membership without a per-record identity property.
 - [ ] Path-independent results after rename/move.
 - [ ] Later-record creation after moving the host note.
-- [ ] Native Base New organization into the current host inbox with collision suffixing, preservation of user moves, and fail-closed ambiguity, invalid/conflicting metadata, or move failure.
+- [ ] Native Base New, copied/imported/synchronized member notes and user moves stay at their chosen locations even while the host Base is active. The explicit plugin creation command uses the current host inbox and avoids filename collisions.
+- [ ] Restore refuses changed or duplicated targets after manifest reads, preserves unrelated edits, and restores only the original snapshot.
 - [ ] Previewed per-file legacy-property migration with toggle-synchronized counts, default-off membership-scoped `structural_record_id` cleanup, stale and concurrent-change refusal, and rollback that preserves unrelated concurrent edits.
 - [ ] Restoration that keeps records.
 - [ ] Missing-manifest refusal.
@@ -59,7 +60,9 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] A first handle gesture only selects. A subsequent drag moves selected rows/columns; Shift-click or two handle taps selects a range. Verify exact content, column alignment and prefixes after reorder and undo/redo. Partial merges, split destinations and header crossings show a blocked marker and leave source unchanged; Escape, pointer cancellation, leaving the table and source replacement cancel safely.
 - [ ] All four table layouts in narrow and split panes, with theme-following as the fresh default and owned blocks confined to the text column.
 - [ ] Optional alternating rows.
-- [ ] Refusal without content loss.
+- [ ] Refusal without content loss. External table changes, view rebuilding and presentation refresh preserve interrupted drafts in the recovery dialog. Dismiss, reopen by command, copy and explicitly discard drafts; cancelling or successfully committing a cell creates no recovery draft.
+- [ ] Paste pipes inside existing code spans and at escape boundaries, preserve fragment whitespace, and verify the committed Wiki-link source.
+- [ ] After horizontal scrolling, visible column handles keep a Tab entry; keyboard navigation reveals hidden columns. Edge dragging continues while the pointer rests and stops on cancellation.
 - [ ] Invalid-table diagnostics.
 - [ ] Settings persistence.
 - [ ] Light and dark themes.

@@ -200,12 +200,12 @@ function unavailable(table: StructuralTable, row?: number, column?: number): Ope
 
 /** Normalize a complete cell before committing it to Markdown. */
 export function normalizeTableCellInput(input: string): string {
-  return normalizeTableCellText(input, true);
+  return normalizeTableCellText(input);
 }
 
 /** Normalize pasted text without discarding fragment boundary whitespace. */
 export function normalizeTableCellFragment(input: string): string {
-  return normalizeTableCellText(input, false);
+  return input.replace(/\r\n|\r|\n/gu, "<br>");
 }
 
 export function editCellContent(

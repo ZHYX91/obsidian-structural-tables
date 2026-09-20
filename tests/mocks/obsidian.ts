@@ -184,7 +184,8 @@ export class Modal {
   }
 
   setTitle(_title: string): this { return this; }
-  close(): void { this.onClose(); }
+  open(): void { document.body.appendChild(this.contentEl); this.onOpen(); }
+  close(): void { this.onClose(); this.contentEl.remove(); }
   onOpen(): void {}
   onClose(): void {}
 }

@@ -27,6 +27,8 @@ import {
   type TableCellCoordinate,
 } from "./table-selection";
 
+import { retainCellDraft } from "./cell-draft-recovery";
+
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
 const interactions = new WeakMap<HTMLElement, StructuralTableInteraction>();
@@ -134,6 +136,8 @@ export class StructuralTableWidget extends WidgetType {
 }
 
 class StructuralTableInteraction {
+  private positionHandles: (() => void) | null = null;
+  private preserveDraft: (() => void) | null = null;
   private cellScope: Scope | null = null;
   private navigationScope: Scope | null = null;
   private component: Component | null = null;
@@ -209,6 +213,8 @@ class StructuralTableInteraction {
   }
 
   destroy(): void {
+    this.preserveDraft?.();
+    this.preserveDraft = null;
     this.axisDrag?.destroy();
     this.axisDrag = null;
     this.finishActiveOperation = null;
@@ -219,6 +225,7 @@ class StructuralTableInteraction {
     this.pointerWindow = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.positionHandles = null;
     this.host = null;
     this.renderedTable = null;
     this.clickEditCandidate = null;
@@ -653,14 +660,18 @@ class StructuralTableInteraction {
     element.appendChild(editor);
     const rowElement = element.closest<HTMLTableRowElement>("tr");
     const initialCellHeight = element.getBoundingClientRect().height;
+    const initialRowHeight = rowElement?.getBoundingClientRect().height || initialCellHeight;
     const resizeEditor = (): void => {
       if (rowElement === null || !editor.isConnected) return;
+      // Measure from a collapsed overlay so shrinking drafts can shrink again.
+      editor.classList.add("is-measuring");
       const contentHeight = editor.scrollHeight;
+      editor.classList.remove("is-measuring");
       const viewportHeight = editor.ownerDocument.defaultView?.innerHeight ?? 800;
       const maxHeight = Math.max(initialCellHeight, Math.min(480, viewportHeight / 2));
       const nextHeight = Math.max(initialCellHeight, Math.min(maxHeight, contentHeight));
       rowElement.setCssProps({ "--structural-table-edit-row-height": nextHeight > initialCellHeight
-        ? `${Math.ceil(nextHeight)}px` : "0px" });
+        ? `${Math.ceil(initialRowHeight + nextHeight - initialCellHeight)}px` : "0px" });
       editor.setCssProps({ "--structural-table-editor-overflow-y": contentHeight > maxHeight ? "auto" : "hidden" });
     };
     let settled = false;
@@ -681,8 +692,15 @@ class StructuralTableInteraction {
       editor.remove();
       if (focus) element.focus({ preventScroll: true });
     };
+    this.preserveDraft = () => {
+      if (!settled && editor.value !== anchor.raw.trim()) {
+        retainCellDraft(this.app, { sourcePath: this.sourcePath, row: anchor.row, column: anchor.column, text: editor.value }, t);
+      }
+      settled = true;
+    };
     const settle = (): void => {
       settled = true;
+      this.preserveDraft = null;
       this.finishActiveOperation = null;
       this.releaseCellScope(scope);
     };
@@ -992,14 +1010,21 @@ class StructuralTableInteraction {
       const columns = tableAxisBoundaries(rendered, "column", this.table.columnCount);
       columnHandles.forEach((handle, column) => {
         const center = (columns[column]! + columns[column + 1]!) / 2;
-        handle.hidden = center < scrollRect.left || center > scrollRect.right;
-        handle.style.left = `${center - hostRect.left}px`;
+        const start = Math.min(columns[column]!, columns[column + 1]!);
+        const end = Math.max(columns[column]!, columns[column + 1]!);
+        handle.hidden = scrollRect.width > 0 && (end <= scrollRect.left || start >= scrollRect.right);
+        const visibleCenter = Math.max(scrollRect.left, Math.min(scrollRect.right, center));
+        handle.style.left = `${visibleCenter - hostRect.left}px`;
         handle.style.setProperty(
           "inset-block-start",
           `calc(${tableRect.top - hostRect.top}px - var(--structural-table-handle-gutter))`,
         );
       });
+      const entry = columnHandles.find((handle) => !handle.hidden && handle.tabIndex === 0)
+        ?? columnHandles.find((handle) => !handle.hidden);
+      columnHandles.forEach((handle) => { handle.tabIndex = handle === entry ? 0 : -1; });
     };
+    this.positionHandles = positionHandles;
     positionHandles();
     const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
     if (scroller !== null) this.component?.registerDomEvent(scroller, "scroll", positionHandles);
@@ -1036,8 +1061,17 @@ class StructuralTableInteraction {
         event.stopPropagation();
         if (targetIndex === index) return;
         const target = handles[targetIndex];
+        if (orientation === "horizontal") {
+          const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
+          if (scroller !== null) {
+            const bounds = tableAxisBoundaries(rendered, "column", handles.length);
+            const center = (bounds[targetIndex]! + bounds[targetIndex + 1]!) / 2;
+            const rect = scroller.getBoundingClientRect();
+            scroller.scrollLeft += center - Math.max(rect.left + 12, Math.min(rect.right - 12, center));
+            this.positionHandles?.();
+          }
+        } else target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
         target?.focus({ preventScroll: true });
-        target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
         target?.click();
       });
     });

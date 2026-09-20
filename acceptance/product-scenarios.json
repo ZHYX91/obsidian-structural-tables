@@ -13,6 +13,33 @@
   },
   "scenarios": [
     {
+      "id": "editing-reliability",
+      "title": "Interrupted drafts and wide-table editing",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.drag"
+        ]
+      },
+      "steps": [
+        "Open Reliability checks in Live Preview. Run the provider command Arm conflict on next cell input, edit Alpha and enter draft text; wait for the separate source change.",
+        "Confirm the recovery dialog preserves the entered text and identifies the source. Dismiss and reopen it with Recover interrupted cell drafts; copy or select the preserved text, then explicitly discard it.",
+        "Edit a cell normally, commit and reopen to verify persistence. Enter a longer draft and cancel it; verify bounded height and stable column width.",
+        "In the wide table, select and drag a data-row handle; check blocked-header feedback and cancel a blocked drop. Scroll horizontally and inspect visible controls. On desktop use Tab and arrow keys to reach another column handle."
+      ],
+      "expected": [
+        "The source change is retained and the interrupted draft remains accessible after widget replacement and dialog dismissal, without overwriting either cell.",
+        "Explicit discard clears the recovery buffer; normal commit and cancel produce no recovery draft.",
+        "Normal editing persists and long drafts stay within the table width; canceled or blocked moves leave source unchanged.",
+        "The wide table scrolls locally and retains usable controls; desktop keyboard navigation retains a visible Tab entry."
+      ]
+    },
+    {
       "id": "table-growth-and-reorder",
       "title": "Edge insertion, terminal Tab and explicit axis dragging",
       "surfaces": [

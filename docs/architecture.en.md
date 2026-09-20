@@ -41,6 +41,8 @@ Native Callout blocks use a source-owned mounting session rather than reverse DO
 
 Callout writes carry invertible focus targets in CodeMirror's own history, isolated from adjacent prose edits. Undo and redo restore the exact source/path target after remounting, including commands invoked outside a cell. Unrecorded source changes map those targets through the host history; no parallel undo stack is maintained.
 
+Interrupted dirty editors hand their text to an application-session recovery buffer before DOM disposal. Its dialog supports copying and explicit discard; dismissing the dialog keeps the buffer available through a command. Recovery never automatically writes a stale draft to a new table.
+
 <!-- section: editing -->
 ## Editing
 

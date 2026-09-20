@@ -66,9 +66,9 @@ export function splitTablePipeRow(line: string): ParsedTablePipeRow | null {
 }
 
 /** Escape table separators outside closed code spans. */
-export function normalizeTableCellText(input: string, trim: boolean): string {
+export function normalizeTableCellText(input: string): string {
   const withBreaks = input.replace(/\r\n|\r|\n/gu, "<br>");
-  const source = trim ? withBreaks.trim() : withBreaks;
+  const source = withBreaks.trim();
   let output = "";
   let escaped = false;
   for (let index = 0; index < source.length; index += 1) {
@@ -97,5 +97,5 @@ export function normalizeTableCellText(input: string, trim: boolean): string {
     }
     output += character === "|" ? "\\|" : character;
   }
-  return trim && (output === "<" || output === "^") ? `\\${output}` : output;
+  return (output === "<" || output === "^") ? `\\${output}` : output;
 }

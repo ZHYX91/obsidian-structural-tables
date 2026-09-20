@@ -98,6 +98,23 @@ describe("explicit axis dragging", () => {
     } finally { controller.destroy(); }
   });
 
+  it("continues edge scrolling at rest and cancels its animation loop", async () => {
+    vi.useFakeTimers();
+    const { controller, pointer, select, scroller } = setup();
+    try {
+      select({ axis: "column", start: 0, end: 0 });
+      controller.start(pointer("pointerdown", 60, 10), "column", 0);
+      window.dispatchEvent(pointer("pointermove", 232, 10));
+      const first = scroller.scrollLeft;
+      await vi.advanceTimersByTimeAsync(80);
+      expect(scroller.scrollLeft).toBeGreaterThan(first);
+      window.dispatchEvent(pointer("pointercancel", 232, 10));
+      const stopped = scroller.scrollLeft;
+      await vi.advanceTimersByTimeAsync(80);
+      expect(scroller.scrollLeft).toBe(stopped);
+    } finally { controller.destroy(); vi.useRealTimers(); }
+  });
+
   it("measures RTL boundaries in source order for unequal columns", () => {
     const { controller, rendered } = setup();
     try {

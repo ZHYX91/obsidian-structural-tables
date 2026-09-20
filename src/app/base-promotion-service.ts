@@ -39,12 +39,6 @@ export interface PreparedBasePromotion {
   manifestContent: string;
 }
 
-export interface AdoptedBaseRecord {
-  file: TFile;
-  adopted: boolean;
-  moved: boolean;
-}
-
 interface PromotionManifest {
   version: 1 | 2;
   pluginVersion: string;
@@ -234,23 +228,6 @@ export class BasePromotionService {
     return created;
   }
 
-  async adoptCreatedRecord(
-    recordFile: TFile,
-    sourceFile: TFile,
-    metadata: PromotionBlockMetadata,
-    moveToInbox: boolean,
-  ): Promise<AdoptedBaseRecord> {
-    if (metadata.recoveredSourcePath !== undefined) await this.readManifest(metadata);
-    if (!moveToInbox) return { file: recordFile, adopted: true, moved: false };
-
-    const directory = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, metadata.tableId);
-    await this.ensureFolder(directory);
-    const destination = this.availableRecordPath(directory, recordFile);
-    if (destination === recordFile.path) return { file: recordFile, adopted: true, moved: false };
-    await this.app.fileManager.renameFile(recordFile, destination);
-    return { file: recordFile, adopted: true, moved: true };
-  }
-
   private async ensureFolder(path: string): Promise<void> {
     if (path === "") return;
     const segments = normalizePath(path).split("/");
@@ -260,17 +237,6 @@ export class BasePromotionService {
       const existing = this.app.vault.getAbstractFileByPath(current);
       if (existing instanceof TFile) throw new Error(`A file blocks the target folder: ${current}`);
       if (existing === null) await this.app.vault.createFolder(current);
-    }
-  }
-
-  private availableRecordPath(directory: string, file: TFile): string {
-    let path = joinedPath(directory, file.name);
-    let suffix = 2;
-    while (true) {
-      const existing = this.app.vault.getAbstractFileByPath(path);
-      if (existing === null || existing === file) return path;
-      path = joinedPath(directory, `${file.basename} ${suffix}.${file.extension}`);
-      suffix += 1;
     }
   }
 

@@ -7,7 +7,6 @@ import { BasePromotionService } from "../src/app/base-promotion-service";
 import {
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
   promotionBlockAt,
-  TABLE_MEMBERSHIP_PROPERTY,
 } from "../src/core/base-promotion";
 import { parseEditableTables } from "../src/core/parser";
 
@@ -187,7 +186,6 @@ describe("Base promotion file transaction", () => {
     host.contents.set(prepared.manifestPath, JSON.stringify({ ...manifest, sourceFilePath: "Unrelated.md" }));
     const before = [...host.contents];
     await expect(service.createRecord(sourceFile, metadata)).rejects.toThrow("does not prove ownership");
-    await expect(service.adoptCreatedRecord(memoryFile("New.md"), sourceFile, metadata, true)).rejects.toThrow("does not prove ownership");
     expect([...host.contents]).toEqual(before);
     expect(host.renamed).toEqual([]);
     host.contents.set(prepared.manifestPath, prepared.manifestContent);
@@ -360,90 +358,6 @@ views:
     expect(host.contents.get(created.path)).not.toContain("structural-tables:");
   });
 
-  it("organizes a native Base record without changing its properties or body", async () => {
-    const host = memoryHost();
-    const sourceFile = memoryFile("Moved/People.md");
-    const recordFile = memoryFile("Untitled.md");
-    host.files.set(sourceFile.path, sourceFile);
-    host.files.set(recordFile.path, recordFile);
-    host.contents.set(recordFile.path, "---\nname: Alice\n---\nKept body\n");
-    host.frontmatters.set(recordFile.path, {
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
-      name: "Alice",
-    });
-    const collisionPath = "Moved/_structural-table-records/stb_native/Untitled.md";
-    host.files.set(collisionPath, memoryFile(collisionPath));
-    const service = new BasePromotionService(host.app);
-
-    const result = await service.adoptCreatedRecord(recordFile, sourceFile, {
-      tableId: "stb_native",
-      manifestPath: "Moved/manifest.json",
-      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
-      propertyKeys: ["name"],
-      range: { from: 0, to: 1 },
-      source: "base",
-    }, true);
-
-    expect(result).toMatchObject({ adopted: true, moved: true });
-    expect(recordFile.path).toBe("Moved/_structural-table-records/stb_native/Untitled 2.md");
-    expect(host.frontmatters.get(recordFile.path)).toMatchObject({
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
-      name: "Alice",
-    });
-    expect(host.contents.get(recordFile.path)).toBe("---\nname: Alice\n---\nKept body\n");
-  });
-
-  it("does not write identity or move a record the user already organized", async () => {
-    const host = memoryHost();
-    const sourceFile = memoryFile("Moved/People.md");
-    const recordFile = memoryFile("People/Sales/Alice.md");
-    host.files.set(recordFile.path, recordFile);
-    host.frontmatters.set(recordFile.path, { [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"] });
-    const service = new BasePromotionService(host.app);
-
-    const result = await service.adoptCreatedRecord(recordFile, sourceFile, {
-      tableId: "stb_native",
-      manifestPath: "Moved/manifest.json",
-      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
-      propertyKeys: [],
-      range: { from: 0, to: 1 },
-      source: "base",
-    }, false);
-
-    expect(result).toMatchObject({ adopted: true, moved: false });
-    expect(recordFile.path).toBe("People/Sales/Alice.md");
-    expect(host.renamed).toEqual([]);
-    expect(host.frontmatters.get(recordFile.path)).toEqual({
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
-    });
-  });
-
-  it("keeps the source note unchanged when moving it fails", async () => {
-    const host = memoryHost();
-    const sourceFile = memoryFile("Moved/People.md");
-    const recordFile = memoryFile("Untitled.md");
-    host.files.set(recordFile.path, recordFile);
-    host.contents.set(recordFile.path, "Body stays\n");
-    host.frontmatters.set(recordFile.path, { [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"] });
-    host.renameError = new Error("move failed");
-    const service = new BasePromotionService(host.app);
-
-    await expect(service.adoptCreatedRecord(recordFile, sourceFile, {
-      tableId: "stb_native",
-      manifestPath: "Moved/manifest.json",
-      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
-      propertyKeys: [],
-      range: { from: 0, to: 1 },
-      source: "base",
-    }, true)).rejects.toThrow("move failed");
-
-    expect(recordFile.path).toBe("Untitled.md");
-    expect(host.contents.get(recordFile.path)).toBe("Body stays\n");
-    expect(host.frontmatters.get(recordFile.path)).toEqual({
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_native"],
-    });
-  });
-
   it("refuses a target collision before creating or trashing anything", async () => {
     const host = memoryHost();
     const sourceFile = memoryFile("Folder/People.md");
@@ -474,5 +388,26 @@ views:
 
     await expect(service.restore(editor as unknown as Editor, metadata)).rejects.toThrow("could not be found");
     expect(editor.getValue()).toBe(prepared.replacementSource);
+  });
+});
+
+describe("asynchronous restoration guards", () => {
+  it.each(["changed", "duplicated"])("refuses a Base %s during manifest read without overwriting content", async (mode) => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"))!;
+    let externalSource = "";
+    host.afterRead = () => {
+      externalSource = mode === "duplicated" ? `${editor.getValue()}\n\n${editor.getValue()}`
+        : editor.getValue().replace("filters:", "# external edit\nfilters:");
+      editor.mutate(externalSource);
+    };
+    await expect(service.restore(editor as unknown as Editor, metadata)).rejects.toThrow("changed");
+    expect(editor.getValue()).toBe(externalSource);
   });
 });

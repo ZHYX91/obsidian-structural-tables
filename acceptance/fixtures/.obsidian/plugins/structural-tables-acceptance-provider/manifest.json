@@ -1,0 +1,9 @@
+{
+  "id": "structural-tables-acceptance-provider",
+  "name": "Structural Tables acceptance provider",
+  "version": "1.0.0",
+  "minAppVersion": "1.12.7",
+  "description": "Opt-in deterministic editing conflict for disposable acceptance fixtures.",
+  "author": "ZhengYX",
+  "isDesktopOnly": false
+}

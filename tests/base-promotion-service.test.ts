@@ -95,11 +95,21 @@ function memoryHost(): MemoryHost {
     },
     createFolder: async (path: string) => {
       const folder = memoryFolder(path);
+      const parent = files.get(parentPath(path));
+      if (parent instanceof TFolder) {
+        Object.assign(folder, { parent });
+        parent.children.push(folder);
+      }
       files.set(path, folder);
       return folder;
     },
     create: async (path: string, content: string) => {
       const file = memoryFile(path);
+      const parent = files.get(parentPath(path));
+      if (parent instanceof TFolder) {
+        Object.assign(file, { parent });
+        parent.children.push(file);
+      }
       files.set(path, file);
       contents.set(path, content);
       host.afterCreate?.(path);
@@ -139,6 +149,10 @@ function memoryHost(): MemoryHost {
       },
       trashFile: async (file: TAbstractFile) => {
         trashed.push(file.path);
+        if (file.parent instanceof TFolder) {
+          const index = file.parent.children.indexOf(file);
+          if (index >= 0) file.parent.children.splice(index, 1);
+        }
         for (const path of [...files.keys()]) {
           if (path === file.path || path.startsWith(`${file.path}/`)) {
             files.delete(path);
@@ -233,6 +247,49 @@ describe("Base promotion file transaction", () => {
       .rejects.toThrow("changed while records were being created");
     expect(host.trashed).toEqual([prepared.directoryPath]);
     expect(host.files.has(prepared.directoryPath)).toBe(false);
+  });
+
+  it("preserves a generated folder when a created record changes before rollback", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    host.afterCreate = (path) => {
+      if (path.endsWith("/Alice.md")) {
+        host.contents.set(path, "external edit");
+        editor.mutate(SOURCE.replace("Alice", "Alicia"));
+      }
+    };
+
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared))
+      .rejects.toThrow("preserved the generated record folder");
+    expect(host.contents.get(prepared.records[0]?.path ?? "")).toBe("external edit");
+    expect(host.files.get(prepared.directoryPath)).toBeInstanceOf(TFolder);
+    expect(host.trashed).toEqual([]);
+  });
+
+  it("does not trash a replacement folder that appears at the generated path", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    let replaced = false;
+    host.afterCreate = (path) => {
+      if (!replaced && path.endsWith("/Alice.md")) {
+        replaced = true;
+        host.files.set(prepared.directoryPath, memoryFolder(prepared.directoryPath));
+        editor.mutate(SOURCE.replace("Alice", "Alicia"));
+      }
+    };
+
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared))
+      .rejects.toThrow("preserved the generated record folder");
+    expect(host.files.get(prepared.directoryPath)).toBeInstanceOf(TFolder);
+    expect(host.trashed).toEqual([]);
   });
 
   it("keeps a merged-data preview non-executable without creating files", async () => {

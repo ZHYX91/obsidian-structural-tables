@@ -78,6 +78,11 @@ function memoryFolder(path: string): TFolder {
   return Object.assign(value, { path, name: path.split("/").pop() ?? "", parent: null, children: [] });
 }
 
+function memoryParentPath(path: string): string {
+  const slash = path.lastIndexOf("/");
+  return slash < 0 ? "" : path.slice(0, slash);
+}
+
 function memoryHost(): MemoryHost {
   const contents = new Map<string, string>();
   const files = new Map<string, TAbstractFile>();
@@ -95,7 +100,7 @@ function memoryHost(): MemoryHost {
     },
     createFolder: async (path: string) => {
       const folder = memoryFolder(path);
-      const parent = files.get(parentPath(path));
+      const parent = files.get(memoryParentPath(path));
       if (parent instanceof TFolder) {
         Object.assign(folder, { parent });
         parent.children.push(folder);
@@ -105,7 +110,7 @@ function memoryHost(): MemoryHost {
     },
     create: async (path: string, content: string) => {
       const file = memoryFile(path);
-      const parent = files.get(parentPath(path));
+      const parent = files.get(memoryParentPath(path));
       if (parent instanceof TFolder) {
         Object.assign(file, { parent });
         parent.children.push(file);

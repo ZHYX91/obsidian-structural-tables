@@ -11,6 +11,7 @@ import {
   buildBasePromotionPlan,
   embeddedBaseSource,
   promotionBlockAt,
+  promotionBlocks,
   TABLE_MEMBERSHIP_PROPERTY,
   type BasePromotionPlan,
   type PromotionBlockMetadata,
@@ -36,12 +37,6 @@ export interface PreparedBasePromotion {
   replacementSource: string;
   records: PreparedRecord[];
   manifestContent: string;
-}
-
-export interface AdoptedBaseRecord {
-  file: TFile;
-  adopted: boolean;
-  moved: boolean;
 }
 
 interface PromotionManifest {
@@ -104,6 +99,14 @@ function uniqueRecordPaths(directory: string, plan: BasePromotionPlan): Prepared
     used.add(fileName.toLocaleLowerCase());
     return { path: joinedPath(directory, fileName), record, content: recordContent(plan.tableId, record) };
   });
+}
+
+function matchingPromotionBlock(editor: Editor, expected: PromotionBlockMetadata): PromotionBlockMetadata | null {
+  const matches = promotionBlocks(editor.getValue(), expected.recoveredSourcePath).filter((candidate) =>
+    candidate.tableId === expected.tableId
+    && candidate.manifestPath === expected.manifestPath
+    && candidate.source === expected.source);
+  return matches.length === 1 ? matches[0] ?? null : null;
 }
 
 function promotionManifest(value: unknown): PromotionManifest | null {
@@ -187,11 +190,14 @@ export class BasePromotionService {
   }
 
   async restore(editor: Editor, expected: PromotionBlockMetadata): Promise<void> {
-    const current = promotionBlockAt(editor.getValue(), expected.range.from + 1, expected.recoveredSourcePath);
-    if (current === null || current.source !== expected.source || current.tableId !== expected.tableId) {
+    if (matchingPromotionBlock(editor, expected) === null) {
       throw new Error("The promoted Base changed before it could be restored.");
     }
     const manifest = await this.readManifest(expected);
+    const current = matchingPromotionBlock(editor, expected);
+    if (current === null) {
+      throw new Error("The promoted Base changed while its recovery manifest was being read.");
+    }
     editor.replaceRange(
       manifest.originalTableSource,
       editor.offsetToPos(current.range.from),
@@ -222,23 +228,6 @@ export class BasePromotionService {
     return created;
   }
 
-  async adoptCreatedRecord(
-    recordFile: TFile,
-    sourceFile: TFile,
-    metadata: PromotionBlockMetadata,
-    moveToInbox: boolean,
-  ): Promise<AdoptedBaseRecord> {
-    if (metadata.recoveredSourcePath !== undefined) await this.readManifest(metadata);
-    if (!moveToInbox) return { file: recordFile, adopted: true, moved: false };
-
-    const directory = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, metadata.tableId);
-    await this.ensureFolder(directory);
-    const destination = this.availableRecordPath(directory, recordFile);
-    if (destination === recordFile.path) return { file: recordFile, adopted: true, moved: false };
-    await this.app.fileManager.renameFile(recordFile, destination);
-    return { file: recordFile, adopted: true, moved: true };
-  }
-
   private async ensureFolder(path: string): Promise<void> {
     if (path === "") return;
     const segments = normalizePath(path).split("/");
@@ -248,17 +237,6 @@ export class BasePromotionService {
       const existing = this.app.vault.getAbstractFileByPath(current);
       if (existing instanceof TFile) throw new Error(`A file blocks the target folder: ${current}`);
       if (existing === null) await this.app.vault.createFolder(current);
-    }
-  }
-
-  private availableRecordPath(directory: string, file: TFile): string {
-    let path = joinedPath(directory, file.name);
-    let suffix = 2;
-    while (true) {
-      const existing = this.app.vault.getAbstractFileByPath(path);
-      if (existing === null || existing === file) return path;
-      path = joinedPath(directory, `${file.basename} ${suffix}.${file.extension}`);
-      suffix += 1;
     }
   }
 

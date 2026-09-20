@@ -7,13 +7,15 @@ export function mapTablesThroughProseEdit(
   transaction: Transaction,
 ): readonly StructuralTable[] | null {
   if (tables === null) return null;
-  const prose = /^[\p{L}\p{N}][\p{L}\p{N} ,!?;()]*$/u;
+  const prose = (text: string): boolean => text.trim() !== ""
+    && !/[|`~:]/u.test(text)
+    && !/^(?:\uFEFF?(?:---|\.\.\.)[\t ]*$| {0,3}>| {4}|\t| {0,3}(?:[-+*]|\d{1,9}[.)])[\t ]{1,4}(?=\S))/u.test(text);
   let safe = true;
   transaction.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
     const before = transaction.startState.doc.lineAt(fromA);
     const after = transaction.state.doc.lineAt(fromB);
     if (toA > before.to || toB > after.to || inserted.lines !== 1
-      || !prose.test(before.text) || !prose.test(after.text)
+      || !prose(before.text) || !prose(after.text)
       || tables.some((table) => fromA <= table.range.to && toA >= table.range.from)) safe = false;
   });
   if (!safe) return null;

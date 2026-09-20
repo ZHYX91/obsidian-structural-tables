@@ -1,6 +1,7 @@
 import { getLanguage } from "obsidian";
 
 import type { OperationCode } from "../core/operations";
+import type { TableDiagnostic } from "../core/model";
 import type { InterfaceLanguage } from "./settings";
 
 const en = {
@@ -19,6 +20,14 @@ const en = {
   "command.promoteBase": "Upgrade current table to Base…",
   "command.restorePromotedTable": "Restore table from current promoted Base",
   "command.split": "Split current merged cell",
+  "command.recoverDrafts": "Recover interrupted cell drafts",
+  "draft.title": "Recover cell drafts",
+  "draft.description": "The table or view changed before these edits were saved. Copy the text and reopen the intended cell. Closing this dialog keeps drafts available through Recover interrupted cell drafts until Obsidian restarts or the plugin reloads.",
+  "draft.none": "There are no interrupted cell drafts to recover.",
+  "draft.copy": "Copy draft",
+  "draft.discard": "Discard draft",
+  "draft.copied": "Draft copied. Reopen the intended cell to paste it.",
+  "draft.copyFailed": "Copy failed. Select and copy the draft text manually.",
   "command.validate": "Validate structural tables in current note",
   "modal.cancel": "Cancel",
   "modal.convertGfm.desc": "Merged cells and multi-row headers will be flattened. Review the portable GFM before replacing the table.",
@@ -47,7 +56,7 @@ const en = {
   "modal.promoteBase.title": "Upgrade table to Base",
   "modal.promoteBase.warning": "Review before continuing: {warning}",
   "modal.restoreBase.confirm": "Restore table",
-  "modal.restoreBase.desc": "Restore the original table from the promotion manifest. Generated record notes are kept so reorganized or edited notes are never deleted.",
+  "modal.restoreBase.desc": "Restore the original snapshot from the promotion manifest, excluding later Base record edits. Generated record notes are kept.",
   "modal.restoreBase.title": "Restore promoted table",
   "notice.clipboardFailed": "Could not write to the clipboard.",
   "notice.basesRequired": "Enable Obsidian's Bases core plugin before upgrading a table.",
@@ -66,10 +75,6 @@ const en = {
   "notice.promoteFailed": "Could not upgrade the table: {message}",
   "notice.promoted": "Table upgraded to Base. Recovery manifest: {path}",
   "notice.recordCreated": "New Base record created: {path}",
-  "notice.recordAdopted": "New Base record organized: {path}",
-  "notice.recordAdoptionAmbiguous": "The new note matches more than one Structural Tables Base, so it was left in place.",
-  "notice.recordAdoptionIncompatible": "The new note has invalid or conflicting Structural Tables membership properties, so it was left unchanged.",
-  "notice.recordAdoptionFailed": "The new Base record was left in place because it could not be organized: {message}",
   "notice.restoreFailed": "Could not restore the table: {message}",
   "notice.restored": "Original table restored. Generated record notes were kept.",
   "promotion.blocker.mergedDataCell": "Split the merged data cell at row {row}, column {column} ({rowSpan} × {columnSpan}) before upgrading.",
@@ -81,6 +86,14 @@ const en = {
   "notice.sheetsNotDetected": "No unambiguous Sheets Extended separator column was found.",
   "notice.staleTable": "The table changed. Reopen the cell or menu and try again.",
   "notice.valid": "All structural tables are valid.",
+  "notice.validationLine": "Line {line}: {message}",
+  "diagnostic.boundaryAtEdge": "The row-header divider must be between two delimiter cells.",
+  "diagnostic.boundaryCount": "A delimiter row can contain at most one row-header divider.",
+  "diagnostic.boundaryToken": "A row-header divider must use adjacent pipes with no spaces.",
+  "diagnostic.mergeBoundary": "A merged cell cannot cross header or data-region boundaries.",
+  "diagnostic.mergeMissingAnchor": "A merge marker must resolve to an existing content cell.",
+  "diagnostic.mergeNonrectangular": "Merged cells must form one complete rectangle.",
+  "diagnostic.rowWidth": "This row does not match the delimiter column count.",
   "handle.column": "Select column {count}",
   "handle.row": "Select row {count}",
   "handle.addRow": "Add row",
@@ -126,6 +139,9 @@ const en = {
   "operation.mergeCrossesRole": "A merge cannot cross a header or data-region boundary.",
   "operation.mergeInvalidSelection": "Select a rectangular range of at least two cells.",
   "operation.mergePartialExisting": "The selection must include each existing merged cell in full.",
+  "operation.moveCrossesHeader": "Rows and columns cannot cross a header boundary.",
+  "operation.movePartialMerge": "Select the whole merged cell before moving this range.",
+  "operation.moveSelectionUnavailable": "The selected range or destination is unavailable.",
   "operation.merged": "Cells merged.",
   "operation.noAdjacentCell": "There is no cell in that direction.",
   "operation.notMerged": "The selected cell is not merged.",
@@ -198,6 +214,14 @@ const zh: Record<TranslationKey, string> = {
   "command.promoteBase": "将当前表格升级为 Base…",
   "command.restorePromotedTable": "从当前已提升 Base 恢复表格",
   "command.split": "拆分当前合并单元格",
+  "command.recoverDrafts": "恢复中断的单元格草稿",
+  "draft.title": "恢复单元格草稿",
+  "draft.description": "表格或视图在保存前发生了变化。请复制草稿，再重新打开目标单元格。关闭此窗口后，仍可通过“恢复中断的单元格草稿”命令找回，直到重启 Obsidian 或重新加载插件。",
+  "draft.none": "没有需要恢复的单元格草稿。",
+  "draft.copy": "复制草稿",
+  "draft.discard": "放弃草稿",
+  "draft.copied": "已复制草稿，请重新打开目标单元格粘贴。",
+  "draft.copyFailed": "复制失败，请手动选择并复制草稿文字。",
   "command.validate": "检查当前笔记中的结构表格",
   "modal.cancel": "取消",
   "modal.convertGfm.desc": "合并单元格和多行表头将被展开。请在替换表格前检查普通 GFM 预览。",
@@ -226,7 +250,7 @@ const zh: Record<TranslationKey, string> = {
   "modal.promoteBase.title": "将表格升级为 Base",
   "modal.promoteBase.warning": "继续前请检查：{warning}",
   "modal.restoreBase.confirm": "恢复表格",
-  "modal.restoreBase.desc": "从提升清单恢复原表格。已生成的记录笔记会保留，避免删除已经整理或编辑的笔记。",
+  "modal.restoreBase.desc": "从提升清单恢复转换前的原始表格，不包含后续 Base 记录编辑。已生成的记录笔记会保留。",
   "modal.restoreBase.title": "恢复已提升表格",
   "notice.clipboardFailed": "无法写入剪贴板。",
   "notice.basesRequired": "请先启用 Obsidian 核心插件 Bases，再升级表格。",
@@ -245,10 +269,6 @@ const zh: Record<TranslationKey, string> = {
   "notice.promoteFailed": "无法升级表格：{message}",
   "notice.promoted": "表格已升级为 Base。恢复清单：{path}",
   "notice.recordCreated": "已创建新的 Base 记录：{path}",
-  "notice.recordAdopted": "新的 Base 记录已整理：{path}",
-  "notice.recordAdoptionAmbiguous": "新笔记同时匹配多个 Structural Tables Base，已保留在原位置。",
-  "notice.recordAdoptionIncompatible": "新笔记中的 Structural Tables 成员属性无效或互相冲突，因此未作修改。",
-  "notice.recordAdoptionFailed": "无法整理新的 Base 记录，已保留在原位置：{message}",
   "notice.restoreFailed": "无法恢复表格：{message}",
   "notice.restored": "已恢复原表格，并保留生成的记录笔记。",
   "promotion.blocker.mergedDataCell": "请先拆分第 {row} 行、第 {column} 列的数据区合并单元格（{rowSpan} × {columnSpan}），再进行升级。",
@@ -260,6 +280,14 @@ const zh: Record<TranslationKey, string> = {
   "notice.sheetsNotDetected": "未找到唯一且明确的 Sheets Extended 分隔列。",
   "notice.staleTable": "表格已发生变化，请重新打开单元格或菜单后重试。",
   "notice.valid": "所有结构表格均有效。",
+  "notice.validationLine": "第 {line} 行：{message}",
+  "diagnostic.boundaryAtEdge": "行表头分隔符必须位于两个分隔单元格之间。",
+  "diagnostic.boundaryCount": "分隔行最多只能包含一个行表头分隔符。",
+  "diagnostic.boundaryToken": "行表头分隔符必须使用中间没有空格的相邻竖线。",
+  "diagnostic.mergeBoundary": "合并单元格不能跨越表头区与数据区边界。",
+  "diagnostic.mergeMissingAnchor": "合并标记必须指向已有的内容单元格。",
+  "diagnostic.mergeNonrectangular": "合并单元格必须组成完整矩形。",
+  "diagnostic.rowWidth": "该行的列数与分隔行不一致。",
   "handle.column": "选择第 {count} 列",
   "handle.row": "选择第 {count} 行",
   "handle.addRow": "添加行",
@@ -305,6 +333,9 @@ const zh: Record<TranslationKey, string> = {
   "operation.mergeCrossesRole": "合并不能跨越表头或数据区域边界。",
   "operation.mergeInvalidSelection": "请选择至少两个单元格组成的矩形区域。",
   "operation.mergePartialExisting": "选区必须完整包含其中已有的合并单元格。",
+  "operation.moveCrossesHeader": "行或列不能跨越表头边界移动。",
+  "operation.movePartialMerge": "请完整选择合并单元格后再移动该范围。",
+  "operation.moveSelectionUnavailable": "所选范围或目标位置不可用。",
   "operation.merged": "已合并单元格。",
   "operation.noAdjacentCell": "该方向没有可合并的单元格。",
   "operation.notMerged": "所选单元格没有合并。",
@@ -382,6 +413,9 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
   "merge-crosses-role": "operation.mergeCrossesRole",
   "merge-invalid-selection": "operation.mergeInvalidSelection",
   "merge-partial-existing": "operation.mergePartialExisting",
+  "move-crosses-header": "operation.moveCrossesHeader",
+  "move-partial-merge": "operation.movePartialMerge",
+  "move-selection-unavailable": "operation.moveSelectionUnavailable",
   merged: "operation.merged",
   "no-adjacent-cell": "operation.noAdjacentCell",
   "not-merged": "operation.notMerged",
@@ -398,6 +432,20 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
 
 export function operationNotice(t: Translate, code: OperationCode): string {
   return t(operationKeys[code]);
+}
+
+const diagnosticKeys: Record<TableDiagnostic["code"], TranslationKey> = {
+  "boundary-at-edge": "diagnostic.boundaryAtEdge",
+  "boundary-count": "diagnostic.boundaryCount",
+  "boundary-token": "diagnostic.boundaryToken",
+  "merge-boundary": "diagnostic.mergeBoundary",
+  "merge-missing-anchor": "diagnostic.mergeMissingAnchor",
+  "merge-nonrectangular": "diagnostic.mergeNonrectangular",
+  "row-width": "diagnostic.rowWidth",
+};
+
+export function diagnosticNotice(t: Translate, diagnostic: TableDiagnostic): string {
+  return t(diagnosticKeys[diagnostic.code]);
 }
 
 export function withCount(template: string, count: number): string {

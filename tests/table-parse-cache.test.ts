@@ -22,4 +22,12 @@ describe("prose edit cache", () => {
     expect(mapTablesThroughProseEdit(parseEditableTables(source).tables, transaction)).toBeNull();
     expect(mapTablesThroughProseEdit(null, transaction)).toBeNull();
   });
+  it("reuses table snapshots across ordinary CJK punctuation edits", () => {
+    const start = EditorState.create({ doc: `中文，说明。\n\n| A | B |\n| --- | --- |\n| 1 | 2 |` });
+    const tables = parseEditableTables(start.doc.toString()).tables;
+    const transaction = start.update({ changes: { from: 2, to: 3, insert: "；" } });
+
+    expect(mapTablesThroughProseEdit(tables, transaction)).not.toBeNull();
+  });
+
 });

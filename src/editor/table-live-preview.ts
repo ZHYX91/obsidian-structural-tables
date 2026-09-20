@@ -5,10 +5,10 @@ import {
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { App, editorInfoField, editorLivePreviewField, type Editor, type TFile } from "obsidian";
 
+import { createTranslator, diagnosticNotice } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
-import { diagnosticText } from "../rendering/table-renderer";
 import { cancelPendingTableFocus, clearTableWidgetSelection, mapPendingTableFocus, restoreTableHistoryFocus, StructuralTableWidget } from "./table-widget";
 import { tableHistory, tableHistoryTarget } from "./table-history";
 import { mapTablesThroughProseEdit } from "./table-parse-cache";
@@ -82,7 +82,8 @@ export class StructuralTableEditorController {
             decoration: Decoration.line({
               attributes: {
                 class: "structural-tables-invalid",
-                title: diagnosticText(table),
+                title: table.diagnostics.map((diagnostic) =>
+                  diagnosticNotice(createTranslator(settings.language), diagnostic)).join(" "),
               },
             }),
           });

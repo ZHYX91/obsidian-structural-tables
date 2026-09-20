@@ -1,5 +1,5 @@
 import type { StructuralTable } from "../core/model";
-import { reorderTableAxis, type TableAxis } from "../core/operations";
+import { reorderTableAxis, type OperationResult, type TableAxis } from "../core/operations";
 
 export interface AxisSelection { axis: TableAxis; start: number; end: number }
 
@@ -34,22 +34,29 @@ interface DragSession {
   y: number;
   moved: boolean;
   destination: number | null;
-  preview?: { source: string; destination: number; allowed: boolean };
+  preview?: { source: string; destination: number; result: OperationResult };
 }
 
 /** Only a second gesture on an explicitly selected axis can reorder it. */
 export class TableAxisDrag {
   private session: DragSession | null = null;
+  private scrollFrame: number | null = null;
   private suppressClick = false;
   private readonly line: HTMLElement;
+  private readonly hint: HTMLElement;
   private readonly window: Window | null;
 
   constructor(private readonly host: HTMLElement, private readonly rendered: HTMLTableElement,
     private readonly current: () => StructuralTable,
     private readonly selected: () => AxisSelection | null,
+    private readonly blockedMessage: (result: OperationResult) => string,
     private readonly move: (selection: AxisSelection, destination: number) => void) {
     this.line = host.createDiv({ cls: "structural-tables-drop-line" });
     this.line.hidden = true;
+    this.hint = host.createDiv({ cls: "structural-tables-drop-hint" });
+    this.hint.hidden = true;
+    this.hint.setAttribute("role", "status");
+    this.hint.setAttribute("aria-live", "polite");
     this.window = host.ownerDocument.defaultView;
     this.window?.addEventListener("pointermove", this.onMove, { passive: false });
     this.window?.addEventListener("pointerup", this.onUp);
@@ -84,11 +91,16 @@ export class TableAxisDrag {
     this.window?.removeEventListener("blur", this.cancel);
     this.window?.removeEventListener("keydown", this.onKey, true);
     this.line.remove();
+    this.hint.remove();
   }
 
   private readonly cancel = (): void => {
+    if (this.scrollFrame !== null) this.window?.cancelAnimationFrame(this.scrollFrame);
+    this.scrollFrame = null;
     this.session = null;
     this.line.hidden = true;
+    this.hint.hidden = true;
+    this.hint.textContent = "";
     delete this.host.dataset.reorderState;
   };
 
@@ -100,6 +112,18 @@ export class TableAxisDrag {
     this.cancel();
   };
 
+  private scrollColumnEdge(scroller: HTMLElement, pointerX: number): void {
+    if (scroller.scrollWidth <= scroller.clientWidth) return;
+    const rect = scroller.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const threshold = Math.min(40, rect.width / 4);
+    const step = (distance: number): number => Math.min(24, Math.max(0, Math.ceil(distance / threshold * 24)));
+    let delta = 0;
+    if (pointerX < rect.left + threshold) delta = -step(rect.left + threshold - pointerX);
+    else if (pointerX > rect.right - threshold) delta = step(pointerX - (rect.right - threshold));
+    if (delta !== 0) scroller.scrollLeft += delta;
+  }
+
   private readonly onMove = (event: PointerEvent): void => {
     const session = this.session;
     if (session === null || session.pointerId !== event.pointerId) return;
@@ -108,12 +132,28 @@ export class TableAxisDrag {
     this.suppressClick = true;
     event.preventDefault();
     const table = this.current();
+    const { axis, start, end } = session.selection;
+    const scroller = this.rendered.closest<HTMLElement>(".structural-tables-container");
+    if (this.scrollFrame !== null) this.window?.cancelAnimationFrame(this.scrollFrame);
+    this.scrollFrame = null;
+    const scrollBounds = scroller?.getBoundingClientRect();
+    if (axis === "column" && scroller !== null && scrollBounds !== undefined
+      && event.clientY >= scrollBounds.top - 48 && event.clientY <= scrollBounds.bottom + 48
+      && event.clientX >= scrollBounds.left - 48 && event.clientX <= scrollBounds.right + 48) {
+      const previous = scroller.scrollLeft;
+      this.scrollColumnEdge(scroller, event.clientX);
+      if (scroller.scrollLeft !== previous && this.window !== null) {
+        this.scrollFrame = this.window.requestAnimationFrame(() => {
+          this.scrollFrame = null;
+          this.onMove(event);
+        });
+      }
+    }
     const rect = this.rendered.getBoundingClientRect();
-    const containerRect = this.rendered.closest(".structural-tables-container")?.getBoundingClientRect();
+    const containerRect = scroller?.getBoundingClientRect();
     const visibleLeft = containerRect !== undefined && containerRect.width > 0 ? Math.max(rect.left, containerRect.left) : rect.left;
     const visibleRight = containerRect !== undefined && containerRect.width > 0 ? Math.min(rect.right, containerRect.right) : rect.right;
     const hostRect = this.host.getBoundingClientRect();
-    const { axis, start, end } = session.selection;
     const boundaries = tableAxisBoundaries(this.rendered, axis, axis === "row" ? table.rows.length : table.columnCount);
     const value = axis === "row" ? event.clientY : event.clientX;
     const nearby = event.clientX >= hostRect.left - 48 && event.clientX <= hostRect.right + 48
@@ -121,6 +161,8 @@ export class TableAxisDrag {
     if (!nearby) {
       session.destination = null;
       this.line.hidden = true;
+      this.hint.hidden = true;
+      this.hint.textContent = "";
       this.host.dataset.reorderState = "blocked";
       return;
     }
@@ -129,17 +171,37 @@ export class TableAxisDrag {
       if (Math.abs(value - boundaries[index]!) < Math.abs(value - boundaries[destination]!)) destination = index;
     }
     session.destination = destination;
-    if (session.preview?.source !== table.source || session.preview.destination !== destination) {
-      session.preview = { source: table.source, destination,
-        allowed: reorderTableAxis(table, axis, start, end, destination).changed };
+    let result = session.preview?.source === table.source && session.preview.destination === destination
+      ? session.preview.result : null;
+    if (result === null) {
+      result = reorderTableAxis(table, axis, start, end, destination);
+      session.preview = { source: table.source, destination, result };
     }
-    this.host.dataset.reorderState = session.preview.allowed ? "allowed" : "blocked";
+    const noChange = !result.changed && (result.code === "row-moved" || result.code === "column-moved");
+    if (noChange) {
+      delete this.host.dataset.reorderState;
+      this.line.hidden = true;
+      this.hint.hidden = true;
+      this.hint.textContent = "";
+      return;
+    }
+    this.host.dataset.reorderState = result.changed ? "allowed" : "blocked";
     this.line.hidden = axis === "column" && (boundaries[destination]! < visibleLeft || boundaries[destination]! > visibleRight);
     this.line.dataset.axis = axis;
     this.line.style.left = `${axis === "row" ? visibleLeft - hostRect.left : boundaries[destination]! - hostRect.left}px`;
     this.line.style.top = `${axis === "row" ? boundaries[destination]! - hostRect.top : rect.top - hostRect.top}px`;
     this.line.style.width = `${axis === "row" ? Math.max(0, visibleRight - visibleLeft) : 2}px`;
     this.line.style.height = `${axis === "row" ? 2 : rect.height}px`;
+    if (result.changed) {
+      this.hint.hidden = true;
+      this.hint.textContent = "";
+    } else {
+      this.hint.textContent = this.blockedMessage(result);
+      this.hint.style.left = `${Math.max(8, visibleLeft - hostRect.left + 8)}px`;
+      const hintTop = (axis === "row" ? boundaries[destination]! : rect.top) - hostRect.top + 6;
+      this.hint.style.top = `${Math.max(0, Math.min(hostRect.height - 24, hintTop))}px`;
+      this.hint.hidden = false;
+    }
   };
 
   private readonly onUp = (event: PointerEvent): void => {

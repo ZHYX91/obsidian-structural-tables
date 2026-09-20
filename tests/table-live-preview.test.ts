@@ -55,6 +55,9 @@ beforeAll(() => {
   HTMLElement.prototype.createDiv = function createDiv(options?: ObsidianElementOptions): HTMLDivElement {
     return this.createEl("div", options);
   };
+  HTMLElement.prototype.setCssProps = function setCssProps(props: Record<string, string>): void {
+    for (const [name, value] of Object.entries(props)) this.style.setProperty(name, value);
+  };
 });
 
 afterEach(() => {
@@ -1005,7 +1008,7 @@ describe("StructuralTableEditorController", () => {
       value: { getData: () => "[[Target|Alias]]" },
     });
     editor.dispatchEvent(paste);
-    expect(editor.value).toBe(String.raw`[[Target\|Alias]]`);
+    expect(editor.value).toBe("[[Target|Alias]]");
     editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await Promise.resolve();
 
@@ -1059,6 +1062,26 @@ describe("StructuralTableEditorController", () => {
     expect(view.state.doc.toString()).toBe(source);
     link.click();
     expect(activated).toHaveBeenCalledOnce();
+    view.destroy();
+  });
+
+  it("expands the editing row for a long draft and restores its height on cancel", () => {
+    const source = "| Name | Value |\n| --- || --- |\n| A | Short |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+    vi.spyOn(cell, "getBoundingClientRect").mockReturnValue({
+      left: 0, top: 0, width: 120, height: 32, right: 120, bottom: 32, x: 0, y: 0, toJSON: () => ({}),
+    });
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+    const row = cell.closest<HTMLTableRowElement>("tr")!;
+    Object.defineProperty(editor, "scrollHeight", { configurable: true, get: () => 144 });
+
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(row.style.getPropertyValue("--structural-table-edit-row-height")).toBe("144px");
+
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(row.style.getPropertyValue("--structural-table-edit-row-height")).toBe("0px");
     view.destroy();
   });
 
@@ -1206,5 +1229,80 @@ describe("StructuralTableEditorController", () => {
 
     expect(documentChanges).toBe(1);
     view.destroy();
+  });
+});
+
+describe("interrupted drafts and contextual paste", () => {
+  it("keeps an accessible draft when another cell is changed externally", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "UNSAVED USER DRAFT";
+      const position = source.indexOf("| A | B") + 6;
+      view.dispatch({ changes: { from: position, to: position + 1, insert: "External" } });
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toContain("External");
+      expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value).toBe("UNSAVED USER DRAFT");
+      expect(view.state.doc.toString()).not.toContain("UNSAVED USER DRAFT");
+    } finally { view.destroy(); }
+  });
+
+  it("keeps an accessible draft across a presentation refresh", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view, updateSettings } = mountEditor(source, { anchor: 0 });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "UNSAVED USER DRAFT";
+      updateSettings({ density: "compact" });
+      await Promise.resolve();
+      expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value).toBe("UNSAVED USER DRAFT");
+      expect(view.state.doc.toString()).not.toContain("UNSAVED USER DRAFT");
+    } finally { view.destroy(); }
+  });
+
+  it("pastes a pipe into an existing code span without adding a literal backslash", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | `ab` |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.setSelectionRange(2, 2);
+      const paste = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, "clipboardData", { value: { getData: (type: string) => type === "text/plain" ? "|" : "" } });
+      editor.dispatchEvent(paste);
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await Promise.resolve();
+      const content = parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[1]!.content;
+      expect(content).toBe("`a|b`");
+    } finally { view.destroy(); }
+  });
+});
+describe("wide-table keyboard entry", () => {
+  it("keeps a visible column handle in the Tab sequence after horizontal scrolling", () => {
+    let horizontalOffset = 0;
+    const rect = (left: number, top: number, width: number, height: number): DOMRect =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("structural-tables-live-preview")) return rect(0, 0, 180, 140);
+      if (this.classList.contains("structural-tables-container")) return rect(40, 20, 100, 80);
+      if (this.tagName === "TABLE") return rect(40 - horizontalOffset, 20, 300, 80);
+      if (this.tagName === "TR") return rect(40 - horizontalOffset, 20, 300, 40);
+      if (this.dataset.structuralColumn !== undefined) return rect(40 - horizontalOffset + Number(this.dataset.structuralColumn) * 100, 20, 100, 40);
+      return rect(0, 0, 0, 0);
+    });
+    const source = "Before\n\n| H | V | W |\n| --- || --- | --- |\n| A | B | C |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      horizontalOffset = 100;
+      parent.querySelector(".structural-tables-container")!.dispatchEvent(new Event("scroll"));
+      const handles = [...parent.querySelectorAll<HTMLButtonElement>(".structural-tables-column-handle")];
+      expect(handles.some((handle) => !handle.hidden)).toBe(true);
+      expect(handles.some((handle) => !handle.hidden && handle.tabIndex === 0)).toBe(true);
+    } finally { view.destroy(); }
   });
 });

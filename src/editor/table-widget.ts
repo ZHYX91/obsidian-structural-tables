@@ -7,7 +7,7 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { adjacentTableCell } from "../core/table-navigation";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
-import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, normalizeTableCellInput, reorderTableAxis, type TableAxis } from "../core/operations";
+import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, normalizeTableCellFragment, reorderTableAxis, type TableAxis } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
@@ -26,6 +26,8 @@ import {
   type StructuralTableSelection,
   type TableCellCoordinate,
 } from "./table-selection";
+
+import { retainCellDraft } from "./cell-draft-recovery";
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
@@ -134,6 +136,8 @@ export class StructuralTableWidget extends WidgetType {
 }
 
 class StructuralTableInteraction {
+  private positionHandles: (() => void) | null = null;
+  private preserveDraft: (() => void) | null = null;
   private cellScope: Scope | null = null;
   private navigationScope: Scope | null = null;
   private component: Component | null = null;
@@ -209,6 +213,8 @@ class StructuralTableInteraction {
   }
 
   destroy(): void {
+    this.preserveDraft?.();
+    this.preserveDraft = null;
     this.axisDrag?.destroy();
     this.axisDrag = null;
     this.finishActiveOperation = null;
@@ -219,6 +225,7 @@ class StructuralTableInteraction {
     this.pointerWindow = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.positionHandles = null;
     this.host = null;
     this.renderedTable = null;
     this.clickEditCandidate = null;
@@ -385,6 +392,7 @@ class StructuralTableInteraction {
     if (resolved !== null) this.selectBounds(resolved, resolved);
     this.setRovingCell(element);
     element.focus({ preventScroll: true });
+    element.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     return true;
   }
 
@@ -650,6 +658,22 @@ class StructuralTableInteraction {
     // The content layer continues to size the cell while the editor overlays it.
     element.classList.add("is-editing");
     element.appendChild(editor);
+    const rowElement = element.closest<HTMLTableRowElement>("tr");
+    const initialCellHeight = element.getBoundingClientRect().height;
+    const initialRowHeight = rowElement?.getBoundingClientRect().height || initialCellHeight;
+    const resizeEditor = (): void => {
+      if (rowElement === null || !editor.isConnected) return;
+      // Measure from a collapsed overlay so shrinking drafts can shrink again.
+      editor.classList.add("is-measuring");
+      const contentHeight = editor.scrollHeight;
+      editor.classList.remove("is-measuring");
+      const viewportHeight = editor.ownerDocument.defaultView?.innerHeight ?? 800;
+      const maxHeight = Math.max(initialCellHeight, Math.min(480, viewportHeight / 2));
+      const nextHeight = Math.max(initialCellHeight, Math.min(maxHeight, contentHeight));
+      rowElement.setCssProps({ "--structural-table-edit-row-height": nextHeight > initialCellHeight
+        ? `${Math.ceil(initialRowHeight + nextHeight - initialCellHeight)}px` : "0px" });
+      editor.setCssProps({ "--structural-table-editor-overflow-y": contentHeight > maxHeight ? "auto" : "hidden" });
+    };
     let settled = false;
     let composing = false;
     let contextMenuOpen = false;
@@ -658,35 +682,56 @@ class StructuralTableInteraction {
 
     const insertBreak = (start = editor.selectionStart, end = editor.selectionEnd): void => {
       editor.setRangeText("<br>", start, end, "end");
+      resizeEditor();
       editor.focus({ preventScroll: true });
     };
 
     const restore = (focus: boolean): void => {
       element.classList.remove("is-editing");
+      rowElement?.setCssProps({ "--structural-table-edit-row-height": "0px" });
       editor.remove();
       if (focus) element.focus({ preventScroll: true });
     };
-    const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation): void => {
-      if (settled) return;
+    this.preserveDraft = () => {
+      if (!settled && editor.value !== anchor.raw.trim()) {
+        retainCellDraft(this.app, { sourcePath: this.sourcePath, row: anchor.row, column: anchor.column, text: editor.value }, t);
+      }
       settled = true;
+    };
+    const settle = (): void => {
+      settled = true;
+      this.preserveDraft = null;
       this.finishActiveOperation = null;
       this.releaseCellScope(scope);
+    };
+    const retainDraft = (message: string): void => {
+      new Notice(message);
+      queueMicrotask(() => {
+        if (!settled && editor.isConnected) editor.focus({ preventScroll: true });
+      });
+    };
+    const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation): void => {
+      if (settled) return;
       if (!commit) {
+        settle();
         restore(focus);
         return;
       }
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) {
-        restore(focus);
-        new Notice(t("notice.staleTable"));
+        retainDraft(t("notice.staleTable"));
         return;
       }
       const result = operation === undefined
         ? editCellContent(current, anchor.row, anchor.column, editor.value)
         : editCellAndTransform(current, anchor.row, anchor.column, editor.value, operation);
+      if (!result.changed && result.code !== "cell-edited") {
+        retainDraft(operationNotice(t, result.code));
+        return;
+      }
+      settle();
       if (!result.changed) {
         restore(focus);
-        if (result.code !== "cell-edited") new Notice(operationNotice(t, result.code));
         if (next !== null) queueMicrotask(() => this.beginCellEdit(view, next));
         return;
       }
@@ -737,6 +782,7 @@ class StructuralTableInteraction {
     this.cellScope = scope;
     this.app.keymap.pushScope(scope);
     editor.addEventListener("keydown", handleKey);
+    editor.addEventListener("input", resizeEditor);
     editor.addEventListener("beforeinput", (event) => {
       // Soft keyboards can insert a line break before sending a useful keydown.
       // Commit the draft before that insertion replaces the selected cell text.
@@ -760,7 +806,8 @@ class StructuralTableInteraction {
       event.preventDefault();
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
-      editor.setRangeText(normalizeTableCellInput(pasted), start, end, "end");
+      editor.setRangeText(normalizeTableCellFragment(pasted), start, end, "end");
+      resizeEditor();
     });
     editor.addEventListener("contextmenu", (event) => {
       event.preventDefault();
@@ -786,6 +833,7 @@ class StructuralTableInteraction {
     editor.addEventListener("compositionend", (event) => {
       composing = false;
       event.stopPropagation();
+      resizeEditor();
       if (editor.ownerDocument.activeElement !== editor && !contextMenuOpen) finish(true, null, false);
     });
     editor.addEventListener("blur", () => {
@@ -793,6 +841,7 @@ class StructuralTableInteraction {
     });
     editor.focus({ preventScroll: true });
     editor.select();
+    queueMicrotask(resizeEditor);
   }
 
   private releaseCellScope(scope: Scope | null = this.cellScope): void {
@@ -863,6 +912,7 @@ class StructuralTableInteraction {
     const addRow = addButton("row");
     const addColumn = addButton("column");
     this.axisDrag = new TableAxisDrag(host, rendered, () => this.table, () => this.axisSelection,
+      (result) => operationNotice(t, result.code),
       (selection, destination) => {
         const { axis, start, end } = selection;
         const movedStart = destination > end ? destination - (end - start + 1) : destination;
@@ -960,14 +1010,21 @@ class StructuralTableInteraction {
       const columns = tableAxisBoundaries(rendered, "column", this.table.columnCount);
       columnHandles.forEach((handle, column) => {
         const center = (columns[column]! + columns[column + 1]!) / 2;
-        handle.hidden = center < scrollRect.left || center > scrollRect.right;
-        handle.style.left = `${center - hostRect.left}px`;
+        const start = Math.min(columns[column]!, columns[column + 1]!);
+        const end = Math.max(columns[column]!, columns[column + 1]!);
+        handle.hidden = scrollRect.width > 0 && (end <= scrollRect.left || start >= scrollRect.right);
+        const visibleCenter = Math.max(scrollRect.left, Math.min(scrollRect.right, center));
+        handle.style.left = `${visibleCenter - hostRect.left}px`;
         handle.style.setProperty(
           "inset-block-start",
           `calc(${tableRect.top - hostRect.top}px - var(--structural-table-handle-gutter))`,
         );
       });
+      const entry = columnHandles.find((handle) => !handle.hidden && handle.tabIndex === 0)
+        ?? columnHandles.find((handle) => !handle.hidden);
+      columnHandles.forEach((handle) => { handle.tabIndex = handle === entry ? 0 : -1; });
     };
+    this.positionHandles = positionHandles;
     positionHandles();
     const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
     if (scroller !== null) this.component?.registerDomEvent(scroller, "scroll", positionHandles);
@@ -1004,6 +1061,16 @@ class StructuralTableInteraction {
         event.stopPropagation();
         if (targetIndex === index) return;
         const target = handles[targetIndex];
+        if (orientation === "horizontal") {
+          const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
+          if (scroller !== null) {
+            const bounds = tableAxisBoundaries(rendered, "column", handles.length);
+            const center = (bounds[targetIndex]! + bounds[targetIndex + 1]!) / 2;
+            const rect = scroller.getBoundingClientRect();
+            scroller.scrollLeft += center - Math.max(rect.left + 12, Math.min(rect.right - 12, center));
+            this.positionHandles?.();
+          }
+        } else target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
         target?.focus({ preventScroll: true });
         target?.click();
       });

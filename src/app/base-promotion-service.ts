@@ -201,9 +201,9 @@ export class BasePromotionService {
         rollbackSafe = false;
       }
       if (!rollbackSafe) {
-        throw new AggregateError(
-          [error],
-          "Base upgrade failed and generated files changed before rollback; preserved the generated record folder for review.",
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `Base upgrade failed and generated files changed before rollback; preserved the generated record folder for review. Original failure: ${detail}`,
         );
       }
       throw error;

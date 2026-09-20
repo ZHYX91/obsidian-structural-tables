@@ -201,9 +201,9 @@ export class BasePromotionService {
         rollbackSafe = false;
       }
       if (!rollbackSafe) {
-        throw new Error(
+        throw new AggregateError(
+          [error],
           "Base upgrade failed and generated files changed before rollback; preserved the generated record folder for review.",
-          { cause: error },
         );
       }
       throw error;

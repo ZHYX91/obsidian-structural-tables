@@ -29,6 +29,11 @@ interface PreparedRecord {
   content: string;
 }
 
+interface CreatedPromotionFile {
+  readonly file: TFile;
+  readonly expectedContent: string;
+}
+
 export interface PreparedBasePromotion {
   plan: BasePromotionPlan;
   sourceFilePath: string;
@@ -176,15 +181,31 @@ export class BasePromotionService {
     const current = reparseUnchangedTable(editor.getValue(), expected);
     if (current === null) throw new Error("The table changed while the preview was open.");
     await this.ensureFolder(parentPath(prepared.directoryPath));
-    await this.app.vault.createFolder(prepared.directoryPath);
+    const createdDirectory = await this.app.vault.createFolder(prepared.directoryPath);
+    const createdFiles: CreatedPromotionFile[] = [];
     try {
-      for (const record of prepared.records) await this.app.vault.create(record.path, record.content);
-      await this.app.vault.create(prepared.manifestPath, prepared.manifestContent);
+      for (const record of prepared.records) {
+        const file = await this.app.vault.create(record.path, record.content);
+        createdFiles.push({ file, expectedContent: record.content });
+      }
+      const manifestFile = await this.app.vault.create(prepared.manifestPath, prepared.manifestContent);
+      createdFiles.push({ file: manifestFile, expectedContent: prepared.manifestContent });
       const verified = reparseUnchangedTable(editor.getValue(), current);
       if (verified === null) throw new Error("The table changed while records were being created.");
       replaceTableSource(editor, verified, prepared.replacementSource);
     } catch (error) {
-      await this.trashCreatedDirectory(prepared.directoryPath);
+      let rollbackSafe = false;
+      try {
+        rollbackSafe = await this.trashCreatedDirectory(createdDirectory, createdFiles);
+      } catch {
+        rollbackSafe = false;
+      }
+      if (!rollbackSafe) {
+        throw new Error(
+          "Base upgrade failed and generated files changed before rollback; preserved the generated record folder for review.",
+          { cause: error },
+        );
+      }
       throw error;
     }
   }
@@ -240,9 +261,33 @@ export class BasePromotionService {
     }
   }
 
-  private async trashCreatedDirectory(path: string): Promise<void> {
-    const created = this.app.vault.getAbstractFileByPath(path);
-    if (created instanceof TFolder) await this.app.fileManager.trashFile(created);
+  private async trashCreatedDirectory(
+    folder: TFolder,
+    createdFiles: readonly CreatedPromotionFile[],
+  ): Promise<boolean> {
+    if (this.app.vault.getAbstractFileByPath(folder.path) !== folder) return false;
+    if (folder.children.length !== createdFiles.length) return false;
+
+    const ownedFiles = new Map(createdFiles.map((created) => [created.file, created] as const));
+    for (const child of folder.children) {
+      const created = child instanceof TFile ? ownedFiles.get(child) : undefined;
+      if (
+        created === undefined
+        || this.app.vault.getAbstractFileByPath(created.file.path) !== created.file
+        || await this.app.vault.read(created.file) !== created.expectedContent
+      ) {
+        return false;
+      }
+    }
+
+    if (
+      this.app.vault.getAbstractFileByPath(folder.path) !== folder
+      || folder.children.length !== createdFiles.length
+    ) {
+      return false;
+    }
+    await this.app.fileManager.trashFile(folder);
+    return true;
   }
 
   private async readManifest(expected: PromotionBlockMetadata): Promise<PromotionManifest> {

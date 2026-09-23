@@ -3,7 +3,6 @@ import {
   normalizePath,
   stringifyYaml,
   TFile,
-  TFolder,
   type Editor,
 } from "obsidian";
 
@@ -176,7 +175,7 @@ export class BasePromotionService {
     const current = reparseUnchangedTable(editor.getValue(), expected);
     if (current === null) throw new Error("The table changed while the preview was open.");
     await this.ensureFolder(parentPath(prepared.directoryPath));
-    await this.app.vault.createFolder(prepared.directoryPath);
+    const createdDirectory = await this.app.vault.createFolder(prepared.directoryPath);
     try {
       for (const record of prepared.records) await this.app.vault.create(record.path, record.content);
       await this.app.vault.create(prepared.manifestPath, prepared.manifestContent);
@@ -184,8 +183,13 @@ export class BasePromotionService {
       if (verified === null) throw new Error("The table changed while records were being created.");
       replaceTableSource(editor, verified, prepared.replacementSource);
     } catch (error) {
-      await this.trashCreatedDirectory(prepared.directoryPath);
-      throw error;
+      // Vault reads cannot atomically authorize trashing. A sync client, plugin or user
+      // may change even an already-checked file before trashFile() removes the folder.
+      // Retain all partial output and leave cleanup to an explicit user decision.
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Base upgrade failed; generated files were left in place for review. Record folder: ${createdDirectory.path}. Original failure: ${detail}`,
+      );
     }
   }
 
@@ -238,11 +242,6 @@ export class BasePromotionService {
       if (existing instanceof TFile) throw new Error(`A file blocks the target folder: ${current}`);
       if (existing === null) await this.app.vault.createFolder(current);
     }
-  }
-
-  private async trashCreatedDirectory(path: string): Promise<void> {
-    const created = this.app.vault.getAbstractFileByPath(path);
-    if (created instanceof TFolder) await this.app.fileManager.trashFile(created);
   }
 
   private async readManifest(expected: PromotionBlockMetadata): Promise<PromotionManifest> {

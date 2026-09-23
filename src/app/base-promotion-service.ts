@@ -3,7 +3,6 @@ import {
   normalizePath,
   stringifyYaml,
   TFile,
-  TFolder,
   type Editor,
 } from "obsidian";
 
@@ -27,11 +26,6 @@ interface PreparedRecord {
   path: string;
   record: PromotionRecord;
   content: string;
-}
-
-interface CreatedPromotionFile {
-  readonly file: TFile;
-  readonly expectedContent: string;
 }
 
 export interface PreparedBasePromotion {
@@ -182,31 +176,20 @@ export class BasePromotionService {
     if (current === null) throw new Error("The table changed while the preview was open.");
     await this.ensureFolder(parentPath(prepared.directoryPath));
     const createdDirectory = await this.app.vault.createFolder(prepared.directoryPath);
-    const createdFiles: CreatedPromotionFile[] = [];
     try {
-      for (const record of prepared.records) {
-        const file = await this.app.vault.create(record.path, record.content);
-        createdFiles.push({ file, expectedContent: record.content });
-      }
-      const manifestFile = await this.app.vault.create(prepared.manifestPath, prepared.manifestContent);
-      createdFiles.push({ file: manifestFile, expectedContent: prepared.manifestContent });
+      for (const record of prepared.records) await this.app.vault.create(record.path, record.content);
+      await this.app.vault.create(prepared.manifestPath, prepared.manifestContent);
       const verified = reparseUnchangedTable(editor.getValue(), current);
       if (verified === null) throw new Error("The table changed while records were being created.");
       replaceTableSource(editor, verified, prepared.replacementSource);
     } catch (error) {
-      let rollbackSafe = false;
-      try {
-        rollbackSafe = await this.trashCreatedDirectory(createdDirectory, createdFiles);
-      } catch {
-        rollbackSafe = false;
-      }
-      if (!rollbackSafe) {
-        const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `Base upgrade failed and generated files changed before rollback; preserved the generated record folder for review. Original failure: ${detail}`,
-        );
-      }
-      throw error;
+      // Vault reads cannot atomically authorize trashing. A sync client, plugin or user
+      // may change even an already-checked file before trashFile() removes the folder.
+      // Retain all partial output and leave cleanup to an explicit user decision.
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Base upgrade failed; generated files were left in place for review. Record folder: ${createdDirectory.path}. Original failure: ${detail}`,
+      );
     }
   }
 
@@ -259,35 +242,6 @@ export class BasePromotionService {
       if (existing instanceof TFile) throw new Error(`A file blocks the target folder: ${current}`);
       if (existing === null) await this.app.vault.createFolder(current);
     }
-  }
-
-  private async trashCreatedDirectory(
-    folder: TFolder,
-    createdFiles: readonly CreatedPromotionFile[],
-  ): Promise<boolean> {
-    if (this.app.vault.getAbstractFileByPath(folder.path) !== folder) return false;
-    if (folder.children.length !== createdFiles.length) return false;
-
-    const ownedFiles = new Map(createdFiles.map((created) => [created.file, created] as const));
-    for (const child of folder.children) {
-      const created = child instanceof TFile ? ownedFiles.get(child) : undefined;
-      if (
-        created === undefined
-        || this.app.vault.getAbstractFileByPath(created.file.path) !== created.file
-        || await this.app.vault.read(created.file) !== created.expectedContent
-      ) {
-        return false;
-      }
-    }
-
-    if (
-      this.app.vault.getAbstractFileByPath(folder.path) !== folder
-      || folder.children.length !== createdFiles.length
-    ) {
-      return false;
-    }
-    await this.app.fileManager.trashFile(folder);
-    return true;
   }
 
   private async readManifest(expected: PromotionBlockMetadata): Promise<PromotionManifest> {

@@ -34,7 +34,7 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Windows reserved filename stems with and without extensions.
 - [ ] Promoted Base recognition and migration under LF, CRLF, CR, tilde fences, and longer-fence examples.
 - [ ] Visible merged-data blocker text, exact coordinates/spans, disabled confirmation, and zero writes.
-- [ ] Upgrade confirmation and failure cleanup.
+- [ ] Upgrade confirmation and retained output after failure: partial records, concurrent edits, unexpected children and replacement folders remain untouched; the error includes the folder path and original cause.
 - [ ] `structural-tables` list membership without a per-record identity property.
 - [ ] Path-independent results after rename/move.
 - [ ] Later-record creation after moving the host note.

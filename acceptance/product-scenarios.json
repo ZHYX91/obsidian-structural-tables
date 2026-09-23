@@ -13,6 +13,28 @@
   },
   "scenarios": [
     {
+      "id": "base-promotion-failure-retention",
+      "title": "Base promotion failure preserves generated and concurrent content",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Promotion recovery in a fresh disposable Vault with Bases enabled. Run the acceptance provider command Arm promotion failure, then preview and confirm Upgrade to Base for the Alice/Bob table.",
+        "Inspect the failure message, source note and generated directory. Open Alice and check the appended external edit; verify Bob and the recovery manifest remain present.",
+        "Upgrade the Carol/Dan table normally, inspect its Base records, and restore the original table while retaining its generated records."
+      ],
+      "expected": [
+        "The failed upgrade reports the generated directory path and original stale-table error; no generated directory is trashed.",
+        "The first table retains External source change, Alice retains External record edit retained., and the other generated files remain available for manual review.",
+        "The normal upgrade shows Carol and Dan in the Base; restoration recovers only its original table and keeps all records from both attempts."
+      ]
+    },
+    {
       "id": "editing-reliability",
       "title": "Interrupted drafts and wide-table editing",
       "surfaces": [

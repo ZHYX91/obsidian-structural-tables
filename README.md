@@ -40,7 +40,7 @@ Choose Follow theme, Grid, or Three-line table independently of table layout and
 - Convert unambiguous Sheets Extended separator columns into canonical row-header syntax.
 - Upgrade a valid ordinary or structural table into an embedded Obsidian Base whose rows are independent Markdown notes, directly from the table context menu or command palette.
 - Keep promoted membership in the Obsidian-friendly `structural-tables` list and allow record notes to move or be renamed without leaving the Base; records need no plugin-specific identity property.
-- Preview every promotion, create a schema-versioned recovery manifest, roll back failed file creation to trash, restore the original table without deleting generated notes, and create later records with the plugin command under the host note's current folder.
+- Preview every promotion, create a schema-versioned recovery manifest, retain partial output after a failure for review, restore the original table without deleting generated notes, and create later records with the plugin command under the host note's current folder.
 - Diagnose invalid structures without rewriting the note.
 
 <!-- section: requirements-and-compatibility -->
@@ -117,7 +117,7 @@ Structural Tables does not support formulas, per-cell styling, block-level or tr
 <!-- section: privacy-and-security -->
 ## Privacy and security
 
-Structural Tables works locally. It does not make network requests, load remote assets, collect analytics, or send note content anywhere. Rendering never changes source Markdown; in-place and menu edits are explicit and validated before replacement. Promotion creates only the previewed local record notes and recovery manifest. A failed promotion moves its newly created table-specific directory to the configured Obsidian trash.
+Structural Tables works locally. It does not make network requests, load remote assets, collect analytics, or send note content anywhere. Rendering never changes source Markdown; in-place and menu edits are explicit and validated before replacement. Promotion creates only the previewed local record notes and recovery manifest. A failed promotion retains its generated directory and any partial records, and reports the folder path and original error. Review those files before manually removing or reusing them; failure handling never trashes concurrent edits or unrelated additions.
 
 <!-- section: development -->
 ## Development

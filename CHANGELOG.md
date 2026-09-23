@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.10 - 2026-09-23
+
+- Preserve generated folders and partial records after failed Base promotion so concurrent edits and unrelated additions are never swept into automatic cleanup.
+- Report the retained folder path and original failure for manual review.
+- Cover late concurrent edits, file replacement and partial-write failures with regression tests, and add a disposable-Vault promotion recovery scenario.
+
 ## 0.4.9 - 2026-09-20
 
 - Revalidate Base restoration after asynchronous reads and reject changed or ambiguous targets.

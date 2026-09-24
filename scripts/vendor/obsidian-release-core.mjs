@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 
-export const RELEASE_CORE_VERSION = "3.0.2";
+export const RELEASE_CORE_VERSION = "3.1.1";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
 export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
 export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
@@ -29,7 +29,7 @@ const pluginIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 const sha256Pattern = /^[0-9a-f]{64}$/u;
 const gitObjectPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const hostCapabilities = Object.freeze(["touch.drag", "touch.longPress", "touch.doubleTap"]);
+const hostCapabilities = Object.freeze(["touch.drag", "touch.longPress", "touch.doubleTap", "touch.pinch"]);
 const zipDosDate = 0x0021;
 const zipDosTime = 0;
 const zipUtf8Flag = 0x0800;
@@ -1732,6 +1732,20 @@ function assertOwnedDraft(record, verifiedBundle) {
   "GitHub Release must be the exact owned draft", "RELEASE_CORE_GITHUB");
 }
 
+function assertVisibleReleaseAssets(record, verifiedBundle) {
+  const expected = new Map(verifiedBundle.publicAssets.map((asset) => [asset.name, asset]));
+  assertCondition(Array.isArray(record.assets), "GitHub Release assets must be an array", "RELEASE_CORE_GITHUB");
+  const names = record.assets.map((asset) => asset?.name);
+  assertCondition(new Set(names).size === names.length && names.every((name) => expected.has(name)),
+    "GitHub Release asset inventory contains unexpected or duplicate files", "RELEASE_CORE_GITHUB");
+  for (const asset of record.assets) {
+    const wanted = expected.get(asset.name);
+    assertCondition(asset.state === "uploaded" && asset.size === wanted.size &&
+      asset.digest === `sha256:${wanted.sha256}`,
+    `GitHub Release asset metadata mismatch: ${asset.name}`, "RELEASE_CORE_GITHUB");
+  }
+}
+
 async function readReleaseById(commandRunner, repository, id, verifiedBundle, options,
   published = false, completeAssets = false) {
   return githubJson(commandRunner, `repos/${repository}/releases/${id}`, {
@@ -1742,19 +1756,9 @@ async function readReleaseById(commandRunner, repository, id, verifiedBundle, op
       "GitHub Release ID or tag identity changed", "RELEASE_CORE_GITHUB");
       if (record.draft === true) assertOwnedDraft(record, verifiedBundle);
       if (completeAssets) {
-        const expected = verifiedBundle.publicAssets.map((asset) => asset.name);
-        assertCondition(Array.isArray(record.assets), "GitHub Release assets must be an array", "RELEASE_CORE_GITHUB");
-        const actual = record.assets.map((asset) => asset?.name);
-        assertCondition(new Set(actual).size === actual.length && actual.every((name) => expected.includes(name)),
-          "GitHub Release asset inventory contains unexpected or duplicate files", "RELEASE_CORE_GITHUB");
         // Inspect every visible asset before waiting for the remaining uploaded names.
-        for (const asset of record.assets) {
-          const wanted = verifiedBundle.publicAssets.find((item) => item.name === asset.name);
-          assertCondition(asset.state === "uploaded" && asset.size === wanted.size &&
-            asset.digest === `sha256:${wanted.sha256}`,
-          `GitHub Release asset metadata mismatch: ${asset.name}`, "RELEASE_CORE_GITHUB");
-        }
-        if (actual.length < expected.length) fail("Uploaded assets are not visible yet", "RELEASE_CORE_GITHUB_PENDING");
+        assertVisibleReleaseAssets(record, verifiedBundle);
+        if (record.assets.length < verifiedBundle.publicAssets.length) fail("Uploaded assets are not visible yet", "RELEASE_CORE_GITHUB_PENDING");
       }
       if (published && (record.draft === true || record.immutable === false || record.published_at === null)) {
         fail("Published Release state is not visible yet", "RELEASE_CORE_GITHUB_PENDING");
@@ -1799,6 +1803,18 @@ async function fetchRelease(commandRunner, repository, tag, options, allow404) {
     }
   }
   fail("GitHub release listing exceeded the lookup limit", "RELEASE_CORE_GITHUB");
+}
+
+async function refreshPublishedRelease(record, commandRunner, repository, verifiedBundle, options) {
+  // A tag/list lookup can expose a published release before its assets. Once an
+  // ID is known, resolve the complete record by ID with the bounded read policy.
+  // Contradictory visible identity or bytes must never be hidden by a reread.
+  assertCondition(record.tag_name === verifiedBundle.candidateBundle.plugin.version &&
+    record.draft === false && record.prerelease === false,
+  "GitHub Release tag identity or stable publication state changed", "RELEASE_CORE_GITHUB");
+  assertVisibleReleaseAssets(record, verifiedBundle);
+  return readReleaseById(commandRunner, repository, releaseId(record), verifiedBundle,
+    options, true, true);
 }
 
 async function verifyHostedRecord({
@@ -1873,8 +1889,11 @@ export async function verifyPublishedRelease({
   const config = validateReleaseConfig(configInput);
   await assertCurrentExactTag(path.resolve(projectRoot), verifiedBundle.candidateBundle,
     commandRunner);
-  const record = releaseRecord ?? await fetchRelease(commandRunner, config.publication.repository,
-    verifiedBundle.candidateBundle.plugin.version, { cwd: projectRoot, env }, false);
+  const options = { cwd: projectRoot, env };
+  const record = releaseRecord ?? await refreshPublishedRelease(
+    await fetchRelease(commandRunner, config.publication.repository,
+      verifiedBundle.candidateBundle.plugin.version, options, false),
+    commandRunner, config.publication.repository, verifiedBundle, options);
   return verifyHostedRecord({
     projectRoot: path.resolve(projectRoot),
     config,
@@ -1894,11 +1913,13 @@ async function inspectExistingGitHubRelease({
 }) {
   const repository = config.publication.repository;
   const tag = verifiedBundle.candidateBundle.plugin.version;
-  const existing = await fetchRelease(commandRunner, repository, tag,
+  let existing = await fetchRelease(commandRunner, repository, tag,
     { cwd: projectRoot, env }, true);
   if (existing === null) {
     return Object.freeze({ status: "missing", repository, tag });
   }
+  if (existing.draft !== true) existing = await refreshPublishedRelease(existing,
+    commandRunner, repository, verifiedBundle, { cwd: projectRoot, env });
   const verified = await verifyHostedRecord({
     projectRoot, config, verifiedBundle, commandRunner, env,
     releaseRecord: existing, draft: existing.draft === true, allowMissingAssets: true,
@@ -2411,7 +2432,7 @@ function validatePortableProductEvidence(record) {
     new Set(record.scenario.requiredCapabilities).size ===
       record.scenario.requiredCapabilities.length &&
     record.scenario.requiredCapabilities.every((capability, index) =>
-      (capability === "touch.drag" || capability === "touch.longPress" || capability === "touch.doubleTap") &&
+      hostCapabilities.includes(capability) &&
       (index === 0 || record.scenario.requiredCapabilities[index - 1]
         .localeCompare(capability, "en") < 0)),
   "Portable product evidence scenario capabilities are invalid");
@@ -2444,11 +2465,13 @@ function validatePortableAndroidHost(host) {
   assertExactKeys(host.inputDriver, driverKeys, driverKeys,
     "Portable Android emulator input driver");
   assertCondition(host.inputDriver.id === "android-emulator-grpc-v1" &&
-    ["1.1.0", "1.2.0"].includes(host.inputDriver.version) &&
+    ["1.1.0", "1.2.0", "1.3.0"].includes(host.inputDriver.version) &&
     JSON.stringify(host.inputDriver.endpoint) ===
       JSON.stringify({ host: "127.0.0.1", port: "ephemeral" }) &&
     JSON.stringify(host.inputDriver.capabilities) ===
-      JSON.stringify(host.inputDriver.version === "1.1.0" ? ["touch.longPress", "touch.drag"] : ["touch.longPress", "touch.drag", "touch.doubleTap"]) &&
+      JSON.stringify(host.inputDriver.version === "1.1.0" ? ["touch.longPress", "touch.drag"] :
+        host.inputDriver.version === "1.2.0" ? ["touch.longPress", "touch.drag", "touch.doubleTap"] :
+          ["touch.longPress", "touch.drag", "touch.doubleTap", "touch.pinch"]) &&
     JSON.stringify(host.inputDriver.rpcAllowlist) === JSON.stringify([
       "/android.emulation.control.EmulatorController/getStatus",
       "/android.emulation.control.EmulatorController/getScreenshot",
@@ -2470,8 +2493,9 @@ function validatePortableInputTraceSummary(trace, evidence) {
     "residualTouches",
   ];
   assertExactKeys(trace, keys, keys, "Portable Android input trace summary");
-  assertCondition(trace.schemaVersion === 2 &&
-    trace.kind === "obsidian-plugin-workspace/android-input-trace-summary-v2",
+  const traceVersion = evidence.host.inputDriver.version === "1.3.0" ? 3 : 2;
+  assertCondition(trace.schemaVersion === traceVersion &&
+    trace.kind === `obsidian-plugin-workspace/android-input-trace-summary-v${traceVersion}`,
   "Portable Android input trace summary schema/kind is unsupported");
   assertCondition(typeof trace.path === "string" && trace.path.startsWith("input-traces/") &&
     !trace.path.includes("\\") && !trace.path.split("/").some((segment) =>
@@ -2523,11 +2547,12 @@ function validatePortableInputTraceSummary(trace, evidence) {
   assertCondition(Number.isSafeInteger(trace.actionCount) && trace.actionCount > 0,
     "Portable passed Android input trace must contain actions");
   const actionKeys = trace.driver.version === "1.1.0" ? ["tap", "longPress", "drag", "failed"] :
-    ["tap", "doubleTap", "longPress", "drag", "failed"];
+    trace.driver.version === "1.2.0" ? ["tap", "doubleTap", "longPress", "drag", "failed"] :
+      ["tap", "doubleTap", "longPress", "drag", "pinch", "failed"];
   assertExactKeys(trace.actions, actionKeys, actionKeys, "Portable Android input trace actions");
   assertCondition(Object.values(trace.actions).every((count) =>
     Number.isSafeInteger(count) && count >= 0) &&
-    trace.actions.tap + (trace.actions.doubleTap ?? 0) + trace.actions.longPress + trace.actions.drag === trace.actionCount &&
+    trace.actions.tap + (trace.actions.doubleTap ?? 0) + trace.actions.longPress + trace.actions.drag + (trace.actions.pinch ?? 0) === trace.actionCount &&
     trace.actions.failed === 0 && trace.residualTouches === 0,
   "Portable passed Android input trace action counts are invalid");
   for (const capability of evidence.scenario.requiredCapabilities) {

@@ -7,6 +7,8 @@ import { BasePromotionService } from "../src/app/base-promotion-service";
 import {
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
   promotionBlockAt,
+  TABLE_MEMBERSHIP_PROPERTY,
+  type PromotionBlockMetadata,
 } from "../src/core/base-promotion";
 import { parseEditableTables } from "../src/core/parser";
 
@@ -572,4 +574,61 @@ describe("asynchronous restoration guards", () => {
     await expect(service.restore(editor as unknown as Editor, metadata)).rejects.toThrow("changed");
     expect(editor.getValue()).toBe(externalSource);
   });
+  it("keeps membership authoritative when a saved Base displays a control property", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const service = new BasePromotionService(host.app);
+    const metadata: PromotionBlockMetadata = {
+      tableId: "stb_control",
+      manifestPath: "Folder/_structural-table-records/stb_control/_promotion.json",
+      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
+      propertyKeys: [TABLE_MEMBERSHIP_PROPERTY, "Name"],
+      range: { from: 0, to: 0 },
+      source: "",
+    };
+    const created = await service.createRecord(sourceFile, metadata);
+    const content = host.contents.get(created.path) ?? "";
+    expect(content).toContain('structural-tables:\n  - "stb_control"');
+    expect(content).not.toContain("structural-tables: \"\"");
+  });
+
+  it("refuses a promotion when the source file identity changes during generated writes", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    host.afterCreate = (path) => {
+      if (path.endsWith("/Alice.md")) sourceFile.path = "Folder/Renamed.md";
+    };
+
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceFile))
+      .rejects.toThrow("source note changed while records were being created");
+    expect(editor.getValue()).toBe(SOURCE);
+    expect(host.files.has(prepared.directoryPath)).toBe(true);
+  });
+
+  it("refuses restore when the manifest changes after the preview source was read", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceFile);
+    const metadata = promotionBlockAt(editor.getValue(), 1, sourceFile.path)!;
+    const preview = await service.restorationSource(metadata);
+    const manifest = JSON.parse(prepared.manifestContent);
+    host.contents.set(prepared.manifestPath, JSON.stringify({
+      ...manifest,
+      originalTableSource: SOURCE.replace("Alice", "Alicia"),
+    }));
+
+    await expect(service.restore(editor as unknown as Editor, metadata, preview))
+      .rejects.toThrow("manifest changed after the preview");
+    expect(editor.getValue()).toBe(prepared.replacementSource);
+  });
+
 });

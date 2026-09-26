@@ -74,8 +74,8 @@ function recordContent(
   membershipProperty = TABLE_MEMBERSHIP_PROPERTY,
 ): string {
   const frontmatter = {
-    [membershipProperty]: [tableId],
     ...record.values,
+    [membershipProperty]: [tableId],
   };
   return `---\n${stringifyYaml(frontmatter).trimEnd()}\n---\n`;
 }
@@ -165,9 +165,17 @@ export class BasePromotionService {
     };
   }
 
-  async execute(editor: Editor, expected: StructuralTable, prepared: PreparedBasePromotion): Promise<void> {
+  async execute(
+    editor: Editor,
+    expected: StructuralTable,
+    prepared: PreparedBasePromotion,
+    sourceFile?: TFile,
+  ): Promise<void> {
     if (prepared.plan.blockers.length > 0) {
       throw new Error("Resolve every blocking structural conversion issue before upgrading this table to a Base.");
+    }
+    if (sourceFile !== undefined && sourceFile.path !== prepared.sourceFilePath) {
+      throw new Error("The source note changed while the Base upgrade was open.");
     }
     if (this.app.vault.getAbstractFileByPath(prepared.directoryPath) !== null) {
       throw new Error("The target record folder already exists.");
@@ -181,6 +189,9 @@ export class BasePromotionService {
       await this.app.vault.create(prepared.manifestPath, prepared.manifestContent);
       const verified = reparseUnchangedTable(editor.getValue(), current);
       if (verified === null) throw new Error("The table changed while records were being created.");
+      if (sourceFile !== undefined && sourceFile.path !== prepared.sourceFilePath) {
+        throw new Error("The source note changed while records were being created.");
+      }
       replaceTableSource(editor, verified, prepared.replacementSource);
     } catch (error) {
       // Vault reads cannot atomically authorize trashing. A sync client, plugin or user
@@ -193,11 +204,14 @@ export class BasePromotionService {
     }
   }
 
-  async restore(editor: Editor, expected: PromotionBlockMetadata): Promise<void> {
+  async restore(editor: Editor, expected: PromotionBlockMetadata, previewSource?: string): Promise<void> {
     if (matchingPromotionBlock(editor, expected) === null) {
       throw new Error("The promoted Base changed before it could be restored.");
     }
     const manifest = await this.readManifest(expected);
+    if (previewSource !== undefined && manifest.originalTableSource !== previewSource) {
+      throw new Error("The recovery manifest changed after the preview was opened.");
+    }
     const current = matchingPromotionBlock(editor, expected);
     if (current === null) {
       throw new Error("The promoted Base changed while its recovery manifest was being read.");

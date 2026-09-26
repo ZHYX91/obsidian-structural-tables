@@ -30,7 +30,12 @@ function htmlCellText(cell: HTMLTableCellElement): string {
   return parts.join("").replace(/[ \t]*\n[ \t]*/gu, "\n").trim();
 }
 
-function clipboardTable(html: string): HTMLTableElement | null {
+interface ClipboardTable {
+  document: Document;
+  table: HTMLTableElement;
+}
+
+function parsedClipboardTable(html: string): ClipboardTable | null {
   let source = html;
   if (!/<table(?:\s|>)/iu.test(source)) {
     // Spreadsheet clipboard fragments can omit the surrounding table and rows.
@@ -41,19 +46,37 @@ function clipboardTable(html: string): HTMLTableElement | null {
   }
   const document = new DOMParser().parseFromString(source, "text/html");
   const table = document.querySelector("table");
-  return table instanceof HTMLTableElement ? table : null;
+  return table instanceof HTMLTableElement ? { document, table } : null;
+}
+
+function clipboardTable(html: string): HTMLTableElement | null {
+  return parsedClipboardTable(html)?.table ?? null;
+}
+
+function hasMeaningfulContentOutsideTable(document: Document, table: HTMLTableElement): boolean {
+  if (document.querySelectorAll("table").length !== 1) return true;
+  const clone = document.body.cloneNode(true) as HTMLElement;
+  clone.querySelector("table")?.remove();
+  if ((clone.textContent ?? "").trim() !== "") return true;
+  return clone.querySelector(
+    "img, svg, math, mjx-container, video, audio, canvas, iframe, object, input, textarea, select, button",
+  ) !== null;
 }
 
 export function singleCellTextFromClipboardHtml(html: string): string | null {
   const table = clipboardTable(html);
   const cells = table?.querySelectorAll<HTMLTableCellElement>("td, th");
   const cell = cells?.length === 1 ? cells[0] : undefined;
-  return cell === undefined ? null : htmlCellText(cell);
+  if (cell === undefined) return null;
+  const text = htmlCellText(cell);
+  if (text === "" && cell.querySelector("svg, math, mjx-container, img, .internal-embed") !== null) return null;
+  return text;
 }
 
 export function structuralSourceFromClipboardHtml(html: string): string | null {
-  const table = clipboardTable(html);
-  if (table === null) return null;
+  const parsed = parsedClipboardTable(html);
+  if (parsed === null || hasMeaningfulContentOutsideTable(parsed.document, parsed.table)) return null;
+  const { table } = parsed;
   const rows: ImportedHtmlRow[] = Array.from(table.rows).map((row) => {
     const section = row.parentElement?.tagName.toLowerCase() === "thead" ? "head" : "body";
     return {

@@ -11,7 +11,7 @@ describe("prose edit cache", () => {
     expect(mapTablesThroughProseEdit(parseEditableTables(source).tables, transaction))
       .toEqual(parseEditableTables(transaction.state.doc.toString()).tables);
   });
-  it.each(["\n", "|", "---", "> ", "```", ":", "", "    code"])("reparses potential structure %j", (insert) => {
+  it.each(["\n", "|", "---", "> ", "```", ":", "%%", "<!--", "-->", "$$", "", "    code"])("reparses potential structure %j", (insert) => {
     const state = EditorState.create({ doc: source });
     const transaction = state.update({ changes: { from: 0, to: 17, insert } });
     expect(mapTablesThroughProseEdit(parseEditableTables(source).tables, transaction)).toBeNull();

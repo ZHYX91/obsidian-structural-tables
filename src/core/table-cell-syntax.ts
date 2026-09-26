@@ -21,21 +21,16 @@ function matchingBacktickRun(source: string, start: number, length: number): num
   return -1;
 }
 
-/** Split a Markdown pipe row while treating only closed code spans as opaque. */
-export function splitTablePipeRow(line: string): ParsedTablePipeRow | null {
-  if (!line.includes("|")) return null;
-  const cells: string[] = [];
-  let current = "";
+function tablePipeSeparators(line: string): number[] {
+  const separators: number[] = [];
   let escaped = false;
   for (let index = 0; index < line.length; index += 1) {
     const character = line[index] ?? "";
     if (escaped) {
-      current += character;
       escaped = false;
       continue;
     }
     if (character === "\\") {
-      current += character;
       escaped = true;
       continue;
     }
@@ -43,26 +38,39 @@ export function splitTablePipeRow(line: string): ParsedTablePipeRow | null {
       const run = backtickRunLength(line, index);
       const close = matchingBacktickRun(line, index + run, run);
       if (close >= 0) {
-        current += line.slice(index, close + run);
         index = close + run - 1;
         continue;
       }
-      current += "`".repeat(run);
       index += run - 1;
       continue;
     }
-    if (character === "|") {
-      cells.push(current);
-      current = "";
-    } else {
-      current += character;
-    }
+    if (character === "|") separators.push(index);
   }
-  cells.push(current);
+  return separators;
+}
+
+/** Split a Markdown pipe row while treating only closed code spans as opaque. */
+export function splitTablePipeRow(line: string): ParsedTablePipeRow | null {
+  const separators = tablePipeSeparators(line);
+  if (separators.length === 0) return null;
+  const cells: string[] = [];
+  let from = 0;
+  for (const separator of separators) {
+    cells.push(line.slice(from, separator));
+    from = separator + 1;
+  }
+  cells.push(line.slice(from));
   if (cells.length < 2) return null;
   if ((cells[0] ?? "").trim() === "") cells.shift();
   if ((cells[cells.length - 1] ?? "").trim() === "") cells.pop();
   return cells.length === 0 ? null : { cells };
+}
+
+/** Map a source offset to the same pipe cell boundaries used by the row parser. */
+export function tableColumnAt(line: string, character: number): number {
+  const leadingPipe = line.trimStart().startsWith("|");
+  const separatorsBefore = tablePipeSeparators(line).filter((offset) => offset < character).length;
+  return Math.max(0, separatorsBefore - (leadingPipe ? 1 : 0));
 }
 
 /** Escape table separators outside closed code spans. */

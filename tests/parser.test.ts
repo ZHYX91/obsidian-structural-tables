@@ -96,4 +96,15 @@ describe("parseStructuralTables", () => {
     expect(table?.diagnostics.some((diagnostic) => diagnostic.code === code)).toBe(true);
     expect(table?.source).toBe(source);
   });
+  it.each([
+    ["Obsidian comments", ["%%", "| A | < |", "| --- | --- |", "| x | y |", "%%"].join("\n")],
+    ["HTML comments", ["<!--", "| A | < |", "| --- | --- |", "| x | y |", "-->"].join("\n")],
+    ["display math", ["$$", "| A | < |", "| --- | --- |", "| x | y |", "$$"].join("\n")],
+  ])("ignores structural-looking tables inside %s", (_name, hidden) => {
+    const source = `${hidden}\n\n| Visible | < |\n| --- | --- |\n| 1 | 2 |`;
+    const tables = parseStructuralTables(source).tables;
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.rows[0]?.cells[0]?.content).toBe("Visible");
+  });
+
 });

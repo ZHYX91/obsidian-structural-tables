@@ -9,6 +9,7 @@ export function mapTablesThroughProseEdit(
   if (tables === null) return null;
   const prose = (text: string): boolean => text.trim() !== ""
     && !/[|`~:]/u.test(text)
+    && !/(?:%%|<!--|-->|^\s*\$\$\s*$)/u.test(text)
     && !/^(?:\uFEFF?(?:---|\.\.\.)[\t ]*$| {0,3}>| {4}|\t| {0,3}(?:[-+*]|\d{1,9}[.)])[\t ]{1,4}(?=\S))/u.test(text);
   let safe = true;
   transaction.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {

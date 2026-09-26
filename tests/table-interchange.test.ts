@@ -70,6 +70,20 @@ describe("HTML table clipboard import", () => {
     expect(parsed?.rows[1]?.cells[1]?.content).toBe(String.raw`[[Target\|Alias]] \| literal`);
   });
 
+  it("refuses mixed prose or multiple tables so native paste can preserve all content", () => {
+    expect(structuralSourceFromClipboardHtml("<p>Before</p><table><tr><td>A</td><td>B</td></tr></table>")).toBeNull();
+    expect(structuralSourceFromClipboardHtml(
+      "<table><tr><td>A</td><td>B</td></tr></table><table><tr><td>C</td><td>D</td></tr></table>",
+    )).toBeNull();
+  });
+
+  it("falls back from non-text rich single cells while preserving truly empty cells", () => {
+    expect(singleCellTextFromClipboardHtml(
+      "<table><tr><td><mjx-container><svg><path></path></svg></mjx-container></td></tr></table>",
+    )).toBeNull();
+    expect(singleCellTextFromClipboardHtml("<table><tr><td></td></tr></table>")).toBe("");
+  });
+
   it("returns null for non-tables and one-column tables", () => {
     expect(structuralSourceFromClipboardHtml("<p>Hello</p>")).toBeNull();
     expect(structuralSourceFromClipboardHtml("<table><tr><td>A</td></tr></table>")).toBeNull();

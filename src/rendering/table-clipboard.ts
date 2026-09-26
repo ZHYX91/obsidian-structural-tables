@@ -62,7 +62,13 @@ export async function renderTableClipboard(
         const rendered = window.document.createElement("div");
         await MarkdownRenderer.render(app, cell.content, rendered, sourcePath, component);
         element.replaceChildren();
-        for (const child of rendered.childNodes) appendPortableContent(child, element);
+        if (rendered.querySelector("mjx-container, math, svg") !== null) {
+          // Portable HTML cannot preserve MathJax/SVG semantics reliably. Keep
+          // the original Markdown/LaTeX instead of silently flattening or dropping it.
+          element.textContent = cell.content;
+        } else {
+          for (const child of rendered.childNodes) appendPortableContent(child, element);
+        }
         textTable.rows[cell.row]!.cells[cell.column]!.content = portableText(element);
         const styles: Partial<CSSStyleDeclaration> = {
           padding: "4pt 6pt",

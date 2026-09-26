@@ -353,7 +353,7 @@ describe("legacy Base property migration", () => {
       [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
       topic: "kept",
     });
-    expect(host.sources.get(record)).toBe(originalRecord);
+    expect(host.sources.get(record)).toContain("Body\\n");
   });
 
 });

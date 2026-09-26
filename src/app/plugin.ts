@@ -470,7 +470,7 @@ export class StructuralTablesPlugin extends Plugin {
         },
         async () => {
           if (this.basePromotionService === null) throw new Error("Base promotion service is unavailable.");
-          await this.basePromotionService.execute(editor, table, prepared);
+          await this.basePromotionService.execute(editor, table, prepared, sourceFile);
           new Notice(t("notice.promoted").replace("{path}", prepared.manifestPath), 8000);
         },
         (error) => new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000),
@@ -498,7 +498,7 @@ export class StructuralTablesPlugin extends Plugin {
         cancelLabel: t("modal.cancel"),
         confirmLabel: t("modal.restoreBase.confirm"),
         onConfirm: () => {
-          void service.restore(editor, metadata)
+          void service.restore(editor, metadata, source)
             .then(() => new Notice(t("notice.restored"), 8000))
             .catch((error: unknown) => new Notice(
               t("notice.restoreFailed").replace("{message}", errorMessage(error)),

@@ -115,6 +115,8 @@ describe("table operations", () => {
     expect(cellColumnAt("| A | B |", 7)).toBe(1);
     expect(cellColumnAt(String.raw`| a\|b | c |`, 6)).toBe(0);
     expect(cellColumnAt("| A | ``x|y`` |  |", 11)).toBe(1);
+    const unmatched = "| `oops | < | x |   |";
+    expect(cellColumnAt(unmatched, unmatched.indexOf("x") + 1)).toBe(2);
   });
 
   it("merges a rectangular selection without discarding its top-left content", () => {

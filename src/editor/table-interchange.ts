@@ -53,7 +53,7 @@ function clipboardTable(html: string): HTMLTableElement | null {
   return parsedClipboardTable(html)?.table ?? null;
 }
 
-function hasMeaningfulContentOutsideTable(document: Document, table: HTMLTableElement): boolean {
+function hasMeaningfulContentOutsideTable(document: Document): boolean {
   if (document.querySelectorAll("table").length !== 1) return true;
   const clone = document.body.cloneNode(true) as HTMLElement;
   clone.querySelector("table")?.remove();
@@ -75,7 +75,7 @@ export function singleCellTextFromClipboardHtml(html: string): string | null {
 
 export function structuralSourceFromClipboardHtml(html: string): string | null {
   const parsed = parsedClipboardTable(html);
-  if (parsed === null || hasMeaningfulContentOutsideTable(parsed.document, parsed.table)) return null;
+  if (parsed === null || hasMeaningfulContentOutsideTable(parsed.document)) return null;
   const { table } = parsed;
   const rows: ImportedHtmlRow[] = Array.from(table.rows).map((row) => {
     const section = row.parentElement?.tagName.toLowerCase() === "thead" ? "head" : "body";

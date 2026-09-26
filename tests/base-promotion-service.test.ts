@@ -7,6 +7,7 @@ import { BasePromotionService } from "../src/app/base-promotion-service";
 import {
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
   promotionBlockAt,
+  TABLE_MEMBERSHIP_PROPERTY,
 } from "../src/core/base-promotion";
 import { parseEditableTables } from "../src/core/parser";
 

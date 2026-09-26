@@ -59,6 +59,21 @@ describe("portable table clipboard", () => {
     expect(unload).toHaveBeenCalledOnce();
   });
 
+  it("falls back to original math source when rendered output is not portable", async () => {
+    const mathSource = "| Formula | Value |\n| --- | --- |\n| $E=mc^2$ | 1 |";
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      if (text === "$E=mc^2$") {
+        element.innerHTML = "<mjx-container><svg><path></path></svg></mjx-container>";
+      } else {
+        element.textContent = text;
+      }
+    });
+    const result = await renderTableClipboard(new App(), parseEditableTables(mathSource).tables[0]!, "", "theme");
+    const document = new DOMParser().parseFromString(result.html, "text/html");
+    expect(document.querySelector("tbody td")?.textContent).toBe("$E=mc^2$");
+    expect(result.text).toContain("$E=mc^2$");
+  });
+
   it("exports real three-line borders across the complete header group", async () => {
     const result = await renderTableClipboard(new App(), parseEditableTables(source).tables[0]!, "", "three-line");
     const document = new DOMParser().parseFromString(result.html, "text/html");

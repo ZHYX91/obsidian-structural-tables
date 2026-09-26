@@ -213,9 +213,29 @@ export function tableMembershipState(frontmatter: Record<string, unknown> | unde
 
 export function migrateMembershipFilter(source: string): string {
   const current = `list(note[${yamlString(TABLE_MEMBERSHIP_PROPERTY)}])`;
-  return source
-    .split(`list(note.${LEGACY_TABLE_MEMBERSHIP_PROPERTY})`).join(current)
-    .split(`list(note[${yamlString(LEGACY_TABLE_MEMBERSHIP_PROPERTY)}])`).join(current);
+  const legacy = [
+    `list(note.${LEGACY_TABLE_MEMBERSHIP_PROPERTY})`,
+    `list(note[${yamlString(LEGACY_TABLE_MEMBERSHIP_PROPERTY)}])`,
+  ];
+  const parts = source.split(/(\r\n|\r|\n)/u);
+  let filterIndent: number | null = null;
+  for (let index = 0; index < parts.length; index += 2) {
+    const line = parts[index] ?? "";
+    if (filterIndent === null) {
+      const opening = /^([\t ]*)filters:[\t ]*(?:#.*)?$/u.exec(line);
+      if (opening !== null) filterIndent = opening[1]?.length ?? 0;
+      continue;
+    }
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+    const indent = /^[\t ]*/u.exec(line)?.[0].length ?? 0;
+    if (indent <= filterIndent) {
+      filterIndent = null;
+      continue;
+    }
+    parts[index] = legacy.reduce((value, token) => value.split(token).join(current), line);
+  }
+  return parts.join("");
 }
 
 export function migrateLegacyPromotionBlocks(source: string): { source: string; count: number } {

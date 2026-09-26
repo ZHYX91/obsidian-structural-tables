@@ -170,6 +170,7 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
 function ignoredLines(lines: string[]): Set<number> {
   const ignored = new Set<number>();
   let fence: { character: "`" | "~"; length: number } | null = null;
+  let protectedBlock: "obsidian-comment" | "html-comment" | "math" | null = null;
   let frontmatter = /^---[\t ]*$/u.test(lines[0]?.replace(/^\uFEFF/u, "") ?? "");
   let quoteDepth = 0;
   let listIndents: number[] = [];
@@ -177,9 +178,7 @@ function ignoredLines(lines: string[]): Set<number> {
     const original = lines[index] ?? "";
     if (frontmatter) {
       ignored.add(index);
-      if (index > 0 && /^(?:---|\.\.\.)[\t ]*$/u.test(original)) {
-        frontmatter = false;
-      }
+      if (index > 0 && /^(?:---|\.\.\.)[\t ]*$/u.test(original)) frontmatter = false;
       continue;
     }
     let quote = /^(?: {0,3}>[\t ]?)*/u.exec(original)?.[0] ?? "";
@@ -200,6 +199,15 @@ function ignoredLines(lines: string[]): Set<number> {
     }
     const listIndent = listIndents[listIndents.length - 1] ?? 0;
     const line = unquoted.slice(listIndent);
+
+    if (protectedBlock !== null) {
+      ignored.add(index);
+      if (protectedBlock === "obsidian-comment" && line.includes("%%")) protectedBlock = null;
+      else if (protectedBlock === "html-comment" && line.includes("-->")) protectedBlock = null;
+      else if (protectedBlock === "math" && /^ {0,3}\$\$[\t ]*$/u.test(line)) protectedBlock = null;
+      continue;
+    }
+
     if (fence !== null) {
       ignored.add(index);
       const closing = /^ {0,3}(`{3,}|~{3,})[\t ]*$/u.exec(line);
@@ -215,6 +223,25 @@ function ignoredLines(lines: string[]): Set<number> {
       ignored.add(index);
       continue;
     }
+
+    const obsidianComment = line.indexOf("%%");
+    if (obsidianComment >= 0) {
+      ignored.add(index);
+      if (line.indexOf("%%", obsidianComment + 2) < 0) protectedBlock = "obsidian-comment";
+      continue;
+    }
+    const htmlComment = line.indexOf("<!--");
+    if (htmlComment >= 0) {
+      ignored.add(index);
+      if (line.indexOf("-->", htmlComment + 4) < 0) protectedBlock = "html-comment";
+      continue;
+    }
+    if (/^ {0,3}\$\$[\t ]*$/u.test(line)) {
+      ignored.add(index);
+      protectedBlock = "math";
+      continue;
+    }
+
     if (/^(?: {4}|\t)/u.test(line)) ignored.add(index);
     const list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
     if (list !== null) listIndents.push(listIndent + list[0].length);

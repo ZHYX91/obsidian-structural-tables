@@ -8,6 +8,7 @@ import {
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
   promotionBlockAt,
   TABLE_MEMBERSHIP_PROPERTY,
+  type PromotionBlockMetadata,
 } from "../src/core/base-promotion";
 import { parseEditableTables } from "../src/core/parser";
 
@@ -578,7 +579,7 @@ describe("asynchronous restoration guards", () => {
     const sourceFile = memoryFile("Folder/People.md");
     host.files.set(sourceFile.path, sourceFile);
     const service = new BasePromotionService(host.app);
-    const metadata = {
+    const metadata: PromotionBlockMetadata = {
       tableId: "stb_control",
       manifestPath: "Folder/_structural-table-records/stb_control/_promotion.json",
       membershipProperty: TABLE_MEMBERSHIP_PROPERTY,

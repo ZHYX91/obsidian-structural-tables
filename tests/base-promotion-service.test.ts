@@ -589,7 +589,7 @@ describe("asynchronous restoration guards", () => {
     };
     const created = await service.createRecord(sourceFile, metadata);
     const content = host.contents.get(created.path) ?? "";
-    expect(content).toContain("structural-tables:\n  - stb_control");
+    expect(content).toContain('structural-tables:\n  - "stb_control"');
     expect(content).not.toContain("structural-tables: \"\"");
   });
 

@@ -277,7 +277,12 @@ function propertyKeysFromConfig(config: Record<string, unknown>, legacyExpressio
     }
     return [id];
   });
-  return [...new Set(keys)];
+  const reserved = new Set([
+    TABLE_MEMBERSHIP_PROPERTY,
+    LEGACY_TABLE_MEMBERSHIP_PROPERTY,
+    LEGACY_RECORD_ID_PROPERTY,
+  ].map(propertyIdentity));
+  return [...new Set(keys)].filter((key) => !reserved.has(propertyIdentity(key)));
 }
 
 function mandatoryMemberships(filters: unknown): { tableId: string; property: TableMembershipProperty }[] {

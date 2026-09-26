@@ -110,7 +110,7 @@ describe("renderStructuralTable", () => {
   });
 
   it("cancels deferred rendering when its component is destroyed before the microtask", async () => {
-    const table = parseStructuralTables("| A | B |\n| --- | --- |\n| 1 | 2 |").tables[0]!;
+    const table = parseStructuralTables("| A | B |\n| --- || --- |\n| 1 | 2 |").tables[0]!;
     const component = new Component();
     component.load();
     const render = vi.spyOn(MarkdownRenderer, "render");
@@ -124,7 +124,7 @@ describe("renderStructuralTable", () => {
   });
 
   it("falls back to source text if deferred Markdown rendering rejects", async () => {
-    const table = parseStructuralTables("| A | B |\n| --- | --- |\n| 1 | 2 |").tables[0]!;
+    const table = parseStructuralTables("| A | B |\n| --- || --- |\n| 1 | 2 |").tables[0]!;
     vi.spyOn(MarkdownRenderer, "render").mockRejectedValue(new Error("post-processor failed"));
     const container = document.createElement("div");
     renderStructuralTable({} as App, table, container, "Fallback.md", new Component());

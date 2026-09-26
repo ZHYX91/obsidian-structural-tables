@@ -32,6 +32,9 @@ function prepared(): PreparedBasePropertyMigration {
       legacyBaseCount: 2,
       hasLegacyRecordId: true,
       membershipIds: ["stb_people"],
+      currentMembershipPresent: false,
+      currentMembershipValue: undefined,
+      legacyMembershipValue: ["stb_people"],
       legacyRecordIdValue: "str_alice",
     }],
   };

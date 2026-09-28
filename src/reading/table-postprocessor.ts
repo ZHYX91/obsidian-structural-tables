@@ -94,9 +94,8 @@ export class StructuralTableReadingProcessor {
         }
         return;
       }
-      const component = new MarkdownRenderChild(existing);
-      context.addChild(component);
       const staging = existing.ownerDocument.createElement("div");
+      const component = new MarkdownRenderChild(staging);
       const rendered = renderStructuralTable(this.app, table, staging, context.sourcePath, component);
       const wrapper = rendered.parentElement;
       if (wrapper === null) {
@@ -108,7 +107,12 @@ export class StructuralTableReadingProcessor {
       wrapper.dataset.density = settings.density;
       wrapper.dataset.zebra = String(settings.zebraRows);
       wrapper.dataset.tableKind = table.structural ? "structural" : "ordinary";
+      // The host tracks render-child lifetime by containerEl. Keep ownership
+      // on the replacement, otherwise removing the source block can cancel
+      // queued cell rendering while the visible table is still alive.
+      component.containerEl = wrapper;
       existing.replaceWith(wrapper);
+      context.addChild(component);
     });
   }
 

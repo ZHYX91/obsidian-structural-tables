@@ -7,6 +7,7 @@
 - Preserve complete clipboard content, falling back to original Markdown for formulas, images and internal references.
 - Migrate global and view-level Base membership filters without changing unrelated YAML values; preserve rollback fields and bind asynchronous promotion/restoration to the source editor and preview.
 - Defer cell Markdown rendering and retain Callout ownership during detached editor mounts to prevent repeated mounting with third-party post-processors.
+- Keep Reading View cell rendering owned by the replacement table so list tables do not remain empty after their source block is replaced.
 - Show add-row and add-column controls during desktop hover or keyboard focus, and while a touch table is active.
 
 ## 0.4.10 - 2026-09-23

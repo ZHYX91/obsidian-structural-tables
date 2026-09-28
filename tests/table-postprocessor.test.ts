@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { type App, MarkdownRenderer, type MarkdownPostProcessorContext } from "obsidian";
+import { type App, MarkdownRenderer, type MarkdownPostProcessorContext, MarkdownRenderChild } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings";
@@ -35,6 +35,29 @@ function rawBlock(source: string): HTMLDivElement {
 }
 
 describe("StructuralTableReadingProcessor", () => {
+  it("keeps deferred list cells owned by the replacement instead of the removed source block", async () => {
+    const bare = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
+    const source = "- outer\n  - inner\n\n" + bare.split("\n").map((line) => "    " + line).join("\n");
+    const container = document.createElement("div");
+    container.appendChild(rawBlock(bare));
+    let child: MarkdownRenderChild | undefined;
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      (args[2] as HTMLElement).textContent = args[1] as string;
+    });
+    try {
+      new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, {
+        addChild: (value: MarkdownRenderChild) => { child = value; value.load(); },
+        sourcePath: "List.md",
+        getSectionInfo: () => ({ lineStart: 3, lineEnd: 5, text: source }),
+      } as unknown as MarkdownPostProcessorContext);
+      // A host section sweep unloads render children whose DOM was removed.
+      if (child !== undefined && !container.contains(child.containerEl)) child.unload();
+      await Promise.resolve();
+      expect(container.querySelector("tbody")?.textContent).toBe("North10");
+      expect(child?.containerEl).toBe(container.querySelector(".structural-tables-container"));
+      child?.unload();
+    } finally { render.mockRestore(); }
+  });
   it("maps rich callout source with coarse section metadata and preserves the ordinary neighbour", async () => {
     const structural = "> | Name | Value |\n> | --- || --- |\n> | **Software** | Applications |";
     const ordinary = "> | Plain | Table |\n> | --- | --- |\n> | Kept | Native |";

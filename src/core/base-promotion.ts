@@ -312,9 +312,8 @@ export function migrateLegacyPromotionBlocks(source: string): { source: string; 
     const replacement = migrateMembershipFilter(block.source);
     const verified = promotionBlocks(replacement).find((candidate) => candidate.tableId === block.tableId
       && candidate.manifestPath === block.manifestPath);
-    const expectedMembership = block.membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY
-      ? TABLE_MEMBERSHIP_PROPERTY : block.membershipProperty;
-    if (verified === undefined || verified.membershipProperty !== expectedMembership
+    if (verified === undefined || verified.membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY
+      || (block.membershipProperty !== null && verified.membershipProperty !== TABLE_MEMBERSHIP_PROPERTY)
       || migrateMembershipFilter(replacement) !== replacement) {
       throw new Error(`Could not verify migrated Base membership: ${block.tableId}.`);
     }

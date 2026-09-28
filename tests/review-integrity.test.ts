@@ -3,9 +3,22 @@ import { parseDocument } from "yaml";
 import { editCellContent, editCellAndAppendRow } from "../src/core/operations";
 import { parseEditableTables } from "../src/core/parser";
 import { importedHtmlTableToStructuralSource } from "../src/core/interchange";
-import { migrateMembershipFilter, migrateLegacyPromotionBlocks } from "../src/core/base-promotion";
+import { migrateMembershipFilter, migrateLegacyPromotionBlocks, promotionBlocks } from "../src/core/base-promotion";
 
 describe("reviewed write and container integrity", () => {
+  it.each(['list( note.structural_table_ids ).contains("stb_probe")', 'list(note[\'structural_table_ids\']).contains("stb_probe")'])("migrates recognized ownership with noncanonical member syntax: %s", expression => {
+    const source = ['```base', '# structural-tables-promotion: stb_probe', '# structural-tables-manifest: "Records/stb_probe/_promotion.json"', `filters: ${JSON.stringify(expression)}`, 'views:', '  - type: table', '    name: "list(note.structural_table_ids)"', '```'].join("\n");
+    expect(promotionBlocks(source)[0]?.membershipProperty).toBeNull();
+    const result = migrateLegacyPromotionBlocks(source);
+    expect(result.count).toBe(1);
+    const config = parseDocument(result.source.split("\n").slice(1, -1).join("\n")).toJS();
+    expect(config.filters).toBe('list(note["structural-tables"]).contains("stb_probe")');
+    expect(config.views[0].name).toBe("list(note.structural_table_ids)");
+    expect(promotionBlocks(result.source)[0]).toMatchObject({ tableId: "stb_probe", manifestPath: "Records/stb_probe/_promotion.json", membershipProperty: "structural-tables" });
+    expect(migrateLegacyPromotionBlocks(result.source)).toEqual({ source: result.source, count: 0 });
+    const unowned = source.split("\n").filter(line => !line.startsWith("# structural-tables-")).join("\n");
+    expect(migrateLegacyPromotionBlocks(unowned)).toEqual({ source: unowned, count: 0 });
+  });
   it("finds legacy view filters in an owned Base whose global filter is current", () => {
     const source = '```base\nstructural-tables:\n  version: 1\n  tableId: stb_people\n  manifestPath: Records/_promotion.json\nfilters: \'list(note["structural-tables"]).contains("stb_people")\'\nviews:\n  - type: table\n    name: People\n    filters: \'list(note.structural_table_ids).contains("stb_people")\'\n```';
     const migrated = migrateLegacyPromotionBlocks(source);

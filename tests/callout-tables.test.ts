@@ -20,7 +20,7 @@ function element(html: string): HTMLElement {
   return container.firstElementChild as HTMLElement;
 }
 
-function mount(source: string, html: string, pending?: Promise<string[]>): { view: EditorView; manager: CalloutTables; root: HTMLElement; render: ReturnType<typeof vi.fn> } {
+function mount(source: string, html: string, pending?: Promise<string[]>, detached = false): { view: EditorView; manager: CalloutTables; root: HTMLElement; render: ReturnType<typeof vi.fn> } {
   class Native extends WidgetType {
     toDOM(): HTMLElement { return element(`<div class="callout"><div class="callout-content">${html}</div></div>`); }
   }
@@ -28,7 +28,8 @@ function mount(source: string, html: string, pending?: Promise<string[]>): { vie
   const native = EditorView.decorations.of(Decoration.set([
     Decoration.replace({ widget: new Native(), block: true }).range(0, doc.indexOf("\n\n")),
   ]));
-  const parent = document.body.appendChild(document.createElement("div"));
+  const parent = document.createElement("div");
+  if (!detached) document.body.appendChild(parent);
   const view = new EditorView({ state: EditorState.create({ doc, extensions: [native] }), parent });
   const render = vi.fn(async (table) => pending ?? [blockSignature(element(table.rowHeaderColumnCount > 0 ? rawHtml : tableHtml))]);
   const manager = new CalloutTables(view, () => ({
@@ -46,6 +47,66 @@ function mount(source: string, html: string, pending?: Promise<string[]>): { vie
 afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup(); vi.restoreAllMocks(); });
 
 describe("source-owned callout mounting", () => {
+  it("keeps one owned host while constructing a detached editor and after attachment", async () => {
+    const { root, manager, render } = mount(tableSource, tableHtml, undefined, true);
+    await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("mounted"));
+    const host = root.querySelector(".structural-tables-live-preview");
+    expect(host?.isConnected).toBe(false);
+    for (let index = 0; index < 10; index += 1) {
+      manager.schedule();
+      await Promise.resolve();
+      expect(root.querySelector(".structural-tables-live-preview")).toBe(host);
+    }
+    document.body.appendChild(root);
+    manager.schedule();
+    await Promise.resolve();
+    expect(root.querySelector(".structural-tables-live-preview")).toBe(host);
+    expect(render).toHaveBeenCalledOnce();
+  });
+
+  it("retains a temporarily detached editor's host without release/remount feedback", async () => {
+    const { root, manager } = mount(tableSource, tableHtml);
+    await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("mounted"));
+    const host = root.querySelector(".structural-tables-live-preview");
+    root.remove();
+    manager.schedule();
+    await Promise.resolve();
+    expect(root.querySelector(".structural-tables-live-preview")).toBe(host);
+    document.body.appendChild(root);
+    manager.destroy();
+    expect(root.querySelector(".structural-tables-live-preview")).toBeNull();
+    expect(root.querySelector("table")?.textContent).toBe("A<xy");
+  });
+
+  it("does not take a callout ancestor outside its own editor", async () => {
+    const { root, view, manager, render } = mount(tableSource, "");
+    const outer = element(`<div class="callout"><div class="callout-content">${tableHtml}</div></div>`);
+    document.body.appendChild(outer);
+    outer.appendChild(root);
+    vi.spyOn(view, "domAtPos").mockReturnValue({ node: view.dom, offset: 0 });
+    await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("waiting-for-dom"));
+    expect(render).not.toHaveBeenCalled();
+    expect(outer.querySelector("table")).not.toBeNull();
+    expect(outer.querySelector(".structural-tables-live-preview")).toBeNull();
+    outer.remove();
+  });
+
+  it("does not take a callout from another editor or note embed", async () => {
+    const { root, view, manager } = mount(tableSource, "");
+    const foreign = element(`<div class="cm-editor"><div class="callout"><div class="callout-content">${tableHtml}</div></div></div>`);
+    root.appendChild(foreign);
+    vi.spyOn(view, "domAtPos").mockReturnValue({ node: foreign, offset: 0 });
+    await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("waiting-for-dom"));
+    expect(foreign.querySelector("table")).not.toBeNull();
+    view.dom.appendChild(foreign);
+    manager.schedule();
+    await Promise.resolve();
+    expect(foreign.querySelector(".structural-tables-live-preview")).toBeNull();
+    foreign.className = "internal-embed";
+    manager.schedule();
+    await Promise.resolve();
+    expect(foreign.querySelector(".structural-tables-live-preview")).toBeNull();
+  });
   it("does not depend on reverse DOM position mapping", async () => {
     const { view, root, manager } = mount(tableSource, tableHtml);
     vi.spyOn(view, "posAtDOM").mockImplementation(() => { throw new Error("native widget mapping unavailable"); });
@@ -106,6 +167,13 @@ describe("source-owned callout mounting", () => {
 });
 
 describe("native block matching", () => {
+  it("never treats another manager's mounted host as native table content", () => {
+    const root = element(`<div class="callout"><div class="callout-content"><div class="structural-tables-live-preview">${tableHtml}</div></div></div>`);
+    const host = root.querySelector<HTMLElement>(".structural-tables-live-preview")!;
+    const original = element(tableHtml);
+    expect(calloutBlocks(root, new Map())).toEqual([]);
+    expect(matchingBlocks(calloutBlocks(root, new Map([[host, [original]]])), [blockSignature(original)])).toEqual([[host]]);
+  });
   it("preserves document order across outer and nested identical tables", () => {
     const root = element(`<div class="callout"><div class="callout-content">${tableHtml}<div class="callout"><div class="callout-content">${tableHtml}</div></div>${tableHtml}</div></div>`);
     const native = [...root.querySelectorAll("table")];

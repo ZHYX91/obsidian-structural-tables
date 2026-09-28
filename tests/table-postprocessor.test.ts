@@ -67,7 +67,7 @@ describe("StructuralTableReadingProcessor", () => {
       expect([...container.querySelectorAll("table")].pop()?.textContent).toBe("PlainTableKeptNative");
     } finally { render.mockRestore(); vi.unstubAllGlobals(); }
   });
-  it.each(["> ", ">> ", "    "])("renders a container table in an isolated section %j", (prefix) => {
+  it.each(["> ", ">> ", "    "])("renders a container table in an isolated section %j", async (prefix) => {
     const bare = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
     const source = "- outer\n  - inner\n\n" + bare.split("\n").map((line) => prefix + line).join("\n");
     const container = document.createElement("div");
@@ -79,6 +79,7 @@ describe("StructuralTableReadingProcessor", () => {
     } as unknown as MarkdownPostProcessorContext;
     new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, context);
     expect(container.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+    await Promise.resolve();
     expect(render.mock.calls.map((call) => call[1])).toContain("North");
     render.mockRestore();
   });
@@ -255,7 +256,7 @@ describe("StructuralTableReadingProcessor", () => {
     expect(addChild).toHaveBeenCalledOnce();
   });
 
-  it("uses the element's bounded source lines instead of substituting an earlier structural table", () => {
+  it("uses the element's bounded source lines instead of substituting an earlier structural table", async () => {
     const structural = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
     const ordinary = "| Name | Status |\n| --- | --- |\n| Alice | Ready |";
     const source = `${structural}\n\n# Native\n\n${ordinary}`;
@@ -277,6 +278,7 @@ describe("StructuralTableReadingProcessor", () => {
     processor.process(container, context);
 
     expect(native.parentElement).toBeNull();
+    await Promise.resolve();
     expect(render.mock.calls.map((call) => call[1])).toContain("Alice");
     expect(render.mock.calls.map((call) => call[1])).not.toContain("North");
     render.mockRestore();

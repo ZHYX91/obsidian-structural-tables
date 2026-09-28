@@ -11,7 +11,11 @@ describe("prose edit cache", () => {
     expect(mapTablesThroughProseEdit(parseEditableTables(source).tables, transaction))
       .toEqual(parseEditableTables(transaction.state.doc.toString()).tables);
   });
-  it.each(["\n", "|", "---", "> ", "```", ":", "%%", "<!--", "-->", "$$", "$$x", "x$$", "", "    code"])("reparses potential structure %j", (insert) => {
+  it.each([
+    "\n", "|", "---", "> ", "```", ":", "%%", "<!--", "-->", "$$", "$$x", "x$$", "", "    code",
+    "<pre>", '<PRE class="literal">', "</pre>", "<script", "</SCRIPT>", "<style>", "</STYLE>",
+    "<textarea>", "</TEXTAREA>",
+  ])("reparses potential structure %j", (insert) => {
     const state = EditorState.create({ doc: source });
     const transaction = state.update({ changes: { from: 0, to: 17, insert } });
     expect(mapTablesThroughProseEdit(parseEditableTables(source).tables, transaction)).toBeNull();
@@ -29,5 +33,14 @@ describe("prose edit cache", () => {
 
     expect(mapTablesThroughProseEdit(tables, transaction)).not.toBeNull();
   });
+
+  it.each(["ordinary prose <pre> inline", "<prelude> is not a literal raw tag"])(
+    "does not invalidate snapshots for non-boundary raw-tag text %j",
+    (prose) => {
+      const start = EditorState.create({ doc: source });
+      const transaction = start.update({ changes: { from: 0, to: 17, insert: prose } });
+      expect(mapTablesThroughProseEdit(parseEditableTables(source).tables, transaction)).not.toBeNull();
+    },
+  );
 
 });

@@ -108,6 +108,70 @@ describe("parseStructuralTables", () => {
   });
 
   it.each([
+    ["PRE attributes and mixed case", ['<PRE class="literal">'], "</pRe>"],
+    ["script attributes", ['<script type="text/plain">'], "</SCRIPT>"],
+    ["style split opening", ["<style", '  type="text/css">'], "</STYLE>"],
+    ["textarea attributes", ['<textarea data-kind="literal">'], "</TEXTAREA>"],
+  ])("ignores tables inside raw literal HTML and resumes after the closing line: %s", (_name, opening, closing) => {
+    const hidden = "| Hidden | < |\n| --- | --- |\n| x | y |";
+    const visible = "| Visible | B |\n| --- | --- |\n| 1 | 2 |";
+    const source = [...opening, hidden, closing, visible].join("\n");
+    const tables = parseEditableTables(source).tables;
+
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.rows[0]?.cells[0]?.content).toBe("Visible");
+  });
+
+  it.each(
+    ["pre", "script", "style", "textarea"].flatMap((tag) =>
+      ["\n", "\r\n", "\r"].map((ending) => ({ tag, ending }))),
+  )("keeps quoted literal markers inside raw <%s> protected with %j endings", ({ tag, ending }) => {
+    const hidden = [
+      `> <${tag}>`,
+      "> > literal",
+      "> | H | < |",
+      "> | --- | --- |",
+      "> | x | y |",
+      `> </${tag}>`,
+    ].join(ending);
+    const visible = ["| Visible | B |", "| --- | --- |", "| 1 | 2 |"].join(ending);
+    const tables = parseEditableTables(`${hidden}${ending}${visible}`).tables;
+
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.rows[0]?.cells[0]?.content).toBe("Visible");
+  });
+
+  it.each(
+    ["pre", "script", "style", "textarea"].flatMap((tag) =>
+      ["\n", "\r\n", "\r"].map((ending) => ({ tag, ending }))),
+  )("protects tables through EOF for unclosed raw literal <%s> HTML with %j endings", ({ tag, ending }) => {
+    const source = [`<${tag}>`, "> literal", "| Hidden | B |", "| --- | --- |", "| 1 | 2 |"].join(ending);
+    expect(parseEditableTables(source).tables).toEqual([]);
+  });
+
+  it.each([
+    ["ordinary", "| H | V |\n| --- | --- |\n| x | y |"],
+    ["structural", "| H | < |\n| --- | --- |\n| x | y |"],
+  ])("does not let a raw-HTML literal list marker turn following indented %s table into list content", (_name, table) => {
+    const source = `<pre>\n- literal\n  </pre>\n\n${table.split("\n").map((line) => `    ${line}`).join("\n")}`;
+    expect(parseEditableTables(source).tables).toEqual([]);
+  });
+
+  it.each([
+    ["> <pre>\n> literal\n| Visible | B |\n| --- | --- |\n| 1 | 2 |", "quote"],
+    ["- <pre>\n  literal\n\n| Visible | B |\n| --- | --- |\n| 1 | 2 |", "list"],
+  ])("ends unclosed raw protection when its real outer %s container exits", (source) => {
+    expect(parseEditableTables(source).tables.map((candidate) => candidate.rows[0]?.cells[0]?.content))
+      .toEqual(["Visible"]);
+  });
+
+  it("resumes parsing after a raw literal HTML block that opens and closes on one line", () => {
+    const source = '<PRE class="literal">raw</pre>\n| Visible | B |\n| --- | --- |\n| 1 | 2 |';
+    expect(parseEditableTables(source).tables.map((candidate) => candidate.rows[0]?.cells[0]?.content))
+      .toEqual(["Visible"]);
+  });
+
+  it.each([
     "Use `%%` literally.", "Use ``<!--`` literally.", "Use `$$` literally.",
     String.raw`Escaped \%% marker`, String.raw`Escaped \<!-- marker`,
     "    %% indented code", "    <!-- indented code", "$x%%y$", "$$x$$",

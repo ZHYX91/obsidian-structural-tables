@@ -1,5 +1,6 @@
 import type { Transaction } from "@codemirror/state";
 import type { StructuralTable } from "../core/model";
+import { endsRawLiteralHtmlBlock, startsRawLiteralHtmlBlock } from "../core/source-lines";
 
 /** Reuse only edits whose entire old and new line cannot carry Markdown structure. */
 export function mapTablesThroughProseEdit(
@@ -10,6 +11,8 @@ export function mapTablesThroughProseEdit(
   const prose = (text: string): boolean => text.trim() !== ""
     && !/[|`~:]/u.test(text)
     && !/(?:%%|<!--|-->|\$\$)/u.test(text)
+    && !startsRawLiteralHtmlBlock(text)
+    && !endsRawLiteralHtmlBlock(text)
     && !/^(?:\uFEFF?(?:---|\.\.\.)[\t ]*$| {0,3}>| {4}|\t| {0,3}(?:[-+*]|\d{1,9}[.)])[\t ]{1,4}(?=\S))/u.test(text);
   let safe = true;
   transaction.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {

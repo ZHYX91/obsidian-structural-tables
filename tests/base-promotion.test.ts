@@ -317,6 +317,98 @@ views:
     expect(migrated.source.slice(example.length)).toContain('list(note["structural-tables"])');
   });
 
+  it.each([
+    ["HTML comment", (source: string) => `<!--\n${source}\n-->`],
+    ["Obsidian comment", (source: string) => `%%\n${source}\n%%`],
+    ["display math", (source: string) => `$$\n${source}\n$$`],
+    ["frontmatter scalar", (source: string) => [
+      "---",
+      "example: |",
+      ...source.split("\n").map((line) => `  ${line}`),
+      "---",
+    ].join("\n")],
+  ])("ignores a plugin-shaped Base inside %s while keeping a real Base with the same id", (_name, protect) => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_shared");
+    const legacy = embeddedBaseSource(plan, "Records/shared/_promotion.json")
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
+    const protectedExample = protect(legacy);
+    const source = `${protectedExample}\n\n${legacy}`;
+
+    expect(promotionBlocks(source).map(({ tableId }) => tableId)).toEqual(["stb_shared"]);
+    const migrated = migrateLegacyPromotionBlocks(source);
+    expect(migrated.count).toBe(1);
+    expect(migrated.source.slice(0, protectedExample.length)).toBe(protectedExample);
+    expect(migrated.source.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
+  });
+
+  it.each([
+    ["PRE with mixed case and attributes", ["<PRE class=\"literal\">"], "</pRe>"],
+    ["script with attributes", ['<script type="text/plain">'], "</SCRIPT>"],
+    ["style with a split opening tag", ["<style", '  type="text/css">'], "</STYLE>"],
+    ["textarea with attributes", ['<textarea data-kind="literal">'], "</TEXTAREA>"],
+  ])("ignores a plugin-shaped Base inside raw literal HTML: %s", (_name, opening, closing) => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_raw");
+    const legacy = embeddedBaseSource(plan, "Records/raw/_promotion.json")
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
+    const protectedExample = [...opening, legacy, closing].join("\n");
+    const source = `${protectedExample}\n\n${legacy}`;
+
+    expect(promotionBlocks(source).map(({ tableId }) => tableId)).toEqual(["stb_raw"]);
+    const migrated = migrateLegacyPromotionBlocks(source);
+    expect(migrated.count).toBe(1);
+    expect(migrated.source.slice(0, protectedExample.length)).toBe(protectedExample);
+    expect(migrated.source.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
+  });
+
+  it.each(
+    ["pre", "script", "style", "textarea"].flatMap((tag) =>
+      ["\n", "\r\n", "\r"].map((ending) => ({ tag, ending }))),
+  )("keeps one Base inside unclosed <%s> raw literal HTML protected with %j endings", ({ tag, ending }) => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), `stb_unclosed_${tag}`);
+    const legacy = embeddedBaseSource(plan, `Records/unclosed-${tag}/_promotion.json`)
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)")
+      .split("\n").join(ending);
+    const source = [`<${tag}>`, "> literal", legacy].join(ending);
+
+    expect(promotionBlocks(source)).toEqual([]);
+    expect(migrateLegacyPromotionBlocks(source)).toEqual({ source, count: 0 });
+  });
+
+  it.each(
+    ["pre", "script", "style", "textarea"].flatMap((tag) =>
+      ["\n", "\r\n", "\r"].map((ending) => ({ tag, ending }))),
+  )("ignores a quote marker inside root raw <%s> and migrates the same-id Base after close with %j endings", ({ tag, ending }) => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_raw_quote");
+    const legacy = embeddedBaseSource(plan, "Records/raw-quote/_promotion.json")
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)")
+      .split("\n").join(ending);
+    const protectedExample = [`<${tag}>`, "> literal", legacy, `</${tag}>`].join(ending);
+    const source = `${protectedExample}${ending}${ending}${legacy}`;
+
+    expect(promotionBlocks(source).map(({ tableId }) => tableId)).toEqual(["stb_raw_quote"]);
+    const migrated = migrateLegacyPromotionBlocks(source);
+    expect(migrated.count).toBe(1);
+    expect(migrated.source.slice(0, protectedExample.length)).toBe(protectedExample);
+    expect(migrated.source.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
+  });
+
+  it("keeps real Base fences visible at supported indentation while excluding indented code", () => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_indent");
+    const legacy = embeddedBaseSource(plan, "Records/indent/_promotion.json")
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
+    const indentFence = (source: string, spaces: number) => {
+      const lines = source.split("\n");
+      lines[0] = `${" ".repeat(spaces)}${lines[0] ?? ""}`;
+      lines[lines.length - 1] = `${" ".repeat(spaces)}${lines[lines.length - 1] ?? ""}`;
+      return lines.join("\n");
+    };
+    const indentAll = (source: string, spaces: number) => source.split("\n")
+      .map((line) => `${" ".repeat(spaces)}${line}`).join("\n");
+
+    expect(promotionBlocks(indentFence(legacy, 3)).map(({ tableId }) => tableId)).toEqual(["stb_indent"]);
+    expect(promotionBlocks(indentAll(legacy, 4))).toEqual([]);
+  });
+
   it("recognizes exact Base info strings in backtick and tilde fences only", () => {
     const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_tilde");
     const tilde = embeddedBaseSource(plan, "Records/tilde/_promotion.json")

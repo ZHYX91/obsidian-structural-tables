@@ -42,7 +42,7 @@ describe("portable table clipboard", () => {
   it("keeps semantic spans and rich inline content with a readable plain-text alternative", async () => {
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
       element.innerHTML = text === "Rich"
-        ? '<p><strong>Bold</strong> <a href="https://example.com" class="external-link">Link</a><br><code>a|b</code> <a class="internal-link" href="Note">Alias</a><img src="local.png" alt="Diagram"></p>'
+        ? '<p><strong>Bold</strong> <a href="https://example.com" class="external-link">Link</a><br><code>a|b</code></p>'
         : text;
     });
     const unload = vi.spyOn(Component.prototype, "unload");
@@ -55,7 +55,7 @@ describe("portable table clipboard", () => {
     expect(document.querySelector("a")?.getAttribute("href")).toBe("https://example.com");
     expect(document.querySelector("code")?.textContent).toBe("a|b");
     expect(document.querySelector("img, [class], [href='Note']")).toBeNull();
-    expect(result.text).toBe("Region\tSales / Q1\tSales / Q2\nNorth\tBold Link a|b AliasDiagram\t12\nNorth\t8\t11");
+    expect(result.text).toBe("Region\tSales / Q1\tSales / Q2\nNorth\tBold Link a|b\t12\nNorth\t8\t11");
     expect(unload).toHaveBeenCalledOnce();
   });
 
@@ -72,6 +72,25 @@ describe("portable table clipboard", () => {
     const document = new DOMParser().parseFromString(result.html, "text/html");
     expect(document.querySelector("tbody td")?.textContent).toBe("$E=mc^2$");
     expect(result.text).toContain("$E=mc^2$");
+  });
+
+  it.each([
+    ['Before ![[image.png]] after', '<p>Before <img src="app://image.png" alt="image"> after</p>'],
+    ['[[Note\\|Alias]]', '<a class="internal-link" href="Note">Alias</a>'],
+    ['![[Attachment.pdf]]', '<div class="internal-embed">Preview</div>'],
+    ['[Local](relative.md)', '<a href="relative.md">Local</a>'],
+    ['$\\frac{a}{b}$', '<math><mfrac><mi>a</mi><mi>b</mi></mfrac></math>'],
+  ])("keeps the original reference or math source for %s", async (original, rendered) => {
+    const input = `| Content | Value |\n| --- | --- |\n| ${original} | 1 |`;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      if (text === original) element.innerHTML = rendered;
+      else element.textContent = text;
+    });
+    const result = await renderTableClipboard(new App(), parseEditableTables(input).tables[0]!, "", "theme");
+    const document = new DOMParser().parseFromString(result.html, "text/html");
+    expect(document.querySelector("tbody td")?.textContent).toBe(original);
+    expect(document.querySelector("img, math, .internal-embed, a")).toBeNull();
+    expect(result.text).toContain(original);
   });
 
   it("exports real three-line borders across the complete header group", async () => {

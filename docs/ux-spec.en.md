@@ -43,6 +43,8 @@ Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TS
 
 When Preserve pasted HTML table spans is enabled, paste is intercepted only when the clipboard contains a verifiable multi-column table; otherwise Obsidian keeps its native behavior. A thead or consecutive th rows become column headers, consecutive leftmost th columns in the body become row headers, and rowspan/colspan become canonical `^`/`<` markers. Cell content is imported as plain text, with HTML break and block boundaries normalized to canonical `<br>` visual breaks. Plain GFM, TSV, and CSV output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, scope, and break elements.
 
+HTML conversion accepts one complete supported table only. Mixed prose, multiple tables, captions, math, images, attachments, and links that cannot be preserved are left to native note paste. In a cell editor, unsupported HTML uses the complete plain-text alternative with a notice; if none exists, the current edit remains intact. A verified empty cell can still clear the selected text. HTML copy falls back to original Markdown/LaTeX for math, images, attachments, and internal or relative links, preserving references without embedding arbitrary HTML.
+
 <!-- section: base-promotion -->
 ## Upgrade to Base
 

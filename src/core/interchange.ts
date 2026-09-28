@@ -1,7 +1,7 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
-import { mathCellInputProblem, normalizeTableCellText } from "./table-cell-syntax";
+import { existingTableCellText, mathCellInputProblem } from "./table-cell-syntax";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -43,7 +43,7 @@ function anchorFor(table: StructuralTable, cell: StructuralCell): StructuralCell
 }
 
 function portableCell(content: string): string {
-  return normalizeTableCellText(content);
+  return existingTableCellText(content);
 }
 
 function delimiterFor(alignment: ColumnAlignment): string {

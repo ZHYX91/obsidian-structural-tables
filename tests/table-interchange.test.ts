@@ -8,6 +8,9 @@ const originalDomParser = globalThis.DOMParser;
 const originalHtmlTable = globalThis.HTMLTableElement;
 
 describe("HTML table clipboard import", () => {
+  it.each(["&lt;!--", "%%"])("does not import a truncated table containing %s", content => {
+    expect(structuralSourceFromClipboardHtml(`<table><tr><th>H</th><th>V</th></tr><tr><td>${content}</td><td>KEEP-1</td></tr><tr><td>B</td><td>KEEP-2</td></tr></table>`)).toBeNull();
+  });
   it.each([
     "<p>Before</p><table><tr><td>A</td></tr></table><p>After</p>",
     "<table><tr><td>A</td></tr></table><table><tr><td>B</td></tr></table>",

@@ -212,7 +212,7 @@ function scanProtectedLine(line: string, block: ProtectedBlock | null): {
 
 function ignoredLines(lines: string[]): Set<number> {
   const ignored = new Set<number>();
-  let fence: { character: "`" | "~"; length: number } | null = null;
+  let fence: { character: "`" | "~"; length: number; listIndent: number } | null = null;
   let protectedBlock: ProtectedBlock | null = null;
   let protectedIndent = 0;
   let frontmatter = /^---[\t ]*$/u.test(lines[0]?.replace(/^\uFEFF/u, "") ?? "");
@@ -242,9 +242,22 @@ function ignoredLines(lines: string[]): Set<number> {
     if (unquoted.trim() !== "") {
       while (listIndents.length > 0 && indent < listIndents[listIndents.length - 1]!) listIndents.pop();
     }
-    const listIndent = listIndents[listIndents.length - 1] ?? 0;
-    const line = unquoted.slice(listIndent);
+    let listIndent = listIndents[listIndents.length - 1] ?? 0;
+    let line = unquoted.slice(listIndent);
     if (line.trim() !== "" && listIndent < protectedIndent) protectedBlock = null;
+    if (line.trim() !== "" && fence !== null && listIndent < fence.listIndent) fence = null;
+
+    // A list marker is a container, including when its first content is a fence.
+    // Markers inside an active code/comment block remain literal content.
+    if (fence === null && protectedBlock === null) {
+      let list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
+      while (list !== null) {
+        listIndent += list[0].length;
+        listIndents.push(listIndent);
+        line = line.slice(list[0].length);
+        list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
+      }
+    }
 
     if (fence !== null) {
       ignored.add(index);
@@ -257,7 +270,7 @@ function ignoredLines(lines: string[]): Set<number> {
     const run = opening?.[1];
     const info = opening?.[2] ?? "";
     if (protectedBlock === null && run !== undefined && (run[0] === "~" || !info.includes("`"))) {
-      fence = { character: run[0] as "`" | "~", length: run.length };
+      fence = { character: run[0] as "`" | "~", length: run.length, listIndent };
       ignored.add(index);
       continue;
     }
@@ -270,8 +283,6 @@ function ignoredLines(lines: string[]): Set<number> {
       if (protection.ignored) ignored.add(index);
     }
     if (indentedCode) ignored.add(index);
-    const list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
-    if (list !== null) listIndents.push(listIndent + list[0].length);
   }
   return ignored;
 }

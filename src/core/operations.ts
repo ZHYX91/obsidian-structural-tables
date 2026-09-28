@@ -1,6 +1,7 @@
 import type { ColumnAlignment, StructuralTable } from "./model";
-import { parseEditableTables, parseStructuralTables } from "./parser";
+import { parseEditableTables } from "./parser";
 import { serializeStructuralTable } from "./serializer";
+import { parseTableWrite } from "./table-write-validation";
 import { sourcePrefix } from "./source-lines";
 import { mathCellInputProblem, normalizeTableCellText, tableColumnAt as tableSyntaxColumnAt, type MathCellInputProblem } from "./table-cell-syntax";
 
@@ -174,7 +175,7 @@ function resultFromOwnedGrid(
     alignments,
     lineEnding(table.source),
   );
-  const parsed = parseEditableTables(candidateSource).tables[0] ?? null;
+  const parsed = parseTableWrite(candidateSource, values, headerRowCount, rowHeaderColumnCount, alignments);
   if (parsed === null || !parsed.valid) {
     return {
       changed: false,
@@ -230,7 +231,7 @@ export function editCellContent(
   }
   anchorValues[anchor.column] = normalized;
   const candidateSource = sourceWithRawCells(table, values);
-  const parsed = parseEditableTables(candidateSource).tables[0] ?? null;
+  const parsed = parseTableWrite(candidateSource, values, table.headerRowCount, table.rowHeaderColumnCount, table.alignments);
   if (parsed === null || !parsed.valid) {
     return { changed: false, code: "invalid-result", message: "That edit would create an invalid table.", source: table.source };
   }
@@ -461,7 +462,7 @@ export function mergeCell(
   if (rowValues === undefined) return { changed: false, code: "row-unavailable", message: "The current row is unavailable.", source: table.source };
   rowValues[column] = direction === "left" ? "<" : "^";
   const candidateSource = sourceWithRawCells(table, values);
-  const parsed = parseStructuralTables(candidateSource).tables[0] ?? null;
+  const parsed = parseTableWrite(candidateSource, values, table.headerRowCount, table.rowHeaderColumnCount, table.alignments);
   if (parsed === null || !parsed.valid) {
     return { changed: false, code: "invalid-result", message: parsed?.diagnostics[0]?.message ?? "That merge would create an invalid table.", source: table.source };
   }
@@ -530,7 +531,7 @@ export function mergeCellRange(
     }
   }
   const candidateSource = sourceWithRawCells(table, values);
-  const parsed = parseStructuralTables(candidateSource).tables[0] ?? null;
+  const parsed = parseTableWrite(candidateSource, values, table.headerRowCount, table.rowHeaderColumnCount, table.alignments);
   if (parsed === null || !parsed.valid) {
     return { changed: false, code: "invalid-result", message: parsed?.diagnostics[0]?.message ?? "That merge would create an invalid table.", source: table.source };
   }
@@ -559,15 +560,15 @@ export function splitCell(table: StructuralTable, row: number, column: number): 
     }
   }
   const candidateSource = sourceWithRawCells(table, values);
-  const parsed = parseEditableTables(candidateSource).tables[0] ?? null;
-  if (parsed !== null && !parsed.valid) {
+  const parsed = parseTableWrite(candidateSource, values, table.headerRowCount, table.rowHeaderColumnCount, table.alignments);
+  if (parsed === null || !parsed.valid) {
     return { changed: false, code: "split-unsafe", message: "The split could not be represented safely.", source: table.source };
   }
   return {
     changed: true,
     code: "split",
     message: "Merged cell split.",
-    source: parsed === null ? candidateSource : serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
+    source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
   };
 }
 
@@ -580,15 +581,15 @@ export function setHeaderRowCount(table: StructuralTable, count: number): Operat
     return { changed: false, code: "header-rows-set", message: "Those rows are already column headers.", source: table.source };
   }
   const candidateSource = sourceWithRawCells(table, rawValues(table), count);
-  const parsed = parseEditableTables(candidateSource).tables[0] ?? null;
-  if (parsed !== null && !parsed.valid) {
-    return { changed: false, code: "invalid-result", message: parsed.diagnostics[0]?.message ?? "That header boundary would create an invalid table.", source: table.source };
+  const parsed = parseTableWrite(candidateSource, rawValues(table), count, table.rowHeaderColumnCount, table.alignments);
+  if (parsed === null || !parsed.valid) {
+    return { changed: false, code: "invalid-result", message: parsed?.diagnostics[0]?.message ?? "That header boundary would create an invalid table.", source: table.source };
   }
   return {
     changed: true,
     code: "header-rows-set",
     message: "Column-header rows updated.",
-    source: parsed === null ? candidateSource : serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
+    source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
   };
 }
 
@@ -601,15 +602,15 @@ export function setRowHeaderColumnCount(table: StructuralTable, count: number): 
     return { changed: false, code: "row-headers-set", message: "Those columns are already row headers.", source: table.source };
   }
   const candidateSource = sourceWithRawCells(table, rawValues(table), table.headerRowCount, count);
-  const parsed = parseEditableTables(candidateSource).tables[0] ?? null;
-  if (parsed !== null && !parsed.valid) {
-    return { changed: false, code: "invalid-result", message: parsed.diagnostics[0]?.message ?? "That row-header boundary would create an invalid table.", source: table.source };
+  const parsed = parseTableWrite(candidateSource, rawValues(table), table.headerRowCount, count, table.alignments);
+  if (parsed === null || !parsed.valid) {
+    return { changed: false, code: "invalid-result", message: parsed?.diagnostics[0]?.message ?? "That row-header boundary would create an invalid table.", source: table.source };
   }
   return {
     changed: true,
     code: "row-headers-set",
     message: "Row-header columns updated.",
-    source: parsed === null ? candidateSource : serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
+    source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }),
   };
 }
 

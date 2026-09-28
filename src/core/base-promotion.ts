@@ -267,7 +267,8 @@ export function migrateMembershipFilter(source: string): string {
       if (migrated === node.value) return;
       const [start, end] = node.range;
       const block = node.type === "BLOCK_FOLDED" || node.type === "BLOCK_LITERAL";
-      let text = node.type === "QUOTE_DOUBLE" ? JSON.stringify(migrated) : `'${migrated.replace(/'/gu, "''")}'`;
+      let text = node.type === "QUOTE_DOUBLE" || /[\r\n]/u.test(migrated)
+        ? JSON.stringify(migrated) : `'${migrated.replace(/'/gu, "''")}'`;
       if (block && node.comment) text += ` #${node.comment}`;
       if (block && normalized.slice(start, end).endsWith("\n")) text += /\r\n|\r|\n/u.exec(yaml)?.[0] ?? "\n";
       replacements.push({ from: offsets[start]!, to: offsets[end]!, text });
@@ -280,7 +281,13 @@ export function migrateMembershipFilter(source: string): string {
       }
     }
   };
-  if (isMap(document.contents)) visitFilter(document.get("filters", true));
+  if (isMap(document.contents)) {
+    visitFilter(document.get("filters", true));
+    const views = document.get("views", true);
+    if (isSeq(views)) for (const view of views.items) {
+      if (isMap(view)) visitFilter(view.get("filters", true));
+    }
+  }
   let result = yaml;
   for (const replacement of replacements.sort((left, right) => right.from - left.from)) {
     result = result.slice(0, replacement.from) + replacement.text + result.slice(replacement.to);

@@ -1,6 +1,7 @@
+import type { BaseEditorInfo } from "../app/base-promotion-service";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
-import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
+import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -103,7 +104,7 @@ export class StructuralTableWidget extends WidgetType {
     private readonly sourcePath: string,
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
-    private readonly promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
+    private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
   ) { super(); }
 
   override eq(other: StructuralTableWidget): boolean {
@@ -164,7 +165,7 @@ class StructuralTableInteraction {
     private readonly sourcePath: string,
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
-    private readonly promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
+    private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
   ) {}
 
   rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
@@ -604,7 +605,7 @@ class StructuralTableInteraction {
         .catch(() => { new Notice(t("notice.clipboardFailed")); });
     }));
     if (this.promote !== undefined && info?.editor !== undefined) {
-      addBasePromotionMenuItem(menu, t, this.table, () => this.promote?.(info.editor!, info.file, this.table));
+      addBasePromotionMenuItem(menu, t, this.table, () => this.promote?.(info.editor!, () => view.dom.isConnected ? view.state.field(editorInfoField, false) ?? null : null, this.table));
     }
     const menuOptions = { fullEditor: true } as const;
     if (!hasSelectionMenuItems(selection, menuOptions)) return;

@@ -56,7 +56,7 @@ import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import { SettingsPersistenceSession } from "./settings-persistence-session";
 import { ConversionPreviewModal } from "./conversion-preview-modal";
 import { BasePromotionModal } from "./base-promotion-modal";
-import { BasePromotionService } from "./base-promotion-service";
+import { BasePromotionService, captureBaseEditorTarget, type BaseEditorInfo } from "./base-promotion-service";
 import { BasePropertyMigrationModal } from "./base-property-migration-modal";
 import { BasePropertyMigrationService } from "./base-property-migration-service";
 import { showRecoveredCellDrafts } from "../editor/cell-draft-recovery";
@@ -102,8 +102,8 @@ export class StructuralTablesPlugin extends Plugin {
     );
     this.settings = this.settingsPersistence.initialSettings();
     void this.settingsPersistence.start().catch(() => undefined);
-    const promote = (editor: Editor, sourceFile: TFile | null, table: StructuralTable): void => {
-      this.previewBasePromotion(editor, sourceFile, table);
+    const promote = (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable): void => {
+      this.previewBasePromotion(editor, getInfo, table);
     };
     this.editorController = new StructuralTableEditorController(this.app, () => this.settings, promote);
     const basePromotionService = new BasePromotionService(this.app, this.manifest.version);
@@ -177,12 +177,12 @@ export class StructuralTablesPlugin extends Plugin {
     this.localizedCommands.push(this.addCommand({
       id: "promote-current-table-to-base",
       name: t("command.promoteBase"),
-      editorCallback: (editor, context) => this.previewBasePromotion(editor, context.file),
+      editorCallback: (editor, context) => this.previewBasePromotion(editor, () => context),
     }));
     this.localizedCommands.push(this.addCommand({
       id: "restore-current-promoted-base-to-table",
       name: t("command.restorePromotedTable"),
-      editorCallback: (editor, info) => { void this.previewPromotedTableRestore(editor, info.file); },
+      editorCallback: (editor, info) => { void this.previewPromotedTableRestore(editor, () => info); },
     }));
     this.localizedCommands.push(this.addCommand({
       id: "create-record-for-current-promoted-base",
@@ -282,13 +282,13 @@ export class StructuralTablesPlugin extends Plugin {
           .setSection("structural-tables-base")
           .setIcon("rotate-ccw")
           .setTitle(t("menu.restorePromotedTable"))
-          .onClick(() => { void this.previewPromotedTableRestore(editor, info.file); }));
+          .onClick(() => { void this.previewPromotedTableRestore(editor, () => info); }));
         return;
       }
       const current = this.currentTable(editor);
       if (current !== null && current.table.valid) {
         addBasePromotionMenuItem(menu, t, current.table, () => {
-          this.previewBasePromotion(editor, info.file, current.table);
+          this.previewBasePromotion(editor, () => info, current.table);
         });
       }
       const selection = selectedStructuralTableCells(editor);
@@ -427,9 +427,10 @@ export class StructuralTablesPlugin extends Plugin {
 
   private previewBasePromotion(
     editor: Editor,
-    sourceFile: TFile | null,
+    getInfo: BaseEditorInfo,
     expectedTable?: StructuralTable,
   ): void {
+    const sourceFile = getInfo()?.file ?? null;
     if (sourceFile === null || this.basePromotionService === null) {
       new Notice(createTranslator(this.settings.language)("notice.noFile"));
       return;
@@ -451,6 +452,7 @@ export class StructuralTablesPlugin extends Plugin {
     }
     const t = createTranslator(this.settings.language);
     try {
+      const target = captureBaseEditorTarget(editor, getInfo);
       const prepared = this.basePromotionService.prepare(table, sourceFile);
       const expandsStructure = table.structural;
       new BasePromotionModal(
@@ -470,7 +472,7 @@ export class StructuralTablesPlugin extends Plugin {
         },
         async () => {
           if (this.basePromotionService === null) throw new Error("Base promotion service is unavailable.");
-          await this.basePromotionService.execute(editor, table, prepared, sourceFile);
+          await this.basePromotionService.execute(editor, table, prepared, target);
           new Notice(t("notice.promoted").replace("{path}", prepared.manifestPath), 8000);
         },
         (error) => new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000),
@@ -480,7 +482,8 @@ export class StructuralTablesPlugin extends Plugin {
     }
   }
 
-  private async previewPromotedTableRestore(editor: Editor, sourceFile: TFile | null): Promise<void> {
+  private async previewPromotedTableRestore(editor: Editor, getInfo: BaseEditorInfo): Promise<void> {
+    const sourceFile = getInfo()?.file ?? null;
     const service = this.basePromotionService;
     const t = createTranslator(this.settings.language);
     const offset = editor.posToOffset(editor.getCursor());
@@ -490,7 +493,9 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     try {
+      const target = captureBaseEditorTarget(editor, getInfo);
       const source = await service.restorationSource(metadata);
+      target.assertCurrent();
       new ConversionPreviewModal(this.app, {
         title: t("modal.restoreBase.title"),
         description: t("modal.restoreBase.desc"),
@@ -498,7 +503,7 @@ export class StructuralTablesPlugin extends Plugin {
         cancelLabel: t("modal.cancel"),
         confirmLabel: t("modal.restoreBase.confirm"),
         onConfirm: () => {
-          void service.restore(editor, metadata, source)
+          void service.restore(editor, metadata, target, source)
             .then(() => new Notice(t("notice.restored"), 8000))
             .catch((error: unknown) => new Notice(
               t("notice.restoreFailed").replace("{message}", errorMessage(error)),

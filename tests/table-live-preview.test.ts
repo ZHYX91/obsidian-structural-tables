@@ -1,9 +1,10 @@
+import type { BaseEditorInfo } from "../src/app/base-promotion-service";
 // @vitest-environment happy-dom
 
 import { EditorState, Prec, StateField, type Extension } from "@codemirror/state";
 import { history, redo, undo } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
-import { App, MarkdownRenderer, editorInfoField, editorLivePreviewField, type Editor, type TFile } from "obsidian";
+import { App, MarkdownRenderer, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
@@ -70,7 +71,7 @@ function mountEditor(
   source: string,
   selection: { anchor: number; head?: number },
   extensions: Extension[] = [],
-  promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
+  promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
   settingsOverride: Partial<StructuralTablesSettings> = {},
 ): {
     parent: HTMLElement;

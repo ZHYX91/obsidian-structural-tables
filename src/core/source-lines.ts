@@ -27,7 +27,7 @@ export function withSourcePrefix(source: string, prefix: string): string {
   return source.split(/(\r\n|\r|\n)/u).map((part, index) => index % 2 === 0 ? prefix + part : part).join("");
 }
 
-type ProtectedBlock = "%%" | "<!--" | "$";
+type ProtectedBlock = "%%" | "<!--" | "$$";
 
 function scanProtectedLine(line: string, block: ProtectedBlock | null): {
   block: ProtectedBlock | null;
@@ -40,7 +40,7 @@ function scanProtectedLine(line: string, block: ProtectedBlock | null): {
     if (block !== null) {
       protectedText = true;
       const end = block === "<!--" ? "-->" : block;
-      if (block === "$" && line[index] === "\\") { index += 2; continue; }
+      if (block === "$$" && line[index] === "\\") { index += 2; continue; }
       if (line.startsWith(end, index)) { block = null; index += end.length; }
       else index += 1;
       continue;
@@ -56,7 +56,7 @@ function scanProtectedLine(line: string, block: ProtectedBlock | null): {
       index = end;
       continue;
     }
-    const opening = (["%%", "<!--", "$"] as const).find((token) => line.startsWith(token, index));
+    const opening = (["%%", "<!--", "$$"] as const).find((token) => line.startsWith(token, index));
     if (opening !== undefined) { block = opening; protectedText = true; index += opening.length; continue; }
     // Comments written as literal TeX inside a closed inline formula are not Markdown comments.
     if (line[index] === "$") {
@@ -72,7 +72,7 @@ function scanProtectedLine(line: string, block: ProtectedBlock | null): {
 
 export function ignoredMarkdownLines(
   lines: readonly string[],
-  visibleFenceInfo: ReadonlySet<string> = new Set(),
+  visibleFenceInfo: ReadonlySet<string> = new Set<string>(),
 ): Set<number> {
   const ignored = new Set<number>();
   let fence: { character: "`" | "~"; length: number; listIndent: number } | null = null;

@@ -275,6 +275,49 @@ describe("legacy Base property migration", () => {
     expect(host.sources.get(record)).toBe(original);
   });
 
+  it.each(
+    ["\n", "\r\n", "\r"].flatMap((ending) =>
+      ["HTML comment", "Obsidian comment", "frontmatter scalar"].map((protection) => ({ ending, protection }))),
+  )("migrates only the real Base when a same-id example is protected by $protection / %j", async ({ ending, protection }) => {
+    const host = migrationHost();
+    const base = testFile("People.md");
+    host.files.push(base);
+    const legacy = promotedBase("stb_people", ending);
+    const protectedExample = protection === "HTML comment"
+      ? ["<!--", legacy, "-->"].join(ending)
+      : protection === "Obsidian comment"
+        ? ["%%", legacy, "%%"].join(ending)
+        : ["---", "example: |", ...legacy.split(ending).map((line) => `  ${line}`), "---"].join(ending);
+    const original = `${protectedExample}${ending}${ending}${legacy}`;
+    host.sources.set(base, original);
+    const service = new BasePropertyMigrationService(host.app);
+
+    const prepared = await service.prepare();
+    expect(prepared.legacyBaseCount).toBe(1);
+    expect(prepared.files).toHaveLength(1);
+    await service.execute(prepared, false);
+
+    const migrated = host.sources.get(base) ?? "";
+    expect(migrated.slice(0, protectedExample.length)).toBe(protectedExample);
+    expect(migrated.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
+    expect(migrated.match(/note\.structural_table_ids/gu)).toHaveLength(1);
+  });
+
+  it("does not schedule a migration for a plugin-shaped Base nested in a longer Markdown fence", async () => {
+    const host = migrationHost();
+    const base = testFile("Example.md");
+    host.files.push(base);
+    const original = ["````markdown", promotedBase("stb_example"), "````"].join("\n");
+    host.sources.set(base, original);
+    const service = new BasePropertyMigrationService(host.app);
+
+    const prepared = await service.prepare();
+    expect(prepared.legacyBaseCount).toBe(0);
+    expect(prepared.files).toEqual([]);
+    expect(await service.execute(prepared, false)).toMatchObject({ fileCount: 0, legacyBaseCount: 0 });
+    expect(host.sources.get(base)).toBe(original);
+  });
+
   it.each([
     ["CRLF", "\r\n"],
     ["CR", "\r"],

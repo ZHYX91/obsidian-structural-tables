@@ -320,7 +320,7 @@ views:
   it.each([
     ["HTML comment", (source: string) => `<!--\n${source}\n-->`],
     ["Obsidian comment", (source: string) => `%%\n${source}\n%%`],
-    ["display math", (source: string) => `$\n${source}\n$`],
+    ["display math", (source: string) => `$$\n${source}\n$$`],
     ["frontmatter scalar", (source: string) => [
       "---",
       "example: |",
@@ -345,11 +345,17 @@ views:
     const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_indent");
     const legacy = embeddedBaseSource(plan, "Records/indent/_promotion.json")
       .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
-    const indent = (source: string, spaces: number) => source.split("\n")
+    const indentFence = (source: string, spaces: number) => {
+      const lines = source.split("\n");
+      lines[0] = `${" ".repeat(spaces)}${lines[0] ?? ""}`;
+      lines[lines.length - 1] = `${" ".repeat(spaces)}${lines[lines.length - 1] ?? ""}`;
+      return lines.join("\n");
+    };
+    const indentAll = (source: string, spaces: number) => source.split("\n")
       .map((line) => `${" ".repeat(spaces)}${line}`).join("\n");
 
-    expect(promotionBlocks(indent(legacy, 3)).map(({ tableId }) => tableId)).toEqual(["stb_indent"]);
-    expect(promotionBlocks(indent(legacy, 4))).toEqual([]);
+    expect(promotionBlocks(indentFence(legacy, 3)).map(({ tableId }) => tableId)).toEqual(["stb_indent"]);
+    expect(promotionBlocks(indentAll(legacy, 4))).toEqual([]);
   });
 
   it("recognizes exact Base info strings in backtick and tilde fences only", () => {

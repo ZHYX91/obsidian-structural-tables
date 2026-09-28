@@ -1,6 +1,6 @@
 import type { StructuralTable } from "./model";
 import { projectStructuralTable } from "./interchange";
-import { parseDocument } from "yaml";
+import { isMap, isScalar, isSeq, parseDocument } from "yaml";
 
 export const TABLE_MEMBERSHIP_PROPERTY = "structural-tables";
 export const LEGACY_TABLE_MEMBERSHIP_PROPERTY = "structural_table_ids";
@@ -211,11 +211,85 @@ export function tableMembershipState(frontmatter: Record<string, unknown> | unde
   return { status: "valid", ids: current ?? legacy ?? [] };
 }
 
-export function migrateMembershipFilter(source: string): string {
+function migrateFilterExpression(source: string): string {
   const current = `list(note[${yamlString(TABLE_MEMBERSHIP_PROPERTY)}])`;
-  return source
-    .split(`list(note.${LEGACY_TABLE_MEMBERSHIP_PROPERTY})`).join(current)
-    .split(`list(note[${yamlString(LEGACY_TABLE_MEMBERSHIP_PROPERTY)}])`).join(current);
+  let result = "";
+  for (let index = 0; index < source.length;) {
+    const character = source[index]!;
+    if (character === '"' || character === "'") {
+      const from = index++;
+      while (index < source.length) {
+        if (source[index] === "\\") { index += 2; continue; }
+        if (source[index++] === character) break;
+      }
+      result += source.slice(from, index);
+      continue;
+    }
+    const previous = source[index - 1] ?? "";
+    const match = /[\p{L}\p{N}_$.]/u.test(previous) ? null
+      : /^list\s*\(\s*note(?:\s*\.\s*structural_table_ids|\s*\[\s*(["'])structural_table_ids\1\s*\])\s*\)/u.exec(source.slice(index));
+    if (match !== null) {
+      result += current;
+      index += match[0].length;
+    } else {
+      result += character;
+      index += 1;
+    }
+  }
+  return result;
+}
+
+export function migrateMembershipFilter(source: string): string {
+  const lines = sourceLines(source);
+  const opening = fenceOpening(lines[0]?.text ?? "");
+  const from = opening?.info === "base" ? lines[0]!.to : 0;
+  const to = opening?.info === "base" ? lines[lines.length - 1]!.from : source.length;
+  const yaml = source.slice(from, to);
+  // YAML normalizes line endings. Map parsed scalar ranges back to the original
+  // source so comments, unrelated fields and LF/CRLF/CR remain byte-for-byte.
+  const offsets: number[] = [];
+  let normalized = "";
+  for (let index = 0; index < yaml.length; index += 1) {
+    offsets.push(index);
+    if (yaml[index] === "\r") {
+      normalized += "\n";
+      if (yaml[index + 1] === "\n") index += 1;
+    } else normalized += yaml[index];
+  }
+  offsets.push(yaml.length);
+  const document = parseDocument(normalized);
+  if (document.errors.length > 0) throw new Error("Cannot migrate invalid Base YAML.");
+  document.toJS({ maxAliasCount: 0 });
+  const replacements: { from: number; to: number; text: string }[] = [];
+  const visitFilter = (node: unknown): void => {
+    if (isScalar(node) && typeof node.value === "string" && node.range != null) {
+      const migrated = migrateFilterExpression(node.value);
+      if (migrated === node.value) return;
+      const [start, end] = node.range;
+      const block = node.type === "BLOCK_FOLDED" || node.type === "BLOCK_LITERAL";
+      let text = node.type === "QUOTE_DOUBLE" ? JSON.stringify(migrated) : `'${migrated.replace(/'/gu, "''")}'`;
+      if (block && node.comment) text += ` #${node.comment}`;
+      if (block && normalized.slice(start, end).endsWith("\n")) text += /\r\n|\r|\n/u.exec(yaml)?.[0] ?? "\n";
+      replacements.push({ from: offsets[start]!, to: offsets[end]!, text });
+      node.value = migrated;
+    } else if (isSeq(node)) {
+      node.items.forEach(visitFilter);
+    } else if (isMap(node)) {
+      for (const pair of node.items) {
+        if (isScalar(pair.key) && ["and", "or", "not"].includes(String(pair.key.value))) visitFilter(pair.value);
+      }
+    }
+  };
+  if (isMap(document.contents)) visitFilter(document.get("filters", true));
+  let result = yaml;
+  for (const replacement of replacements.sort((left, right) => right.from - left.from)) {
+    result = result.slice(0, replacement.from) + replacement.text + result.slice(replacement.to);
+  }
+  const verified = parseDocument(result.replace(/\r\n|\r/gu, "\n"));
+  if (verified.errors.length > 0 || JSON.stringify(verified.toJS({ maxAliasCount: 0 })) !== JSON.stringify(document.toJS({ maxAliasCount: 0 }))) {
+    throw new Error("Base migration could not preserve the YAML structure.");
+  }
+  return source.slice(0, from) + result + source.slice(to);
 }
 
 export function migrateLegacyPromotionBlocks(source: string): { source: string; count: number } {
@@ -224,7 +298,11 @@ export function migrateLegacyPromotionBlocks(source: string): { source: string; 
     .sort((left, right) => right.range.from - left.range.from);
   let migrated = source;
   for (const block of legacy) {
-    migrated = `${migrated.slice(0, block.range.from)}${migrateMembershipFilter(block.source)}${migrated.slice(block.range.to)}`;
+    const replacement = migrateMembershipFilter(block.source);
+    if (promotionBlocks(replacement).find((candidate) => candidate.tableId === block.tableId)?.membershipProperty !== TABLE_MEMBERSHIP_PROPERTY) {
+      throw new Error(`Could not verify migrated Base membership: ${block.tableId}.`);
+    }
+    migrated = `${migrated.slice(0, block.range.from)}${replacement}${migrated.slice(block.range.to)}`;
   }
   return { source: migrated, count: legacy.length };
 }

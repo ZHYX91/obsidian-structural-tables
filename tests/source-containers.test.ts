@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseStructuralTables } from "../src/core/parser";
+import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { serializeStructuralTable } from "../src/core/serializer";
 import { cellColumnAt, editCellContent, insertTableRow, splitCell } from "../src/core/operations";
 import { withSourcePrefix } from "../src/core/source-lines";
@@ -91,7 +91,7 @@ describe("source containers", () => {
     const structural = tableSource.split("\n").map((line) => `    ${line}`).join("\n");
     const ordinary = "| A | B |\n| --- | --- |\n| x | y |".split("\n")
       .map((line) => `    ${line}`).join("\n");
-    expect(parseStructuralTables(`<pre>\n- literal\n  </pre>\n\n${structural}`).tables).toEqual([]);
-    expect(parseStructuralTables(`<pre>\n- literal\n  </pre>\n\n${ordinary}`).tables).toEqual([]);
+    expect(parseEditableTables(`<pre>\n- literal\n  </pre>\n\n${structural}`).tables).toEqual([]);
+    expect(parseEditableTables(`<pre>\n- literal\n  </pre>\n\n${ordinary}`).tables).toEqual([]);
   });
 });

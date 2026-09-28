@@ -379,4 +379,45 @@ views:
       `filters:\n  and:\n    - 'list(note["structural-tables"]).contains("stb_old")'\n# ${LEGACY_RECORD_ID_PROPERTY}`,
     );
   });
+
+  it.each(["\n", "\r\n", "\r"])("migrates scalar, flow and block YAML filters without changing unrelated source (%j)", (ending) => {
+    const expression = 'list(note.structural_table_ids).contains("stb_old")';
+    const encodings = [
+      `filters: '${expression}' # keep comment`,
+      `filters: ${JSON.stringify(expression)} # keep comment`,
+      `filters: {and: [${JSON.stringify(expression)}]} # keep comment`,
+      `filters: >- # keep comment\n  ${expression}`,
+      `filters:\n  and:\n    - ${JSON.stringify(expression)}`,
+    ];
+    for (const filter of encodings) {
+      const before = '# structural-tables-promotion: stb_old\n# structural-tables-manifest: "Records/_promotion.json"\n';
+      const after = '\nproperties:\n  note.name:\n    displayName: "list(note.structural_table_ids)"\n# final\n';
+      const original = ('```base\n' + before + filter + after + '```').replace(/\n/gu, ending);
+      expect(promotionBlocks(original)[0]?.membershipProperty).toBe(LEGACY_TABLE_MEMBERSHIP_PROPERTY);
+      const result = migrateLegacyPromotionBlocks(original);
+      expect(promotionBlocks(result.source)[0]?.membershipProperty).toBe(TABLE_MEMBERSHIP_PROPERTY);
+      expect(result.source).toContain(after.replace(/\n/gu, ending));
+      if (filter.includes("keep comment")) expect(result.source).toContain("# keep comment");
+      expect(migrateLegacyPromotionBlocks(result.source)).toEqual({ source: result.source, count: 0 });
+      expect(result.source.split(ending).join("")).not.toMatch(/[\r\n]/u);
+    }
+  });
+
+  it("does not rewrite expression string literals or a differently named function", () => {
+    const literal = '"list(note.structural_table_ids)"';
+    const expression = `list(note.structural_table_ids).contains("stb_old") && note.name == ${literal}`;
+    const input = { filters: { and: [expression, 'mylist(note.structural_table_ids)', 'object.list(note.structural_table_ids)'] },
+      formulas: { label: 'list(note.structural_table_ids)' } };
+    const result = parse(migrateMembershipFilter(stringify(input))) as typeof input;
+    expect(result.filters.and).toEqual([
+      `list(note["structural-tables"]).contains("stb_old") && note.name == ${literal}`,
+      'mylist(note.structural_table_ids)', 'object.list(note.structural_table_ids)',
+    ]);
+    expect(result.formulas).toEqual(input.formulas);
+  });
+
+  it("refuses malformed YAML and aliases before returning a replacement", () => {
+    expect(() => migrateMembershipFilter('filters: "unclosed')).toThrow("invalid Base YAML");
+    expect(() => migrateMembershipFilter('other: &shared list(note.structural_table_ids)\nfilters: *shared')).toThrow();
+  });
 });

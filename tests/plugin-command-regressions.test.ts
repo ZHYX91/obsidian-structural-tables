@@ -93,7 +93,7 @@ function capturePreview() {
     opened.push(this);
   });
   return () => {
-    const modal = opened.at(-1);
+    const modal = opened[opened.length - 1];
     if (modal === undefined) throw new Error("Expected a conversion preview.");
     return (modal as unknown as { options: { source: string; onConfirm: () => void } }).options;
   };

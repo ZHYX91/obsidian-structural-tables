@@ -70,4 +70,28 @@ describe("source containers", () => {
     expect(parseStructuralTables("```md\n> example\n" + tableSource + "\n```").tables).toEqual([]);
     expect(parseStructuralTables("> ```md\n> > example\n" + withSourcePrefix(tableSource, "> ") + "\n> ```").tables).toEqual([]);
   });
+
+  it("treats deeper quote markers inside quoted raw HTML as literal content", () => {
+    const source = [
+      "> <pre>",
+      "> > literal",
+      "> | H | < |",
+      "> | --- | --- |",
+      "> | x | y |",
+      "> </pre>",
+      "",
+      tableSource,
+    ].join("\n");
+    const tables = parseStructuralTables(source).tables;
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.source).toBe(tableSource);
+  });
+
+  it("does not let literal list markers inside root raw HTML create list indentation", () => {
+    const structural = tableSource.split("\n").map((line) => `    ${line}`).join("\n");
+    const ordinary = "| A | B |\n| --- | --- |\n| x | y |".split("\n")
+      .map((line) => `    ${line}`).join("\n");
+    expect(parseStructuralTables(`<pre>\n- literal\n  </pre>\n\n${structural}`).tables).toEqual([]);
+    expect(parseStructuralTables(`<pre>\n- literal\n  </pre>\n\n${ordinary}`).tables).toEqual([]);
+  });
 });

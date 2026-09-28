@@ -103,7 +103,7 @@ export function ignoredMarkdownLines(
     }
     let quote = /^(?: {0,3}>[\t ]?)*/u.exec(original)?.[0] ?? "";
     let depth = quote.split(">").length - 1;
-    if ((fence !== null || protectedBlock !== null) && depth >= quoteDepth) {
+    if ((fence !== null || protectedBlock !== null || rawLiteralHtml) && depth >= quoteDepth) {
       quote = (quote.match(/ {0,3}>[\t ]?/gu) ?? []).slice(0, quoteDepth).join("");
       depth = quoteDepth;
     }
@@ -127,7 +127,7 @@ export function ignoredMarkdownLines(
 
     // A list marker is a container, including when its first content is a fence.
     // Markers inside an active code/comment block remain literal content.
-    if (fence === null && protectedBlock === null) {
+    if (fence === null && protectedBlock === null && !rawLiteralHtml) {
       let list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
       // Thematic breaks take precedence over list markers at every container depth.
       const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);

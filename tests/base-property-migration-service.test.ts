@@ -346,23 +346,55 @@ describe("legacy Base property migration", () => {
     },
   );
 
-  it.each([
-    ["pre", '<pre class="literal">'],
-    ["script", '<script type="text/plain">'],
-    ["style", "<style"],
-    ["textarea", '<textarea data-kind="literal">'],
-  ])("does not schedule migration for an unclosed raw literal %s block", async (_name, opening) => {
+  it.each(
+    [
+      ["pre", '<pre class="literal">', "</pre>"],
+      ["script", '<script type="text/plain">', "</script>"],
+      ["style", "<style", "</style>"],
+      ["textarea", '<textarea data-kind="literal">', "</textarea>"],
+    ].flatMap(([tag, opening, closing]) =>
+      ["\n", "\r\n", "\r"].map((ending) => ({ tag, opening, closing, ending }))),
+  )("keeps root raw %s examples protected across quote markers and migrates only the same-id real Base / %j", async ({ opening, closing, ending }) => {
+    const host = migrationHost();
+    const base = testFile("People.md");
+    host.files.push(base);
+    const legacy = promotedBase("stb_people", ending);
+    const protectedExample = [opening, "> literal", legacy, closing].join(ending);
+    const original = `${protectedExample}${ending}${ending}${legacy}`;
+    host.sources.set(base, original);
+    const migration = new BasePropertyMigrationService(host.app);
+
+    const prepared = await migration.prepare();
+    expect(prepared.legacyBaseCount).toBe(1);
+    expect(prepared.files).toHaveLength(1);
+    await migration.execute(prepared, false);
+
+    const migrated = host.sources.get(base) ?? "";
+    expect(migrated.slice(0, protectedExample.length)).toBe(protectedExample);
+    expect(migrated.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
+    expect(migrated.match(/note\.structural_table_ids/gu)).toHaveLength(1);
+  });
+
+  it.each(
+    [
+      ["pre", '<pre class="literal">'],
+      ["script", '<script type="text/plain">'],
+      ["style", "<style"],
+      ["textarea", '<textarea data-kind="literal">'],
+    ].flatMap(([tag, opening]) =>
+      ["\n", "\r\n", "\r"].map((ending) => ({ tag, opening, ending }))),
+  )("does not schedule migration for one Base inside unclosed raw literal %s block / %j", async ({ opening, ending }) => {
     const host = migrationHost();
     const base = testFile("Example.md");
     host.files.push(base);
-    const original = `${opening}\n${promotedBase("stb_example")}\n\nTail`;
+    const original = [opening, "> literal", promotedBase("stb_example", ending)].join(ending);
     host.sources.set(base, original);
-    const service = new BasePropertyMigrationService(host.app);
+    const migration = new BasePropertyMigrationService(host.app);
 
-    const prepared = await service.prepare();
+    const prepared = await migration.prepare();
     expect(prepared.legacyBaseCount).toBe(0);
     expect(prepared.files).toEqual([]);
-    expect(await service.execute(prepared, false)).toMatchObject({ fileCount: 0, legacyBaseCount: 0 });
+    expect(await migration.execute(prepared, false)).toMatchObject({ fileCount: 0, legacyBaseCount: 0 });
     expect(host.sources.get(base)).toBe(original);
   });
 

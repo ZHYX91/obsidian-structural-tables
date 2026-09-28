@@ -88,12 +88,13 @@ function pluginHarness(editor: Editor, sourceFile: MockTFile) {
 }
 
 function capturePreview() {
-  let modal: ConversionPreviewModal | null = null;
+  const opened: ConversionPreviewModal[] = [];
   vi.spyOn(ConversionPreviewModal.prototype, "open").mockImplementation(function (this: ConversionPreviewModal) {
-    modal = this;
+    opened.push(this);
   });
   return () => {
-    if (modal === null) throw new Error("Expected a conversion preview.");
+    const modal = opened.at(-1);
+    if (modal === undefined) throw new Error("Expected a conversion preview.");
     return (modal as unknown as { options: { source: string; onConfirm: () => void } }).options;
   };
 }

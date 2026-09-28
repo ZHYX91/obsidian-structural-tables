@@ -90,7 +90,7 @@ function migrationHost(): MigrationHost {
 }
 
 describe("legacy Base property migration", () => {
-  it.each([false, true])("discovers view-only legacy filters and preserves rollback (failure=%s)", async (fail) => {
+  it.each([false, true].flatMap(fail => ["current", "custom", "absent"].map(global => ({ fail, global }))))("discovers view-only legacy filters and preserves rollback ($global, failure=$fail)", async ({ fail, global }) => {
     const host = migrationHost();
     const record = testFile("Records/Alice.md");
     const base = testFile("People.md");
@@ -103,9 +103,13 @@ describe("legacy Base property migration", () => {
     };
     host.frontmatters.set(record, originalProperties);
     host.sources.set(record, yaml(originalProperties, "Kept body\n"));
-    const originalBase = promotedBase("stb_people")
+    let originalBase = promotedBase("stb_people")
       .replace('note.structural_table_ids', 'note["structural-tables"]')
       .replace('\n```', '\nviews:\n  - type: table\n    name: People\n    filters: \'list(note.structural_table_ids).contains("stb_people")\'\n```');
+    if (global !== "current") originalBase = originalBase.replace(
+      'filters:\n  and:\n    - \'list(note["structural-tables"]).contains("stb_people")\'\n',
+      global === "custom" ? 'filters: \'file.ext == "md"\'\n' : "",
+    );
     host.sources.set(base, originalBase);
     host.sources.set(later, promotedBase("stb_later"));
     const service = new BasePropertyMigrationService(host.app);
@@ -119,7 +123,8 @@ describe("legacy Base property migration", () => {
     } else {
       await service.execute(prepared, false);
       expect(host.sources.get(base)).not.toContain("note.structural_table_ids");
-      expect(host.sources.get(base)?.match(/list\(note\["structural-tables"\]\)/gu)).toHaveLength(2);
+      expect(host.sources.get(base)?.match(/list\(note\["structural-tables"\]\)/gu)).toHaveLength(global === "current" ? 2 : 1);
+      if (global === "custom") expect(host.sources.get(base)).toContain('filters: \'file.ext == "md"\'');
       expect(host.frontmatters.get(record)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toBeUndefined();
       expect((await service.prepare()).legacyBaseCount).toBe(0);
     }

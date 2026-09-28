@@ -77,6 +77,6 @@ describe("registered whole-note HTML paste entry", () => {
     expect(replaceSelection).toHaveBeenCalledOnce();
     expect(replaceSelection.mock.calls[0]?.[0]).toContain("| A");
     expect(preventDefault).toHaveBeenCalledOnce();
-    expect(notices).toContain("HTML table imported with its supported spans preserved.");
+    expect(notices).toContain("HTML table pasted with structural spans preserved.");
   });
 });

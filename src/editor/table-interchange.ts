@@ -131,22 +131,29 @@ export function structuralSourceFromClipboardHtml(html: string): string | null {
   return importedHtmlTableToStructuralSource(rows);
 }
 
+export type WholeTableClipboardImport =
+  | { kind: "table"; source: string }
+  | { kind: "native"; plain: string };
+
+/** Classify the complete clipboard payload before taking ownership of a note-level paste. */
+export function wholeTableClipboardImport(html: string, plain: string): WholeTableClipboardImport {
+  const source = structuralSourceFromClipboardHtml(html);
+  return source === null ? { kind: "native", plain } : { kind: "table", source };
+}
+
 /**
  * Own a whole-note paste only when the HTML table can be represented losslessly.
  * Otherwise leave both the selection and complete clipboard payload to Obsidian.
  */
 export function replaceSelectionFromClipboardTable(event: ClipboardEvent, editor: Editor): boolean {
   if (event.defaultPrevented || event.clipboardData === null) return false;
-  const html = event.clipboardData.getData("text/html");
-  const plain = event.clipboardData.getData("text/plain");
-  const source = structuralSourceFromClipboardHtml(html);
-  if (source === null) {
-    void plain;
-    return false;
-  }
-  if (source === null) return false;
+  const result = wholeTableClipboardImport(
+    event.clipboardData.getData("text/html"),
+    event.clipboardData.getData("text/plain"),
+  );
+  if (result.kind === "native") return false;
   event.preventDefault();
-  editor.replaceSelection(source);
+  editor.replaceSelection(result.source);
   return true;
 }
 

@@ -8,6 +8,7 @@ import {
   replaceSelectionFromClipboardTable,
   singleCellTextFromClipboardHtml,
   structuralSourceFromClipboardHtml,
+  wholeTableClipboardImport,
 } from "../src/editor/table-interchange";
 import { parseEditableTables } from "../src/core/parser";
 
@@ -159,6 +160,7 @@ describe("HTML table clipboard import", () => {
     ["preformatted HTML", "<table><tr><td><pre>A\nB</pre></td><td>2</td></tr></table>", "A\nB\t2"],
     ["superscript HTML", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
   ])("leaves %s to native whole-note paste without touching the selection", (_name, html, plain) => {
+    expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "native", plain });
     let prevented = false;
     const replaceSelection = vi.fn();
     const event = {
@@ -187,6 +189,10 @@ describe("HTML table clipboard import", () => {
     } as unknown as ClipboardEvent;
     const editor = { replaceSelection } as unknown as Editor;
 
+    expect(wholeTableClipboardImport(
+      event.clipboardData!.getData("text/html"),
+      event.clipboardData!.getData("text/plain"),
+    ).kind).toBe("table");
     expect(replaceSelectionFromClipboardTable(event, editor)).toBe(true);
     expect(prevented).toBe(true);
     expect(replaceSelection).toHaveBeenCalledOnce();

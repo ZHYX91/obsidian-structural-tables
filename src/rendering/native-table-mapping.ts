@@ -52,9 +52,9 @@ export function calloutBlocks(root: HTMLElement, originals: ReadonlyMap<HTMLElem
       const saved = originals.get(child);
       if (saved !== undefined) {
         group.push(...saved.map((element) => ({ element: child, signature: blockSignature(element) })));
-      } else if (!child.matches(".callout, .internal-embed, .markdown-embed, pre, .cm-editor")
+      } else if (!child.matches(".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview")
         && (child.matches("p, table") || (child.querySelectorAll("table").length === 1
-        && !child.querySelector(".callout, .internal-embed, .markdown-embed, pre, .cm-editor")))) {
+        && !child.querySelector(".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview")))) {
         group.push({ element: child, signature: blockSignature(child) });
       } else {
         flush();

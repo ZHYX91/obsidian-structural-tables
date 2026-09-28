@@ -318,6 +318,53 @@ describe("legacy Base property migration", () => {
     expect(host.sources.get(base)).toBe(original);
   });
 
+  it.each(["\n", "\r\n", "\r"])(
+    "migrates only the real Base after a raw literal PRE block with %j endings",
+    async (ending) => {
+      const host = migrationHost();
+      const base = testFile("People.md");
+      host.files.push(base);
+      const legacy = promotedBase("stb_people", ending);
+      const protectedExample = [
+        '<PRE class="literal">',
+        legacy,
+        "</pRe>",
+      ].join(ending);
+      const original = `${protectedExample}${ending}${ending}${legacy}`;
+      host.sources.set(base, original);
+      const service = new BasePropertyMigrationService(host.app);
+
+      const prepared = await service.prepare();
+      expect(prepared.legacyBaseCount).toBe(1);
+      expect(prepared.files).toHaveLength(1);
+      await service.execute(prepared, false);
+
+      const migrated = host.sources.get(base) ?? "";
+      expect(migrated.slice(0, protectedExample.length)).toBe(protectedExample);
+      expect(migrated.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
+      expect(migrated.match(/note\.structural_table_ids/gu)).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    ["script", '<script type="text/plain">'],
+    ["style", "<style"],
+    ["textarea", '<textarea data-kind="literal">'],
+  ])("does not schedule migration for an unclosed raw literal %s block", async (_name, opening) => {
+    const host = migrationHost();
+    const base = testFile("Example.md");
+    host.files.push(base);
+    const original = `${opening}\n${promotedBase("stb_example")}\n\nTail`;
+    host.sources.set(base, original);
+    const service = new BasePropertyMigrationService(host.app);
+
+    const prepared = await service.prepare();
+    expect(prepared.legacyBaseCount).toBe(0);
+    expect(prepared.files).toEqual([]);
+    expect(await service.execute(prepared, false)).toMatchObject({ fileCount: 0, legacyBaseCount: 0 });
+    expect(host.sources.get(base)).toBe(original);
+  });
+
   it.each([
     ["CRLF", "\r\n"],
     ["CR", "\r"],

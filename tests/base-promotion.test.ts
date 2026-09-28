@@ -341,6 +341,35 @@ views:
     expect(migrated.source.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
   });
 
+  it.each([
+    ["PRE with mixed case and attributes", ["<PRE class=\"literal\">"], "</pRe>"],
+    ["script with attributes", ['<script type="text/plain">'], "</SCRIPT>"],
+    ["style with a split opening tag", ["<style", '  type="text/css">'], "</STYLE>"],
+    ["textarea with attributes", ['<textarea data-kind="literal">'], "</TEXTAREA>"],
+  ])("ignores a plugin-shaped Base inside raw literal HTML: %s", (_name, opening, closing) => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_raw");
+    const legacy = embeddedBaseSource(plan, "Records/raw/_promotion.json")
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
+    const protectedExample = [...opening, legacy, closing].join("\n");
+    const source = `${protectedExample}\n\n${legacy}`;
+
+    expect(promotionBlocks(source).map(({ tableId }) => tableId)).toEqual(["stb_raw"]);
+    const migrated = migrateLegacyPromotionBlocks(source);
+    expect(migrated.count).toBe(1);
+    expect(migrated.source.slice(0, protectedExample.length)).toBe(protectedExample);
+    expect(migrated.source.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
+  });
+
+  it.each(["pre", "script", "style", "textarea"])(
+    "keeps an unclosed <%s> raw literal block protected through end of source",
+    (tag) => {
+      const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_unclosed");
+      const legacy = embeddedBaseSource(plan, "Records/unclosed/_promotion.json")
+        .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
+      expect(promotionBlocks(`<${tag}>\n${legacy}\n\n${legacy}`)).toEqual([]);
+    },
+  );
+
   it("keeps real Base fences visible at supported indentation while excluding indented code", () => {
     const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_indent");
     const legacy = embeddedBaseSource(plan, "Records/indent/_promotion.json")

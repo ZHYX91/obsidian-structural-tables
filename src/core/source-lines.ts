@@ -29,6 +29,17 @@ export function withSourcePrefix(source: string, prefix: string): string {
 
 type ProtectedBlock = "%%" | "<!--" | "$$";
 
+const RAW_LITERAL_HTML_START = /^ {0,3}<(?:pre|script|style|textarea)(?=[\t >]|$)/iu;
+const RAW_LITERAL_HTML_END = /<\/(?:pre|script|style|textarea)>/iu;
+
+export function startsRawLiteralHtmlBlock(line: string): boolean {
+  return RAW_LITERAL_HTML_START.test(line);
+}
+
+export function endsRawLiteralHtmlBlock(line: string): boolean {
+  return RAW_LITERAL_HTML_END.test(line);
+}
+
 function scanProtectedLine(line: string, block: ProtectedBlock | null): {
   block: ProtectedBlock | null;
   ignored: boolean;
@@ -78,6 +89,8 @@ export function ignoredMarkdownLines(
   let fence: { character: "`" | "~"; length: number; listIndent: number } | null = null;
   let protectedBlock: ProtectedBlock | null = null;
   let protectedIndent = 0;
+  let rawLiteralHtml = false;
+  let rawLiteralIndent = 0;
   let frontmatter = /^---[\t ]*$/u.test(lines[0]?.replace(/^\uFEFF/u, "") ?? "");
   let quoteDepth = 0;
   let listIndents: number[] = [];
@@ -97,6 +110,7 @@ export function ignoredMarkdownLines(
     if (depth !== quoteDepth) {
       fence = null;
       protectedBlock = null;
+      rawLiteralHtml = false;
       listIndents = [];
       quoteDepth = depth;
     }
@@ -108,6 +122,7 @@ export function ignoredMarkdownLines(
     let listIndent = listIndents[listIndents.length - 1] ?? 0;
     let line = unquoted.slice(listIndent);
     if (line.trim() !== "" && listIndent < protectedIndent) protectedBlock = null;
+    if (line.trim() !== "" && listIndent < rawLiteralIndent) rawLiteralHtml = false;
     if (line.trim() !== "" && fence !== null && listIndent < fence.listIndent) fence = null;
 
     // A list marker is a container, including when its first content is a fence.
@@ -131,6 +146,24 @@ export function ignoredMarkdownLines(
       if (run?.[0] === fence.character && run.length >= fence.length) fence = null;
       continue;
     }
+    if (rawLiteralHtml) {
+      ignored.add(index);
+      if (endsRawLiteralHtmlBlock(line)) rawLiteralHtml = false;
+      continue;
+    }
+
+    const indentedCode = /^(?: {4}|\t)/u.test(line);
+    if (
+      !indentedCode
+      && protectedBlock === null
+      && startsRawLiteralHtmlBlock(line)
+    ) {
+      ignored.add(index);
+      rawLiteralHtml = !endsRawLiteralHtmlBlock(line);
+      rawLiteralIndent = listIndent;
+      continue;
+    }
+
     const opening = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
     const run = opening?.[1];
     const info = (opening?.[2] ?? "").trim();
@@ -140,7 +173,6 @@ export function ignoredMarkdownLines(
       continue;
     }
 
-    const indentedCode = /^(?: {4}|\t)/u.test(line);
     if (!indentedCode || protectedBlock !== null) {
       const protection = scanProtectedLine(line, protectedBlock);
       protectedBlock = protection.block;

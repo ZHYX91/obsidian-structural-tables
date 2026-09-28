@@ -108,7 +108,36 @@ describe("parseStructuralTables", () => {
   });
 
   it.each([
-    "Use `%%` literally.", "Use ``<!--`` literally.", "Use `$$` literally.",
+    ["PRE attributes and mixed case", ['<PRE class="literal">'], "</pRe>"],
+    ["script attributes", ['<script type="text/plain">'], "</SCRIPT>"],
+    ["style split opening", ["<style", '  type="text/css">'], "</STYLE>"],
+    ["textarea attributes", ['<textarea data-kind="literal">'], "</TEXTAREA>"],
+  ])("ignores tables inside raw literal HTML and resumes after the closing line: %s", (_name, opening, closing) => {
+    const hidden = "| Hidden | < |\n| --- | --- |\n| x | y |";
+    const visible = "| Visible | B |\n| --- | --- |\n| 1 | 2 |";
+    const source = [...opening, hidden, closing, visible].join("\n");
+    const tables = parseEditableTables(source).tables;
+
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.rows[0]?.cells[0]?.content).toBe("Visible");
+  });
+
+  it.each(["pre", "script", "style", "textarea"])(
+    "protects tables through EOF for unclosed raw literal <%s> HTML",
+    (tag) => {
+      const source = `<${tag}>\n| Hidden | B |\n| --- | --- |\n| 1 | 2 |`;
+      expect(parseEditableTables(source).tables).toEqual([]);
+    },
+  );
+
+  it("resumes parsing after a raw literal HTML block that opens and closes on one line", () => {
+    const source = '<PRE class="literal">raw</pre>\n| Visible | B |\n| --- | --- |\n| 1 | 2 |';
+    expect(parseEditableTables(source).tables.map((candidate) => candidate.rows[0]?.cells[0]?.content))
+      .toEqual(["Visible"]);
+  });
+
+  it.each([
+    "Use `%%` literally.", "Use ``<!--`` literally.", "Use `$` literally.",
     String.raw`Escaped \%% marker`, String.raw`Escaped \<!-- marker`,
     "    %% indented code", "    <!-- indented code", "$x%%y$", "$$x$$",
   ])("preserves tables after literal or closed protection syntax %j", (prose) => {

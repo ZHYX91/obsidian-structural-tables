@@ -161,40 +161,30 @@ describe("HTML table clipboard import", () => {
     ["superscript HTML", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
   ])("leaves %s to native whole-note paste without touching the selection", (_name, html, plain) => {
     expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "native", plain });
-    let prevented = false;
     const replaceSelection = vi.fn();
-    const event = {
-      defaultPrevented: false,
-      clipboardData: { getData: (type: string) => type === "text/html" ? html : plain },
-      preventDefault: () => { prevented = true; },
-    } as unknown as ClipboardEvent;
+    const clipboardData = {
+      getData: (type: string) => type === "text/html" ? html : plain,
+    } as unknown as DataTransfer;
     const editor = { replaceSelection } as unknown as Editor;
 
-    expect(replaceSelectionFromClipboardTable(event, editor)).toBe(false);
-    expect(prevented).toBe(false);
+    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe(false);
     expect(replaceSelection).not.toHaveBeenCalled();
   });
 
   it("owns a supported whole-note table paste and replaces the selection once", () => {
-    let prevented = false;
     const replaceSelection = vi.fn();
-    const event = {
-      defaultPrevented: false,
-      clipboardData: {
-        getData: (type: string) => type === "text/html"
-          ? "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
-          : "A\tB\n1\t2",
-      },
-      preventDefault: () => { prevented = true; },
-    } as unknown as ClipboardEvent;
+    const clipboardData = {
+      getData: (type: string) => type === "text/html"
+        ? "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
+        : "A\tB\n1\t2",
+    } as unknown as DataTransfer;
     const editor = { replaceSelection } as unknown as Editor;
 
     expect(wholeTableClipboardImport(
-      event.clipboardData!.getData("text/html"),
-      event.clipboardData!.getData("text/plain"),
+      clipboardData.getData("text/html"),
+      clipboardData.getData("text/plain"),
     ).kind).toBe("table");
-    expect(replaceSelectionFromClipboardTable(event, editor)).toBe(true);
-    expect(prevented).toBe(true);
+    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe(true);
     expect(replaceSelection).toHaveBeenCalledOnce();
     expect(replaceSelection.mock.calls[0]?.[0]).toContain("| A");
   });

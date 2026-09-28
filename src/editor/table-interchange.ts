@@ -145,14 +145,12 @@ export function wholeTableClipboardImport(html: string, plain: string): WholeTab
  * Own a whole-note paste only when the HTML table can be represented losslessly.
  * Otherwise leave both the selection and complete clipboard payload to Obsidian.
  */
-export function replaceSelectionFromClipboardTable(event: ClipboardEvent, editor: Editor): boolean {
-  if (event.defaultPrevented || event.clipboardData === null) return false;
+export function replaceSelectionFromClipboardTable(clipboardData: DataTransfer, editor: Editor): boolean {
   const result = wholeTableClipboardImport(
-    event.clipboardData.getData("text/html"),
-    event.clipboardData.getData("text/plain"),
+    clipboardData.getData("text/html"),
+    clipboardData.getData("text/plain"),
   );
   if (result.kind === "native") return false;
-  event.preventDefault();
   editor.replaceSelection(result.source);
   return true;
 }

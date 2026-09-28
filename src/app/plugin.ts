@@ -304,8 +304,9 @@ export class StructuralTablesPlugin extends Plugin {
 
   private registerHtmlTablePaste(): void {
     this.registerEvent(this.app.workspace.on("editor-paste", (event, editor) => {
-      if (!this.settings.convertHtmlTablePaste || event.defaultPrevented) return;
-      if (!replaceSelectionFromClipboardTable(event, editor)) return;
+      if (!this.settings.convertHtmlTablePaste || event.defaultPrevented || event.clipboardData === null) return;
+      if (!replaceSelectionFromClipboardTable(event.clipboardData, editor)) return;
+      event.preventDefault();
       new Notice(createTranslator(this.settings.language)("notice.htmlTableImported"));
     }));
   }

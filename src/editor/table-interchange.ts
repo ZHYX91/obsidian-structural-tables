@@ -1,3 +1,5 @@
+import type { Editor } from "obsidian";
+
 import type { ImportedHtmlRow } from "../core/interchange";
 import { importedHtmlTableToStructuralSource } from "../core/interchange";
 
@@ -5,7 +7,7 @@ function positiveSpan(value: number): number {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
 }
 
-const HTML_BLOCK_ELEMENTS = new Set(["ADDRESS", "ARTICLE", "BLOCKQUOTE", "DIV", "LI", "P", "PRE"]);
+const HTML_BLOCK_ELEMENTS = new Set(["ADDRESS", "ARTICLE", "BLOCKQUOTE", "DIV", "LI", "P"]);
 
 function appendHtmlCellText(node: Node, parts: string[]): void {
   if (node.nodeType === 3) {
@@ -49,7 +51,7 @@ function parsedClipboardTable(html: string): ClipboardTable | null {
   return table instanceof HTMLTableElement ? { document, table } : null;
 }
 
-const NON_TEXT_CONTENT = "svg, math, mjx-container, img, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
+const NON_TEXT_CONTENT = "svg, math, mjx-container, img, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script, pre, sup, sub";
 
 function hasUnsupportedCellContent(table: HTMLTableElement): boolean {
   return table.querySelector(NON_TEXT_CONTENT) !== null
@@ -92,9 +94,27 @@ export function cellClipboardText(html: string, plain: string): CellClipboardTex
   return { kind: "unsupported" };
 }
 
+function rowSpanForClipboardCell(cell: HTMLTableCellElement, row: HTMLTableRowElement): number {
+  if ((cell.getAttribute("rowspan") ?? "").trim() !== "0") return positiveSpan(cell.rowSpan);
+  const siblings = Array.from(row.parentElement?.children ?? [])
+    .filter((candidate): candidate is HTMLTableRowElement => candidate.tagName === "TR");
+  const index = siblings.indexOf(row);
+  return index < 0 ? 1 : Math.max(1, siblings.length - index);
+}
+
+function hasMeaningfulTableContent(table: HTMLTableElement): boolean {
+  return Array.from(table.querySelectorAll<HTMLTableCellElement>("td, th"))
+    .some((cell) => htmlCellText(cell) !== "");
+}
+
 export function structuralSourceFromClipboardHtml(html: string): string | null {
   const parsed = parsedClipboardTable(html);
-  if (parsed === null || hasMeaningfulContentOutsideTable(parsed.document) || hasUnsupportedCellContent(parsed.table)) return null;
+  if (
+    parsed === null
+    || hasMeaningfulContentOutsideTable(parsed.document)
+    || hasUnsupportedCellContent(parsed.table)
+    || !hasMeaningfulTableContent(parsed.table)
+  ) return null;
   const { table } = parsed;
   const rows: ImportedHtmlRow[] = Array.from(table.rows).map((row) => {
     const section = row.parentElement?.tagName.toLowerCase() === "thead" ? "head" : "body";
@@ -102,13 +122,32 @@ export function structuralSourceFromClipboardHtml(html: string): string | null {
       section,
       cells: Array.from(row.cells).map((cell) => ({
         text: htmlCellText(cell),
-        rowSpan: positiveSpan(cell.rowSpan),
+        rowSpan: rowSpanForClipboardCell(cell, row),
         columnSpan: positiveSpan(cell.colSpan),
         header: cell.tagName.toLowerCase() === "th",
       })),
     };
   });
   return importedHtmlTableToStructuralSource(rows);
+}
+
+/**
+ * Own a whole-note paste only when the HTML table can be represented losslessly.
+ * Otherwise leave both the selection and complete clipboard payload to Obsidian.
+ */
+export function replaceSelectionFromClipboardTable(event: ClipboardEvent, editor: Editor): boolean {
+  if (event.defaultPrevented || event.clipboardData === null) return false;
+  const html = event.clipboardData.getData("text/html");
+  const plain = event.clipboardData.getData("text/plain");
+  const source = structuralSourceFromClipboardHtml(html);
+  if (source === null) {
+    void plain;
+    return false;
+  }
+  if (source === null) return false;
+  event.preventDefault();
+  editor.replaceSelection(source);
+  return true;
 }
 
 export async function copyText(text: string): Promise<void> {

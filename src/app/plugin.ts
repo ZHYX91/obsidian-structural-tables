@@ -47,7 +47,7 @@ import {
   type TableOperation,
 } from "../editor/table-menu";
 import { replaceTableSource } from "../editor/table-replacement";
-import { copyHtml, copyText, structuralSourceFromClipboardHtml } from "../editor/table-interchange";
+import { copyHtml, copyText, replaceSelectionFromClipboardTable } from "../editor/table-interchange";
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
 import { renderTableClipboard } from "../rendering/table-clipboard";
@@ -305,11 +305,7 @@ export class StructuralTablesPlugin extends Plugin {
   private registerHtmlTablePaste(): void {
     this.registerEvent(this.app.workspace.on("editor-paste", (event, editor) => {
       if (!this.settings.convertHtmlTablePaste || event.defaultPrevented) return;
-      const html = event.clipboardData?.getData("text/html") ?? "";
-      const source = structuralSourceFromClipboardHtml(html);
-      if (source === null) return;
-      event.preventDefault();
-      editor.replaceSelection(source);
+      if (!replaceSelectionFromClipboardTable(event, editor)) return;
       new Notice(createTranslator(this.settings.language)("notice.htmlTableImported"));
     }));
   }

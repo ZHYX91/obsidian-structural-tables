@@ -1,7 +1,14 @@
 import { Window } from "happy-dom";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { cellClipboardText, singleCellTextFromClipboardHtml, structuralSourceFromClipboardHtml } from "../src/editor/table-interchange";
+import type { Editor } from "obsidian";
+
+import {
+  cellClipboardText,
+  replaceSelectionFromClipboardTable,
+  singleCellTextFromClipboardHtml,
+  structuralSourceFromClipboardHtml,
+} from "../src/editor/table-interchange";
 import { parseEditableTables } from "../src/core/parser";
 
 const originalDomParser = globalThis.DOMParser;
@@ -42,6 +49,16 @@ describe("HTML table clipboard import", () => {
     expect(cellClipboardText("", "plain")).toEqual({ kind: "text", text: "plain", fallback: false });
     expect(cellClipboardText("<td>A<br>B</td>", '"A\nB"\r\n')).toEqual({ kind: "text", text: "A\nB", fallback: false });
   });
+
+  it.each([
+    ["preformatted whitespace", "<td><pre>A\n  B\tC</pre></td>", "A\n  B\tC"],
+    ["superscript", "<td>x<sup>2</sup></td>", "x²"],
+    ["subscript", "<td>H<sub>2</sub>O</td>", "H₂O"],
+  ])("falls back to complete plain text for %s", (_name, html, plain) => {
+    expect(singleCellTextFromClipboardHtml(html)).toBeNull();
+    expect(cellClipboardText(html, plain)).toEqual({ kind: "text", text: plain, fallback: true });
+    expect(cellClipboardText(html, "")).toEqual({ kind: "unsupported" });
+  });
   beforeEach(() => {
     const window = new Window();
     globalThis.DOMParser = window.DOMParser as unknown as typeof DOMParser;
@@ -51,6 +68,32 @@ describe("HTML table clipboard import", () => {
   afterEach(() => {
     globalThis.DOMParser = originalDomParser;
     globalThis.HTMLTableElement = originalHtmlTable;
+  });
+
+  it("preserves rowspan=0 through the remainder of its row group without trusting the DOM getter", () => {
+    const source = structuralSourceFromClipboardHtml(`<table>
+      <thead><tr><th>Group</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="0">North</td><td>A</td></tr>
+        <tr><td>B</td></tr>
+      </tbody>
+    </table>`);
+    const parsed = parseEditableTables(source ?? "").tables[0]!;
+    expect(parsed.rows[1]?.cells[0]?.rowSpan).toBe(2);
+    expect(parsed.rows[2]?.cells[0]?.covered).toBe(true);
+    expect(parsed.rows[2]?.cells[1]?.content).toBe("B");
+  });
+
+  it("keeps rowspan=0 within one tbody instead of crossing into the next row group", () => {
+    const source = structuralSourceFromClipboardHtml(`<table>
+      <thead><tr><th>Group</th><th>Value</th></tr></thead>
+      <tbody><tr><td rowspan="0">First</td><td>A</td></tr></tbody>
+      <tbody><tr><td>Second</td><td>B</td></tr></tbody>
+    </table>`);
+    const parsed = parseEditableTables(source ?? "").tables[0]!;
+    expect(parsed.rows[1]?.cells[0]?.content).toBe("First");
+    expect(parsed.rows[2]?.cells[0]?.content).toBe("Second");
+    expect(parsed.rows[2]?.cells[0]?.covered).toBe(false);
   });
 
   it("preserves rowspan, colspan, column headers, and row headers", () => {
@@ -109,6 +152,45 @@ describe("HTML table clipboard import", () => {
     expect(structuralSourceFromClipboardHtml(
       "<table><tr><td>A</td><td>B</td></tr></table><table><tr><td>C</td><td>D</td></tr></table>",
     )).toBeNull();
+  });
+
+  it.each([
+    ["empty HTML with meaningful plain text", "<table><tr><td></td><td></td></tr></table>", "Name\tValue\nimportant\t42"],
+    ["preformatted HTML", "<table><tr><td><pre>A\nB</pre></td><td>2</td></tr></table>", "A\nB\t2"],
+    ["superscript HTML", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
+  ])("leaves %s to native whole-note paste without touching the selection", (_name, html, plain) => {
+    let prevented = false;
+    const replaceSelection = vi.fn();
+    const event = {
+      defaultPrevented: false,
+      clipboardData: { getData: (type: string) => type === "text/html" ? html : plain },
+      preventDefault: () => { prevented = true; },
+    } as unknown as ClipboardEvent;
+    const editor = { replaceSelection } as unknown as Editor;
+
+    expect(replaceSelectionFromClipboardTable(event, editor)).toBe(false);
+    expect(prevented).toBe(false);
+    expect(replaceSelection).not.toHaveBeenCalled();
+  });
+
+  it("owns a supported whole-note table paste and replaces the selection once", () => {
+    let prevented = false;
+    const replaceSelection = vi.fn();
+    const event = {
+      defaultPrevented: false,
+      clipboardData: {
+        getData: (type: string) => type === "text/html"
+          ? "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
+          : "A\tB\n1\t2",
+      },
+      preventDefault: () => { prevented = true; },
+    } as unknown as ClipboardEvent;
+    const editor = { replaceSelection } as unknown as Editor;
+
+    expect(replaceSelectionFromClipboardTable(event, editor)).toBe(true);
+    expect(prevented).toBe(true);
+    expect(replaceSelection).toHaveBeenCalledOnce();
+    expect(replaceSelection.mock.calls[0]?.[0]).toContain("| A");
   });
 
   it("falls back from non-text rich single cells while preserving truly empty cells", () => {

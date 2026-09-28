@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeTableCellFragment, normalizeTableCellInput } from "../src/core/operations";
+import { normalizeTableCellInput } from "../src/core/operations";
 import { parseEditableTables } from "../src/core/parser";
 
 describe("table cell syntax", () => {
@@ -24,11 +24,6 @@ describe("table cell syntax", () => {
   it("keeps closed code spans opaque while escaping ordinary pipes", () => {
     expect(normalizeTableCellInput("before | `code|span` | after"))
       .toBe("before \\| `code|span` \\| after");
-  });
-
-  it("preserves fragment boundary whitespace during paste normalization", () => {
-    expect(normalizeTableCellFragment(" brave ")).toBe(" brave ");
-    expect(normalizeTableCellFragment(" a|b ")).toBe(" a|b ");
   });
 
   it("reports diagnostics using document source line coordinates", () => {

@@ -8,7 +8,7 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { adjacentTableCell } from "../core/table-navigation";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
-import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, normalizeTableCellFragment, reorderTableAxis, type TableAxis } from "../core/operations";
+import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, reorderTableAxis, type TableAxis } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
@@ -682,7 +682,7 @@ class StructuralTableInteraction {
     const scope = new Scope(this.app.scope);
 
     const insertBreak = (start = editor.selectionStart, end = editor.selectionEnd): void => {
-      editor.setRangeText("<br>", start, end, "end");
+      editor.setRangeText("\n", start, end, "end");
       resizeEditor();
       editor.focus({ preventScroll: true });
     };
@@ -813,7 +813,9 @@ class StructuralTableInteraction {
       const pasted = result.kind === "empty" ? "" : result.text;
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
-      editor.setRangeText(normalizeTableCellFragment(pasted), start, end, "end");
+      // A fragment may be inside an existing math/code/link span. Preserve it
+      // in the draft and validate the full cell only when committing.
+      editor.setRangeText(pasted, start, end, "end");
       resizeEditor();
     });
     editor.addEventListener("contextmenu", (event) => {

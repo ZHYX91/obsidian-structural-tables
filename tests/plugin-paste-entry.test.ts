@@ -93,6 +93,8 @@ describe("registered whole-note HTML paste entry", () => {
   });
 
   it.each([
+    ["ordinary div wrapper", "<div><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></div>", "x²\t2"],
+    ["ordinary span wrapper", "<span><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></span>", "x²\t2"],
     ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
     ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>", "H₂O\twater"],
     ["negative exponent", "<table><tr><td>x<sup>-2</sup></td><td>2</td></tr></table>", "x⁻²\t2"],
@@ -156,9 +158,12 @@ describe("registered whole-note HTML paste entry", () => {
     ["multiple tables with superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table><table><tr><td>A</td><td>B</td></tr></table>", "fallback"],
     ["superscript plus image", '<table><tr><td>x<sup>2</sup><img src="x.png"></td><td>2</td></tr></table>', "x²\t2"],
     ["superscript plus link", '<table><tr><td>x<sup>2</sup> <a href="https://example.com">source</a></td><td>2</td></tr></table>', "x² source\t2"],
-    ["link around table", '<a href="https://example.com/source"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></a>', "x²\t2"],
-    ["embed around table", '<div class="internal-embed" src="Source.md"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></div>', "x²\t2"],
-    ["embed inside table", '<table><tr><td>x<sup>2</sup><span class="internal-embed" src="figure.svg"></span></td><td>2</td></tr></table>', "x²\t2"],
+    ["link around table with plain", '<a href="https://example.com/source"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></a>', "x²\t2"],
+    ["link around table without plain", '<a href="https://example.com/source"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></a>', ""],
+    ["embed around table with plain", '<div class="internal-embed" src="Source.md"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></div>', "x²\t2"],
+    ["embed around table without plain", '<div class="internal-embed" src="Source.md"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></div>', ""],
+    ["embed inside table with plain", '<table><tr><td>x<sup>2</sup><span class="internal-embed" src="figure.svg"></span></td><td>2</td></tr></table>', "x²\t2"],
+    ["embed inside table without plain", '<table><tr><td>x<sup>2</sup><span class="internal-embed" src="figure.svg"></span></td><td>2</td></tr></table>', ""],
   ])("leaves %s entirely to native paste", (_name, html, plain) => {
     const handler = registeredPasteHandler();
     const replaceSelection = vi.fn();

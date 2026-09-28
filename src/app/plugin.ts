@@ -212,7 +212,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.localizedCommands.push(this.addCommand({
       id: "convert-current-table-to-plain-gfm",
       name: t("command.convertGfm"),
-      editorCallback: (editor) => this.previewPlainGfmConversion(editor),
+      editorCallback: (editor, context) => this.previewPlainGfmConversion(editor, context.file),
     }));
     this.localizedCommands.push(this.addCommand({
       id: "convert-current-sheets-extended-table",
@@ -222,7 +222,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.localizedCommands.push(this.addCommand({
       id: "format-current-structural-table",
       name: t("command.format"),
-      editorCallback: (editor) => this.formatCurrent(editor),
+      editorCallback: (editor, context) => this.formatCurrent(editor, context.file),
     }));
     this.localizedCommands.push(this.addCommand({ id: "merge-current-cell-left", name: t("command.mergeLeft"), editorCallback: (editor) => this.editMerge(editor, "left") }));
     this.localizedCommands.push(this.addCommand({ id: "merge-current-cell-up", name: t("command.mergeUp"), editorCallback: (editor) => this.editMerge(editor, "up") }));
@@ -339,7 +339,24 @@ export class StructuralTablesPlugin extends Plugin {
     replaceTableSource(editor, table, source);
   }
 
-  private formatCurrent(editor: Editor): void {
+  private captureConversionTarget(editor: Editor, sourceFile: TFile | null): (() => boolean) | null {
+    if (sourceFile === null) return null;
+    const sourcePath = sourceFile.path;
+    return () => {
+      if (sourceFile.path !== sourcePath || this.app.vault.getFileByPath(sourcePath) !== sourceFile) return false;
+      let current = false;
+      this.app.workspace.iterateAllLeaves((leaf) => {
+        if (
+          leaf.view instanceof MarkdownView
+          && leaf.view.editor === editor
+          && leaf.view.file === sourceFile
+        ) current = true;
+      });
+      return current;
+    };
+  }
+
+  private formatCurrent(editor: Editor, sourceFile: TFile | null): void {
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
     if (!current.table.valid) {
@@ -347,6 +364,11 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const t = createTranslator(this.settings.language);
+    const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
+    if (targetIsCurrent === null) {
+      new Notice(t("notice.noFile"));
+      return;
+    }
     const source = serializeStructuralTable(current.table);
     new ConversionPreviewModal(this.app, {
       title: t("modal.format.title"),
@@ -355,6 +377,10 @@ export class StructuralTablesPlugin extends Plugin {
       cancelLabel: t("modal.cancel"),
       confirmLabel: t("modal.format.confirm"),
       onConfirm: () => {
+        if (!targetIsCurrent()) {
+          new Notice(t("notice.staleTable"));
+          return;
+        }
         const reparsed = reparseUnchangedTable(editor.getValue(), current.table);
         if (reparsed === null) {
           new Notice(t("notice.staleTable"));
@@ -373,19 +399,29 @@ export class StructuralTablesPlugin extends Plugin {
       new Notice(current.table.diagnostics[0]?.message ?? "Invalid structural table.");
       return;
     }
-    const write = format === "HTML"
-      ? renderTableClipboard(this.app, current.table, sourcePath, this.settings.appearance)
-        .then(({ html, text }) => copyHtml(html, text))
-      : copyText(format === "GFM"
+    const write = Promise.resolve().then(async () => {
+      if (format === "HTML") {
+        const { html, text } = await renderTableClipboard(
+          this.app,
+          current.table,
+          sourcePath,
+          this.settings.appearance,
+        );
+        await copyHtml(html, text);
+        return;
+      }
+      const text = format === "GFM"
         ? structuralTableToPlainGfm(current.table)
-        : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t"));
+        : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t");
+      await copyText(text);
+    });
     void write.then(() => {
       const message = createTranslator(this.settings.language)("notice.copied").replace("{format}", format);
       new Notice(message);
     }).catch(() => new Notice(createTranslator(this.settings.language)("notice.clipboardFailed")));
   }
 
-  private previewPlainGfmConversion(editor: Editor): void {
+  private previewPlainGfmConversion(editor: Editor, sourceFile: TFile | null): void {
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
     if (!current.table.valid) {
@@ -393,23 +429,40 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const t = createTranslator(this.settings.language);
-    const source = withSourcePrefix(structuralTableToPlainGfm(current.table), current.table.sourcePrefix);
-    new ConversionPreviewModal(this.app, {
-      title: t("modal.convertGfm.title"),
-      description: t("modal.convertGfm.desc"),
-      source,
-      cancelLabel: t("modal.cancel"),
-      confirmLabel: t("modal.convertGfm.replace"),
-      onConfirm: () => {
-        const reparsed = reparseUnchangedTable(editor.getValue(), current.table);
-        if (reparsed === null) {
-          new Notice(t("notice.staleTable"));
-          return;
-        }
-        this.replaceTable(editor, reparsed, source);
-        new Notice(t("notice.convertedGfm"));
-      },
-    }).open();
+    const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
+    if (targetIsCurrent === null) {
+      new Notice(t("notice.noFile"));
+      return;
+    }
+    try {
+      const source = withSourcePrefix(structuralTableToPlainGfm(current.table), current.table.sourcePrefix);
+      new ConversionPreviewModal(this.app, {
+        title: t("modal.convertGfm.title"),
+        description: t("modal.convertGfm.desc"),
+        source,
+        cancelLabel: t("modal.cancel"),
+        confirmLabel: t("modal.convertGfm.replace"),
+        onConfirm: () => {
+          try {
+            if (!targetIsCurrent()) {
+              new Notice(t("notice.staleTable"));
+              return;
+            }
+            const reparsed = reparseUnchangedTable(editor.getValue(), current.table);
+            if (reparsed === null) {
+              new Notice(t("notice.staleTable"));
+              return;
+            }
+            this.replaceTable(editor, reparsed, source);
+            new Notice(t("notice.convertedGfm"));
+          } catch (error) {
+            new Notice(t("notice.convertGfmFailed").replace("{message}", errorMessage(error)), 8000);
+          }
+        },
+      }).open();
+    } catch (error) {
+      new Notice(t("notice.convertGfmFailed").replace("{message}", errorMessage(error)), 8000);
+    }
   }
 
   private migrateSheetsExtended(editor: Editor): void {

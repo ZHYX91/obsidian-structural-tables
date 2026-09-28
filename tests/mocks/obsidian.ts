@@ -22,6 +22,10 @@ export class Component {
     this.cleanups.push(callback);
   }
 
+  registerEvent<T>(event: T): T {
+    return event;
+  }
+
   registerDomEvent(
     element: HTMLElement,
     type: string,
@@ -87,8 +91,17 @@ export class MenuItem {
   onClick(callback: () => void): this { this.callback = callback; return this; }
 }
 
+export const notices: string[] = [];
+
 export class Notice {
-  constructor(_message: string) {}
+  constructor(message: string) {
+    notices.push(message);
+  }
+}
+
+export class Plugin extends Component {
+  app!: App;
+  manifest = { version: "0.0.0" };
 }
 
 export class TAbstractFile {

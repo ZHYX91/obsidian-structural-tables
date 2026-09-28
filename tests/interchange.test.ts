@@ -41,6 +41,16 @@ describe("table interchange", () => {
 | North | 8 | 11 |`);
   });
 
+  it.each([
+    "$5",
+    String.raw`$\\lvert x\\rvert$`,
+    String.raw`$P(A\\mid B)$`,
+  ])("preserves accepted existing source in portable GFM: %s", (content) => {
+    const source = `| Label | Amount |\n| --- | --- |\n| A | ${content} |`;
+    const output = structuralTableToPlainGfm(table(source));
+    expect(output).toContain(`| A | ${content} |`);
+  });
+
   it("exports semantic HTML with spans and scopes", () => {
     const html = structuralTableToHtml(table(STRUCTURAL));
     expect(html).toContain('<th colspan="2" scope="colgroup">Sales</th>');

@@ -125,10 +125,7 @@ export function mathCellInputProblem(source: string): MathCellInputProblem | nul
   return delimiter === 0 ? null : "math-syntax-unsafe";
 }
 
-/** Escape table separators only after proving math source will stay unchanged. */
-export function normalizeTableCellText(input: string): string {
-  const problem = mathCellInputProblem(input);
-  if (problem !== null) throw new Error(problem);
+function escapedTableCellText(input: string): string {
   const withBreaks = input.replace(/\r\n|\r|\n/gu, "<br>");
   const source = withBreaks.trim();
   let output = "";
@@ -160,4 +157,16 @@ export function normalizeTableCellText(input: string): string {
     output += character === "|" ? "\\|" : character;
   }
   return (output === "<" || output === "^") ? `\\${output}` : output;
+}
+
+/** Preserve an already accepted Markdown cell without reclassifying legacy content as a new draft. */
+export function existingTableCellText(input: string): string {
+  return escapedTableCellText(input);
+}
+
+/** Escape table separators only after proving a newly edited draft will keep its math source unchanged. */
+export function normalizeTableCellText(input: string): string {
+  const problem = mathCellInputProblem(input);
+  if (problem !== null) throw new Error(problem);
+  return escapedTableCellText(input);
 }

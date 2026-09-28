@@ -9,7 +9,7 @@ import type {
   TableDiagnostic,
 } from "./model";
 import { sourceLines, sourcePrefix } from "./source-lines";
-import { splitTablePipeRow, type ParsedTablePipeRow } from "./table-cell-syntax";
+import { closedCodeSpanEnd, splitTablePipeRow, type ParsedTablePipeRow } from "./table-cell-syntax";
 
 interface ParsedDelimiter {
   alignments: ColumnAlignment[];
@@ -167,9 +167,54 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
   }
 }
 
+type ProtectedBlock = "%%" | "<!--" | "$$";
+
+function scanProtectedLine(line: string, block: ProtectedBlock | null): {
+  block: ProtectedBlock | null;
+  ignored: boolean;
+} {
+  const continued = block !== null;
+  let protectedText = false;
+  let visible = "";
+  for (let index = 0; index < line.length;) {
+    if (block !== null) {
+      protectedText = true;
+      const end = block === "<!--" ? "-->" : block;
+      if (block === "$$" && line[index] === "\\") { index += 2; continue; }
+      if (line.startsWith(end, index)) { block = null; index += end.length; }
+      else index += 1;
+      continue;
+    }
+    if (line[index] === "\\") { visible += line.slice(index, index + 2); index += 2; continue; }
+    if (line[index] === "`") {
+      let end = closedCodeSpanEnd(line, index);
+      if (end === null) {
+        end = index + 1;
+        while (line[end] === "`") end += 1;
+      }
+      visible += line.slice(index, end);
+      index = end;
+      continue;
+    }
+    const opening = (["%%", "<!--", "$$"] as const).find((token) => line.startsWith(token, index));
+    if (opening !== undefined) { block = opening; protectedText = true; index += opening.length; continue; }
+    // Comments written as literal TeX inside a closed inline formula are not Markdown comments.
+    if (line[index] === "$") {
+      let end = index + 1;
+      while (end < line.length && line[end] !== "$") end += line[end] === "\\" ? 2 : 1;
+      if (end < line.length) { visible += line.slice(index, end + 1); index = end + 1; continue; }
+    }
+    visible += line[index];
+    index += 1;
+  }
+  return { block, ignored: continued || block !== null || (protectedText && visible.trim() === "") };
+}
+
 function ignoredLines(lines: string[]): Set<number> {
   const ignored = new Set<number>();
   let fence: { character: "`" | "~"; length: number } | null = null;
+  let protectedBlock: ProtectedBlock | null = null;
+  let protectedIndent = 0;
   let frontmatter = /^---[\t ]*$/u.test(lines[0]?.replace(/^\uFEFF/u, "") ?? "");
   let quoteDepth = 0;
   let listIndents: number[] = [];
@@ -177,19 +222,18 @@ function ignoredLines(lines: string[]): Set<number> {
     const original = lines[index] ?? "";
     if (frontmatter) {
       ignored.add(index);
-      if (index > 0 && /^(?:---|\.\.\.)[\t ]*$/u.test(original)) {
-        frontmatter = false;
-      }
+      if (index > 0 && /^(?:---|\.\.\.)[\t ]*$/u.test(original)) frontmatter = false;
       continue;
     }
     let quote = /^(?: {0,3}>[\t ]?)*/u.exec(original)?.[0] ?? "";
     let depth = quote.split(">").length - 1;
-    if (fence !== null && depth >= quoteDepth) {
+    if ((fence !== null || protectedBlock !== null) && depth >= quoteDepth) {
       quote = (quote.match(/ {0,3}>[\t ]?/gu) ?? []).slice(0, quoteDepth).join("");
       depth = quoteDepth;
     }
     if (depth !== quoteDepth) {
       fence = null;
+      protectedBlock = null;
       listIndents = [];
       quoteDepth = depth;
     }
@@ -200,6 +244,8 @@ function ignoredLines(lines: string[]): Set<number> {
     }
     const listIndent = listIndents[listIndents.length - 1] ?? 0;
     const line = unquoted.slice(listIndent);
+    if (line.trim() !== "" && listIndent < protectedIndent) protectedBlock = null;
+
     if (fence !== null) {
       ignored.add(index);
       const closing = /^ {0,3}(`{3,}|~{3,})[\t ]*$/u.exec(line);
@@ -210,12 +256,20 @@ function ignoredLines(lines: string[]): Set<number> {
     const opening = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
     const run = opening?.[1];
     const info = opening?.[2] ?? "";
-    if (run !== undefined && (run[0] === "~" || !info.includes("`"))) {
+    if (protectedBlock === null && run !== undefined && (run[0] === "~" || !info.includes("`"))) {
       fence = { character: run[0] as "`" | "~", length: run.length };
       ignored.add(index);
       continue;
     }
-    if (/^(?: {4}|\t)/u.test(line)) ignored.add(index);
+
+    const indentedCode = /^(?: {4}|\t)/u.test(line);
+    if (!indentedCode || protectedBlock !== null) {
+      const protection = scanProtectedLine(line, protectedBlock);
+      protectedBlock = protection.block;
+      protectedIndent = listIndent;
+      if (protection.ignored) ignored.add(index);
+    }
+    if (indentedCode) ignored.add(index);
     const list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
     if (list !== null) listIndents.push(listIndent + list[0].length);
   }

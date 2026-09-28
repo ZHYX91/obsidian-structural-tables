@@ -96,4 +96,52 @@ describe("parseStructuralTables", () => {
     expect(table?.diagnostics.some((diagnostic) => diagnostic.code === code)).toBe(true);
     expect(table?.source).toBe(source);
   });
+  it.each([
+    ["Obsidian comments", ["%%", "| A | < |", "| --- | --- |", "| x | y |", "%%"].join("\n")],
+    ["HTML comments", ["<!--", "| A | < |", "| --- | --- |", "| x | y |", "-->"].join("\n")],
+    ["display math", ["$$", "| A | < |", "| --- | --- |", "| x | y |", "$$"].join("\n")],
+  ])("ignores structural-looking tables inside %s", (_name, hidden) => {
+    const source = `${hidden}\n\n| Visible | < |\n| --- | --- |\n| 1 | 2 |`;
+    const tables = parseStructuralTables(source).tables;
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.rows[0]?.cells[0]?.content).toBe("Visible");
+  });
+
+  it.each([
+    "Use `%%` literally.", "Use ``<!--`` literally.", "Use `$$` literally.",
+    String.raw`Escaped \%% marker`, String.raw`Escaped \<!-- marker`,
+    "    %% indented code", "    <!-- indented code", "$x%%y$", "$$x$$",
+  ])("preserves tables after literal or closed protection syntax %j", (prose) => {
+    const source = `${prose}\n\n| A | B |\n| --- | --- |\n| x | y |`;
+    expect(parseEditableTables(source).tables).toHaveLength(1);
+  });
+
+  it.each(["x <!-- hidden -->", "x %% hidden %%", "`<!--`", "`%%`", "$$x$$"])(
+    "preserves a complete row with inline content %j", (content) => {
+      const source = `| A | B |\n| --- | --- |\n| ${content} | y |`;
+      const table = parseEditableTables(source).tables[0];
+      expect(table?.rows).toHaveLength(2);
+      expect(table?.rows[1]?.cells[0]?.content).toBe(content);
+      expect(table?.source).toBe(source);
+    },
+  );
+
+  it.each(["$$x", "<!--text", "%% text"])("protects blocks with opening-line content %j", (opening) => {
+    const closing = opening.startsWith("<!--") ? "-->" : opening.slice(0, 2);
+    const source = `${opening}\n| A | B |\n| --- | --- |\n| x | y |\ntext${closing}\n\n| C | D |\n| --- | --- |`;
+    expect(parseEditableTables(source).tables.map((table) => table.rows[0]?.cells[0]?.content)).toEqual(["C"]);
+  });
+
+  it("continues scanning after a closed comment and does not read fences inside comments", () => {
+    const source = "<!-- done --> %% open\n```\n| A | B |\n| --- | --- |\n%%\n\n| C | D |\n| --- | --- |";
+    expect(parseEditableTables(source).tables.map((table) => table.rows[0]?.cells[0]?.content)).toEqual(["C"]);
+  });
+
+  it.each(["> %%", "> <!--", "> $$x", "- item\n  %%", "- item\n  <!--", "- item\n  $$x"])(
+    "ends block protection at the containing quote/list boundary %j", (opening) => {
+      const source = `${opening}\n\n| A | B |\n| --- | --- |\n| x | y |`;
+      expect(parseEditableTables(source).tables).toHaveLength(1);
+    },
+  );
+
 });

@@ -2,7 +2,7 @@ import type { ColumnAlignment, StructuralTable } from "./model";
 import { parseEditableTables, parseStructuralTables } from "./parser";
 import { serializeStructuralTable } from "./serializer";
 import { sourcePrefix } from "./source-lines";
-import { normalizeTableCellText } from "./table-cell-syntax";
+import { normalizeTableCellText, tableColumnAt as tableSyntaxColumnAt } from "./table-cell-syntax";
 
 export type MergeDirection = "left" | "up";
 
@@ -617,28 +617,5 @@ export function setRowHeaderColumnCount(table: StructuralTable, count: number): 
 
 export function cellColumnAt(line: string, character: number): number | null {
   const prefix = sourcePrefix(line);
-  line = line.slice(prefix.length);
-  character -= prefix.length;
-  let column = line.trimStart().startsWith("|") ? -1 : 0;
-  let escaped = false;
-  let codeTicks = 0;
-  for (let index = 0; index < Math.min(character, line.length); index += 1) {
-    const current = line[index] ?? "";
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (current === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (current === "`") {
-      let run = 1;
-      while (line[index + run] === "`") run += 1;
-      if (codeTicks === 0) codeTicks = run;
-      else if (codeTicks === run) codeTicks = 0;
-      index += run - 1;
-    } else if (current === "|" && codeTicks === 0) column += 1;
-  }
-  return column < 0 ? 0 : column;
+  return tableSyntaxColumnAt(line.slice(prefix.length), Math.max(0, character - prefix.length));
 }

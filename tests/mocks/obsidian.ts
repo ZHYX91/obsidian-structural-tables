@@ -34,7 +34,7 @@ export class Component {
 }
 
 export class MarkdownRenderChild extends Component {
-  constructor(_containerEl: HTMLElement) {
+  constructor(public containerEl: HTMLElement) {
     super();
   }
 }

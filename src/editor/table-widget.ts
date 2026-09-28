@@ -192,6 +192,11 @@ class StructuralTableInteraction {
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
     this.installInteraction(view, host, rendered);
     host.addEventListener(CLEAR_SELECTION_EVENT, () => this.clearSelection());
+    host.addEventListener("focusin", () => host.classList.add("is-add-controls-active"));
+    this.component.registerDomEvent(host.ownerDocument, "pointerdown", (event) => {
+      const target = event.target;
+      if (target instanceof host.ownerDocument.defaultView!.Node && !host.contains(target)) this.clearSelection();
+    }, { capture: true });
     host.addEventListener("focusout", (event) => {
       const next = event.relatedTarget;
       if (next === null || !(next instanceof host.ownerDocument.defaultView!.Node) || !host.contains(next)) {
@@ -495,6 +500,7 @@ class StructuralTableInteraction {
       ? structuralTableSelectionFromCoordinates(this.table, [anchor])
       : structuralTableSelectionFromBounds(this.table, anchor, head);
     const selectedAnchors = new Set(this.selection?.cells.map((cell) => `${cell.anchorRow}:${cell.anchorColumn}`) ?? []);
+    this.host?.classList.toggle("is-add-controls-active", selectedAnchors.size > 0);
     for (const element of this.renderedTable.querySelectorAll<HTMLElement>("[data-structural-row][data-structural-column]")) {
       const row = Number(element.dataset.structuralRow);
       const column = Number(element.dataset.structuralColumn);
@@ -519,6 +525,7 @@ class StructuralTableInteraction {
   }
 
   private clearSelection(): void {
+    this.host?.classList.remove("is-add-controls-active");
     this.axisSelection = null;
     this.touchAxisAnchor = null;
     this.selection = null;

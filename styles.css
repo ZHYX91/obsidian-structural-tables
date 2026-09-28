@@ -62,10 +62,33 @@
   font-size: var(--font-ui-medium);
   cursor: pointer;
   touch-action: manipulation;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
 }
 
 .structural-tables-add-row { height: var(--structural-table-handle-gutter); }
 .structural-tables-add-column { width: var(--structural-table-handle-gutter); }
+
+/* Keep the gutter and keyboard order stable while idle controls are hidden. */
+@media (hover: hover) and (pointer: fine) {
+  .structural-tables-live-preview:is(:hover, :focus-within) > button:is(.structural-tables-add-row, .structural-tables-add-column) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .structural-tables-live-preview.is-add-controls-active > button:is(.structural-tables-add-row, .structural-tables-add-column) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.structural-tables-live-preview > button:is(.structural-tables-add-row, .structural-tables-add-column):focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
 
 .structural-tables-live-preview > button:is(.structural-tables-add-row, .structural-tables-add-column):is(:hover, :focus-visible) {
   background: var(--background-modifier-hover);

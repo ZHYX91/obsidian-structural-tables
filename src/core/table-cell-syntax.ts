@@ -21,6 +21,14 @@ function matchingBacktickRun(source: string, start: number, length: number): num
   return -1;
 }
 
+/** Exclusive end of a closed code span; an unmatched opener is ordinary text. */
+export function closedCodeSpanEnd(source: string, start: number): number | null {
+  if (source[start] !== "`") return null;
+  const length = backtickRunLength(source, start);
+  const close = matchingBacktickRun(source, start + length, length);
+  return close < 0 ? null : close + length;
+}
+
 function tablePipeSeparators(line: string): number[] {
   const separators: number[] = [];
   let escaped = false;

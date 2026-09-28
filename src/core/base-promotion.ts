@@ -267,7 +267,8 @@ export function migrateMembershipFilter(source: string): string {
       if (migrated === node.value) return;
       const [start, end] = node.range;
       const block = node.type === "BLOCK_FOLDED" || node.type === "BLOCK_LITERAL";
-      let text = node.type === "QUOTE_DOUBLE" ? JSON.stringify(migrated) : `'${migrated.replace(/'/gu, "''")}'`;
+      let text = node.type === "QUOTE_DOUBLE" || /[\r\n]/u.test(migrated)
+        ? JSON.stringify(migrated) : `'${migrated.replace(/'/gu, "''")}'`;
       if (block && node.comment) text += ` #${node.comment}`;
       if (block && normalized.slice(start, end).endsWith("\n")) text += /\r\n|\r|\n/u.exec(yaml)?.[0] ?? "\n";
       replacements.push({ from: offsets[start]!, to: offsets[end]!, text });
@@ -280,7 +281,13 @@ export function migrateMembershipFilter(source: string): string {
       }
     }
   };
-  if (isMap(document.contents)) visitFilter(document.get("filters", true));
+  if (isMap(document.contents)) {
+    visitFilter(document.get("filters", true));
+    const views = document.get("views", true);
+    if (isSeq(views)) for (const view of views.items) {
+      if (isMap(view)) visitFilter(view.get("filters", true));
+    }
+  }
   let result = yaml;
   for (const replacement of replacements.sort((left, right) => right.from - left.from)) {
     result = result.slice(0, replacement.from) + replacement.text + result.slice(replacement.to);
@@ -292,14 +299,22 @@ export function migrateMembershipFilter(source: string): string {
   return source.slice(0, from) + result + source.slice(to);
 }
 
+/** Ownership and migration need are distinct: current global filters may coexist with legacy views. */
+export function promotionBlocksNeedingMigration(source: string): PromotionBlockMetadata[] {
+  return promotionBlocks(source).filter((block) => migrateMembershipFilter(block.source) !== block.source);
+}
+
 export function migrateLegacyPromotionBlocks(source: string): { source: string; count: number } {
-  const legacy = promotionBlocks(source)
-    .filter(({ membershipProperty }) => membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY)
+  const legacy = promotionBlocksNeedingMigration(source)
     .sort((left, right) => right.range.from - left.range.from);
   let migrated = source;
   for (const block of legacy) {
     const replacement = migrateMembershipFilter(block.source);
-    if (promotionBlocks(replacement).find((candidate) => candidate.tableId === block.tableId)?.membershipProperty !== TABLE_MEMBERSHIP_PROPERTY) {
+    const verified = promotionBlocks(replacement).find((candidate) => candidate.tableId === block.tableId
+      && candidate.manifestPath === block.manifestPath);
+    if (verified === undefined || verified.membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY
+      || (block.membershipProperty !== null && verified.membershipProperty !== TABLE_MEMBERSHIP_PROPERTY)
+      || migrateMembershipFilter(replacement) !== replacement) {
       throw new Error(`Could not verify migrated Base membership: ${block.tableId}.`);
     }
     migrated = `${migrated.slice(0, block.range.from)}${replacement}${migrated.slice(block.range.to)}`;

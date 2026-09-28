@@ -1234,6 +1234,25 @@ describe("StructuralTableEditorController", () => {
 });
 
 describe("interrupted drafts and contextual paste", () => {
+  it.each(["<!--", "%%"].flatMap(draft => ["Enter", "Tab", "blur", "row", "column"].map(action => ({ draft, action })) ))("retains protected draft $draft on $action without truncating the table", async ({ draft, action }) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP-1 |\n| B | KEEP-2 |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!
+      .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+    editor.value = draft;
+    if (action === "blur") editor.dispatchEvent(new FocusEvent("blur"));
+    else if (action === "row" || action === "column") parent.querySelector<HTMLButtonElement>(`.structural-tables-add-${action}`)!.click();
+    else editor.dispatchEvent(new KeyboardEvent("keydown", { key: action, bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    expect(view.state.doc.toString()).toBe(source);
+    expect(parent.querySelector("textarea")).toBe(editor);
+    expect(editor.value).toBe(draft);
+    view.destroy();
+    await Promise.resolve();
+    expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value).toBe(draft);
+  });
+
   it.each(["Enter", "Tab", "blur"])("retains a pasted math fragment and refuses %s without changing source or adding a row", async (action) => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | $P(A B)$ |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 });

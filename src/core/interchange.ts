@@ -1,5 +1,5 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
-import { parseEditableTables } from "./parser";
+import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
 import { mathCellInputProblem, normalizeTableCellText } from "./table-cell-syntax";
 
@@ -169,8 +169,11 @@ export function migrateSheetsExtendedTable(table: StructuralTable): SheetsExtend
   const separatorColumn = separatorColumns[0];
   if (separatorColumn === undefined || separatorColumn === 0 || separatorColumn === table.columnCount - 1) return null;
   const candidate = sourceWithoutColumn(table, separatorColumn);
-  const parsed = parseEditableTables(candidate).tables[0];
-  if (parsed === undefined || !parsed.valid) return null;
+  const values = table.rows.map((row) => row.cells
+    .filter((_cell, column) => column !== separatorColumn).map((cell) => cell.raw.trim()));
+  const alignments = table.alignments.filter((_alignment, column) => column !== separatorColumn);
+  const parsed = parseTableWrite(candidate, values, table.headerRowCount, separatorColumn, alignments);
+  if (parsed === null) return null;
   return { separatorColumn, source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }) };
 }
 
@@ -258,6 +261,6 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
   const lines = values.map((row) => `| ${row.join(" | ")} |`);
   lines.splice(headerRowCount, 0, delimiter);
   const candidate = lines.join("\n");
-  const parsed = parseEditableTables(candidate).tables[0];
-  return parsed !== undefined && parsed.valid ? serializeStructuralTable(parsed) : null;
+  const parsed = parseTableWrite(candidate, values, headerRowCount, rowHeaderColumnCount, Array.from({ length: columnCount }, () => "default"));
+  return parsed !== null ? serializeStructuralTable(parsed) : null;
 }

@@ -18,6 +18,10 @@ export class Component {
     for (const cleanup of this.cleanups.splice(0).reverse()) cleanup();
   }
 
+  register(callback: () => void): void {
+    this.cleanups.push(callback);
+  }
+
   registerDomEvent(
     element: HTMLElement,
     type: string,

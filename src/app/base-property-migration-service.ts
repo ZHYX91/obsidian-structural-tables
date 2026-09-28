@@ -18,6 +18,9 @@ interface PropertyMigrationFile {
   legacyBaseCount: number;
   hasLegacyRecordId: boolean;
   membershipIds: string[];
+  currentMembershipPresent: boolean;
+  currentMembershipValue: unknown;
+  legacyMembershipValue: unknown;
   legacyRecordIdValue: unknown;
 }
 
@@ -123,6 +126,9 @@ export class BasePropertyMigrationService {
           legacyBaseCount: fileLegacyBaseCount,
           hasLegacyRecordId,
           membershipIds: [...membership.ids],
+          currentMembershipPresent: frontmatter !== undefined && owns(frontmatter, TABLE_MEMBERSHIP_PROPERTY),
+          currentMembershipValue: frontmatter?.[TABLE_MEMBERSHIP_PROPERTY],
+          legacyMembershipValue: frontmatter?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY],
           legacyRecordIdValue: frontmatter?.[LEGACY_RECORD_ID_PROPERTY],
         });
       }
@@ -162,7 +168,12 @@ export class BasePropertyMigrationService {
               throw new Error(`Structural Tables membership changed during migration: ${candidate.path}.`);
             }
             if (candidate.migrateMembership) {
-              if (!owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY)) {
+              if (!owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY)
+                || !sameValue(frontmatter[LEGACY_TABLE_MEMBERSHIP_PROPERTY], candidate.legacyMembershipValue)
+                || (candidate.currentMembershipPresent
+                  ? !owns(frontmatter, TABLE_MEMBERSHIP_PROPERTY)
+                    || !sameValue(frontmatter[TABLE_MEMBERSHIP_PROPERTY], candidate.currentMembershipValue)
+                  : owns(frontmatter, TABLE_MEMBERSHIP_PROPERTY))) {
                 throw new Error(`Structural Tables membership changed during migration: ${candidate.path}.`);
               }
               frontmatter[TABLE_MEMBERSHIP_PROPERTY] = [...membership.ids];
@@ -225,11 +236,16 @@ export class BasePropertyMigrationService {
               }
               if (candidate.migrateMembership) {
                 if (!owns(frontmatter, TABLE_MEMBERSHIP_PROPERTY)
-                  || owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY)) {
+                  || owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY)
+                  || !sameValue(frontmatter[TABLE_MEMBERSHIP_PROPERTY], candidate.membershipIds)) {
                   throw new Error("membership properties changed after migration wrote them");
                 }
-                frontmatter[LEGACY_TABLE_MEMBERSHIP_PROPERTY] = [...candidate.membershipIds];
-                delete frontmatter[TABLE_MEMBERSHIP_PROPERTY];
+                frontmatter[LEGACY_TABLE_MEMBERSHIP_PROPERTY] = candidate.legacyMembershipValue;
+                if (candidate.currentMembershipPresent) {
+                  frontmatter[TABLE_MEMBERSHIP_PROPERTY] = candidate.currentMembershipValue;
+                } else {
+                  delete frontmatter[TABLE_MEMBERSHIP_PROPERTY];
+                }
               }
               if (removeLegacyRecordIds && candidate.hasLegacyRecordId) {
                 if (owns(frontmatter, LEGACY_RECORD_ID_PROPERTY)) {

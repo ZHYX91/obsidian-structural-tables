@@ -1,9 +1,10 @@
+import type { BaseEditorInfo } from "../app/base-promotion-service";
 import {
   Prec, RangeSetBuilder, StateEffect, StateField,
   type EditorState, type Extension, type Transaction,
 } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
-import { App, editorInfoField, editorLivePreviewField, type Editor, type TFile } from "obsidian";
+import { App, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
 
 import { createTranslator, diagnosticNotice } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -39,7 +40,7 @@ export class StructuralTableEditorController {
   constructor(
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
-    private readonly promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
+    private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
   ) {}
 
   createExtension(): Extension {

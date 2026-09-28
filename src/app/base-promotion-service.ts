@@ -4,6 +4,7 @@ import {
   stringifyYaml,
   TFile,
   type Editor,
+  type MarkdownFileInfo,
 } from "obsidian";
 
 import {
@@ -21,6 +22,28 @@ import { reparseUnchangedTable } from "../core/table-snapshot";
 import { replaceTableSource } from "../editor/table-replacement";
 
 const RECORDS_FOLDER = "_structural-table-records";
+
+export type BaseEditorInfo = () => Pick<MarkdownFileInfo, "file" | "editor"> | null;
+
+export interface BaseEditorTarget {
+  sourceFilePath: string;
+  assertCurrent: () => void;
+}
+
+export function captureBaseEditorTarget(editor: Editor, getInfo: BaseEditorInfo): BaseEditorTarget {
+  const file = getInfo()?.file;
+  if (file == null || getInfo()?.editor !== editor) throw new Error("The source note is no longer open in this editor.");
+  const sourceFilePath = file.path;
+  return {
+    sourceFilePath,
+    assertCurrent: () => {
+      const current = getInfo();
+      if (current?.editor !== editor || current.file !== file || file.path !== sourceFilePath) {
+        throw new Error("The source note changed while the operation was open.");
+      }
+    },
+  };
+}
 
 interface PreparedRecord {
   path: string;
@@ -74,8 +97,8 @@ function recordContent(
   membershipProperty = TABLE_MEMBERSHIP_PROPERTY,
 ): string {
   const frontmatter = {
-    [membershipProperty]: [tableId],
     ...record.values,
+    [membershipProperty]: [tableId],
   };
   return `---\n${stringifyYaml(frontmatter).trimEnd()}\n---\n`;
 }
@@ -165,9 +188,18 @@ export class BasePromotionService {
     };
   }
 
-  async execute(editor: Editor, expected: StructuralTable, prepared: PreparedBasePromotion): Promise<void> {
+  async execute(
+    editor: Editor,
+    expected: StructuralTable,
+    prepared: PreparedBasePromotion,
+    target: BaseEditorTarget,
+  ): Promise<void> {
     if (prepared.plan.blockers.length > 0) {
       throw new Error("Resolve every blocking structural conversion issue before upgrading this table to a Base.");
+    }
+    target.assertCurrent();
+    if (target.sourceFilePath !== prepared.sourceFilePath) {
+      throw new Error("The source note changed while the Base upgrade was open.");
     }
     if (this.app.vault.getAbstractFileByPath(prepared.directoryPath) !== null) {
       throw new Error("The target record folder already exists.");
@@ -175,12 +207,18 @@ export class BasePromotionService {
     const current = reparseUnchangedTable(editor.getValue(), expected);
     if (current === null) throw new Error("The table changed while the preview was open.");
     await this.ensureFolder(parentPath(prepared.directoryPath));
+    target.assertCurrent();
     const createdDirectory = await this.app.vault.createFolder(prepared.directoryPath);
     try {
-      for (const record of prepared.records) await this.app.vault.create(record.path, record.content);
+      for (const record of prepared.records) {
+        target.assertCurrent();
+        await this.app.vault.create(record.path, record.content);
+      }
+      target.assertCurrent();
       await this.app.vault.create(prepared.manifestPath, prepared.manifestContent);
       const verified = reparseUnchangedTable(editor.getValue(), current);
       if (verified === null) throw new Error("The table changed while records were being created.");
+      target.assertCurrent();
       replaceTableSource(editor, verified, prepared.replacementSource);
     } catch (error) {
       // Vault reads cannot atomically authorize trashing. A sync client, plugin or user
@@ -193,11 +231,16 @@ export class BasePromotionService {
     }
   }
 
-  async restore(editor: Editor, expected: PromotionBlockMetadata): Promise<void> {
+  async restore(editor: Editor, expected: PromotionBlockMetadata, target: BaseEditorTarget, previewSource: string): Promise<void> {
+    target.assertCurrent();
     if (matchingPromotionBlock(editor, expected) === null) {
       throw new Error("The promoted Base changed before it could be restored.");
     }
     const manifest = await this.readManifest(expected);
+    target.assertCurrent();
+    if (manifest.originalTableSource !== previewSource) {
+      throw new Error("The recovery manifest changed after the preview was opened.");
+    }
     const current = matchingPromotionBlock(editor, expected);
     if (current === null) {
       throw new Error("The promoted Base changed while its recovery manifest was being read.");

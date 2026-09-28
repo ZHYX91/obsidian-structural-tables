@@ -310,4 +310,50 @@ describe("legacy Base property migration", () => {
     await expect(service.execute(await service.prepare(), false)).rejects.toThrow("changed during migration");
     expect(host.sources.get(base)).toBe(`${original}\nConcurrent user edit`);
   });
+  it("preserves unrelated Base strings while migrating only membership filters", async () => {
+    const host = migrationHost();
+    const base = testFile("People.md");
+    host.files.push(base);
+    const original = promotedBase("stb_people").replace(
+      "filters:",
+      'properties:\n  "note.name":\n    displayName: "list(note.structural_table_ids)"\nfilters:',
+    );
+    host.sources.set(base, original);
+    const service = new BasePropertyMigrationService(host.app);
+
+    await service.execute(await service.prepare(), false);
+
+    const migrated = host.sources.get(base) ?? "";
+    expect(migrated).toContain('displayName: "list(note.structural_table_ids)"');
+    expect(migrated).toContain('list(note["structural-tables"])');
+  });
+
+  it("restores both equivalent membership fields exactly when a later write fails", async () => {
+    const host = migrationHost();
+    const record = testFile("Records/Alice.md");
+    const base = testFile("People.md");
+    host.files.push(record, base);
+    const originalMembership = ["stb_people"];
+    host.frontmatters.set(record, {
+      [TABLE_MEMBERSHIP_PROPERTY]: [...originalMembership],
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: [...originalMembership],
+      topic: "kept",
+    });
+    const originalRecord = yaml(host.frontmatters.get(record) ?? {}, "Body\n");
+    host.sources.set(record, originalRecord);
+    host.sources.set(base, promotedBase("stb_people"));
+    host.failProcessPath = base.path;
+    const service = new BasePropertyMigrationService(host.app);
+
+    await expect(service.execute(await service.prepare(), false))
+      .rejects.toThrow("Every completed file was restored");
+
+    expect(host.frontmatters.get(record)).toEqual({
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      topic: "kept",
+    });
+    expect(host.sources.get(record)).toContain("Body\n");
+  });
+
 });

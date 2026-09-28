@@ -1,13 +1,44 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { singleCellTextFromClipboardHtml, structuralSourceFromClipboardHtml } from "../src/editor/table-interchange";
+import { cellClipboardText, singleCellTextFromClipboardHtml, structuralSourceFromClipboardHtml } from "../src/editor/table-interchange";
 import { parseEditableTables } from "../src/core/parser";
 
 const originalDomParser = globalThis.DOMParser;
 const originalHtmlTable = globalThis.HTMLTableElement;
 
 describe("HTML table clipboard import", () => {
+  it.each([
+    "<p>Before</p><table><tr><td>A</td></tr></table><p>After</p>",
+    "<table><tr><td>A</td></tr></table><table><tr><td>B</td></tr></table>",
+    "<table><caption>Title</caption><tr><td>A</td></tr></table>",
+  ])("does not truncate mixed single-cell content: %s", (html) => {
+    expect(singleCellTextFromClipboardHtml(html)).toBeNull();
+    expect(cellClipboardText(html, "Complete clipboard")).toEqual({ kind: "text", text: "Complete clipboard", fallback: true });
+    expect(cellClipboardText(html, "")).toEqual({ kind: "unsupported" });
+  });
+
+  it.each([
+    "<math><mfrac><mi>a</mi><mi>b</mi></mfrac></math>",
+    '<img src="image.png" alt="diagram">',
+    '<a href="Note" class="internal-link">Alias</a>',
+    '<span class="internal-embed">Title</span>',
+    '<input value="data">',
+  ])("declines lossy text extraction even when rich HTML has text: %s", (content) => {
+    const cell = `<td>Before ${content} after</td>`;
+    expect(singleCellTextFromClipboardHtml(cell)).toBeNull();
+    expect(structuralSourceFromClipboardHtml(`<table><tr>${cell}<td>B</td></tr></table>`)).toBeNull();
+    expect(cellClipboardText(cell, "")).toEqual({ kind: "unsupported" });
+    expect(cellClipboardText(cell, "original source")).toEqual({ kind: "text", text: "original source", fallback: true });
+  });
+
+  it("distinguishes intentionally empty cells from missing data and prefers meaningful plain text", () => {
+    expect(cellClipboardText("<td></td>", "")).toEqual({ kind: "empty" });
+    expect(cellClipboardText("<td></td>", "preserve me")).toEqual({ kind: "text", text: "preserve me", fallback: true });
+    expect(cellClipboardText("", "")).toEqual({ kind: "unsupported" });
+    expect(cellClipboardText("", "plain")).toEqual({ kind: "text", text: "plain", fallback: false });
+    expect(cellClipboardText("<td>A<br>B</td>", '"A\nB"\r\n')).toEqual({ kind: "text", text: "A\nB", fallback: false });
+  });
   beforeEach(() => {
     const window = new Window();
     globalThis.DOMParser = window.DOMParser as unknown as typeof DOMParser;
@@ -68,6 +99,20 @@ describe("HTML table clipboard import", () => {
 
     expect(parsed?.columnCount).toBe(2);
     expect(parsed?.rows[1]?.cells[1]?.content).toBe(String.raw`[[Target\|Alias]] \| literal`);
+  });
+
+  it("refuses mixed prose or multiple tables so native paste can preserve all content", () => {
+    expect(structuralSourceFromClipboardHtml("<p>Before</p><table><tr><td>A</td><td>B</td></tr></table>")).toBeNull();
+    expect(structuralSourceFromClipboardHtml(
+      "<table><tr><td>A</td><td>B</td></tr></table><table><tr><td>C</td><td>D</td></tr></table>",
+    )).toBeNull();
+  });
+
+  it("falls back from non-text rich single cells while preserving truly empty cells", () => {
+    expect(singleCellTextFromClipboardHtml(
+      "<table><tr><td><mjx-container><svg><path></path></svg></mjx-container></td></tr></table>",
+    )).toBeNull();
+    expect(singleCellTextFromClipboardHtml("<table><tr><td></td></tr></table>")).toBe("");
   });
 
   it("returns null for non-tables and one-column tables", () => {

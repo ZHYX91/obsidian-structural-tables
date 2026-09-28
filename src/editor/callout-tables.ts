@@ -42,7 +42,7 @@ export class CalloutTables {
       render: (table: StructuralTable) => Promise<string[]>;
     },
   ) {
-    this.observer = new MutationObserver(() => this.schedule());
+    this.observer = new view.dom.ownerDocument.defaultView!.MutationObserver(() => this.schedule());
     this.observer.observe(view.dom, { childList: true, subtree: true, characterData: true });
     this.schedule();
   }
@@ -69,10 +69,14 @@ export class CalloutTables {
     const { node, offset } = this.view.domAtPos(range.from);
     const element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node.parentElement;
     const enclosing = element?.closest<HTMLElement>(".callout");
-    if (enclosing !== null && enclosing !== undefined) return enclosing;
+    const owned = (root: HTMLElement | null | undefined): root is HTMLElement => root != null
+      && this.view.dom.contains(root)
+      && root.closest(".cm-editor, .internal-embed, .markdown-embed") === this.view.dom;
+    if (owned(enclosing)) return enclosing;
     const boundary = node.nodeType === Node.ELEMENT_NODE ? node.childNodes[offset] : undefined;
     if (!(boundary instanceof this.view.dom.ownerDocument.defaultView!.HTMLElement)) return undefined;
-    return boundary.matches(".callout") ? boundary : boundary.querySelector<HTMLElement>(".callout") ?? undefined;
+    const root = boundary.matches(".callout") ? boundary : boundary.querySelector<HTMLElement>(".callout");
+    return owned(root) ? root : undefined;
   }
 
   private release(entry: MountedTable): void {
@@ -92,7 +96,10 @@ export class CalloutTables {
         && candidate.range.to === entry.range.to && candidate.source === entry.table.source);
       const range = table === undefined ? undefined : rangeFor(table);
       const root = range === undefined ? undefined : roots.get(range);
-      if (table !== undefined && root?.contains(entry.host) && entry.host.isConnected
+      // Hover editors can build or temporarily detach their entire DOM. A host
+      // still inside this editor remains owned: global isConnected would release
+      // it and immediately remount it, repeatedly waking our own observer.
+      if (table !== undefined && root?.contains(entry.host) && this.view.dom.contains(entry.host)
         && entry.sourcePath === state.sourcePath && state.owns(table)) {
         const widget = state.widget(table);
         if (widget.updateDOM(entry.host)) { entry.table = table; entry.widget = widget; continue; }

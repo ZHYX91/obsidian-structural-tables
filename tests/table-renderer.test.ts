@@ -26,7 +26,7 @@ beforeAll(() => {
 });
 
 describe("renderStructuralTable", () => {
-  it("gives empty and merged cells a persistent content layer without inserting placeholder text", () => {
+  it("gives empty and merged cells a persistent content layer without inserting placeholder text", async () => {
     const source = "| A | B | C |\n| --- | --- | --- |\n|  |  | < |\n| ^ | Value | End |";
     const table = parseStructuralTables(source).tables[0]!;
     const container = document.createElement("div");
@@ -38,6 +38,8 @@ describe("renderStructuralTable", () => {
     try {
       const rendered = renderStructuralTable({} as App, table, container, "Content.md", new Component());
       const cells = [...rendered.querySelectorAll<HTMLTableCellElement>("th, td")];
+      expect(render).not.toHaveBeenCalled();
+      await Promise.resolve();
       expect(targets).toHaveLength(cells.length);
       for (const [index, cell] of cells.entries()) {
         expect(cell.firstElementChild).toBe(targets[index]);
@@ -51,7 +53,7 @@ describe("renderStructuralTable", () => {
     }
   });
 
-  it("identifies nested column groups without crossing row-spanning or terminal headers", () => {
+  it("identifies nested column groups without crossing row-spanning or terminal headers", async () => {
     const source = [
       "| Region | Results | < | < | < |",
       "| ^ | Sales | < | Costs | < |",
@@ -75,6 +77,7 @@ describe("renderStructuralTable", () => {
         expect(table.valid).toBe(true);
         renderStructuralTable({} as App, table, container, "Headers.md", new Component());
       }
+      await Promise.resolve();
       const groups = container.querySelectorAll('thead th[colspan][data-structural-header-end="false"]');
       expect([...groups].map((element) => element.textContent)).toEqual(["Results", "Sales", "Costs", "Detail"]);
       const spanningHeaders = container.querySelectorAll('thead th[rowspan]');
@@ -86,7 +89,7 @@ describe("renderStructuralTable", () => {
     }
   });
 
-  it.each(["<br>", "<br/>", "<br />"])("passes the exact %s spelling to Obsidian's renderer", (tag) => {
+  it.each(["<br>", "<br/>", "<br />"])("passes the exact %s spelling to Obsidian's renderer", async (tag) => {
     const source = `| Name | Note |\n| --- || --- |\n| Alice | First${tag}Second |`;
     const table = parseStructuralTables(source).tables[0];
     const render = vi.spyOn(MarkdownRenderer, "render");
@@ -99,9 +102,37 @@ describe("renderStructuralTable", () => {
       "Breaks.md",
       new Component(),
     );
+    expect(render).not.toHaveBeenCalled();
+    await Promise.resolve();
 
     expect(render.mock.calls.map((call) => call[1])).toContain(`First${tag}Second`);
     render.mockRestore();
+  });
+
+  it("cancels deferred rendering when its component is destroyed before the microtask", async () => {
+    const table = parseStructuralTables("| A | B |\n| --- || --- |\n| 1 | 2 |").tables[0]!;
+    const component = new Component();
+    component.load();
+    const render = vi.spyOn(MarkdownRenderer, "render");
+
+    renderStructuralTable({} as App, table, document.createElement("div"), "Cancelled.md", component);
+    component.unload();
+    await Promise.resolve();
+
+    expect(render).not.toHaveBeenCalled();
+    render.mockRestore();
+  });
+
+  it("falls back to source text if deferred Markdown rendering rejects", async () => {
+    const table = parseStructuralTables("| A | B |\n| --- || --- |\n| 1 | 2 |").tables[0]!;
+    vi.spyOn(MarkdownRenderer, "render").mockRejectedValue(new Error("post-processor failed"));
+    const container = document.createElement("div");
+    renderStructuralTable({} as App, table, container, "Fallback.md", new Component());
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect([...container.querySelectorAll(".structural-tables-cell-content")].map((el) => el.textContent))
+      .toEqual(["A", "B", "1", "2"]);
   });
 
   it("marks real block and inline edges after row and column spans", () => {

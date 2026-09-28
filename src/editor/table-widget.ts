@@ -1,6 +1,7 @@
+import type { BaseEditorInfo } from "../app/base-promotion-service";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
-import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
+import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -13,7 +14,7 @@ import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import { renderTableClipboard } from "../rendering/table-clipboard";
-import { copyHtml, singleCellTextFromClipboardHtml } from "./table-interchange";
+import { cellClipboardText, copyHtml } from "./table-interchange";
 import {
   addBasePromotionMenuItem,
   addSelectionMenuItems,
@@ -103,7 +104,7 @@ export class StructuralTableWidget extends WidgetType {
     private readonly sourcePath: string,
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
-    private readonly promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
+    private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
   ) { super(); }
 
   override eq(other: StructuralTableWidget): boolean {
@@ -164,7 +165,7 @@ class StructuralTableInteraction {
     private readonly sourcePath: string,
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
-    private readonly promote?: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
+    private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
   ) {}
 
   rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
@@ -604,7 +605,7 @@ class StructuralTableInteraction {
         .catch(() => { new Notice(t("notice.clipboardFailed")); });
     }));
     if (this.promote !== undefined && info?.editor !== undefined) {
-      addBasePromotionMenuItem(menu, t, this.table, () => this.promote?.(info.editor!, info.file, this.table));
+      addBasePromotionMenuItem(menu, t, this.table, () => this.promote?.(info.editor!, () => view.dom.isConnected ? view.state.field(editorInfoField, false) ?? null : null, this.table));
     }
     const menuOptions = { fullEditor: true } as const;
     if (!hasSelectionMenuItems(selection, menuOptions)) return;
@@ -800,10 +801,16 @@ class StructuralTableInteraction {
       }
     });
     editor.addEventListener("paste", (event) => {
+      if (event.clipboardData === null) return;
       const html = event.clipboardData?.getData("text/html") ?? "";
-      const pasted = singleCellTextFromClipboardHtml(html) ?? event.clipboardData?.getData("text/plain");
-      if (pasted === undefined) return;
+      const result = cellClipboardText(html, event.clipboardData.getData("text/plain"));
       event.preventDefault();
+      if (result.kind === "unsupported") {
+        new Notice(t("notice.clipboardUnsupported"));
+        return;
+      }
+      if (result.kind === "text" && result.fallback) new Notice(t("notice.clipboardPlainFallback"));
+      const pasted = result.kind === "empty" ? "" : result.text;
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
       editor.setRangeText(normalizeTableCellFragment(pasted), start, end, "end");

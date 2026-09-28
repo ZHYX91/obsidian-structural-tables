@@ -197,19 +197,55 @@ describe("HTML table clipboard import", () => {
   });
 
   it.each([
-    ["empty HTML with meaningful plain text", "<table><tr><td></td><td></td></tr></table>", "Name\tValue\nimportant\t42"],
     ["preformatted HTML", "<table><tr><td><pre>A\nB</pre></td><td>2</td></tr></table>", "A\nB\t2"],
     ["superscript HTML", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
+    ["mixed prose", "<p>Before</p><table><tr><td></td><td></td></tr></table>", "fallback"],
+    ["multiple tables", "<table><tr><td></td><td></td></tr></table><table><tr><td></td><td></td></tr></table>", "fallback"],
   ])("leaves %s to native whole-note paste without touching the selection", (_name, html, plain) => {
-    expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "native", plain });
+    expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "native" });
     const replaceSelection = vi.fn();
     const clipboardData = {
       getData: (type: string) => type === "text/html" ? html : plain,
     } as unknown as DataTransfer;
     const editor = { replaceSelection } as unknown as Editor;
 
-    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe(false);
+    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("native");
     expect(replaceSelection).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["plain text", "IMPORTANT-PLAIN"],
+    ["multiline and surrounding whitespace", "  first line\nsecond line\n  "],
+    ["whitespace-only non-empty text", " \n "],
+  ])("uses the complete plain fallback for a pure empty table: %s", (_name, plain) => {
+    const html = "<table><tr><td></td><td></td></tr></table>";
+    expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "plain", text: plain });
+    const replaceSelection = vi.fn();
+    const clipboardData = {
+      getData: (type: string) => type === "text/html" ? html : plain,
+    } as unknown as DataTransfer;
+    const editor = { replaceSelection } as unknown as Editor;
+
+    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("plain");
+    expect(replaceSelection).toHaveBeenCalledOnce();
+    expect(replaceSelection).toHaveBeenCalledWith(plain);
+  });
+
+  it("blocks a pure empty HTML table when no plain alternative exists", () => {
+    const html = "<table><tr><td></td><td></td></tr></table>";
+    expect(wholeTableClipboardImport(html, "")).toEqual({ kind: "blocked-empty" });
+    const replaceSelection = vi.fn();
+    const clipboardData = {
+      getData: (type: string) => type === "text/html" ? html : "",
+    } as unknown as DataTransfer;
+    const editor = { replaceSelection } as unknown as Editor;
+
+    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("blocked-empty");
+    expect(replaceSelection).not.toHaveBeenCalled();
+  });
+
+  it("leaves an entirely empty clipboard native", () => {
+    expect(wholeTableClipboardImport("", "")).toEqual({ kind: "native" });
   });
 
   it("owns a supported whole-note table paste and replaces the selection once", () => {
@@ -225,7 +261,7 @@ describe("HTML table clipboard import", () => {
       clipboardData.getData("text/html"),
       clipboardData.getData("text/plain"),
     ).kind).toBe("table");
-    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe(true);
+    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("table");
     expect(replaceSelection).toHaveBeenCalledOnce();
     expect(replaceSelection.mock.calls[0]?.[0]).toContain("| A");
   });

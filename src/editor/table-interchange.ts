@@ -110,6 +110,17 @@ function hasMeaningfulTableContent(table: HTMLTableElement): boolean {
     .some((cell) => htmlCellText(cell) !== "");
 }
 
+function isPureEmptyClipboardTable(html: string): boolean {
+  const parsed = parsedClipboardTable(html);
+  if (
+    parsed === null
+    || hasMeaningfulContentOutsideTable(parsed.document)
+    || hasUnsupportedCellContent(parsed.table)
+  ) return false;
+  const cells = Array.from(parsed.table.querySelectorAll<HTMLTableCellElement>("td, th"));
+  return cells.length > 0 && cells.every((cell) => htmlCellText(cell) === "");
+}
+
 export function structuralSourceFromClipboardHtml(html: string): string | null {
   const parsed = parsedClipboardTable(html);
   if (
@@ -136,26 +147,34 @@ export function structuralSourceFromClipboardHtml(html: string): string | null {
 
 export type WholeTableClipboardImport =
   | { kind: "table"; source: string }
-  | { kind: "native"; plain: string };
+  | { kind: "plain"; text: string }
+  | { kind: "blocked-empty" }
+  | { kind: "native" };
 
 /** Classify the complete clipboard payload before taking ownership of a note-level paste. */
 export function wholeTableClipboardImport(html: string, plain: string): WholeTableClipboardImport {
   const source = structuralSourceFromClipboardHtml(html);
-  return source === null ? { kind: "native", plain } : { kind: "table", source };
+  if (source !== null) return { kind: "table", source };
+  if (!isPureEmptyClipboardTable(html)) return { kind: "native" };
+  if (plain !== "") return { kind: "plain", text: plain };
+  return { kind: "blocked-empty" };
 }
 
 /**
- * Own a whole-note paste only when the HTML table can be represented losslessly.
- * Otherwise leave both the selection and complete clipboard payload to Obsidian.
+ * Replace only payloads explicitly owned by the classifier.
+ * Native pass-through is left completely untouched for Obsidian.
  */
-export function replaceSelectionFromClipboardTable(clipboardData: DataTransfer, editor: Editor): boolean {
+export function replaceSelectionFromClipboardTable(
+  clipboardData: DataTransfer,
+  editor: Editor,
+): WholeTableClipboardImport["kind"] {
   const result = wholeTableClipboardImport(
     clipboardData.getData("text/html"),
     clipboardData.getData("text/plain"),
   );
-  if (result.kind === "native") return false;
-  editor.replaceSelection(result.source);
-  return true;
+  if (result.kind === "table") editor.replaceSelection(result.source);
+  else if (result.kind === "plain") editor.replaceSelection(result.text);
+  return result.kind;
 }
 
 export async function copyText(text: string): Promise<void> {

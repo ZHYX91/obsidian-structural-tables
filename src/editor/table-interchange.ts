@@ -30,7 +30,12 @@ function htmlCellText(cell: HTMLTableCellElement): string {
   return parts.join("").replace(/[ \t]*\n[ \t]*/gu, "\n").trim();
 }
 
-function clipboardTable(html: string): HTMLTableElement | null {
+interface ClipboardTable {
+  document: Document;
+  table: HTMLTableElement;
+}
+
+function parsedClipboardTable(html: string): ClipboardTable | null {
   let source = html;
   if (!/<table(?:\s|>)/iu.test(source)) {
     // Spreadsheet clipboard fragments can omit the surrounding table and rows.
@@ -41,19 +46,53 @@ function clipboardTable(html: string): HTMLTableElement | null {
   }
   const document = new DOMParser().parseFromString(source, "text/html");
   const table = document.querySelector("table");
-  return table instanceof HTMLTableElement ? table : null;
+  return table instanceof HTMLTableElement ? { document, table } : null;
+}
+
+const NON_TEXT_CONTENT = "svg, math, mjx-container, img, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
+
+function hasUnsupportedCellContent(table: HTMLTableElement): boolean {
+  return table.querySelector(NON_TEXT_CONTENT) !== null
+    || Array.from(table.querySelectorAll("caption")).some((caption) => (caption.textContent ?? "").trim() !== "");
+}
+
+function hasMeaningfulContentOutsideTable(document: Document): boolean {
+  if (document.querySelectorAll("table").length !== 1) return true;
+  const clone = document.body.cloneNode(true) as HTMLElement;
+  clone.querySelector("table")?.remove();
+  if ((clone.textContent ?? "").trim() !== "") return true;
+  return clone.querySelector(
+    "img, svg, math, mjx-container, video, audio, canvas, iframe, object, input, textarea, select, button",
+  ) !== null;
 }
 
 export function singleCellTextFromClipboardHtml(html: string): string | null {
-  const table = clipboardTable(html);
-  const cells = table?.querySelectorAll<HTMLTableCellElement>("td, th");
+  const parsed = parsedClipboardTable(html);
+  if (parsed === null || hasMeaningfulContentOutsideTable(parsed.document) || hasUnsupportedCellContent(parsed.table)) return null;
+  const cells = parsed.table.querySelectorAll<HTMLTableCellElement>("td, th");
   const cell = cells?.length === 1 ? cells[0] : undefined;
-  return cell === undefined ? null : htmlCellText(cell);
+  if (cell === undefined) return null;
+  return htmlCellText(cell);
+}
+
+export type CellClipboardText =
+  | { kind: "text"; text: string; fallback: boolean }
+  | { kind: "empty" }
+  | { kind: "unsupported" };
+
+/** An unsupported HTML payload must never erase the editor selection. */
+export function cellClipboardText(html: string, plain: string): CellClipboardText {
+  const extracted = html === "" ? null : singleCellTextFromClipboardHtml(html);
+  if (extracted !== null && extracted !== "") return { kind: "text", text: extracted, fallback: false };
+  if (plain !== "") return { kind: "text", text: plain, fallback: html !== "" };
+  if (extracted === "") return { kind: "empty" };
+  return { kind: "unsupported" };
 }
 
 export function structuralSourceFromClipboardHtml(html: string): string | null {
-  const table = clipboardTable(html);
-  if (table === null) return null;
+  const parsed = parsedClipboardTable(html);
+  if (parsed === null || hasMeaningfulContentOutsideTable(parsed.document) || hasUnsupportedCellContent(parsed.table)) return null;
+  const { table } = parsed;
   const rows: ImportedHtmlRow[] = Array.from(table.rows).map((row) => {
     const section = row.parentElement?.tagName.toLowerCase() === "thead" ? "head" : "body";
     return {

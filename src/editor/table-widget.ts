@@ -13,7 +13,7 @@ import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import { renderTableClipboard } from "../rendering/table-clipboard";
-import { copyHtml, singleCellTextFromClipboardHtml } from "./table-interchange";
+import { cellClipboardText, copyHtml } from "./table-interchange";
 import {
   addBasePromotionMenuItem,
   addSelectionMenuItems,
@@ -800,10 +800,16 @@ class StructuralTableInteraction {
       }
     });
     editor.addEventListener("paste", (event) => {
+      if (event.clipboardData === null) return;
       const html = event.clipboardData?.getData("text/html") ?? "";
-      const pasted = singleCellTextFromClipboardHtml(html) ?? event.clipboardData?.getData("text/plain");
-      if (pasted === undefined) return;
+      const result = cellClipboardText(html, event.clipboardData.getData("text/plain"));
       event.preventDefault();
+      if (result.kind === "unsupported") {
+        new Notice(t("notice.clipboardUnsupported"));
+        return;
+      }
+      if (result.kind === "text" && result.fallback) new Notice(t("notice.clipboardPlainFallback"));
+      const pasted = result.kind === "empty" ? "" : result.text;
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
       editor.setRangeText(normalizeTableCellFragment(pasted), start, end, "end");

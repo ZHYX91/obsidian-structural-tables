@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.11 - Unreleased
+
+- Keep table parsing, cursor positioning and cache invalidation consistent across code spans, comments, math blocks and list containers.
+- Refuse edits and imports that would truncate a table; retain rejected drafts. Preserve safe single-line math and reject math inputs that cannot be represented without changing their meaning.
+- Preserve complete clipboard content, falling back to original Markdown for formulas, images and internal references.
+- Migrate global and view-level Base membership filters without changing unrelated YAML values; preserve rollback fields and bind asynchronous promotion/restoration to the source editor and preview.
+- Defer cell Markdown rendering and retain Callout ownership during detached editor mounts to prevent repeated mounting with third-party post-processors.
+- Show add-row and add-column controls during desktop hover or keyboard focus, and while a touch table is active.
+
 ## 0.4.10 - 2026-09-23
 
 - Preserve generated folders and partial records after failed Base promotion so concurrent edits and unrelated additions are never swept into automatic cleanup.

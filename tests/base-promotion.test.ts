@@ -317,6 +317,41 @@ views:
     expect(migrated.source.slice(example.length)).toContain('list(note["structural-tables"])');
   });
 
+  it.each([
+    ["HTML comment", (source: string) => `<!--\n${source}\n-->`],
+    ["Obsidian comment", (source: string) => `%%\n${source}\n%%`],
+    ["display math", (source: string) => `$\n${source}\n$`],
+    ["frontmatter scalar", (source: string) => [
+      "---",
+      "example: |",
+      ...source.split("\n").map((line) => `  ${line}`),
+      "---",
+    ].join("\n")],
+  ])("ignores a plugin-shaped Base inside %s while keeping a real Base with the same id", (_name, protect) => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_shared");
+    const legacy = embeddedBaseSource(plan, "Records/shared/_promotion.json")
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
+    const protectedExample = protect(legacy);
+    const source = `${protectedExample}\n\n${legacy}`;
+
+    expect(promotionBlocks(source).map(({ tableId }) => tableId)).toEqual(["stb_shared"]);
+    const migrated = migrateLegacyPromotionBlocks(source);
+    expect(migrated.count).toBe(1);
+    expect(migrated.source.slice(0, protectedExample.length)).toBe(protectedExample);
+    expect(migrated.source.slice(protectedExample.length)).toContain('list(note["structural-tables"])');
+  });
+
+  it("keeps real Base fences visible at supported indentation while excluding indented code", () => {
+    const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_indent");
+    const legacy = embeddedBaseSource(plan, "Records/indent/_promotion.json")
+      .replace('list(note["structural-tables"])', "list(note.structural_table_ids)");
+    const indent = (source: string, spaces: number) => source.split("\n")
+      .map((line) => `${" ".repeat(spaces)}${line}`).join("\n");
+
+    expect(promotionBlocks(indent(legacy, 3)).map(({ tableId }) => tableId)).toEqual(["stb_indent"]);
+    expect(promotionBlocks(indent(legacy, 4))).toEqual([]);
+  });
+
   it("recognizes exact Base info strings in backtick and tilde fences only", () => {
     const plan = buildBasePromotionPlan(table(`| Name |\n| --- |\n| A |`), "stb_tilde");
     const tilde = embeddedBaseSource(plan, "Records/tilde/_promotion.json")

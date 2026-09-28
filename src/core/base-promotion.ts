@@ -1,6 +1,7 @@
 import type { StructuralTable } from "./model";
 import { projectStructuralTable } from "./interchange";
 import { isMap, isScalar, isSeq, parseDocument } from "yaml";
+import { ignoredMarkdownLines } from "./source-lines";
 
 export const TABLE_MEMBERSHIP_PROPERTY = "structural-tables";
 export const LEGACY_TABLE_MEMBERSHIP_PROPERTY = "structural_table_ids";
@@ -434,7 +435,9 @@ function closesFence(line: string, opening: FenceOpening): boolean {
 export function promotionBlocks(source: string, sourceFilePath?: string): PromotionBlockMetadata[] {
   const blocks: PromotionBlockMetadata[] = [];
   const lines = sourceLines(source);
+  const ignored = ignoredMarkdownLines(lines.map((line) => line.text), new Set(["base"]));
   for (let index = 0; index < lines.length; index += 1) {
+    if (ignored.has(index)) continue;
     const openingLine = lines[index];
     if (openingLine === undefined) continue;
     const opening = fenceOpening(openingLine.text);

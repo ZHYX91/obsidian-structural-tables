@@ -71,6 +71,46 @@ describe("registered whole-note HTML paste entry", () => {
     expect(notices).not.toContain("HTML table pasted with structural spans preserved.");
   });
 
+  it.each([
+    ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
+    ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>", "H₂O\twater"],
+    ["negative exponent", "<table><tr><td>x<sup>-2</sup></td><td>2</td></tr></table>", "x⁻²\t2"],
+    ["nested superscript", "<table><tr><td>x<sup><span>2</span></sup></td><td>2</td></tr></table>", "x²\t2"],
+    ["preformatted whitespace", "<table><tr><td><pre>A\n  B\tC</pre></td><td>2</td></tr></table>", "A\n  B\tC\t2"],
+  ])("uses the complete plain fallback for %s without flattening HTML semantics", (_name, html, plain) => {
+    const handler = registeredPasteHandler();
+    const replaceSelection = vi.fn();
+    const { event, preventDefault } = clipboardEvent(html, plain);
+
+    handler(event, { replaceSelection } as unknown as Editor);
+
+    expect(replaceSelection).toHaveBeenCalledOnce();
+    expect(replaceSelection).toHaveBeenCalledWith(plain);
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(notices).toEqual([
+      "Pasted the complete plain-text alternative. Rich formatting and attachments may need to be added separately.",
+    ]);
+    expect(notices).not.toContain("HTML table pasted with structural spans preserved.");
+  });
+
+  it.each([
+    ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>"],
+    ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>"],
+    ["preformatted text", "<table><tr><td><pre>A\n  B</pre></td><td>2</td></tr></table>"],
+  ])("blocks %s without plain text and preserves the selection", (_name, html) => {
+    const handler = registeredPasteHandler();
+    const replaceSelection = vi.fn();
+    const { event, preventDefault } = clipboardEvent(html, "");
+
+    handler(event, { replaceSelection } as unknown as Editor);
+
+    expect(replaceSelection).not.toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(notices).toEqual([
+      "This HTML table contains text formatting that cannot be preserved safely, and no plain-text alternative was available. The current selection was kept.",
+    ]);
+  });
+
   it("blocks an empty HTML table with no plain fallback and preserves the selection", () => {
     const handler = registeredPasteHandler();
     const replaceSelection = vi.fn();
@@ -90,11 +130,11 @@ describe("registered whole-note HTML paste entry", () => {
 
   it.each([
     ["both formats empty", "", ""],
-    ["preformatted content", "<table><tr><td><pre>A\nB</pre></td><td>2</td></tr></table>", "A\nB\t2"],
-    ["superscript content", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
     ["unsupported image", '<table><tr><td><img src="x.png"></td><td>2</td></tr></table>', "image\t2"],
-    ["mixed prose", "<p>Before</p><table><tr><td></td><td></td></tr></table>", "fallback"],
-    ["multiple tables", "<table><tr><td></td><td></td></tr></table><table><tr><td></td><td></td></tr></table>", "fallback"],
+    ["mixed prose around superscript", "<p>Before</p><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "fallback"],
+    ["multiple tables with superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table><table><tr><td>A</td><td>B</td></tr></table>", "fallback"],
+    ["superscript plus image", '<table><tr><td>x<sup>2</sup><img src="x.png"></td><td>2</td></tr></table>', "x²\t2"],
+    ["superscript plus link", '<table><tr><td>x<sup>2</sup> <a href="https://example.com">source</a></td><td>2</td></tr></table>', "x² source\t2"],
   ])("leaves %s entirely to native paste", (_name, html, plain) => {
     const handler = registeredPasteHandler();
     const replaceSelection = vi.fn();

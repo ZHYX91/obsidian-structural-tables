@@ -197,10 +197,10 @@ describe("HTML table clipboard import", () => {
   });
 
   it.each([
-    ["preformatted HTML", "<table><tr><td><pre>A\nB</pre></td><td>2</td></tr></table>", "A\nB\t2"],
-    ["superscript HTML", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
-    ["mixed prose", "<p>Before</p><table><tr><td></td><td></td></tr></table>", "fallback"],
-    ["multiple tables", "<table><tr><td></td><td></td></tr></table><table><tr><td></td><td></td></tr></table>", "fallback"],
+    ["mixed prose", "<p>Before</p><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "fallback"],
+    ["multiple tables", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table><table><tr><td>A</td><td>B</td></tr></table>", "fallback"],
+    ["superscript plus image", '<table><tr><td>x<sup>2</sup><img src="x.png"></td><td>2</td></tr></table>', "x²\t2"],
+    ["superscript plus link", '<table><tr><td>x<sup>2</sup> <a href="https://example.com">source</a></td><td>2</td></tr></table>', "x² source\t2"],
   ])("leaves %s to native whole-note paste without touching the selection", (_name, html, plain) => {
     expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "native" });
     const replaceSelection = vi.fn();
@@ -210,6 +210,41 @@ describe("HTML table clipboard import", () => {
     const editor = { replaceSelection } as unknown as Editor;
 
     expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("native");
+    expect(replaceSelection).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
+    ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>", "H₂O\twater"],
+    ["negative exponent", "<table><tr><td>x<sup>-2</sup></td><td>2</td></tr></table>", "x⁻²\t2"],
+    ["nested superscript", "<table><tr><td>x<sup><span>2</span></sup></td><td>2</td></tr></table>", "x²\t2"],
+    ["preformatted whitespace", "<table><tr><td><pre>A\n  B\tC</pre></td><td>2</td></tr></table>", "A\n  B\tC\t2"],
+  ])("uses the complete plain fallback for a single text-semantic table: %s", (_name, html, plain) => {
+    expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "plain", text: plain });
+    const replaceSelection = vi.fn();
+    const clipboardData = {
+      getData: (type: string) => type === "text/html" ? html : plain,
+    } as unknown as DataTransfer;
+    const editor = { replaceSelection } as unknown as Editor;
+
+    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("plain");
+    expect(replaceSelection).toHaveBeenCalledOnce();
+    expect(replaceSelection).toHaveBeenCalledWith(plain);
+  });
+
+  it.each([
+    ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>"],
+    ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>"],
+    ["preformatted text", "<table><tr><td><pre>A\n  B</pre></td><td>2</td></tr></table>"],
+  ])("blocks a single text-semantic table without a plain fallback: %s", (_name, html) => {
+    expect(wholeTableClipboardImport(html, "")).toEqual({ kind: "blocked-unsafe-text" });
+    const replaceSelection = vi.fn();
+    const clipboardData = {
+      getData: (type: string) => type === "text/html" ? html : "",
+    } as unknown as DataTransfer;
+    const editor = { replaceSelection } as unknown as Editor;
+
+    expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("blocked-unsafe-text");
     expect(replaceSelection).not.toHaveBeenCalled();
   });
 

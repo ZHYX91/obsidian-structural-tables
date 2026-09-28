@@ -51,14 +51,19 @@ function parsedClipboardTable(html: string): ClipboardTable | null {
   return table instanceof HTMLTableElement ? { document, table } : null;
 }
 
-const NON_TEXT_CONTENT = "svg, math, mjx-container, img, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script, pre, sup, sub";
+const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
+const TEXT_SEMANTIC_CONTENT = "pre, sup, sub";
 
-function hasUnsupportedCellContent(table: HTMLTableElement): boolean {
-  return table.querySelector(NON_TEXT_CONTENT) !== null
+function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {
+  return table.querySelector(HARD_UNSUPPORTED_CONTENT) !== null
     // Text-node whitespace normalization is not a TeX parser. Preserve the
     // clipboard's original plain-text alternative for source math as well.
     || (table.textContent ?? "").includes("$")
     || Array.from(table.querySelectorAll("caption")).some((caption) => (caption.textContent ?? "").trim() !== "");
+}
+
+function hasUnsupportedCellContent(table: HTMLTableElement): boolean {
+  return hasHardUnsupportedCellContent(table) || table.querySelector(TEXT_SEMANTIC_CONTENT) !== null;
 }
 
 function hasMeaningfulContentOutsideTable(document: Document): boolean {
@@ -121,6 +126,17 @@ function isPureEmptyClipboardTable(html: string): boolean {
   return cells.length > 0 && cells.every((cell) => htmlCellText(cell) === "");
 }
 
+function isPlainFallbackTextSemanticTable(html: string): boolean {
+  const parsed = parsedClipboardTable(html);
+  if (
+    parsed === null
+    || hasMeaningfulContentOutsideTable(parsed.document)
+    || hasHardUnsupportedCellContent(parsed.table)
+  ) return false;
+  const cells = parsed.table.querySelectorAll<HTMLTableCellElement>("td, th");
+  return cells.length > 0 && parsed.table.querySelector(TEXT_SEMANTIC_CONTENT) !== null;
+}
+
 export function structuralSourceFromClipboardHtml(html: string): string | null {
   const parsed = parsedClipboardTable(html);
   if (
@@ -149,15 +165,20 @@ export type WholeTableClipboardImport =
   | { kind: "table"; source: string }
   | { kind: "plain"; text: string }
   | { kind: "blocked-empty" }
+  | { kind: "blocked-unsafe-text" }
   | { kind: "native" };
 
 /** Classify the complete clipboard payload before taking ownership of a note-level paste. */
 export function wholeTableClipboardImport(html: string, plain: string): WholeTableClipboardImport {
   const source = structuralSourceFromClipboardHtml(html);
   if (source !== null) return { kind: "table", source };
-  if (!isPureEmptyClipboardTable(html)) return { kind: "native" };
-  if (plain !== "") return { kind: "plain", text: plain };
-  return { kind: "blocked-empty" };
+  if (isPureEmptyClipboardTable(html)) {
+    return plain !== "" ? { kind: "plain", text: plain } : { kind: "blocked-empty" };
+  }
+  if (isPlainFallbackTextSemanticTable(html)) {
+    return plain !== "" ? { kind: "plain", text: plain } : { kind: "blocked-unsafe-text" };
+  }
+  return { kind: "native" };
 }
 
 /**

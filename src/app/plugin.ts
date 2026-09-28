@@ -311,7 +311,8 @@ export class StructuralTablesPlugin extends Plugin {
       const t = createTranslator(this.settings.language);
       if (result === "table") new Notice(t("notice.htmlTableImported"));
       else if (result === "plain") new Notice(t("notice.clipboardPlainFallback"));
-      else new Notice(t("notice.htmlEmptyTableBlocked"));
+      else if (result === "blocked-empty") new Notice(t("notice.htmlEmptyTableBlocked"));
+      else new Notice(t("notice.htmlTextSemanticsBlocked"));
     }));
   }
 

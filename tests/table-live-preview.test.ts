@@ -1031,7 +1031,7 @@ describe("StructuralTableEditorController", () => {
     });
     editor.dispatchEvent(paste);
     expect(paste.defaultPrevented).toBe(true);
-    expect(editor.value).toBe('"First"<br>Second');
+    expect(editor.value).toBe('"First"\nSecond');
     editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await Promise.resolve();
     expect(view.state.doc.toString()).toContain('"First"<br>Second');
@@ -1097,19 +1097,19 @@ describe("StructuralTableEditorController", () => {
     editor.setSelectionRange(5, 5);
 
     editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true }));
-    expect(editor.value).toBe("First<br>");
+    expect(editor.value).toBe("First\n");
 
     const paste = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(paste, "clipboardData", { value: { getData: () => "Second\r\nThird" } });
     editor.dispatchEvent(paste);
-    expect(editor.value).toBe("First<br>Second<br>Third");
+    expect(editor.value).toBe("First\nSecond\r\nThird");
 
     editor.setSelectionRange(5, 5);
     editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
     const item = lastMenu?.items.find((candidate) => candidate.title === "Insert line break in cell");
     expect(item).toBeDefined();
     item?.callback?.();
-    expect(editor.value).toBe("First<br><br>Second<br>Third");
+    expect(editor.value).toBe("First\n\nSecond\r\nThird");
     expect(cell.querySelector(".structural-tables-cell-editor")).toBe(editor);
     view.destroy();
   });
@@ -1234,6 +1234,61 @@ describe("StructuralTableEditorController", () => {
 });
 
 describe("interrupted drafts and contextual paste", () => {
+  it.each(["Enter", "Tab", "blur"])("retains a pasted math fragment and refuses %s without changing source or adding a row", async (action) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | $P(A B)$ |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+    cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+    editor.setSelectionRange(4, 5);
+    const paste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", { value: { getData: (type: string) => type === "text/plain" ? "|" : "" } });
+    editor.dispatchEvent(paste);
+    expect(editor.value).toBe("$P(A|B)$");
+    if (action === "blur") editor.dispatchEvent(new FocusEvent("blur"));
+    else editor.dispatchEvent(new KeyboardEvent("keydown", { key: action, bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    expect(view.state.doc.toString()).toBe(source);
+    expect(parent.querySelector("textarea")).toBe(editor);
+    expect(editor.value).toBe("$P(A|B)$");
+    view.destroy();
+    await Promise.resolve();
+    expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value).toBe("$P(A|B)$");
+  });
+
+  it("retains complete multiline math across failed commit and presentation refresh", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const draft = "$$\n\\begin{aligned}\na&=b\\\\\nc&=d\n\\end{aligned}\n$$";
+    const { parent, view, updateSettings } = mountEditor(source, { anchor: 0 });
+    parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!
+      .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+    editor.select();
+    const paste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", { value: { getData: (type: string) => type === "text/plain" ? draft : "" } });
+    editor.dispatchEvent(paste);
+    expect(editor.value).toBe(draft);
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(view.state.doc.toString()).toBe(source);
+    updateSettings({ density: "compact" });
+    await Promise.resolve();
+    expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value).toBe(draft);
+    view.destroy();
+  });
+
+  it("keeps Shift+Enter inside a formula as a real draft newline", () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | $ab$ |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!
+      .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+    editor.setSelectionRange(2, 2);
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true }));
+    expect(editor.value).toBe("$a\nb$");
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(view.state.doc.toString()).toBe(source);
+    view.destroy();
+  });
   it("keeps an accessible draft when another cell is changed externally", async () => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 });

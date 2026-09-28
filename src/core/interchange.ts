@@ -1,6 +1,7 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseEditableTables } from "./parser";
 import { serializeStructuralTable } from "./serializer";
+import { mathCellInputProblem, normalizeTableCellText } from "./table-cell-syntax";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -42,20 +43,7 @@ function anchorFor(table: StructuralTable, cell: StructuralCell): StructuralCell
 }
 
 function portableCell(content: string): string {
-  const singleLine = content.replace(/\r\n|\r|\n/gu, "<br>").trim();
-  let output = "";
-  for (let index = 0; index < singleLine.length; index += 1) {
-    const character = singleLine[index] ?? "";
-    if (character !== "|") {
-      output += character;
-      continue;
-    }
-    let slashes = 0;
-    for (let before = index - 1; before >= 0 && singleLine[before] === "\\"; before -= 1) slashes += 1;
-    output += slashes % 2 === 0 ? "\\|" : "|";
-  }
-  if (output === "<" || output === "^") return `\\${output}`;
-  return output;
+  return normalizeTableCellText(content);
 }
 
 function delimiterFor(alignment: ColumnAlignment): string {
@@ -196,6 +184,7 @@ export function enabledConflictingPlugins(enabledPluginIds: Iterable<string>): s
 }
 
 export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlRow[]): string | null {
+  if (rows.some((row) => row.cells.some((cell) => mathCellInputProblem(cell.text) !== null))) return null;
   if (rows.length === 0 || rows.every((row) => row.cells.length === 0)) return null;
   const owners: (ImportedAnchor | undefined)[][] = rows.map(() => []);
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {

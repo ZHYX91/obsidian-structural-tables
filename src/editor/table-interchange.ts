@@ -53,6 +53,9 @@ const NON_TEXT_CONTENT = "svg, math, mjx-container, img, .internal-embed, a[href
 
 function hasUnsupportedCellContent(table: HTMLTableElement): boolean {
   return table.querySelector(NON_TEXT_CONTENT) !== null
+    // Text-node whitespace normalization is not a TeX parser. Preserve the
+    // clipboard's original plain-text alternative for source math as well.
+    || (table.textContent ?? "").includes("$")
     || Array.from(table.querySelectorAll("caption")).some((caption) => (caption.textContent ?? "").trim() !== "");
 }
 

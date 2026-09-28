@@ -2,11 +2,12 @@ import type { ColumnAlignment, StructuralTable } from "./model";
 import { parseEditableTables, parseStructuralTables } from "./parser";
 import { serializeStructuralTable } from "./serializer";
 import { sourcePrefix } from "./source-lines";
-import { normalizeTableCellText, tableColumnAt as tableSyntaxColumnAt } from "./table-cell-syntax";
+import { mathCellInputProblem, normalizeTableCellText, tableColumnAt as tableSyntaxColumnAt, type MathCellInputProblem } from "./table-cell-syntax";
 
 export type MergeDirection = "left" | "up";
 
 export type OperationCode =
+  | MathCellInputProblem
   | "already-merged"
   | "cell-unavailable"
   | "cell-edited"
@@ -203,11 +204,6 @@ export function normalizeTableCellInput(input: string): string {
   return normalizeTableCellText(input);
 }
 
-/** Normalize pasted text without discarding fragment boundary whitespace. */
-export function normalizeTableCellFragment(input: string): string {
-  return input.replace(/\r\n|\r|\n/gu, "<br>");
-}
-
 export function editCellContent(
   table: StructuralTable,
   row: number,
@@ -221,6 +217,8 @@ export function editCellContent(
   if (anchor === undefined) {
     return { changed: false, code: "cell-unavailable", message: "The selected cell is unavailable.", source: table.source };
   }
+  const problem = mathCellInputProblem(input);
+  if (problem !== null) return { changed: false, code: problem, message: "The math draft cannot be stored without changing its meaning.", source: table.source };
   const normalized = normalizeTableCellInput(input);
   if (normalized === anchor.raw.trim()) {
     return { changed: false, code: "cell-edited", message: "The cell is unchanged.", source: table.source };

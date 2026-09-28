@@ -104,6 +104,36 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("registered conversion command entry", () => {
+  it("passes the current source file into both preview commands", () => {
+    const formatCurrent = vi.fn();
+    const previewPlainGfmConversion = vi.fn();
+    const commands: Array<{
+      id: string;
+      editorCallback?: (editor: Editor, context: { file: TFile | null }) => void;
+    }> = [];
+    const surface = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
+      settings: { ...DEFAULT_SETTINGS, language: "en" },
+      localizedCommands: [],
+      formatCurrent,
+      previewPlainGfmConversion,
+      addCommand: (command: typeof commands[number]) => {
+        commands.push(command);
+        return command;
+      },
+    }) as unknown as { registerCommands: () => void };
+    surface.registerCommands();
+
+    const editor = editorHarness().editor;
+    const file = new MockTFile("A.md") as unknown as TFile;
+    commands.find(({ id }) => id === "format-current-structural-table")?.editorCallback?.(editor, { file });
+    commands.find(({ id }) => id === "convert-current-table-to-plain-gfm")?.editorCallback?.(editor, { file });
+
+    expect(formatCurrent).toHaveBeenCalledWith(editor, file);
+    expect(previewPlainGfmConversion).toHaveBeenCalledWith(editor, file);
+  });
+});
+
 describe.each([
   ["format", (surface: ReturnType<typeof pluginHarness>["plugin"], editor: Editor, file: TFile) => surface.formatCurrent(editor, file)],
   ["GFM", (surface: ReturnType<typeof pluginHarness>["plugin"], editor: Editor, file: TFile) => surface.previewPlainGfmConversion(editor, file)],

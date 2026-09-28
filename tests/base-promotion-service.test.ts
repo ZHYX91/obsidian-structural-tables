@@ -3,10 +3,12 @@ import { TFile, TFolder } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { parse, stringify } from "yaml";
 
-import { BasePromotionService } from "../src/app/base-promotion-service";
+import { BasePromotionService, captureBaseEditorTarget } from "../src/app/base-promotion-service";
 import {
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
   promotionBlockAt,
+  TABLE_MEMBERSHIP_PROPERTY,
+  type PromotionBlockMetadata,
 } from "../src/core/base-promotion";
 import { parseEditableTables } from "../src/core/parser";
 
@@ -21,6 +23,7 @@ vi.stubGlobal("activeWindow", {
 });
 
 class MemoryEditor {
+  file: TFile | null | undefined;
   constructor(private source: string) {}
 
   getValue(): string { return this.source; }
@@ -47,6 +50,11 @@ class MemoryEditor {
     for (let line = 0; line < position.line; line += 1) offset += (lines[line]?.length ?? 0) + 1;
     return offset + position.ch;
   }
+}
+
+function sourceTarget(editor: MemoryEditor, file: TFile) {
+  if (editor.file === undefined) editor.file = file;
+  return captureBaseEditorTarget(editor as unknown as Editor, () => ({ editor: editor as unknown as Editor, file: editor.file ?? null }));
 }
 
 interface MemoryHost {
@@ -188,13 +196,63 @@ function sourceTable() {
 }
 
 describe("Base promotion file transaction", () => {
+  it.each(["before-confirm", "during-records", "after-manifest"])("refuses a reused editor containing identical text after a file switch: %s", async (stage) => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/A.md");
+    const otherFile = memoryFile("Folder/B.md");
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const target = sourceTarget(editor, sourceFile);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    if (stage === "before-confirm") editor.file = otherFile;
+    else host.afterCreate = (path) => {
+      if (path === (stage === "during-records" ? prepared.records[0]!.path : prepared.manifestPath)) editor.file = otherFile;
+    };
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, target)).rejects.toThrow("source note changed");
+    expect(editor.getValue()).toBe(SOURCE);
+    if (stage === "before-confirm") expect(host.contents.size).toBe(0);
+    if (stage === "during-records") {
+      expect(host.contents.has(prepared.records[0]!.path)).toBe(true);
+      expect(host.contents.has(prepared.records[1]!.path)).toBe(false);
+    }
+  });
+
+  it.each(["before-confirm", "during-read"])("refuses restoration into a reused editor with an identical Base: %s", async (stage) => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/A.md");
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const target = sourceTarget(editor, sourceFile);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, target);
+    const metadata = promotionBlockAt(editor.getValue(), 1)!;
+    if (stage === "before-confirm") editor.file = memoryFile("Folder/B.md");
+    else host.afterRead = () => { editor.file = memoryFile("Folder/B.md"); };
+    await expect(service.restore(editor as unknown as Editor, metadata, target, SOURCE)).rejects.toThrow("source note changed");
+    expect(editor.getValue()).toBe(prepared.replacementSource);
+  });
+
+  it("binds both editor and file identity, including replacement files at the same path", () => {
+    const editor = new MemoryEditor(SOURCE);
+    const file = memoryFile("A.md");
+    const info = { editor: editor as unknown as Editor, file: file as TFile | null };
+    const target = captureBaseEditorTarget(editor as unknown as Editor, () => info);
+    target.assertCurrent();
+    info.file = memoryFile("A.md");
+    expect(() => target.assertCurrent()).toThrow("source note changed");
+    info.file = file;
+    info.editor = new MemoryEditor(SOURCE) as unknown as Editor;
+    expect(() => target.assertCurrent()).toThrow("source note changed");
+    info.file = null;
+    expect(() => captureBaseEditorTarget(editor as unknown as Editor, () => info)).toThrow("no longer open");
+  });
   it("recovers an unmarked saved Base only through its exact original manifest", async () => {
     const host = memoryHost();
     const sourceFile = memoryFile("Folder/People.md");
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
     const prepared = service.prepare(sourceTable(), sourceFile);
-    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
     const config = parse(editor.getValue().split("\n").slice(1, -1).join("\n"));
     delete config["structural-tables"];
     editor.mutate(`\`\`\`base\n${stringify(config)}\`\`\``);
@@ -208,7 +266,7 @@ describe("Base promotion file transaction", () => {
     expect([...host.contents]).toEqual(before);
     expect(host.renamed).toEqual([]);
     host.contents.set(prepared.manifestPath, prepared.manifestContent);
-    await service.restore(editor as unknown as Editor, metadata);
+    await service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), SOURCE);
     expect(editor.getValue()).toBe(SOURCE);
     expect(prepared.records.every(({ path }) => host.contents.has(path))).toBe(true);
   });
@@ -221,7 +279,7 @@ describe("Base promotion file transaction", () => {
     const service = new BasePromotionService(host.app);
     const prepared = service.prepare(sourceTable(), sourceFile);
 
-    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
 
     expect(prepared.records.map((record) => record.path)).toEqual([
       `${prepared.directoryPath}/Alice.md`,
@@ -248,7 +306,7 @@ describe("Base promotion file transaction", () => {
       if (path.endsWith(".md")) editor.mutate(SOURCE.replace("Alice", "Alicia"));
     };
 
-    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared))
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile)))
       .rejects.toThrow("changed while records were being created");
     expect(host.trashed).toEqual([]);
     expect(host.files.has(prepared.directoryPath)).toBe(true);
@@ -270,7 +328,7 @@ describe("Base promotion file transaction", () => {
       }
     };
 
-    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared))
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile)))
       .rejects.toThrow("generated files were left in place for review");
     expect(host.contents.get(prepared.records[0]?.path ?? "")).toBe("external edit");
     expect(host.files.get(prepared.directoryPath)).toBeInstanceOf(TFolder);
@@ -293,7 +351,7 @@ describe("Base promotion file transaction", () => {
       }
     };
 
-    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared))
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile)))
       .rejects.toThrow("generated files were left in place for review");
     expect(host.files.get(prepared.directoryPath)).toBeInstanceOf(TFolder);
     expect(host.trashed).toEqual([]);
@@ -329,7 +387,7 @@ describe("Base promotion file transaction", () => {
       }));
     };
 
-    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared)).rejects.toThrow();
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile))).rejects.toThrow();
     expect(changed).toBe(true);
     expect(host.contents.get(retainedPath)).toBe("concurrent user content");
     expect(host.trashed).toEqual([]);
@@ -350,7 +408,7 @@ describe("Base promotion file transaction", () => {
       return originalCreate(path, content);
     });
 
-    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared))
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile)))
       .rejects.toThrow(`Record folder: ${prepared.directoryPath}. Original failure: disk full`);
     expect(host.files.has(prepared.directoryPath)).toBe(true);
     expect(host.contents.has(prepared.manifestPath)).toBe(false);
@@ -364,7 +422,8 @@ describe("Base promotion file transaction", () => {
     const host = memoryHost();
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
-    const prepared = service.prepare(sourceTable(), memoryFile("Folder/People.md"));
+    const sourceFile = memoryFile("Folder/People.md");
+    const prepared = service.prepare(sourceTable(), sourceFile);
     const foreignPath = `${prepared.directoryPath}/External`;
     host.afterCreate = (path) => {
       if (path !== prepared.manifestPath) return;
@@ -376,7 +435,7 @@ describe("Base promotion file transaction", () => {
       editor.mutate(SOURCE.replace("Alice", "Alicia"));
     };
 
-    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared)).rejects.toThrow();
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile))).rejects.toThrow();
     expect(host.files.get(foreignPath)).toBeInstanceOf(TFolder);
     expect(host.contents.get(prepared.manifestPath)).toBe(prepared.manifestContent);
     expect(host.trashed).toEqual([]);
@@ -386,10 +445,11 @@ describe("Base promotion file transaction", () => {
     const host = memoryHost();
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
-    const prepared = service.prepare(sourceTable(), memoryFile("Folder/People.md"));
+    const sourceFile = memoryFile("Folder/People.md");
+    const prepared = service.prepare(sourceTable(), sourceFile);
     vi.spyOn(editor, "replaceRange").mockImplementation(() => { throw "editor unavailable"; });
 
-    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared))
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile)))
       .rejects.toThrow(`Record folder: ${prepared.directoryPath}. Original failure: editor unavailable`);
     expect(editor.getValue()).toBe(SOURCE);
     expect(prepared.records.every(({ path }) => host.contents.has(path))).toBe(true);
@@ -410,7 +470,7 @@ describe("Base promotion file transaction", () => {
     const prepared = service.prepare(merged, sourceFile);
 
     expect(prepared.plan.blockers).toHaveLength(1);
-    await expect(service.execute(editor as unknown as Editor, merged, prepared))
+    await expect(service.execute(editor as unknown as Editor, merged, prepared, sourceTarget(editor, sourceFile)))
       .rejects.toThrow("blocking structural conversion issue");
     expect(editor.getValue()).toBe(source);
     expect(host.files.has(prepared.directoryPath)).toBe(false);
@@ -424,11 +484,11 @@ describe("Base promotion file transaction", () => {
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
     const prepared = service.prepare(sourceTable(), sourceFile);
-    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
     const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"));
     if (metadata === null) throw new Error("Expected promotion metadata.");
 
-    await service.restore(editor as unknown as Editor, metadata);
+    await service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), SOURCE);
 
     expect(editor.getValue()).toBe(SOURCE);
     expect(host.files.has(prepared.records[0]?.path ?? "")).toBe(true);
@@ -441,14 +501,14 @@ describe("Base promotion file transaction", () => {
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
     const prepared = service.prepare(sourceTable(), sourceFile);
-    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
     const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"));
     if (metadata === null) throw new Error("Expected promotion metadata.");
     host.afterRead = (path) => {
       if (path === prepared.manifestPath) editor.mutate(`Intro\n${editor.getValue()}`);
     };
 
-    await service.restore(editor as unknown as Editor, metadata);
+    await service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), SOURCE);
 
     expect(editor.getValue()).toBe(`Intro\n${SOURCE}`);
   });
@@ -460,14 +520,14 @@ describe("Base promotion file transaction", () => {
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
     const prepared = service.prepare(sourceTable(), sourceFile);
-    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
     const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"));
     if (metadata === null) throw new Error("Expected promotion metadata.");
     const manifest = JSON.parse(host.contents.get(prepared.manifestPath) ?? "") as { pluginVersion: string };
     manifest.pluginVersion = "0.1.0-development";
     host.contents.set(prepared.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
-    await service.restore(editor as unknown as Editor, metadata);
+    await service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), SOURCE);
 
     expect(editor.getValue()).toBe(SOURCE);
   });
@@ -479,7 +539,7 @@ describe("Base promotion file transaction", () => {
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
     const prepared = service.prepare(sourceTable(), sourceFile);
-    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
     const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"));
     if (metadata === null) throw new Error("Expected promotion metadata.");
     const movedHost = memoryFile("Moved/People.md");
@@ -529,7 +589,7 @@ views:
     const prepared = service.prepare(sourceTable(), sourceFile);
     host.files.set(prepared.directoryPath, memoryFolder(prepared.directoryPath));
 
-    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared))
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile)))
       .rejects.toThrow("already exists");
     expect(editor.getValue()).toBe(SOURCE);
     expect(host.trashed).toEqual([]);
@@ -542,13 +602,13 @@ views:
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
     const prepared = service.prepare(sourceTable(), sourceFile);
-    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
     const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"));
     if (metadata === null) throw new Error("Expected promotion metadata.");
     host.files.delete(prepared.manifestPath);
     host.contents.delete(prepared.manifestPath);
 
-    await expect(service.restore(editor as unknown as Editor, metadata)).rejects.toThrow("could not be found");
+    await expect(service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), SOURCE)).rejects.toThrow("could not be found");
     expect(editor.getValue()).toBe(prepared.replacementSource);
   });
 });
@@ -561,7 +621,7 @@ describe("asynchronous restoration guards", () => {
     const editor = new MemoryEditor(SOURCE);
     const service = new BasePromotionService(host.app);
     const prepared = service.prepare(sourceTable(), sourceFile);
-    await service.execute(editor as unknown as Editor, sourceTable(), prepared);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
     const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"))!;
     let externalSource = "";
     host.afterRead = () => {
@@ -569,7 +629,64 @@ describe("asynchronous restoration guards", () => {
         : editor.getValue().replace("filters:", "# external edit\nfilters:");
       editor.mutate(externalSource);
     };
-    await expect(service.restore(editor as unknown as Editor, metadata)).rejects.toThrow("changed");
+    await expect(service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), SOURCE)).rejects.toThrow("changed");
     expect(editor.getValue()).toBe(externalSource);
   });
+  it("keeps membership authoritative when a saved Base displays a control property", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const service = new BasePromotionService(host.app);
+    const metadata: PromotionBlockMetadata = {
+      tableId: "stb_control",
+      manifestPath: "Folder/_structural-table-records/stb_control/_promotion.json",
+      membershipProperty: TABLE_MEMBERSHIP_PROPERTY,
+      propertyKeys: [TABLE_MEMBERSHIP_PROPERTY, "Name"],
+      range: { from: 0, to: 0 },
+      source: "",
+    };
+    const created = await service.createRecord(sourceFile, metadata);
+    const content = host.contents.get(created.path) ?? "";
+    expect(content).toContain('structural-tables:\n  - "stb_control"');
+    expect(content).not.toContain("structural-tables: \"\"");
+  });
+
+  it("refuses a promotion when the source file identity changes during generated writes", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    host.afterCreate = (path) => {
+      if (path.endsWith("/Alice.md")) sourceFile.path = "Folder/Renamed.md";
+    };
+
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile)))
+      .rejects.toThrow("source note changed while the operation was open");
+    expect(editor.getValue()).toBe(SOURCE);
+    expect(host.files.has(prepared.directoryPath)).toBe(true);
+  });
+
+  it("refuses restore when the manifest changes after the preview source was read", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
+    const metadata = promotionBlockAt(editor.getValue(), 1, sourceFile.path)!;
+    const preview = await service.restorationSource(metadata);
+    const manifest = JSON.parse(prepared.manifestContent);
+    host.contents.set(prepared.manifestPath, JSON.stringify({
+      ...manifest,
+      originalTableSource: SOURCE.replace("Alice", "Alicia"),
+    }));
+
+    await expect(service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), preview))
+      .rejects.toThrow("manifest changed after the preview");
+    expect(editor.getValue()).toBe(prepared.replacementSource);
+  });
+
 });

@@ -1,5 +1,6 @@
+import type { BaseEditorInfo } from "../app/base-promotion-service";
 import { EditorView } from "@codemirror/view";
-import { MarkdownView, Menu, Notice, type App, type Component, type Editor, type TFile } from "obsidian";
+import { MarkdownView, Menu, Notice, type App, type Component, type Editor } from "obsidian";
 
 import { createTranslator, operationNotice } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -24,7 +25,7 @@ export class NativeTableMenuBridge {
   constructor(
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
-    private readonly promote: (editor: Editor, sourceFile: TFile | null, table: StructuralTable) => void,
+    private readonly promote: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
   ) {}
 
   register(component: Component): void {
@@ -79,7 +80,7 @@ export class NativeTableMenuBridge {
     this.contributedEvents.add(event);
     const menu = Menu.forEvent(event);
     const t = createTranslator(this.getSettings().language);
-    addBasePromotionMenuItem(menu, t, table, () => this.promote(markdownView.editor, markdownView.file, table));
+    addBasePromotionMenuItem(menu, t, table, () => this.promote(markdownView.editor, () => markdownView, table));
     if (hasSelectionMenuItems(selection)) {
       addSelectionMenuItems(
         menu,

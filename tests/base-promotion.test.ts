@@ -45,6 +45,18 @@ describe("Base promotion planning", () => {
     expect(promotionBlocks(`\`\`\`base\n${stringify(config)}\`\`\``)[0]?.propertyKeys).toEqual(names);
   });
 
+  it("never exposes plugin control fields as new-record property templates", () => {
+    const plan = buildBasePromotionPlan(table("| Name | Value |\n| --- | --- |\n| A | 1 |"), "stb_controls");
+    const config = parse(embeddedBaseSource(plan, "Records/_promotion.json").split("\n").slice(1, -1).join("\n"));
+    config.views[0].order.push(
+      "note.structural-tables",
+      "note.structural_table_ids",
+      "note.structural_record_id",
+    );
+    const saved = `\`\`\`base\n${stringify(config)}\`\`\``;
+    expect(promotionBlocks(saved)[0]?.propertyKeys).toEqual(["Name", "Value"]);
+  });
+
   it("reads legacy expression IDs only as order items, including YAML single quotes", () => {
     const source = `\`\`\`base
 # structural-tables-promotion: stb_old

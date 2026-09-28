@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mathCellInputProblem, normalizeTableCellText } from "../src/core/table-cell-syntax";
+import { mathCellInputProblem, mathPipeSuggestions, normalizeTableCellText } from "../src/core/table-cell-syntax";
 import { editCellAndAppendRow, editCellContent } from "../src/core/operations";
 import { parseEditableTables } from "../src/core/parser";
 import { serializeStructuralTable } from "../src/core/serializer";
@@ -43,6 +43,25 @@ describe("math cell input fidelity", () => {
     expect(editCellAndAppendRow(table(), 1, 1, input!)).toMatchObject({ changed: false, code, source });
   });
 
+  it("offers only bounded, already-safe rewrites for common bare math pipes", () => {
+    expect(mathPipeSuggestions("$|x|$")).toEqual([
+      { kind: "absolute-value", replacement: String.raw`$\lvert x\rvert$` },
+    ]);
+    expect(mathPipeSuggestions("$P(A|B)$")).toEqual([
+      { kind: "conditional", replacement: String.raw`$P(A\mid B)$` },
+    ]);
+
+    for (const input of [
+      String.raw`$\begin{array}{c|c}a&b\end{array}$`,
+      String.raw`$\verb|a|$`,
+      "Text $|x|$",
+      "$|a|b|$",
+    ]) expect(mathPipeSuggestions(input)).toEqual([]);
+
+    for (const suggestion of [...mathPipeSuggestions("$|x|$"), ...mathPipeSuggestions("$P(A|B)$")]) {
+      expect(mathCellInputProblem(suggestion.replacement)).toBeNull();
+    }
+  });
   it.each(["\n", "\r\n", "\r"])("refuses actual math newlines including escaped ones (%j)", (newline) => {
     for (const input of [`$$${newline}a=b${newline}$$`, `$a\\${newline}b$`]) {
       expect(mathCellInputProblem(input)).toBe("math-multiline-unsafe");

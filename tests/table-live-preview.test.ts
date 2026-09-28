@@ -1038,6 +1038,31 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it("keeps an unsafe math draft and applies a user-confirmed safe rewrite from its context menu", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>(".structural-tables-cell-editor")!;
+      editor.value = "$|x|$";
+
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      expect(view.state.doc.toString()).toBe(source);
+      expect(editor.isConnected).toBe(true);
+
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const item = lastMenu?.items.find((candidate) => candidate.title === "Use \\lvert … \\rvert and save");
+      expect(item).toBeDefined();
+      item?.callback?.();
+      await Promise.resolve();
+
+      const parsed = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(parsed.columnCount).toBe(2);
+      expect(parsed.rows[1]!.cells[1]!.content).toBe(String.raw`$\lvert x\rvert$`);
+      expect(parent.querySelector(".structural-tables-cell-editor")).toBeNull();
+    } finally { view.destroy(); }
+  });
   it.each(["Escape", "Enter"])("preserves rendered sizing content and restores the same nodes after %s", (key) => {
     const source = "| Name | Value |\n| --- || --- |\n| Long | abcdefghijklmnopqrstuvwxyz |\n| Next | Short |";
     const { parent, view } = mountEditor(source, { anchor: source.length });

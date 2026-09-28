@@ -55,7 +55,8 @@ const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, .internal-embed
 const TEXT_SEMANTIC_CONTENT = "pre, sup, sub";
 
 function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {
-  return table.querySelector(HARD_UNSUPPORTED_CONTENT) !== null
+  return table.matches(HARD_UNSUPPORTED_CONTENT)
+    || table.querySelector(HARD_UNSUPPORTED_CONTENT) !== null
     // Text-node whitespace normalization is not a TeX parser. Preserve the
     // clipboard's original plain-text alternative for source math as well.
     || (table.textContent ?? "").includes("$")
@@ -68,12 +69,13 @@ function hasUnsupportedCellContent(table: HTMLTableElement): boolean {
 
 function hasMeaningfulContentOutsideTable(document: Document): boolean {
   if (document.querySelectorAll("table").length !== 1) return true;
+  // Check the complete HTML payload before removing the table so rich meaning
+  // carried by the table itself, an ancestor wrapper, or outside content is not
+  // lost by a plain-text fallback.
+  if (document.querySelector(HARD_UNSUPPORTED_CONTENT) !== null) return true;
   const clone = document.body.cloneNode(true) as HTMLElement;
   clone.querySelector("table")?.remove();
-  if ((clone.textContent ?? "").trim() !== "") return true;
-  return clone.querySelector(
-    "img, svg, math, mjx-container, video, audio, canvas, iframe, object, input, textarea, select, button",
-  ) !== null;
+  return (clone.textContent ?? "").trim() !== "";
 }
 
 export function singleCellTextFromClipboardHtml(html: string): string | null {
@@ -181,14 +183,36 @@ export function wholeTableClipboardImport(html: string, plain: string): WholeTab
   return { kind: "native" };
 }
 
+function hasNativeClipboardPayload(clipboardData: DataTransfer): boolean {
+  if (clipboardData.files?.length > 0) return true;
+  const items = clipboardData.items;
+  if (items !== undefined && items !== null) {
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      if (item?.kind === "file") return true;
+      if (item?.kind === "string" && item.type !== "" && !item.type.toLowerCase().startsWith("text/")) return true;
+    }
+  }
+  const types = clipboardData.types;
+  if (types !== undefined && types !== null) {
+    for (const type of Array.from(types)) {
+      const normalized = type.toLowerCase();
+      if (normalized === "files" || (normalized !== "" && !normalized.startsWith("text/"))) return true;
+    }
+  }
+  return false;
+}
+
 /**
- * Replace only payloads explicitly owned by the classifier.
- * Native pass-through is left completely untouched for Obsidian.
+ * Replace only complete clipboard payloads explicitly owned by the classifier.
+ * Files and other non-text clipboard parts remain completely native so host
+ * attachment/import handlers keep their opportunity to act.
  */
 export function replaceSelectionFromClipboardTable(
   clipboardData: DataTransfer,
   editor: Editor,
 ): WholeTableClipboardImport["kind"] {
+  if (hasNativeClipboardPayload(clipboardData)) return "native";
   const result = wholeTableClipboardImport(
     clipboardData.getData("text/html"),
     clipboardData.getData("text/plain"),

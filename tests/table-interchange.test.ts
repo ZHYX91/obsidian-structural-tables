@@ -201,6 +201,9 @@ describe("HTML table clipboard import", () => {
     ["multiple tables", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table><table><tr><td>A</td><td>B</td></tr></table>", "fallback"],
     ["superscript plus image", '<table><tr><td>x<sup>2</sup><img src="x.png"></td><td>2</td></tr></table>', "x²\t2"],
     ["superscript plus link", '<table><tr><td>x<sup>2</sup> <a href="https://example.com">source</a></td><td>2</td></tr></table>', "x² source\t2"],
+    ["link ancestor", '<a href="https://example.com/source"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></a>', "x²\t2"],
+    ["embed ancestor", '<div class="internal-embed" src="Source.md"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></div>', "x²\t2"],
+    ["embed inside cell", '<table><tr><td>x<sup>2</sup><span class="internal-embed" src="figure.svg"></span></td><td>2</td></tr></table>', "x²\t2"],
   ])("leaves %s to native whole-note paste without touching the selection", (_name, html, plain) => {
     expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "native" });
     const replaceSelection = vi.fn();
@@ -214,6 +217,8 @@ describe("HTML table clipboard import", () => {
   });
 
   it.each([
+    ["ordinary div wrapper", "<div><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></div>", "x²\t2"],
+    ["ordinary span wrapper", "<span><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></span>", "x²\t2"],
     ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
     ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>", "H₂O\twater"],
     ["negative exponent", "<table><tr><td>x<sup>-2</sup></td><td>2</td></tr></table>", "x⁻²\t2"],

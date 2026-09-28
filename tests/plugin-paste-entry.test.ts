@@ -44,6 +44,27 @@ function clipboardEvent(html: string, plain: string, defaultPrevented = false) {
   };
 }
 
+function realDataTransferEvent(
+  html: string,
+  plain: string,
+  configure?: (data: DataTransfer) => void,
+) {
+  const clipboardData = new DataTransfer();
+  clipboardData.setData("text/html", html);
+  clipboardData.setData("text/plain", plain);
+  configure?.(clipboardData);
+  const preventDefault = vi.fn();
+  return {
+    event: {
+      defaultPrevented: false,
+      clipboardData,
+      preventDefault,
+    } as unknown as ClipboardEvent,
+    clipboardData,
+    preventDefault,
+  };
+}
+
 beforeEach(() => {
   notices.splice(0);
 });
@@ -135,6 +156,9 @@ describe("registered whole-note HTML paste entry", () => {
     ["multiple tables with superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table><table><tr><td>A</td><td>B</td></tr></table>", "fallback"],
     ["superscript plus image", '<table><tr><td>x<sup>2</sup><img src="x.png"></td><td>2</td></tr></table>', "x²\t2"],
     ["superscript plus link", '<table><tr><td>x<sup>2</sup> <a href="https://example.com">source</a></td><td>2</td></tr></table>', "x² source\t2"],
+    ["link around table", '<a href="https://example.com/source"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></a>', "x²\t2"],
+    ["embed around table", '<div class="internal-embed" src="Source.md"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></div>', "x²\t2"],
+    ["embed inside table", '<table><tr><td>x<sup>2</sup><span class="internal-embed" src="figure.svg"></span></td><td>2</td></tr></table>', "x²\t2"],
   ])("leaves %s entirely to native paste", (_name, html, plain) => {
     const handler = registeredPasteHandler();
     const replaceSelection = vi.fn();
@@ -145,6 +169,63 @@ describe("registered whole-note HTML paste entry", () => {
     expect(preventDefault).not.toHaveBeenCalled();
     expect(replaceSelection).not.toHaveBeenCalled();
     expect(notices).toEqual([]);
+  });
+
+  it.each([
+    ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", "x²\t2"],
+    ["empty table", "<table><tr><td></td><td></td></tr></table>", "IMPORTANT-PLAIN"],
+  ])("keeps %s native when the real DataTransfer also carries a File", (_name, html, plain) => {
+    const handler = registeredPasteHandler();
+    const replaceSelection = vi.fn();
+    const { event, clipboardData, preventDefault } = realDataTransferEvent(html, plain, (data) => {
+      data.items.add(new File([new Uint8Array([137, 80, 78, 71])], "pixel.png", { type: "image/png" }));
+    });
+
+    expect(clipboardData.files.length).toBe(1);
+    expect(Array.from(clipboardData.items).some((item) => item.kind === "file")).toBe(true);
+
+    handler(event, { replaceSelection } as unknown as Editor);
+
+    expect(replaceSelection).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(notices).toEqual([]);
+  });
+
+  it("keeps a non-text custom clipboard MIME native", () => {
+    const handler = registeredPasteHandler();
+    const replaceSelection = vi.fn();
+    const { event, clipboardData, preventDefault } = realDataTransferEvent(
+      "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>",
+      "x²\t2",
+      (data) => data.setData("application/x-obsidian-test", "opaque"),
+    );
+
+    expect(Array.from(clipboardData.types)).toContain("application/x-obsidian-test");
+    handler(event, { replaceSelection } as unknown as Editor);
+
+    expect(replaceSelection).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(notices).toEqual([]);
+  });
+
+  it("still allows plain fallback when the only extra clipboard MIME is text", () => {
+    const handler = registeredPasteHandler();
+    const replaceSelection = vi.fn();
+    const { event, clipboardData, preventDefault } = realDataTransferEvent(
+      "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>",
+      "x²\t2",
+      (data) => data.setData("text/uri-list", "https://example.com/source"),
+    );
+
+    expect(Array.from(clipboardData.types)).toContain("text/uri-list");
+    handler(event, { replaceSelection } as unknown as Editor);
+
+    expect(replaceSelection).toHaveBeenCalledOnce();
+    expect(replaceSelection).toHaveBeenCalledWith("x²\t2");
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(notices).toEqual([
+      "Pasted the complete plain-text alternative. Rich formatting and attachments may need to be added separately.",
+    ]);
   });
 
   it("does nothing when HTML table conversion is disabled", () => {

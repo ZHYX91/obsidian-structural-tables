@@ -3,9 +3,25 @@ import { parseDocument } from "yaml";
 import { editCellContent, editCellAndAppendRow } from "../src/core/operations";
 import { parseEditableTables } from "../src/core/parser";
 import { importedHtmlTableToStructuralSource } from "../src/core/interchange";
-import { migrateMembershipFilter } from "../src/core/base-promotion";
+import { migrateMembershipFilter, migrateLegacyPromotionBlocks } from "../src/core/base-promotion";
 
 describe("reviewed write and container integrity", () => {
+  it("finds legacy view filters in an owned Base whose global filter is current", () => {
+    const source = '```base\nstructural-tables:\n  version: 1\n  tableId: stb_people\n  manifestPath: Records/_promotion.json\nfilters: \'list(note["structural-tables"]).contains("stb_people")\'\nviews:\n  - type: table\n    name: People\n    filters: \'list(note.structural_table_ids).contains("stb_people")\'\n```';
+    const migrated = migrateLegacyPromotionBlocks(source);
+    expect(migrated.count).toBe(1);
+    expect(migrated.source).not.toContain("note.structural_table_ids");
+    expect(migrateLegacyPromotionBlocks(migrated.source).count).toBe(0);
+    expect(migrateLegacyPromotionBlocks(source.replace("structural-tables:\n  version: 1\n  tableId: stb_people\n  manifestPath: Records/_promotion.json\n", "")).count).toBe(0);
+  });
+  it.each([['- - -', 6], ['* * *', 6], ['- * * *', 8], ['- - - -', 8]] as const)("keeps code after thematic breaks protected: %s", (opening, indent) => {
+    const source = [opening, "", ...['| A | < |', '| --- | --- |', '| x | y |'].map(line => " ".repeat(indent) + line)].join("\n");
+    expect(parseEditableTables(source).tables).toHaveLength(0);
+  });
+  it("still protects real same-line nested list fences", () => {
+    const source = '- - ~~~md\n    | A | < |\n    | --- | --- |\n    | x | y |\n    ~~~\n\n| Real | V |\n| --- | --- |\n| x | y |';
+    expect(parseEditableTables(source).tables.map(table => table.rows[0]!.cells[0]!.content)).toEqual(["Real"]);
+  });
   const source = "| H | V |\n| --- || --- |\n| A | KEEP-1 |\n| B | KEEP-2 |\n| C | KEEP-3 |";
   it.each(["<!--", "%%"].flatMap(input => [1, 2, 3].map(row => ({ input, row }))))("refuses truncated edit $input in row $row", ({ input, row }) => {
     const table = parseEditableTables(source).tables[0]!;

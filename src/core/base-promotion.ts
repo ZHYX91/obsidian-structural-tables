@@ -299,9 +299,13 @@ export function migrateMembershipFilter(source: string): string {
   return source.slice(0, from) + result + source.slice(to);
 }
 
+/** Ownership and migration need are distinct: current global filters may coexist with legacy views. */
+export function promotionBlocksNeedingMigration(source: string): PromotionBlockMetadata[] {
+  return promotionBlocks(source).filter((block) => migrateMembershipFilter(block.source) !== block.source);
+}
+
 export function migrateLegacyPromotionBlocks(source: string): { source: string; count: number } {
-  const legacy = promotionBlocks(source)
-    .filter(({ membershipProperty }) => membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY)
+  const legacy = promotionBlocksNeedingMigration(source)
     .sort((left, right) => right.range.from - left.range.from);
   let migrated = source;
   for (const block of legacy) {

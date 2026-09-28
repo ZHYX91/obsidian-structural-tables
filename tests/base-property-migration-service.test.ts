@@ -90,6 +90,41 @@ function migrationHost(): MigrationHost {
 }
 
 describe("legacy Base property migration", () => {
+  it.each([false, true])("discovers view-only legacy filters and preserves rollback (failure=%s)", async (fail) => {
+    const host = migrationHost();
+    const record = testFile("Records/Alice.md");
+    const base = testFile("People.md");
+    const later = testFile("Later.md");
+    host.files.push(record, base, later);
+    const originalProperties = {
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      name: "Alice",
+    };
+    host.frontmatters.set(record, originalProperties);
+    host.sources.set(record, yaml(originalProperties, "Kept body\n"));
+    const originalBase = promotedBase("stb_people")
+      .replace('note.structural_table_ids', 'note["structural-tables"]')
+      .replace('\n```', '\nviews:\n  - type: table\n    name: People\n    filters: \'list(note.structural_table_ids).contains("stb_people")\'\n```');
+    host.sources.set(base, originalBase);
+    host.sources.set(later, promotedBase("stb_later"));
+    const service = new BasePropertyMigrationService(host.app);
+    const prepared = await service.prepare();
+    expect(prepared.legacyBaseCount).toBe(2);
+    if (fail) {
+      host.failProcessPath = later.path;
+      await expect(service.execute(prepared, false)).rejects.toThrow("write failed");
+      expect(host.sources.get(base)).toBe(originalBase);
+      expect(host.frontmatters.get(record)).toEqual(originalProperties);
+    } else {
+      await service.execute(prepared, false);
+      expect(host.sources.get(base)).not.toContain("note.structural_table_ids");
+      expect(host.sources.get(base)?.match(/list\(note\["structural-tables"\]\)/gu)).toHaveLength(2);
+      expect(host.frontmatters.get(record)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toBeUndefined();
+      expect((await service.prepare()).legacyBaseCount).toBe(0);
+    }
+  });
+
   it("previews and explicitly migrates memberships, Base filters, and retired record IDs", async () => {
     const host = migrationHost();
     const record = testFile("Records/Alice.md");

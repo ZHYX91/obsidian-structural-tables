@@ -251,7 +251,9 @@ function ignoredLines(lines: string[]): Set<number> {
     // Markers inside an active code/comment block remain literal content.
     if (fence === null && protectedBlock === null) {
       let list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
-      while (list !== null) {
+      // Thematic breaks take precedence over list markers at every container depth.
+      const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
+      while (list !== null && !thematicBreak(line)) {
         listIndent += list[0].length;
         listIndents.push(listIndent);
         line = line.slice(list[0].length);

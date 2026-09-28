@@ -51,7 +51,7 @@ function parsedClipboardTable(html: string): ClipboardTable | null {
   return table instanceof HTMLTableElement ? { document, table } : null;
 }
 
-const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
+const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, embed, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
 const TEXT_SEMANTIC_CONTENT = "pre, sup, sub";
 
 function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {

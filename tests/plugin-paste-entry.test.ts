@@ -164,6 +164,10 @@ describe("registered whole-note HTML paste entry", () => {
     ["embed around table without plain", '<div class="internal-embed" src="Source.md"><table><tr><td>x<sup>2</sup></td><td>2</td></tr></table></div>', ""],
     ["embed inside table with plain", '<table><tr><td>x<sup>2</sup><span class="internal-embed" src="figure.svg"></span></td><td>2</td></tr></table>', "x²\t2"],
     ["embed inside table without plain", '<table><tr><td>x<sup>2</sup><span class="internal-embed" src="figure.svg"></span></td><td>2</td></tr></table>', ""],
+    ["HTML embed inside table with plain", '<table><tr><td>x<sup>2</sup><embed src="figure.svg" type="image/svg+xml"></td><td>2</td></tr></table>', "x²\t2"],
+    ["HTML embed inside table without plain", '<table><tr><td>x<sup>2</sup><embed src="figure.svg" type="image/svg+xml"></td><td>2</td></tr></table>', ""],
+    ["HTML embed outside table with plain", '<div><table><tr><td>x<sup>2</sup></td><td>2</td></tr><embed src="figure.svg" type="image/svg+xml"></div>', "x²\t2"],
+    ["HTML embed outside table without plain", '<div><table><tr><td>x<sup>2</sup></td><td>2</td></tr><embed src="figure.svg" type="image/svg+xml"></div>', ""],
   ])("leaves %s entirely to native paste", (_name, html, plain) => {
     const handler = registeredPasteHandler();
     const replaceSelection = vi.fn();

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.11 - Unreleased
+## 0.4.11 - 2026-09-28
 
 - Keep table parsing, cursor positioning and cache invalidation consistent across code spans, comments, math blocks and list containers.
 - Refuse edits and imports that would truncate a table; retain rejected drafts. Preserve safe single-line math and reject math inputs that cannot be represented without changing their meaning.

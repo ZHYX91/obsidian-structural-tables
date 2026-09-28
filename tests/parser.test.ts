@@ -137,7 +137,7 @@ describe("parseStructuralTables", () => {
   });
 
   it.each([
-    "Use `%%` literally.", "Use ``<!--`` literally.", "Use `$` literally.",
+    "Use `%%` literally.", "Use ``<!--`` literally.", "Use `$$` literally.",
     String.raw`Escaped \%% marker`, String.raw`Escaped \<!-- marker`,
     "    %% indented code", "    <!-- indented code", "$x%%y$", "$$x$$",
   ])("preserves tables after literal or closed protection syntax %j", (prose) => {

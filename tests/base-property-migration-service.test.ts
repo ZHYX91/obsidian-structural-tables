@@ -347,6 +347,7 @@ describe("legacy Base property migration", () => {
   );
 
   it.each([
+    ["pre", '<pre class="literal">'],
     ["script", '<script type="text/plain">'],
     ["style", "<style"],
     ["textarea", '<textarea data-kind="literal">'],

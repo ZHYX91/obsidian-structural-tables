@@ -53,7 +53,7 @@ HTML 转换仅接管一张完整且支持的表格。混合正文、多张表、
 
 生成 Base 的带版本 YAML 配置保存稳定 table ID 与恢复清单路径。把光标放在该 Base 上，可使用插件命令按宿主当前目录创建空白记录，或预览并恢复原表。恢复明确说明生成记录会保留。旧 metadata 注释继续兼容；无标记 Base 创建记录或恢复前必须具有唯一的必需成员条件和匹配的原始清单，歧义或无法证明归属时拒绝操作。记录移动、重命名和整理不显示提示，也不改变成员资格。
 
-旧属性迁移只在用户显式执行命令后扫描 Vault。弹窗逐文件列出计划变更，以及成员笔记、已提升 Base 代码块和旧记录 ID 的数量；旧记录 ID 清理默认关闭，切换后会立即同步本次移除数量和逐文件动作，且只作用于具有有效、非空 Structural Tables 成员属性的笔记。确认后先检查全部文件和插件拥有的 frontmatter 值是否过期，并在重写 Base 前再次核对源码，再把 `structural_table_ids` 替换为 `structural-tables`、更新使用 LF、CRLF 或 CR 换行的旧 Base 过滤条件，同时保留无关 Property 与笔记正文。后续文件写入失败时，只反向恢复迁移拥有的 Property 和完全匹配的 Base 代码块，使并发发生的无关编辑得以保留；Base 扫描会忽略包在更长 Markdown 围栏内的示例。新旧成员值无效或冲突时，在允许确认前停止。
+旧属性迁移只在用户显式执行命令后扫描 Vault。弹窗逐文件列出计划变更，以及成员笔记、已提升 Base 代码块和旧记录 ID 的数量；旧记录 ID 清理默认关闭，切换后会立即同步本次移除数量和逐文件动作，且只作用于具有有效、非空 Structural Tables 成员属性的笔记。确认后先检查全部文件和插件拥有的 frontmatter 值是否过期，并在重写 Base 前再次核对源码，再把 `structural_table_ids` 替换为 `structural-tables`、更新使用 LF、CRLF 或 CR 换行的旧 Base 过滤条件，同时保留无关 Property 与笔记正文。后续文件写入失败时，只反向恢复迁移拥有的 Property 和完全匹配的 Base 代码块，使并发发生的无关编辑得以保留；Base 扫描会忽略包在更长 Markdown 围栏内的示例，以及由 `pre`、`script`、`style`、`textarea` 开始的字面量 raw HTML 区块。新旧成员值无效或冲突时，在允许确认前停止。
 
 <!-- section: table-selection -->
 ## 表格选区与右键菜单

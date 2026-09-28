@@ -192,6 +192,7 @@ export class BasePropertyMigrationService {
         }
 
         if (candidate.legacyBaseCount > 0) {
+          let plannedBases: MigratedBaseBlock[] = [];
           const expectedTableIds = promotionBlocksNeedingMigration(candidate.originalSource)
             .map(({ tableId }) => tableId);
           const migrated = await this.app.vault.process(candidate.file, (source) => {
@@ -204,7 +205,7 @@ export class BasePropertyMigrationService {
               throw new Error(`A promoted Base changed during migration: ${candidate.path}.`);
             }
             const currentBlocks = promotionBlocksNeedingMigration(source);
-            changes.bases = currentBlocks.map((block) => ({
+            plannedBases = currentBlocks.map((block) => ({
               tableId: block.tableId,
               before: block.source,
               after: migrateMembershipFilter(block.source),
@@ -212,6 +213,7 @@ export class BasePropertyMigrationService {
             return migrateLegacyPromotionBlocks(source).source;
           });
           if (migrated === expectedSource) throw new Error(`A promoted Base changed during migration: ${candidate.path}.`);
+          changes.bases = plannedBases;
           written.set(candidate, changes);
         }
       }

@@ -45,6 +45,7 @@ interface MigrationHost {
   sources: Map<TFile, string>;
   frontmatters: Map<TFile, Record<string, unknown>>;
   failProcessPath?: string;
+  failAfterTransformPath?: string;
   beforeProcess?: (file: TFile) => void;
   beforeFrontMatter?: (file: TFile, frontmatter: Record<string, unknown>) => void;
 }
@@ -63,6 +64,7 @@ function migrationHost(): MigrationHost {
         if (host.failProcessPath === file.path) throw new Error("write failed");
         const current = sources.get(file as TFile) ?? "";
         const next = update(current);
+        if (host.failAfterTransformPath === file.path) throw new Error("write failed after transform");
         sources.set(file as TFile, next);
         return next;
       },
@@ -90,6 +92,36 @@ function migrationHost(): MigrationHost {
 }
 
 describe("legacy Base property migration", () => {
+  it.each(["none", "before-write", "later-write"])("handles membership and a custom-filter Base in one file: %s", async (failure) => {
+    const host = migrationHost();
+    const base = testFile("People.md");
+    const later = testFile("Later.md");
+    host.files.push(base, later);
+    const properties = { [TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"], [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"], status: "Active" };
+    const body = promotedBase("stb_people").replace(
+      'filters:\n  and:\n    - \'list(note.structural_table_ids).contains("stb_people")\'',
+      'filters: \'note.status == "Active"\'\nviews:\n  - type: table\n    name: Active\n    filters: \'list(note.structural_table_ids).contains("stb_people")\'',
+    );
+    const original = yaml(properties, body);
+    host.frontmatters.set(base, properties);
+    host.sources.set(base, original);
+    host.sources.set(later, promotedBase("stb_later"));
+    if (failure === "before-write") host.failAfterTransformPath = base.path;
+    if (failure === "later-write") host.failProcessPath = later.path;
+    const service = new BasePropertyMigrationService(host.app);
+    const prepared = await service.prepare();
+    if (failure === "none") {
+      await service.execute(prepared, false);
+      expect(host.sources.get(base)).toContain('filters: \'note.status == "Active"\'');
+      expect(host.sources.get(base)).not.toContain("note.structural_table_ids");
+      expect(host.frontmatters.get(base)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toBeUndefined();
+      expect((await service.prepare()).files).toHaveLength(0);
+    } else {
+      await expect(service.execute(prepared, false)).rejects.toThrow("Every completed file was restored");
+      expect(host.sources.get(base)?.slice(host.sources.get(base)!.indexOf("\n---\n", 4) + 5)).toBe(body);
+      expect(host.frontmatters.get(base)).toEqual(properties);
+    }
+  });
   it.each([false, true].flatMap(fail => ["current", "custom", "absent"].map(global => ({ fail, global }))))("discovers view-only legacy filters and preserves rollback ($global, failure=$fail)", async ({ fail, global }) => {
     const host = migrationHost();
     const record = testFile("Records/Alice.md");

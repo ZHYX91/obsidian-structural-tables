@@ -95,7 +95,10 @@ export function cellClipboardText(html: string, plain: string): CellClipboardTex
 }
 
 function rowSpanForClipboardCell(cell: HTMLTableCellElement, row: HTMLTableRowElement): number {
-  if ((cell.getAttribute("rowspan") ?? "").trim() !== "0") return positiveSpan(cell.rowSpan);
+  const raw = cell.getAttribute("rowspan");
+  const token = raw?.trim() ?? "";
+  const parsed = /^[0-9]+$/u.test(token) ? Number(token) : null;
+  if (parsed !== 0) return positiveSpan(cell.rowSpan);
   const siblings = Array.from(row.parentElement?.children ?? [])
     .filter((candidate): candidate is HTMLTableRowElement => candidate.tagName === "TR");
   const index = siblings.indexOf(row);

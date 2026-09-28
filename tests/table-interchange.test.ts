@@ -71,17 +71,58 @@ describe("HTML table clipboard import", () => {
     globalThis.HTMLTableElement = originalHtmlTable;
   });
 
-  it("preserves rowspan=0 through the remainder of its row group without trusting the DOM getter", () => {
+  it.each(["0", "00", "000"])(
+    "preserves rowspan=%s through the remainder of its row group without trusting the DOM getter",
+    (rowspan) => {
+      const source = structuralSourceFromClipboardHtml(`<table>
+        <thead><tr><th>Group</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="${rowspan}">North</td><td>A</td></tr>
+          <tr><td>B</td></tr>
+        </tbody>
+      </table>`);
+      const parsed = parseEditableTables(source ?? "").tables[0]!;
+      expect(parsed.rows[1]?.cells[0]?.rowSpan).toBe(2);
+      expect(parsed.rows[2]?.cells[0]?.covered).toBe(true);
+      expect(parsed.rows[2]?.cells[1]?.content).toBe("B");
+    },
+  );
+
+  it("keeps an ordinary positive rowspan bounded to its declared count", () => {
     const source = structuralSourceFromClipboardHtml(`<table>
       <thead><tr><th>Group</th><th>Value</th></tr></thead>
       <tbody>
-        <tr><td rowspan="0">North</td><td>A</td></tr>
+        <tr><td rowspan="2">North</td><td>A</td></tr>
         <tr><td>B</td></tr>
+        <tr><td>South</td><td>C</td></tr>
       </tbody>
     </table>`);
     const parsed = parseEditableTables(source ?? "").tables[0]!;
     expect(parsed.rows[1]?.cells[0]?.rowSpan).toBe(2);
     expect(parsed.rows[2]?.cells[0]?.covered).toBe(true);
+    expect(parsed.rows[3]?.cells[0]?.content).toBe("South");
+    expect(parsed.rows[3]?.cells[1]?.content).toBe("C");
+  });
+
+  it.each([
+    ["missing", ""],
+    ["empty", 'rowspan=""'],
+    ["non-numeric", 'rowspan="invalid"'],
+    ["negative", 'rowspan="-1"'],
+    ["signed zero", 'rowspan="+0"'],
+    ["hex-like zero", 'rowspan="0x0"'],
+  ])("does not reinterpret a %s rowspan attribute as zero-span", (_name, attribute) => {
+    const source = structuralSourceFromClipboardHtml(`<table>
+      <thead><tr><th>Group</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td ${attribute}>North</td><td>A</td></tr>
+        <tr><td>South</td><td>B</td></tr>
+      </tbody>
+    </table>`);
+    const parsed = parseEditableTables(source ?? "").tables[0]!;
+    expect(parsed.rows[1]?.cells[0]?.rowSpan).toBe(1);
+    expect(parsed.rows[2]?.cells[0]?.covered).toBe(false);
+    expect(parsed.rows[2]?.cells[0]?.content).toBe("South");
     expect(parsed.rows[2]?.cells[1]?.content).toBe("B");
   });
 

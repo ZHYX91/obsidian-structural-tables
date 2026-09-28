@@ -135,9 +135,32 @@ describe("registered conversion command entry", () => {
 });
 
 describe.each([
-  ["format", (surface: ReturnType<typeof pluginHarness>["plugin"], editor: Editor, file: TFile) => surface.formatCurrent(editor, file)],
-  ["GFM", (surface: ReturnType<typeof pluginHarness>["plugin"], editor: Editor, file: TFile) => surface.previewPlainGfmConversion(editor, file)],
-] as const)("conversion preview target identity (%s)", (_name, openPreview) => {
+  [
+    "format",
+    (surface: ReturnType<typeof pluginHarness>["plugin"], editor: Editor, file: TFile) => surface.formatCurrent(editor, file),
+    "Structural table formatted.",
+  ],
+  [
+    "GFM",
+    (surface: ReturnType<typeof pluginHarness>["plugin"], editor: Editor, file: TFile) => surface.previewPlainGfmConversion(editor, file),
+    "Table converted to plain GFM.",
+  ],
+] as const)("conversion preview target identity (%s)", (_name, openPreview, successNotice) => {
+  it("confirms an unchanged table while the original editor and file identity remain current", () => {
+    const editor = editorHarness();
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+    const preview = capturePreview();
+    openPreview(harness.plugin, editor.editor, file as unknown as TFile);
+    const expectedSource = preview().source;
+
+    preview().onConfirm();
+
+    expect(editor.replaceRange).toHaveBeenCalledOnce();
+    expect(editor.source()).toBe(expectedSource);
+    expect(notices).toContain(successNotice);
+    expect(notices).not.toContain("The table changed. Reopen the cell or menu and try again.");
+  });
   it.each(["other-file", "same-path-replacement", "rename", "close"] as const)(
     "refuses confirmation after %s",
     (change) => {
@@ -186,7 +209,11 @@ describe.each([
 });
 
 describe("GFM command boundaries", () => {
-  it.each(["$5", String.raw`$\\lvert x\\rvert$`])("opens and copies existing source containing %s", async (content) => {
+  it.each([
+    "$5",
+    String.raw`$\lvert x\rvert$`,
+    String.raw`$P(A\mid B)$`,
+  ])("opens and copies existing source containing %s", async (content) => {
     const source = `| Label | Amount |\n| --- | --- |\n| A | ${content} |`;
     const editor = editorHarness(source);
     const file = new MockTFile("A.md");

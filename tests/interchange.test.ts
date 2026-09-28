@@ -43,8 +43,8 @@ describe("table interchange", () => {
 
   it.each([
     "$5",
-    String.raw`$\\lvert x\\rvert$`,
-    String.raw`$P(A\\mid B)$`,
+    String.raw`$\lvert x\rvert$`,
+    String.raw`$P(A\mid B)$`,
   ])("preserves accepted existing source in portable GFM: %s", (content) => {
     const source = `| Label | Amount |\n| --- | --- |\n| A | ${content} |`;
     const output = structuralTableToPlainGfm(table(source));

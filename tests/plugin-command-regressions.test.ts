@@ -182,4 +182,16 @@ describe("GFM command boundaries", () => {
     harness.plugin.copyCurrentTable(editor.editor, "GFM");
     await vi.waitFor(() => expect(notices).toContain("Could not write to the clipboard."));
   });
+
+  it("reports a synchronous failure while confirming GFM replacement", () => {
+    const editor = editorHarness();
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+    const preview = capturePreview();
+    harness.plugin.previewPlainGfmConversion(editor.editor, file as unknown as TFile);
+    editor.replaceRange.mockImplementation(() => { throw new Error("write failed"); });
+
+    preview().onConfirm();
+    expect(notices).toContain("Could not convert the table: write failed");
+  });
 });

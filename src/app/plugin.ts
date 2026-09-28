@@ -47,7 +47,7 @@ import {
   type TableOperation,
 } from "../editor/table-menu";
 import { replaceTableSource } from "../editor/table-replacement";
-import { copyHtml, copyText, structuralSourceFromClipboardHtml } from "../editor/table-interchange";
+import { copyHtml, copyText, replaceSelectionFromClipboardTable } from "../editor/table-interchange";
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
 import { renderTableClipboard } from "../rendering/table-clipboard";
@@ -304,13 +304,15 @@ export class StructuralTablesPlugin extends Plugin {
 
   private registerHtmlTablePaste(): void {
     this.registerEvent(this.app.workspace.on("editor-paste", (event, editor) => {
-      if (!this.settings.convertHtmlTablePaste || event.defaultPrevented) return;
-      const html = event.clipboardData?.getData("text/html") ?? "";
-      const source = structuralSourceFromClipboardHtml(html);
-      if (source === null) return;
+      if (!this.settings.convertHtmlTablePaste || event.defaultPrevented || event.clipboardData === null) return;
+      const result = replaceSelectionFromClipboardTable(event.clipboardData, editor);
+      if (result === "native") return;
       event.preventDefault();
-      editor.replaceSelection(source);
-      new Notice(createTranslator(this.settings.language)("notice.htmlTableImported"));
+      const t = createTranslator(this.settings.language);
+      if (result === "table") new Notice(t("notice.htmlTableImported"));
+      else if (result === "plain") new Notice(t("notice.clipboardPlainFallback"));
+      else if (result === "blocked-empty") new Notice(t("notice.htmlEmptyTableBlocked"));
+      else new Notice(t("notice.htmlTextSemanticsBlocked"));
     }));
   }
 

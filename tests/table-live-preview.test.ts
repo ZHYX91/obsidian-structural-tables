@@ -123,6 +123,95 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it.each([
+    { axis: "column", pointerType: "mouse" },
+    { axis: "column", pointerType: "touch" },
+    { axis: "row", pointerType: "mouse" },
+    { axis: "row", pointerType: "touch" },
+  ] as const)("drags the full merge-expanded $axis selection with $pointerType", async ({ axis, pointerType }) => {
+    const rows = axis === "column" ? [
+      "| R | A | B | C | D | E |", "| --- || --- | --- | --- | --- | --- |",
+      "| a | x | left | < | y | z |", "| b | u | v | right | < | w |",
+    ] : [
+      "| R | A | B |", "| --- || --- | --- |", "| a | upper | x |",
+      "| b | ^ | lower |", "| c | y | ^ |", "| d | z | w |",
+    ];
+    const source = `Before\n\n${rows.join("\n")}\n\nEnd`;
+    const original = parseEditableTables(source).tables[0]!;
+    const rect = (left: number, top: number, width: number, height: number): DOMRect =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const width = original.columnCount * 80;
+      const height = original.rows.length * 40;
+      if (this.classList.contains("structural-tables-live-preview")) return rect(0, 0, width + 80, height + 60);
+      if (this.tagName === "TABLE") return rect(40, 20, width, height);
+      if (this.tagName === "TR") {
+        return rect(40, 20 + [...this.closest("table")!.rows].indexOf(this as HTMLTableRowElement) * 40, width, 40);
+      }
+      if (this.dataset.structuralColumn !== undefined) return rect(
+        40 + Number(this.dataset.structuralColumn) * 80, 20 + Number(this.dataset.structuralRow) * 40,
+        Number(this.getAttribute("colspan") ?? 1) * 80, Number(this.getAttribute("rowspan") ?? 1) * 40,
+      );
+      return rect(0, 0, 0, 0);
+    });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const clicked = axis === "column" ? 3 : 2;
+    const expandedStart = axis === "column" ? 2 : 1;
+    const selectedIndexes = () => [...parent.querySelectorAll<HTMLElement>(`.structural-tables-${axis}-handle.is-selected`)]
+      .map((handle) => Number(handle.getAttribute(`data-structural-${axis}-handle`)));
+    const handle = (index: number) => parent.querySelector<HTMLElement>(`[data-structural-${axis}-handle='${index}']`)!;
+    const pointer = (type: string, boundary: number) => new PointerEvent(type, {
+      pointerId: 1, isPrimary: true, button: 0, pointerType, bubbles: true, cancelable: true,
+      clientX: axis === "column" ? 40 + boundary * 80 : 25,
+      clientY: axis === "row" ? 20 + boundary * 40 : 10,
+    });
+    try {
+      // One handle expands through two overlapping merges on different rows/columns.
+      handle(clicked).dispatchEvent(pointer("pointerdown", clicked + 0.5));
+      window.dispatchEvent(pointer("pointerup", clicked + 0.5));
+      handle(clicked).click();
+      expect(selectedIndexes()).toEqual([expandedStart, expandedStart + 1, expandedStart + 2]);
+      expect(view.state.doc.toString()).toBe(source);
+      if (pointerType === "mouse") {
+        handle(expandedStart).dispatchEvent(new PointerEvent("pointerdown", {
+          pointerId: 1, isPrimary: true, button: 0, pointerType, shiftKey: true, bubbles: true, cancelable: true,
+        }));
+        window.dispatchEvent(pointer("pointerup", expandedStart + 0.5));
+        handle(expandedStart).click();
+        expect(selectedIndexes()).toEqual([expandedStart, expandedStart + 1, expandedStart + 2]);
+      }
+      // Expanded handles must already be draggable; header boundaries must still be refused.
+      handle(expandedStart).dispatchEvent(pointer("pointerdown", expandedStart + 0.5));
+      window.dispatchEvent(pointer("pointermove", 0));
+      expect(parent.querySelector<HTMLElement>(".structural-tables-drop-hint")!.textContent).toContain("header boundary");
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      expect(view.state.doc.toString()).toBe(source);
+      handle(clicked).dispatchEvent(pointer("pointerdown", clicked + 0.5));
+      const destination = axis === "column" ? 1 : original.rows.length;
+      window.dispatchEvent(pointer("pointermove", destination));
+      expect(parent.querySelector<HTMLElement>(".structural-tables-live-preview")!.dataset.reorderState).toBe("allowed");
+      window.dispatchEvent(pointer("pointerup", destination));
+      const movedStart = axis === "column" ? 1 : 2;
+      await vi.waitFor(() => expect(selectedIndexes()).toEqual([movedStart, movedStart + 1, movedStart + 2]));
+      const moved = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(moved.valid).toBe(true);
+      if (axis === "column") {
+        expect(moved.rows[0]!.cells.map((cell) => cell.content)).toEqual(["R", "B", "C", "D", "A", "E"]);
+        expect(moved.rows[1]!.cells[1]).toMatchObject({ content: "left", columnSpan: 2 });
+        expect(moved.rows[2]!.cells[2]).toMatchObject({ content: "right", columnSpan: 2 });
+      } else {
+        expect(moved.rows.map((row) => row.cells[0]!.content)).toEqual(["R", "d", "a", "b", "c"]);
+        expect(moved.rows[2]!.cells[1]).toMatchObject({ content: "upper", rowSpan: 2 });
+        expect(moved.rows[3]!.cells[2]).toMatchObject({ content: "lower", rowSpan: 2 });
+      }
+      const movedSource = view.state.doc.toString();
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(movedSource);
+    } finally { view.destroy(); }
+  });
+
   it("moves a two-tap handle range in one history transaction and keeps its handles selected", async () => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n| C | D |\n| E | F |\n\nEnd";
     const rectangle = (left: number, top: number, width: number, height: number): DOMRect =>

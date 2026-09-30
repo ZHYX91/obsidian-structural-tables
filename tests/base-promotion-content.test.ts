@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { analyzeBrRelatedContent } from "../src/core/base-promotion-content";
 import { buildBasePromotionPlan } from "../src/core/base-promotion";
-import { parseEditableTables } from "../src/core/parser";
+import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 
 function table(source: string) {
   const parsed = parseEditableTables(source).tables[0];
@@ -11,6 +13,23 @@ function table(source: string) {
 }
 
 describe("Base promotion br-related content reporting", () => {
+  it("keeps the complete portable content fixture valid and promotable", () => {
+    const source = readFileSync(new URL("../acceptance/fixtures/Base promotion content.md", import.meta.url), "utf8");
+    const parsed = parseStructuralTables(source).tables;
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.diagnostics).toEqual([]);
+    expect(parsed[0]?.valid).toBe(true);
+    const plan = buildBasePromotionPlan(parsed[0]!, "stb_content_fixture");
+    expect(plan.blockers).toEqual([]);
+    expect(plan.columns).toHaveLength(7);
+    expect(plan.records).toHaveLength(4);
+    expect(plan.contentReport.requiresAcceptance).toBe(true);
+    expect(new Set(plan.contentReport.notices.flatMap((notice) => notice.occurrences.map(({ kind }) => kind))))
+      .toEqual(new Set(["visual-break", "code-literal", "escaped-literal", "entity-literal", "math-uncertain", "html-uncertain"]));
+    expect(plan.records[3]?.values.Code).toBe("``First<br>Second");
+    expect(plan.records[3]?.values.HTML).toBe('<span title="`<br>`">value</span>');
+  });
+
   it("reports supported visual breaks without changing planned headers or record values", () => {
     const source = [
       "| Label<br>Detail | Plain | Upper |",

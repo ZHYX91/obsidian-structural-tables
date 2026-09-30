@@ -5,6 +5,7 @@
 - Offer explicit cell-editor menu rewrites for simple absolute-value and conditional-probability formulas containing bare pipes; save only after the user selects the intended TeX spelling.
 - Keep complex TeX and escaped boundaries in the draft without a rewrite, and refuse stale suggestions or confirmation during input-method composition.
 - Dismiss cell-editor menus with Escape without cancelling the underlying draft.
+- Preview break-related Base-promotion content as exact source strings and generated record frontmatter; require one-time acceptance before writes when display semantics may differ.
 
 ## 0.4.11 - 2026-09-28
 

@@ -1125,7 +1125,13 @@ class StructuralTableInteraction {
     const { axis, start, end } = selection;
     this.selectBounds(axis === "row" ? { row: start, column: 0 } : { row: 0, column: start },
       axis === "row" ? { row: end, column: this.table.columnCount - 1 } : { row: this.table.rows.length - 1, column: end });
-    this.axisSelection = selection;
+    // Bounds expand through merged cells; dragging must use the same range as the highlight.
+    const bounds = this.selection;
+    this.axisSelection = bounds === null ? null : {
+      axis,
+      start: axis === "row" ? bounds.minRow : bounds.minColumn,
+      end: axis === "row" ? bounds.maxRow : bounds.maxColumn,
+    };
   }
 
   private focusAxis(selection: AxisSelection): void {

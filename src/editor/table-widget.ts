@@ -759,7 +759,7 @@ class StructuralTableInteraction {
     };
 
     const handleKey = (event: KeyboardEvent): void => {
-      if (composing || event.isComposing) return;
+      if (composing || event.isComposing || contextMenuOpen) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -784,7 +784,7 @@ class StructuralTableInteraction {
     // Obsidian handles Escape in its app scope before DOM bubbling. Own that
     // shortcut only while this textarea is active, so it cannot focus raw source.
     scope.register([], "Escape", (event) => {
-      if (composing || event.isComposing) return;
+      if (composing || event.isComposing || contextMenuOpen) return;
       handleKey(event);
       return false;
     });

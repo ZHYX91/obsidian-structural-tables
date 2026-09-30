@@ -49,6 +49,36 @@ describe("table appearance", () => {
     expect(getComputedStyle(table).borderCollapse).toBe("collapse");
   });
 
+  it.each(["structural-tables-container", "structural-tables-live-preview"])(
+    "uses the Callout border color for owned headers in %s without changing native tables",
+    (wrapperClass) => {
+      document.head.appendChild(document.createElement("style")).textContent = `
+        body { --table-border-color: rgb(100, 100, 100);
+          --table-header-border-color: rgb(100, 100, 100); }
+        .callout { --table-border-color: rgb(80, 140, 200); }
+        .markdown-rendered :is(th, td) { border: 1px solid var(--table-border-color); }
+        .markdown-rendered thead th { border-color: var(--table-header-border-color);
+          border-top-width: 2px; }
+      `;
+      document.head.appendChild(document.createElement("style")).textContent = styles;
+      const cells = "<thead><tr><th>Case</th><th>Value</th></tr></thead>"
+        + "<tbody><tr><th scope='row'>Absolute</th><td>x</td></tr></tbody>";
+      document.body.innerHTML = `<div class="callout markdown-rendered">
+        <div class="${wrapperClass}" data-appearance="theme">
+          <table class="structural-tables-table">${cells}</table>
+        </div><table class="native-reference">${cells}</table>
+      </div><div class="markdown-rendered"><table class="structural-tables-table outside-reference">${cells}</table></div>`;
+      const owned = document.querySelector(".callout .structural-tables-table")!;
+      for (const cell of owned.querySelectorAll("th, td")) {
+        expect(getComputedStyle(cell).borderTopColor).toBe("rgb(80, 140, 200)");
+      }
+      expect(getComputedStyle(owned.querySelector("thead th")!).borderTopWidth).toBe("2px");
+      for (const selector of [".native-reference thead th", ".outside-reference thead th"]) {
+        expect(getComputedStyle(document.querySelector(selector)!).borderTopColor).toBe("rgb(100, 100, 100)");
+      }
+    },
+  );
+
   it("places one rule under the whole header group and removes body cell borders", () => {
     const table = mount("three-line");
     expect(getComputedStyle(table).getPropertyValue("border-block")).toBe("2px solid black");

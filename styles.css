@@ -129,6 +129,11 @@
   word-break: normal;
 }
 
+/* Rebind the inherited header color after Callout changes its table border color. */
+.callout .structural-tables-table {
+  --table-header-border-color: var(--table-border-color);
+}
+
 /* Rows own the size floor, including rows entirely covered by spanning cells. */
 .structural-tables-table tr {
   height: max(1lh, var(--structural-table-row-height, 2rem), var(--structural-table-touch-row-height, 0px), var(--structural-table-edit-row-height, 0px));

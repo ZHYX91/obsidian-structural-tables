@@ -7,6 +7,7 @@
 - Dismiss cell-editor menus with Escape without cancelling the underlying draft.
 - Preview break-related Base-promotion content as exact source strings and generated record frontmatter; require one-time acceptance before writes when display semantics may differ.
 - Keep Base-promotion mappings, content details, and record previews visible in mobile dialogs.
+- Keep Callout table header borders consistent with the contextual table border color.
 
 ## 0.4.11 - 2026-09-28
 

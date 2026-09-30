@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-09-05
+last_synced: 2026-09-30
 ---
 
 [English](product-requirements.en.md)
@@ -34,7 +34,7 @@ last_synced: 2026-09-05
 <!-- section: exclusions -->
 ## 非目标
 
-插件不包含公式、样式、块级/真正的多行内容、标题编号、重复表头源码属性，也不把导入 HTML 单元格中的富文本自动转换为 Markdown。严格匹配的 `<br>`、`<br/>` 与 `<br />` 仍是普通单元格文本，Obsidian 会把它们渲染为视觉换行；插件只原样保留，不把它们建模为特殊语义，也不自动统一写法。Base 提升不猜测数据区域合并的记录语义，不接管 Bases 原生 New 按钮，也不在恢复时删除生成或后来移动的记录笔记。
+插件不提供电子表格式公式计算；安全的 TeX 数学源码按单元格安全规则原样保留。插件不包含单元格独立样式、块级/真正的多行内容、标题编号、重复表头源码属性，也不把导入 HTML 单元格中的富文本自动转换为 Markdown。严格匹配的 `<br>`、`<br/>` 与 `<br />` 仍是普通单元格文本，Obsidian 会把它们渲染为视觉换行；插件只原样保留，不把它们建模为特殊语义，也不自动统一写法。Base 提升不猜测数据区域合并的记录语义，不接管 Bases 原生 New 按钮，也不在恢复时删除生成或后来移动的记录笔记。
 
 <!-- section: success -->
 ## 验收标准

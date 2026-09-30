@@ -855,7 +855,7 @@ class StructuralTableInteraction {
       menu.onHide(() => {
         // Menu dismissal can run before the same Escape reaches the app scope.
         // Keep the guard until that event has finished, then return to the draft.
-        setTimeout(() => {
+        (editor.ownerDocument.defaultView ?? window).setTimeout(() => {
           contextMenuOpen = false;
           if (!settled) editor.focus({ preventScroll: true });
         }, 0);

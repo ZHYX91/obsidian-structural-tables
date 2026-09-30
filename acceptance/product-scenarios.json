@@ -40,6 +40,30 @@
       ]
     },
     {
+      "id": "base-promotion-content-preview",
+      "title": "Base promotion previews break-related content differences",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Base promotion content with Bases enabled. Invoke Upgrade current table to Base from the command palette. Inspect every content/detail entry, final Property mapping, generated record path and frontmatter preview; verify the acceptance checkbox starts clear and confirmation is unavailable.",
+        "Cancel or close the preview. Verify the table source is unchanged and no _structural-table-records directory for this attempt was created.",
+        "Open the preview again, inspect the visual-break, code-literal, escaped/entity-literal, math and HTML-uncertain classifications, explicitly accept the listed differences, then confirm the upgrade. Inspect the generated record files and Base values, close and reopen the note and records.",
+        "Use the host Undo and Redo controls to reverse and reapply the source-table replacement while verifying generated records remain. With the Base present again, run Restore table from current promoted Base and confirm the original table spellings return while generated records remain."
+      ],
+      "expected": [
+        "The preview shows source row/column and source text, distinguishes confirmed and uncertain contexts, reports source-cell and generated-target counts, and exposes the exact prepared record files without executing preview text as HTML.",
+        "Cancellation or closing before confirmation performs zero writes; reopening resets acceptance.",
+        "Confirmation writes exactly the previewed Property strings and record frontmatter, including <br>, <br/>, <br />, case variants and literal/uncertain source spellings; this scenario does not require native Base to render them as multiline rich text.",
+        "Undo/redo affects the source replacement without deleting generated files, and explicit restoration recovers the original table from the manifest while keeping generated records. Android uses on-screen command/menu and host undo/redo controls rather than desktop keyboard shortcuts."
+      ]
+    },
+    {
       "id": "base-promotion-failure-retention",
       "title": "Base promotion failure preserves generated and concurrent content",
       "surfaces": [

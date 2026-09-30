@@ -4,7 +4,7 @@ import { App } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { BasePromotionModal, type BasePromotionLabels } from "../src/app/base-promotion-modal";
-import type { PreparedBasePromotion } from "../src/app/base-promotion-service";
+import type { BasePromotionContentAcceptance, PreparedBasePromotion } from "../src/app/base-promotion-service";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -118,7 +118,11 @@ describe("BasePromotionModal content acceptance", () => {
   it("resets acceptance for each modal and submits only once while confirmation is pending", async () => {
     let finish: (() => void) | undefined;
     const pending = new Promise<void>((resolve) => { finish = resolve; });
-    const onConfirm = vi.fn(() => pending);
+    let received: BasePromotionContentAcceptance | undefined;
+    const onConfirm = vi.fn((acceptance?: BasePromotionContentAcceptance) => {
+      received = acceptance;
+      return pending;
+    });
     const modal = new BasePromotionModal(new App(), prepared(), labels, onConfirm, vi.fn());
     modal.open();
 
@@ -132,7 +136,7 @@ describe("BasePromotionModal content acceptance", () => {
     confirm.click();
     confirm.click();
     expect(onConfirm).toHaveBeenCalledOnce();
-    expect(onConfirm.mock.calls[0]?.[0]?.prepared).toBeDefined();
+    expect(received?.prepared).toBeDefined();
     expect(confirm.disabled).toBe(true);
     finish?.();
     await pending;

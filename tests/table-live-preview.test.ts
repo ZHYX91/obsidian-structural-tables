@@ -1077,10 +1077,10 @@ describe("StructuralTableEditorController", () => {
       expect(editor.value).toBe(String.raw`$P(\text{A|B})$`);
       editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
       expect(lastMenu?.items.some((item) => item.title.startsWith("Use \\"))).toBe(false);
+      lastMenu?.hide();
       const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
       expect(activeScopes[0]!.handlers.find((handler) => handler.key === "Escape")!.callback(escape)).toBeUndefined();
       editor.dispatchEvent(escape);
-      lastMenu?.hide();
       expect(editor.isConnected).toBe(true);
       expect(editor.value).toBe(String.raw`$P(\text{A|B})$`);
     } finally { view.destroy(); }

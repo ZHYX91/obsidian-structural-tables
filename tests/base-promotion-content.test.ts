@@ -97,6 +97,29 @@ describe("Base promotion br-related content reporting", () => {
     });
   });
 
+  it.each([
+    ["``First<br>Second`", "visual-break"],
+    ["`<pre>` First<br>Second", "visual-break"],
+    ['<span title="`First<br>Second`">text</span>', "html-uncertain"],
+    ["<!-- `<br>` -->", "html-uncertain"],
+    [String.raw`\<pre> First<br>Second`, "visual-break"],
+    ['<span title="$">First<br>Second</span>', "visual-break"],
+    ['<span title="`">First<br>Second`', "visual-break"],
+  ])("keeps context boundaries independent in %s", (source, kind) => {
+    expect(analyzeBrRelatedContent(source).map((occurrence) => occurrence.kind)).toEqual([kind]);
+  });
+
+  it.each([
+    ["$x+`<br>`$", ["math-uncertain"]],
+    ["`$<br>$`", ["code-literal"]],
+    ["`<!--` First<br>Second", ["visual-break"]],
+    ["<!-- $ --> First<br>Second", ["visual-break"]],
+    [String.raw`$\text{<pre>}<br>$ First<br>Last`, ["math-uncertain", "visual-break"]],
+    ["$$x $ y<br>$$ Next<br>", ["math-uncertain", "visual-break"]],
+  ])("keeps nested markers within their owning context in %s", (source, kinds) => {
+    expect(analyzeBrRelatedContent(source).map((occurrence) => occurrence.kind)).toEqual(kinds);
+  });
+
   it("reports final conflicting header keys and merged row-header fan-out without changing payloads", () => {
     const headers = buildBasePromotionPlan(table([
       "| A<br>B | a<br>b |",

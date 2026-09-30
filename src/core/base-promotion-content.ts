@@ -77,16 +77,20 @@ function containingRange(ranges: readonly Range[], from: number, to: number): Ra
   return ranges.find((range) => from >= range.from && to <= range.to) ?? null;
 }
 
-function codeRanges(source: string): Range[] {
-  const ranges: Range[] = [];
-  for (let index = 0; index < source.length; index += 1) {
-    if (source[index] !== "`" || escapedAt(source, index)) continue;
-    const end = closedCodeSpanEnd(source, index);
-    if (end === null) continue;
-    ranges.push({ from: index, to: end });
-    index = end - 1;
+function delimiterRunLength(source: string, start: number, character: string): number {
+  let length = 0;
+  while (source[start + length] === character) length += 1;
+  return length;
+}
+
+function mathSpanEnd(source: string, start: number, length: number): number {
+  for (let index = start + length; index < source.length; index += 1) {
+    if (source[index] !== "$" || escapedAt(source, index)) continue;
+    const run = delimiterRunLength(source, index, "$");
+    if (run === length) return index + run;
+    index += run - 1;
   }
-  return ranges;
+  return source.length;
 }
 
 function parseHtmlTagAt(source: string, start: number): HtmlTagRange | null {
@@ -117,16 +121,41 @@ function parseHtmlTagAt(source: string, start: number): HtmlTagRange | null {
   return null;
 }
 
-function htmlRanges(source: string): {
+function contentRanges(source: string): {
+  code: Range[];
+  math: Range[];
   comments: Range[];
   rawText: Range[];
   tags: HtmlTagRange[];
 } {
+  const code: Range[] = [];
+  const math: Range[] = [];
   const comments: Range[] = [];
   const rawText: Range[] = [];
   const tags: HtmlTagRange[] = [];
   const rawNames = new Set(["pre", "script", "style", "textarea"]);
   for (let index = 0; index < source.length;) {
+    if (escapedAt(source, index)) {
+      index += 1;
+      continue;
+    }
+    if (source[index] === "`") {
+      const end = closedCodeSpanEnd(source, index);
+      if (end !== null) code.push({ from: index, to: end });
+      index = end ?? index + delimiterRunLength(source, index, "`");
+      continue;
+    }
+    if (source[index] === "$") {
+      const run = delimiterRunLength(source, index, "$");
+      if (run > 2) {
+        index += run;
+        continue;
+      }
+      const to = mathSpanEnd(source, index, run);
+      math.push({ from: index, to });
+      index = to;
+      continue;
+    }
     if (source.startsWith("<!--", index)) {
       const close = source.indexOf("-->", index + 4);
       const to = close < 0 ? source.length : close + 3;
@@ -162,40 +191,7 @@ function htmlRanges(source: string): {
     }
     index = tag.to;
   }
-  return { comments, rawText, tags };
-}
-
-function mathRanges(source: string, code: readonly Range[]): Range[] {
-  const ranges: Range[] = [];
-  for (let index = 0; index < source.length; index += 1) {
-    const codeRange = containingRange(code, index, index + 1);
-    if (codeRange !== null) {
-      index = codeRange.to - 1;
-      continue;
-    }
-    if (source[index] !== "$" || escapedAt(source, index)) continue;
-    let run = 1;
-    while (source[index + run] === "$") run += 1;
-    if (run > 2) {
-      index += run - 1;
-      continue;
-    }
-    const delimiter = "$".repeat(run);
-    let close = -1;
-    for (let search = index + run; search < source.length;) {
-      const next = source.indexOf(delimiter, search);
-      if (next < 0) break;
-      if (!escapedAt(source, next) && containingRange(code, next, next + run) === null) {
-        close = next + run;
-        break;
-      }
-      search = next + run;
-    }
-    const to = close < 0 ? source.length : close;
-    ranges.push({ from: index, to });
-    index = to - 1;
-  }
-  return ranges;
+  return { code, math, comments, rawText, tags };
 }
 
 function brCandidateAt(source: string, index: number): BrCandidate | null {
@@ -230,9 +226,8 @@ function brCandidateAt(source: string, index: number): BrCandidate | null {
 }
 
 export function analyzeBrRelatedContent(source: string): BasePromotionContentOccurrence[] {
-  const code = codeRanges(source);
-  const html = htmlRanges(source);
-  const math = mathRanges(source, code);
+  const html = contentRanges(source);
+  const { code, math } = html;
   const occurrences: BasePromotionContentOccurrence[] = [];
   for (let index = 0; index < source.length; index += 1) {
     const candidate = brCandidateAt(source, index);

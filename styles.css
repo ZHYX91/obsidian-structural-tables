@@ -502,6 +502,10 @@
   user-select: text;
 }
 
+.structural-tables-promotion-modal > * {
+  flex-shrink: 0;
+}
+
 .structural-tables-promotion-mapping {
   max-block-size: 12rem;
   overflow: auto;

@@ -45,6 +45,7 @@ export class BasePromotionModal extends Modal {
 
   override onOpen(): void {
     this.setTitle(this.labels.title);
+    this.contentEl.classList.add("structural-tables-promotion-modal");
     this.contentEl.createEl("p", { text: this.labels.description });
     this.contentEl.createEl("p", {
       text: this.labels.target.replace("{path}", this.prepared.directoryPath),

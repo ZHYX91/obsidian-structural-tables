@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.12 - 2026-09-30
+
+- Offer explicit cell-editor menu rewrites for simple absolute-value and conditional-probability formulas containing bare pipes; save only after the user selects the intended TeX spelling.
+- Keep complex TeX and escaped boundaries in the draft without a rewrite, and refuse stale suggestions or confirmation during input-method composition.
+
 ## 0.4.11 - 2026-09-28
 
 - Keep table parsing, cursor positioning and cache invalidation consistent across code spans, comments, math blocks and list containers.

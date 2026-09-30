@@ -7,6 +7,7 @@ import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { adjacentTableCell } from "../core/table-navigation";
+import { mathPipeSuggestions } from "../core/table-cell-syntax";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
 import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, reorderTableAxis, type TableAxis } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
@@ -837,6 +838,20 @@ class StructuralTableInteraction {
         .setIcon("corner-down-left")
         .setTitle(t("menu.insertCellBreak"))
         .onClick(() => insertBreak(start, end)));
+      const draftAtOpen = editor.value;
+      for (const suggestion of mathPipeSuggestions(draftAtOpen)) {
+        menu.addItem((item) => item
+          .setSection("structural-tables-cell")
+          .setIcon("replace")
+          .setTitle(t(suggestion.kind === "absolute-value"
+            ? "menu.useMathAbsoluteSuggestion" : "menu.useMathConditionalSuggestion"))
+          .onClick(() => {
+            if (settled || composing || editor.value !== draftAtOpen) return;
+            editor.value = suggestion.replacement;
+            resizeEditor();
+            finish(true);
+          }));
+      }
       menu.onHide(() => {
         contextMenuOpen = false;
         if (!settled) queueMicrotask(() => editor.focus({ preventScroll: true }));

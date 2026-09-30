@@ -15,6 +15,7 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Exact `<br>`, `<br/>`, and `<br />` visual rendering plus spelling preservation through format preview.
 - [ ] Shift+Enter and the cell-editor context menu inserting canonical `<br>`.
 - [ ] Enter/Escape/Tab, multiline paste, undo/redo, English and Chinese IME.
+- [ ] Unsafe bare math pipes keep the complete draft. For exact `$|x|$` and `$P(A|B)$` drafts, verify the cell-editor context menu offers the explicit `\\lvert … \\rvert` or `\\mid` rewrite, applies it only after user selection, preserves table geometry, and leaves complex TeX without an automatic rewrite.
 
 ### Clipboard and source formatting
 

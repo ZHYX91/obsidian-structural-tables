@@ -28,6 +28,8 @@ Bottom and right edge buttons append a data row or column and open the new cell.
 
 Axis reordering requires explicit handle selection before a second drag gesture. Shift-click or two touch taps on handles selects a range. Dragging cells still selects cells. Valid drop lines use the accent color; blocked lines use the error color. Partial merged groups, destinations that split a merge, and header/data crossings are refused without changing source. Escape, pointer cancellation, source replacement and releasing outside cancel. Complete groups retain content, alignment and container prefixes; the moved handles remain selected. Context menus remain available for keyboard movement.
 
+Unsafe math stays in the complete draft. For a whole-cell absolute-value or conditional-probability formula with simple identifiers and arithmetic, the cell editor context menu offers an explicit TeX rewrite and save. Commands, escapes, grouped arguments and ambiguous pipes receive no rewrite. Dismissing the menu, changing the draft or composing input never accepts an old suggestion; saving still validates the current source table.
+
 <!-- section: reading-view -->
 ## Reading view
 

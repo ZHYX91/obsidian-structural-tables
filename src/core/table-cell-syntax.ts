@@ -125,6 +125,46 @@ export function mathCellInputProblem(source: string): MathCellInputProblem | nul
   return delimiter === 0 ? null : "math-syntax-unsafe";
 }
 
+export type MathPipeSuggestionKind = "absolute-value" | "conditional";
+
+export interface MathPipeSuggestion {
+  kind: MathPipeSuggestionKind;
+  replacement: string;
+}
+
+/** Basic operands only: no commands, escapes, groups or nested math spans. */
+function simpleMathPipeOperand(source: string): boolean {
+  if (source.trim() === "" || !/^[\p{L}\p{N}\s+*/^_=.,!()-]+$/u.test(source)) return false;
+  let parentheses = 0;
+  for (const character of source) {
+    if (character === "(") parentheses += 1;
+    if (character === ")" && --parentheses < 0) return false;
+  }
+  return parentheses === 0;
+}
+
+/**
+ * Offer only narrow, user-confirmed rewrites whose result already passes the
+ * normal math/table safety gate. Complex TeX stays fail-closed.
+ */
+export function mathPipeSuggestions(source: string): MathPipeSuggestion[] {
+  if (mathCellInputProblem(source) !== "math-pipe-unsafe") return [];
+  const suggestions: MathPipeSuggestion[] = [];
+
+  const absolute = /^\$\|([^|\r\n]+)\|\$$/u.exec(source);
+  if (absolute !== null && simpleMathPipeOperand(absolute[1]!)) {
+    const replacement = String.raw`$\lvert ${absolute[1]!.trim()}\rvert$`;
+    if (mathCellInputProblem(replacement) === null) suggestions.push({ kind: "absolute-value", replacement });
+  }
+
+  const conditional = /^\$P\(([^|\r\n]+)\|([^|\r\n]+)\)\$$/u.exec(source);
+  if (conditional !== null && simpleMathPipeOperand(conditional[1]!) && simpleMathPipeOperand(conditional[2]!)) {
+    const replacement = String.raw`$P(${conditional[1]!.trim()}\mid ${conditional[2]!.trim()})$`;
+    if (mathCellInputProblem(replacement) === null) suggestions.push({ kind: "conditional", replacement });
+  }
+
+  return suggestions;
+}
 function escapedTableCellText(input: string): string {
   const withBreaks = input.replace(/\r\n|\r|\n/gu, "<br>");
   const source = withBreaks.trim();

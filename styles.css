@@ -507,6 +507,44 @@
   overflow: auto;
 }
 
+.structural-tables-promotion-content-report,
+.structural-tables-promotion-record-previews {
+  max-block-size: min(42vh, 24rem);
+  overflow: auto;
+  min-inline-size: 0;
+  margin-block: var(--size-4-2);
+}
+
+.structural-tables-promotion-content-item,
+.structural-tables-promotion-record-previews > details {
+  margin-block: var(--size-4-1);
+  overflow-wrap: anywhere;
+}
+
+.structural-tables-promotion-content-source,
+.structural-tables-promotion-content-value,
+.structural-tables-promotion-record-previews pre {
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.structural-tables-promotion-acceptance {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  margin-block: var(--size-4-3);
+  overflow-wrap: anywhere;
+}
+
+.structural-tables-promotion-acceptance > input {
+  flex: none;
+  margin-block-start: 0.2em;
+}
+
 .structural-tables-promotion-warning {
   margin-block: var(--size-4-3);
   padding: var(--size-4-3);

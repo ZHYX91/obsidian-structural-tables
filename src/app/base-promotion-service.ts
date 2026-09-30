@@ -45,10 +45,18 @@ export function captureBaseEditorTarget(editor: Editor, getInfo: BaseEditorInfo)
   };
 }
 
-interface PreparedRecord {
+export interface PreparedRecord {
   path: string;
   record: PromotionRecord;
   content: string;
+}
+
+export interface BasePromotionContentAcceptance {
+  readonly prepared: PreparedBasePromotion;
+}
+
+export function acceptBasePromotionContent(prepared: PreparedBasePromotion): BasePromotionContentAcceptance {
+  return Object.freeze({ prepared });
 }
 
 export interface PreparedBasePromotion {
@@ -193,9 +201,13 @@ export class BasePromotionService {
     expected: StructuralTable,
     prepared: PreparedBasePromotion,
     target: BaseEditorTarget,
+    acceptance?: BasePromotionContentAcceptance,
   ): Promise<void> {
     if (prepared.plan.blockers.length > 0) {
       throw new Error("Resolve every blocking structural conversion issue before upgrading this table to a Base.");
+    }
+    if (prepared.plan.contentReport.requiresAcceptance && acceptance?.prepared !== prepared) {
+      throw new Error("Review and accept the listed content and display differences before upgrading this table to a Base.");
     }
     target.assertCurrent();
     if (target.sourceFilePath !== prepared.sourceFilePath) {

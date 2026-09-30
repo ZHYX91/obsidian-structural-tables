@@ -28,7 +28,9 @@ describe("Base promotion planning", () => {
     const base = embeddedBaseSource({
       tableId: "stb_special",
       columns: names.map((key, sourceColumn) => ({ key, displayName: key, sourceColumn })),
-      records: [{ fileStem: "Record", values }], warnings: [], blockers: [],
+      records: [{ fileStem: "Record", values }],
+      contentReport: { notices: [], sourceCellCount: 0, targetCount: 0, requiresAcceptance: false },
+      warnings: [], blockers: [],
     }, "Records/_promotion.json");
     const config = parse(base.split("\n").slice(1, -1).join("\n"));
     expect(config.views[0].order).toEqual(names.map((name) => `note.${name}`));

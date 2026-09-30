@@ -3,7 +3,7 @@ import { TFile, TFolder } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { parse, stringify } from "yaml";
 
-import { BasePromotionService, captureBaseEditorTarget } from "../src/app/base-promotion-service";
+import { BasePromotionService, acceptBasePromotionContent, captureBaseEditorTarget } from "../src/app/base-promotion-service";
 import {
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
   promotionBlockAt,
@@ -455,6 +455,48 @@ describe("Base promotion file transaction", () => {
     expect(prepared.records.every(({ path }) => host.contents.has(path))).toBe(true);
     expect(host.contents.get(prepared.manifestPath)).toBe(prepared.manifestContent);
     expect(host.trashed).toEqual([]);
+  });
+
+  it("requires acceptance bound to the prepared content report before creating any files", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const source = `| Name | Text |
+| --- | --- |
+| Alice | First<br>Second |`;
+    const promoted = parseEditableTables(source).tables[0]!;
+    const editor = new MemoryEditor(source);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(promoted, sourceFile);
+
+    expect(prepared.plan.contentReport.requiresAcceptance).toBe(true);
+    await expect(service.execute(editor as unknown as Editor, promoted, prepared, sourceTarget(editor, sourceFile)))
+      .rejects.toThrow("Review and accept");
+    expect(host.files.has(prepared.directoryPath)).toBe(false);
+    expect(host.contents.size).toBe(0);
+
+    const other = service.prepare(promoted, sourceFile);
+    await expect(service.execute(
+      editor as unknown as Editor,
+      promoted,
+      prepared,
+      sourceTarget(editor, sourceFile),
+      acceptBasePromotionContent(other),
+    )).rejects.toThrow("Review and accept");
+    expect(host.files.has(prepared.directoryPath)).toBe(false);
+    expect(host.contents.size).toBe(0);
+
+    await service.execute(
+      editor as unknown as Editor,
+      promoted,
+      prepared,
+      sourceTarget(editor, sourceFile),
+      acceptBasePromotionContent(prepared),
+    );
+
+    expect(host.contents.get(prepared.records[0]!.path)).toBe(prepared.records[0]!.content);
+    expect(host.contents.get(prepared.records[0]!.path)).toContain('Text: "First<br>Second"');
+    expect(editor.getValue()).toBe(prepared.replacementSource);
   });
 
   it("keeps a merged-data preview non-executable without creating files", async () => {

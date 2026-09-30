@@ -221,6 +221,31 @@ export class PluginSettingTab {
   hide(): void {}
 }
 
+export class ButtonComponent {
+  readonly buttonEl: HTMLButtonElement;
+
+  constructor() {
+    this.buttonEl = typeof document === "undefined"
+      ? {} as HTMLButtonElement
+      : document.createElement("button");
+  }
+
+  setButtonText(text: string): this { this.buttonEl.textContent = text; return this; }
+  setCta(): this { return this; }
+  setDisabled(disabled: boolean): this { this.buttonEl.disabled = disabled; return this; }
+  onClick(callback: () => void | Promise<void>): this {
+    this.buttonEl.addEventListener("click", () => { void callback(); });
+    return this;
+  }
+}
+
 export class Setting {
   constructor(public settingEl: HTMLElement) {}
+
+  addButton(callback: (button: ButtonComponent) => void): this {
+    const button = new ButtonComponent();
+    this.settingEl.appendChild(button.buttonEl);
+    callback(button);
+    return this;
+  }
 }

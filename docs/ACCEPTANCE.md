@@ -31,6 +31,8 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Bases-disabled upgrade refusal.
 - [ ] Ordinary and structural right-click Base-upgrade labels.
 - [ ] The explicit multi-row/merged-header and row-header flattening preview.
+- [ ] Base promotion with break-related content lists every affected source cell and generated target, final header key/displayName, actual record path/frontmatter, and source/target counts. Supported `<br>`, `<br/>`, `<br />` and case variants are distinguished from closed code, escaped/entity literals, math, HTML attribute/comment/raw-text, and unsupported spellings. Acceptance starts unchecked, cancel/close writes nothing, service refuses unaccepted execution, reopening resets acceptance, and confirmed records equal the preview.
+- [ ] In the Base promotion content product scenario on desktop and Android emulator, confirm/reopen generated records, use host undo/redo controls without deleting records, then restore the original table while retaining generated records. Android does not depend on desktop keyboard shortcuts.
 - [ ] Numeric, leading-zero, canonical-duplicate, reserved, and blank header promotion with property IDs, emoji/whitespace/dot/quote/backslash names, and legacy expression-order recognition.
 - [ ] Windows reserved filename stems with and without extensions.
 - [ ] Promoted Base recognition and migration under LF, CRLF, CR, tilde fences, and longer-fence examples.

@@ -25,6 +25,9 @@ beforeAll(() => {
   HTMLElement.prototype.createDiv = function createDiv(options?: ObsidianElementOptions): HTMLDivElement {
     return this.createEl("div", options);
   };
+  HTMLElement.prototype.createSpan = function createSpan(options?: ObsidianElementOptions): HTMLSpanElement {
+    return this.createEl("span", options);
+  };
   HTMLElement.prototype.empty = function empty(): void {
     this.replaceChildren();
   };

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.13 - 2026-09-30
+
+- Drag the complete highlighted row or column group when selection expands through merged cells, while preserving header-boundary protection.
+- Patch vulnerable development dependencies without changing the plugin's runtime dependency set.
+
 ## 0.4.12 - 2026-09-30
 
 - Offer explicit cell-editor menu rewrites for simple absolute-value and conditional-probability formulas containing bare pipes; save only after the user selects the intended TeX spelling.

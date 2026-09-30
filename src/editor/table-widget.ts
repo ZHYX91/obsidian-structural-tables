@@ -846,7 +846,7 @@ class StructuralTableInteraction {
           .setTitle(t(suggestion.kind === "absolute-value"
             ? "menu.useMathAbsoluteSuggestion" : "menu.useMathConditionalSuggestion"))
           .onClick(() => {
-            if (settled || editor.value !== draftAtOpen) return;
+            if (settled || composing || editor.value !== draftAtOpen) return;
             editor.value = suggestion.replacement;
             resizeEditor();
             finish(true);

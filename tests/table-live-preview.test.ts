@@ -1063,6 +1063,47 @@ describe("StructuralTableEditorController", () => {
       expect(parent.querySelector(".structural-tables-cell-editor")).toBeNull();
     } finally { view.destroy(); }
   });
+  it.each(["Enter", "Tab"])("keeps unsafe drafts without navigation or growth on %s", (key) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = String.raw`$P(\text{A|B})$`;
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      expect(view.state.doc.toString()).toBe(source);
+      expect(editor.isConnected).toBe(true);
+      expect(editor.value).toBe(String.raw`$P(\text{A|B})$`);
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(lastMenu?.items.some((item) => item.title.startsWith("Use \\"))).toBe(false);
+      lastMenu?.hide();
+      expect(editor.value).toBe(String.raw`$P(\text{A|B})$`);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["cancel", "changed", "composing"])("does not apply a suggestion after %s", async (action) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "$|x|$";
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const item = lastMenu?.items.find((candidate) => candidate.title === "Use \\lvert … \\rvert and save");
+      expect(item).toBeDefined();
+      if (action === "changed") editor.value = "$|y|$";
+      if (action === "composing") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      if (action !== "cancel") item?.callback?.();
+      lastMenu?.hide();
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(editor.isConnected).toBe(true);
+      expect(editor.value).toBe(action === "changed" ? "$|y|$" : "$|x|$");
+    } finally { view.destroy(); }
+  });
+
   it.each(["Escape", "Enter"])("preserves rendered sizing content and restores the same nodes after %s", (key) => {
     const source = "| Name | Value |\n| --- || --- |\n| Long | abcdefghijklmnopqrstuvwxyz |\n| Next | Short |";
     const { parent, view } = mountEditor(source, { anchor: source.length });

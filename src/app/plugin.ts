@@ -38,6 +38,7 @@ import {
   type BasePromotionBlocker,
   type BasePromotionWarning,
 } from "../core/base-promotion";
+import type { BasePromotionContentKind } from "../core/base-promotion-content";
 import { NativeTableMenuBridge } from "../editor/native-table-menu";
 import { StructuralTableEditorController } from "../editor/table-live-preview";
 import {
@@ -56,7 +57,12 @@ import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import { SettingsPersistenceSession } from "./settings-persistence-session";
 import { ConversionPreviewModal } from "./conversion-preview-modal";
 import { BasePromotionModal } from "./base-promotion-modal";
-import { BasePromotionService, captureBaseEditorTarget, type BaseEditorInfo } from "./base-promotion-service";
+import {
+  BasePromotionService,
+  captureBaseEditorTarget,
+  type BaseEditorInfo,
+  type BasePromotionContentAcceptance,
+} from "./base-promotion-service";
 import { BasePropertyMigrationModal } from "./base-property-migration-modal";
 import { BasePropertyMigrationService } from "./base-property-migration-service";
 import { showRecoveredCellDrafts } from "../editor/cell-draft-recovery";
@@ -84,6 +90,16 @@ function promotionBlockerText(t: Translate, blocker: BasePromotionBlocker): stri
     .replace("{column}", String(blocker.column))
     .replace("{rowSpan}", String(blocker.rowSpan))
     .replace("{columnSpan}", String(blocker.columnSpan));
+}
+
+function promotionContentKindText(t: Translate, kind: BasePromotionContentKind): string {
+  if (kind === "visual-break") return t("modal.promoteBase.contentVisualBreak");
+  if (kind === "code-literal") return t("modal.promoteBase.contentCodeLiteral");
+  if (kind === "escaped-literal") return t("modal.promoteBase.contentEscapedLiteral");
+  if (kind === "entity-literal") return t("modal.promoteBase.contentEntityLiteral");
+  if (kind === "math-uncertain") return t("modal.promoteBase.contentMathUncertain");
+  if (kind === "html-uncertain") return t("modal.promoteBase.contentHtmlUncertain");
+  return t("modal.promoteBase.contentSyntaxUncertain");
 }
 
 export class StructuralTablesPlugin extends Plugin {
@@ -522,12 +538,20 @@ export class StructuralTablesPlugin extends Plugin {
           warning: (warning) => promotionWarningText(t, warning),
           blockingIssues: t("modal.promoteBase.blockingIssues"),
           blocker: (blocker) => promotionBlockerText(t, blocker),
+          contentDifferences: t("modal.promoteBase.contentDifferences"),
+          contentSummary: t("modal.promoteBase.contentSummary"),
+          contentSource: t("modal.promoteBase.contentSource"),
+          contentKind: (kind) => promotionContentKindText(t, kind),
+          contentHeaderTarget: t("modal.promoteBase.contentHeaderTarget"),
+          contentRecordTarget: t("modal.promoteBase.contentRecordTarget"),
+          recordPreviews: t("modal.promoteBase.recordPreviews"),
+          acceptContentDifferences: t("modal.promoteBase.acceptContentDifferences"),
           cancel: t("modal.cancel"),
           confirm: t("modal.promoteBase.confirm"),
         },
-        async () => {
+        async (acceptance?: BasePromotionContentAcceptance) => {
           if (this.basePromotionService === null) throw new Error("Base promotion service is unavailable.");
-          await this.basePromotionService.execute(editor, table, prepared, target);
+          await this.basePromotionService.execute(editor, table, prepared, target, acceptance);
           new Notice(t("notice.promoted").replace("{path}", prepared.manifestPath), 8000);
         },
         (error) => new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000),

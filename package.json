@@ -63,6 +63,11 @@
   "allowScripts": {
     "esbuild": true
   },
+  "overrides": {
+    "obsidian": {
+      "moment": "2.31.0"
+    }
+  },
   "dependencies": {
     "yaml": "2.9.0"
   }

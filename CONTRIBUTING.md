@@ -11,6 +11,8 @@ npm run check
 
 Keep the pure core independent from Obsidian and browser globals. Rendering must remain source-preserving, and editing commands must validate their result before replacing table Markdown.
 
+The development-only Obsidian API packages pin an affected Moment version. A scoped npm override selects Moment 2.31.0 to address [GHSA-4p3w-j4w9-5jqw](https://github.com/moment/moment/security/advisories/GHSA-4p3w-j4w9-5jqw); it does not replace Obsidian's runtime Moment. Revisit the override when the upstream dependency is patched.
+
 ## Pull requests
 
 - Explain the user-visible behavior and safety boundary.

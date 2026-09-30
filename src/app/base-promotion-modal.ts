@@ -110,7 +110,7 @@ export class BasePromotionModal extends Modal {
           }
           const preparedRecord = this.prepared.records[target.recordIndex];
           const item = targets.createEl("li");
-          item.createEl("div", {
+          item.createDiv({
             text: this.labels.contentRecordTarget
               .replace("{record}", String(target.recordIndex + 1))
               .replace("{path}", preparedRecord?.path ?? "")
@@ -142,7 +142,7 @@ export class BasePromotionModal extends Modal {
       const label = this.contentEl.createEl("label", { cls: "structural-tables-promotion-acceptance" });
       acceptanceInput = label.createEl("input");
       acceptanceInput.type = "checkbox";
-      label.createEl("span", { text: this.labels.acceptContentDifferences });
+      label.createSpan({ text: this.labels.acceptContentDifferences });
     }
 
     let submitting = false;

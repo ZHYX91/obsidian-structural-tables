@@ -2,6 +2,7 @@ import type { StructuralTable } from "./model";
 import { projectStructuralTable } from "./interchange";
 import { isMap, isScalar, isSeq, parseDocument } from "yaml";
 import { ignoredMarkdownLines } from "./source-lines";
+import { analyzeBasePromotionContent, type BasePromotionContentReport } from "./base-promotion-content";
 
 export const TABLE_MEMBERSHIP_PROPERTY = "structural-tables";
 export const LEGACY_TABLE_MEMBERSHIP_PROPERTY = "structural_table_ids";
@@ -47,6 +48,7 @@ export interface BasePromotionPlan {
   tableId: string;
   columns: PromotionColumn[];
   records: PromotionRecord[];
+  contentReport: BasePromotionContentReport;
   warnings: BasePromotionWarning[];
   blockers: BasePromotionBlocker[];
 }
@@ -171,6 +173,7 @@ export function buildBasePromotionPlan(
     tableId,
     columns,
     records,
+    contentReport: analyzeBasePromotionContent(table, columns, records),
     warnings: promotionWarnings(table),
     blockers: mergedDataCellBlockers(table),
   };

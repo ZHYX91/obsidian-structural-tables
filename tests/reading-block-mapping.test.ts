@@ -272,6 +272,22 @@ describe("Reading View source/block boundaries", () => {
     expect(view.root.textContent).toContain("After");
   });
 
+  it("finishes a native section first attached while comparison is pending", async () => {
+    const view = readingView(`Intro\n${rowHeader}\nAfter`);
+    const section = view.sections[0]!.element;
+    section.className = "el-p";
+    section.remove();
+    view.root.className = "markdown-preview-sizer";
+    vi.mocked(MarkdownRenderer.render).mockImplementation(async (...args: unknown[]) => {
+      (args[2] as HTMLElement).innerHTML = markdown.render(args[1] as string);
+      view.root.append(section);
+      section.querySelector("p")!.setAttribute("dir", "auto");
+    });
+    view.process();
+    await settled();
+    expect(view.root.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+  });
+
   it.each([rowHeader.replace("North", "[North](wanted.md)"), multiHeader.replace("E", "[E](wanted.md)")])(
     "refuses identical visible labels with a different link destination", async (table) => {
       const view = readingView(`Intro\n${table}`);

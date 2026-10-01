@@ -243,7 +243,9 @@ export class ReadingBlockMapper {
     if (!this.getSettings().enableReadingView || scope.some((section, index) => {
       const info = section.context.getSectionInfo(section.element);
       return !section.session.active || this.sections.get(section.element) !== section
-        || section.element.parentElement !== snapshots[index]!.parent || snapshotHtml(section.element) !== snapshots[index]!.html
+        || (section.element.parentElement !== snapshots[index]!.parent
+          && !(snapshots[index]!.parent === null && section.element.matches(".markdown-preview-sizer > .el-p, .markdown-preview-sizer > .el-table")))
+        || snapshotHtml(section.element) !== snapshots[index]!.html
         || info?.text !== section.info.text || info.lineStart !== section.info.lineStart || info.lineEnd !== section.info.lineEnd;
     })) return;
     const currentScope = this.scope(owner, table);

@@ -309,7 +309,7 @@ describe("StructuralTableEditorController", () => {
   });
 
   it("edits and extends a headerless table without inventing column headers", async () => {
-    const source = "Before\n\n| --- | --- |\n| A | 1 |\n\nEnd";
+    const source = "Before\n\n| - | --: |\n| A | 1 |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
     try {
       const host = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;

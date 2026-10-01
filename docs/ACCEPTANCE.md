@@ -8,6 +8,8 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 
 ### Rendering and cell editing
 
+- [ ] Headerless tables with short and canonical delimiters, one or multiple data rows, row headers and merged cells render in both views and containers. Editing, insertion, header-role changes and undo/redo retain every data row and restore focus.
+- [ ] Select the complete column-header region and remove its header role; all text remains as data. Header changes that split a merged cell are refused.
 - [ ] Reading view.
 - [ ] Callout mapping: custom and foldable callouts, rich row headers, multiple header rows, nested callouts, mixed ordinary/structural tables, identical tables, and list continuations in both views. Fenced examples and invalid syntax remain uneditable.
 - [ ] Edit the second of two identical callout tables, commit and undo/redo; only the selected source table changes, quote prefixes remain, and focus returns to its rendered cell without revealing the whole callout source. Test Tab traversal, folding/reopening and view switching after edits.
@@ -19,6 +21,8 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 
 ### Clipboard and source formatting
 
+- [ ] Ragged ordinary GFM rows render with empty missing cells. Hidden extra source cells prevent edits, merges, header changes, formatting, GFM replacement and migration; rejected drafts stay available and the complete source stays unchanged. Copy remains usable.
+- [ ] Body-only HTML tables import without inventing a header. Headerless HTML has no empty thead, CSV/TSV include every data row, and plain GFM has an empty compatibility header.
 - [ ] Pasted Wiki links and embeds with escaped pipes.
 - [ ] Browser/Excel HTML-table paste with row/column spans, in-cell line breaks, and escaped pipes, plus disabled pass-through.
 - [ ] Explicit-write source-pipe alignment by display width across ASCII, CJK, emoji, row-header `||`, alignment markers, escaped pipes, Wiki links, code spans, and LF/CRLF/CR while rendering alone makes no write.
@@ -56,6 +60,7 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Ordinary-table native cell/row/column selections and menus while takeover is disabled.
 - [ ] Ordinary-table Live Preview and Reading view ownership, full menus, unchanged source, and immediate native restoration while the opt-in setting is toggled.
 - [ ] Theme-following, grid, and three-line styles with logical merged edges.
+- [ ] Grid column, row and corner headers share a restrained fill and weight; Three-line row headers have no added fill or vertical divider. Headerless Three-line tables have only top/bottom rules. Explicit alignment and selection remain visible; Follow theme retains theme-owned styling.
 - [ ] Span-aware outer borders, native-aligned table origin with handles outside layout, stable comfortable/compact cell dimensions and coarse-pointer touch minimums before and after merges, zebra continuity through row spans, selection clearing when focus/editor cursor leaves or another table receives the pointer, visible focus, one Tab stop per cell/row-handle/column-handle group, LTR/RTL arrow movement, and owned-table handles hidden at rest but revealed for the hovered cell's row and column or retained by keyboard focus/selection without clipping.
 - [ ] Drag selection, insert/delete/move/alignment/merge/split/header menus.
 - [ ] Bottom/right add controls at content-left, content-center and full width; no page overflow or clipped touch targets. Active drafts and insertion commit/undo together. Header-only tables gain data rows.

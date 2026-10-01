@@ -43,6 +43,7 @@ describe("table operations", () => {
     ["merge selection", (table) => mergeCellRange(table, 1, 0, 1, 1)],
     ["split cell", (table) => splitCell(table, 1, 0)],
     ["set column headers", (table) => setHeaderRowCount(table, 2)],
+    ["remove column headers", (table) => setHeaderRowCount(table, 0)],
     ["set row headers", (table) => setRowHeaderColumnCount(table, 1)],
   ];
 
@@ -54,6 +55,19 @@ describe("table operations", () => {
       expect(operation(table)).toMatchObject({ changed: false, code: "gfm-overflow-readonly", source: text });
       expect(table.source).toBe(text);
     }
+  });
+
+  it("preserves headerless data and short delimiter alignment through header-role changes", () => {
+    const table = parseEditableTables("| :-: | --: |\n| Alice | 10 |\n| Bob | 20 |").tables[0]!;
+    expect(table).toMatchObject({ valid: true, structural: true, headerRowCount: 0 });
+    const withHeader = setHeaderRowCount(table, 1);
+    expect(withHeader.changed).toBe(true);
+    const removed = setHeaderRowCount(parseEditableTables(withHeader.source).tables[0]!, 0);
+    expect(removed.changed).toBe(true);
+    const next = parseEditableTables(removed.source).tables[0]!;
+    expect(next.headerRowCount).toBe(0);
+    expect(next.alignments).toEqual(["center", "right"]);
+    expect(next.rows.map((row) => row.cells.map((cell) => cell.content))).toEqual([["Alice", "10"], ["Bob", "20"]]);
   });
 
   it("reorders complete merged row groups atomically and refuses split destinations", () => {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 - 2026-10-02
+
+- Support headerless tables, including a single data row and row headers; remove column-header roles without deleting cell content.
+- Preserve headerless HTML-table imports and CSV/TSV exports; plain GFM conversion uses an empty compatibility header.
+- Accept short GFM delimiter cells and ragged ordinary table rows. Keep tables with hidden extra source cells read-only across editing, merge, header-role, format and migration operations.
+- Give Grid semantic headers a consistent fill and weight, and Three-line headers restrained typography; preserve explicit alignment, selection feedback and Follow theme styling.
+
 ## 0.4.14 - 2026-10-01
 
 - Render multi-row and row-header tables across native Reading View block boundaries while preserving surrounding prose, links and media.

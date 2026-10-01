@@ -181,6 +181,30 @@ describe("StructuralTableReadingProcessor", () => {
     expect(addChild).toHaveBeenCalledOnce();
   });
 
+  it("renders headerless source that the Markdown host leaves as raw pipe text", () => {
+    const table = "| --- | --- |\n| Alice | 10 |\n| Bob | 20 |";
+    const container = document.createElement("div");
+    const raw = container.appendChild(rawBlock(table));
+    const addChild = vi.fn();
+    const context = {
+      addChild,
+      getSectionInfo: () => ({ lineStart: 0, lineEnd: 2, text: table }),
+      sourcePath: "Headerless.md",
+    } as unknown as MarkdownPostProcessorContext;
+    const processor = new StructuralTableReadingProcessor(
+      {} as App,
+      () => ({ ...DEFAULT_SETTINGS, enableReadingView: true }),
+    );
+
+    processor.process(container, context);
+
+    expect(raw.parentElement).toBeNull();
+    expect(container.querySelector(".structural-tables-container table")).not.toBeNull();
+    expect(container.querySelector("thead")).toBeNull();
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(addChild).toHaveBeenCalledOnce();
+  });
+
   it.each(["<br>", "<br/>", "<br />"])(
     "renders row-header source after the Markdown host converts %s to a BR element",
     (tag) => {

@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { markdownSourceDisplayWidth, serializeStructuralTable } from "../src/core/serializer";
 
+it("refuses to serialize GFM display models that omit source cells", () => {
+  const source = "| A | B |\n| --- | --- |\n| 1 | | KEEP |";
+  const table = parseEditableTables(source).tables[0]!;
+  expect(table.valid).toBe(true);
+  expect(() => serializeStructuralTable(table)).toThrow(/extra source cells/u);
+  expect(table.source).toBe(source);
+});
+
 function separatorColumns(line: string): number[] {
   const columns: number[] = [];
   let escaped = false;

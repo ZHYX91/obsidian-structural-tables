@@ -21,10 +21,41 @@ import {
   splitCell,
 } from "../src/core/operations";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
+import type { StructuralTable } from "../src/core/model";
+import type { OperationResult } from "../src/core/operations";
 
 const source = "| Group | < |\n| A | B |\n| --- | --- |\n| 1 |  |";
 
 describe("table operations", () => {
+  const overflowOperations: [string, (table: StructuralTable) => OperationResult][] = [
+    ["edit cell", (table) => editCellContent(table, 1, 0, "Updated")],
+    ["edit and append", (table) => editCellAndAppendRow(table, 1, 1, "Draft")],
+    ["append row", appendTableRow],
+    ["insert row", (table) => insertTableRow(table, 1, "after")],
+    ["insert column", (table) => insertTableColumn(table, 0, "after")],
+    ["delete row", (table) => deleteTableRows(table, 2, 2)],
+    ["delete column", (table) => deleteTableColumns(table, 1, 1)],
+    ["reorder rows", (table) => reorderTableAxis(table, "row", 1, 1, 3)],
+    ["move rows", (table) => moveTableRows(table, 1, 1, "forward")],
+    ["move columns", (table) => moveTableColumns(table, 0, 0, "forward")],
+    ["align columns", (table) => alignTableColumns(table, 0, 1, "right")],
+    ["merge cell", (table) => mergeCell(table, 1, 1, "left")],
+    ["merge selection", (table) => mergeCellRange(table, 1, 0, 1, 1)],
+    ["split cell", (table) => splitCell(table, 1, 0)],
+    ["set column headers", (table) => setHeaderRowCount(table, 2)],
+    ["set row headers", (table) => setRowHeaderColumnCount(table, 1)],
+  ];
+
+  it.each(overflowOperations)("refuses %s and preserves all hidden GFM source cells", (_name, operation) => {
+    for (const ending of ["\n", "\r\n", "\r"]) {
+      const text = ["| A | B |", "| --- | --- |", "| 1 | | KEEP |", "| | |"].join(ending);
+      const table = parseEditableTables(text).tables[0]!;
+      expect(table.valid).toBe(true);
+      expect(operation(table)).toMatchObject({ changed: false, code: "gfm-overflow-readonly", source: text });
+      expect(table.source).toBe(text);
+    }
+  });
+
   it("reorders complete merged row groups atomically and refuses split destinations", () => {
     const text = "> | H | V |\n> | --- || --- |\n> | A | B |\n> | ^ | C |\n> | Z | D |";
     const table = parseStructuralTables(text).tables[0]!;

@@ -455,7 +455,8 @@ export function mergeCell(
   column: number,
   direction: MergeDirection,
 ): OperationResult {
-  if (!table.valid) return { changed: false, code: "table-invalid", message: "The table must be valid before editing merges.", source: table.source };
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
   const cell = table.rows[row]?.cells[column];
   const target = direction === "left" ? table.rows[row]?.cells[column - 1] : table.rows[row - 1]?.cells[column];
   if (cell === undefined || target === undefined) {
@@ -486,7 +487,8 @@ export function mergeCellRange(
   endRow: number,
   endColumn: number,
 ): OperationResult {
-  if (!table.valid) return { changed: false, code: "table-invalid", message: "The table must be valid before editing merges.", source: table.source };
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
   const minRow = Math.min(startRow, endRow);
   const maxRow = Math.max(startRow, endRow);
   const minColumn = Math.min(startColumn, endColumn);
@@ -549,7 +551,8 @@ export function mergeCellRange(
 }
 
 export function splitCell(table: StructuralTable, row: number, column: number): OperationResult {
-  if (!table.valid) return { changed: false, code: "table-invalid", message: "The table must be valid before splitting cells.", source: table.source };
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
   const cell = table.rows[row]?.cells[column];
   if (cell === undefined) return { changed: false, code: "cell-unavailable", message: "The current cell is unavailable.", source: table.source };
   const anchor = table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
@@ -583,7 +586,8 @@ export function splitCell(table: StructuralTable, row: number, column: number): 
 }
 
 export function setHeaderRowCount(table: StructuralTable, count: number): OperationResult {
-  if (!table.valid) return { changed: false, code: "table-invalid", message: "The table must be valid before changing headers.", source: table.source };
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
   if (!Number.isInteger(count) || count < 1 || count > table.rows.length) {
     return { changed: false, code: "header-count-invalid", message: "Column headers must use one or more rows from the top of the table.", source: table.source };
   }
@@ -604,7 +608,8 @@ export function setHeaderRowCount(table: StructuralTable, count: number): Operat
 }
 
 export function setRowHeaderColumnCount(table: StructuralTable, count: number): OperationResult {
-  if (!table.valid) return { changed: false, code: "table-invalid", message: "The table must be valid before changing headers.", source: table.source };
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
   if (!Number.isInteger(count) || count < 0 || count >= table.columnCount) {
     return { changed: false, code: "row-header-count-invalid", message: "Row headers must use consecutive columns from the left and leave at least one data column.", source: table.source };
   }

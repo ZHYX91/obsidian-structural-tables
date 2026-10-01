@@ -1,4 +1,5 @@
 import type { ColumnAlignment, StructuralTable } from "./model";
+import { assertLosslessTableWrite } from "./table-write-safety";
 
 function delimiterFor(alignment: ColumnAlignment): string {
   if (alignment === "left") return ":---";
@@ -92,6 +93,7 @@ function serializeDelimiter(
 
 export function serializeStructuralTable(table: StructuralTable): string {
   if (!table.valid) throw new Error("Cannot format an invalid structural table.");
+  assertLosslessTableWrite(table);
   const delimiters = table.alignments.map(delimiterFor);
   const rows = table.rows.map((row) => row.cells.map((cell) => {
       if (!cell.covered) return escapedContent(cell.content);

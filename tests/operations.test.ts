@@ -54,6 +54,33 @@ describe("table operations", () => {
     expect(reorderTableAxis(merged, "column", 3, 3, 2).changed).toBe(false);
     expect(reorderTableAxis(merged, "column", 1, 2, 4).changed).toBe(true);
   });
+  it("removes and restores column-header roles without deleting content", () => {
+    const table = parseEditableTables("| Name | Age |\n| --- | --- |\n| Alice | 20 |").tables[0]!;
+    const removed = setHeaderRowCount(table, 0);
+    expect(removed).toMatchObject({ changed: true, code: "header-rows-set" });
+    expect(removed.source.split("\n")[0]).toContain("---");
+    const headerless = parseStructuralTables(removed.source).tables[0]!;
+    expect(headerless.headerRowCount).toBe(0);
+    expect(headerless.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual([["Name", "Age"], ["Alice", "20"]]);
+
+    const restored = setHeaderRowCount(headerless, 1);
+    const headerful = parseEditableTables(restored.source).tables[0]!;
+    expect(restored.changed).toBe(true);
+    expect(headerful.headerRowCount).toBe(1);
+    expect(headerful.rows[0]?.cells.map((cell) => cell.content)).toEqual(["Name", "Age"]);
+  });
+
+  it("keeps zero header rows when an empty former header row is deleted", () => {
+    const headerless = parseStructuralTables("| --- | --- |\n|  |  |\n| Alice | 20 |").tables[0]!;
+    const withHeader = setHeaderRowCount(headerless, 1);
+    const table = parseEditableTables(withHeader.source).tables[0]!;
+    const deleted = deleteTableRows(table, 0, 0);
+    expect(deleted.changed).toBe(true);
+    expect(parseStructuralTables(deleted.source).tables[0]?.headerRowCount).toBe(0);
+    expect(parseStructuralTables(deleted.source).tables[0]?.rows[0]?.cells[0]?.content).toBe("Alice");
+  });
+
   it("appends a data row to header-only tables without changing header roles", () => {
     const table = parseStructuralTables("| Group | < |\r\n| Name | Value |\r\n| --- | --- |").tables[0]!;
     const result = appendTableRow(table);

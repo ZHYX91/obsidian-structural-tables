@@ -18,7 +18,7 @@ interface ParsedDelimiter {
   rowHeaderColumnCount: number;
 }
 
-const DELIMITER_CELL = /^:?-{3,}:?$/u;
+const DELIMITER_CELL = /^:?-+:?$/u;
 
 function alignmentFor(token: string): ColumnAlignment {
   const trimmed = token.trim();
@@ -184,13 +184,14 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     const headerRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
     const immediateLine = delimiterLine - 1;
     const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : splitTablePipeRow(lines[immediateLine] ?? "");
-    if (immediateHeader === null) continue;
-    headerRows.push({ line: immediateLine, parsed: immediateHeader });
-    if (immediateHeader.cells.length === delimiter.columnCount) {
-      for (let line = delimiterLine - 2; line >= 0; line -= 1) {
-        const parsed = ignored.has(line) || !sameContainer(line) ? null : splitTablePipeRow(lines[line] ?? "");
-        if (parsed === null || parsed.cells.length !== delimiter.columnCount) break;
-        headerRows.unshift({ line, parsed });
+    if (immediateHeader !== null) {
+      headerRows.push({ line: immediateLine, parsed: immediateHeader });
+      if (immediateHeader.cells.length === delimiter.columnCount) {
+        for (let line = delimiterLine - 2; line >= 0; line -= 1) {
+          const parsed = ignored.has(line) || !sameContainer(line) ? null : splitTablePipeRow(lines[line] ?? "");
+          if (parsed === null || parsed.cells.length !== delimiter.columnCount) break;
+          headerRows.unshift({ line, parsed });
+        }
       }
     }
     const bodyRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
@@ -200,6 +201,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
       if (parsed === null) break;
       bodyRows.push({ line, parsed });
     }
+    if (headerRows.length === 0 && bodyRows.length === 0) continue;
     const rowSources = [...headerRows, ...bodyRows];
     const hasMarker = rowSources.some(({ parsed }) => parsed.cells.some((raw) => {
       const trimmed = raw.trim();
@@ -207,7 +209,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     }));
     const structural = hasMarker
       || delimiter.rowHeaderColumnCount > 0
-      || headerRows.length > 1
+      || headerRows.length !== 1
       || delimiter.diagnostics.length > 0;
     const startLine = headerRows[0]?.line ?? delimiterLine;
     const endLine = bodyRows[bodyRows.length - 1]?.line ?? delimiterLine;
@@ -217,14 +219,19 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     if (!structural && !includeOrdinary) continue;
     const diagnostics = [...delimiter.diagnostics];
     const rows: StructuralRow[] = rowSources.map(({ line, parsed }, row) => {
-      if (parsed.cells.length !== delimiter.columnCount) {
+      const sourceCellCount = parsed.cells.length;
+      // GFM permits body rows to be shorter or longer than the header. Keep
+      // structural syntax strict, and keep the GFM header itself exact.
+      if (sourceCellCount !== delimiter.columnCount && (row < headerRows.length || structural)) {
         diagnostics.push({
           code: "row-width",
-          message: `Expected ${delimiter.columnCount} cells, received ${parsed.cells.length}.`,
+          message: `Expected ${delimiter.columnCount} cells, received ${sourceCellCount}.`,
           row: line,
         });
       }
-      const cells = parsed.cells.slice(0, delimiter.columnCount).map((raw, column): StructuralCell => {
+      const cells = Array.from({ length: delimiter.columnCount }, (_unused, column) => (
+        parsed.cells[column] ?? ""
+      )).map((raw, column): StructuralCell => {
         const marker = markerFor(raw);
         return {
           row,
@@ -240,7 +247,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
           covered: false,
         };
       });
-      return { sourceLine: line, cells };
+      return { sourceLine: line, sourceCellCount, cells };
     });
     if (rows.every((row) => row.cells.length === delimiter.columnCount)) resolveMerges(rows, diagnostics);
     const from = offsets[startLine] ?? 0;

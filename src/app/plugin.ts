@@ -32,6 +32,7 @@ import { parseEditableTables, parseStructuralTables } from "../core/parser";
 import { serializeStructuralTable } from "../core/serializer";
 import { withSourcePrefix } from "../core/source-lines";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+import { hasHiddenGfmOverflow } from "../core/table-write-safety";
 import type { StructuralTable } from "../core/model";
 import {
   promotionBlockAt,
@@ -357,6 +358,14 @@ export class StructuralTablesPlugin extends Plugin {
     replaceTableSource(editor, table, source);
   }
 
+  private blockUnsafeTableWrite(table: StructuralTable): boolean {
+    if (!hasHiddenGfmOverflow(table)) return false;
+    const t = createTranslator(this.settings.language);
+    new Notice(operationNotice(t, "gfm-overflow-readonly"), 8000);
+    return true;
+  }
+
+
   private captureConversionTarget(editor: Editor, sourceFile: TFile | null): (() => boolean) | null {
     if (sourceFile === null) return null;
     const sourcePath = sourceFile.path;
@@ -382,6 +391,7 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const t = createTranslator(this.settings.language);
+    if (this.blockUnsafeTableWrite(current.table)) return;
     const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
     if (targetIsCurrent === null) {
       new Notice(t("notice.noFile"));
@@ -447,6 +457,7 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const t = createTranslator(this.settings.language);
+    if (this.blockUnsafeTableWrite(current.table)) return;
     const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
     if (targetIsCurrent === null) {
       new Notice(t("notice.noFile"));
@@ -486,8 +497,9 @@ export class StructuralTablesPlugin extends Plugin {
   private migrateSheetsExtended(editor: Editor): void {
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
-    const migration = migrateSheetsExtendedTable(current.table);
     const t = createTranslator(this.settings.language);
+    if (this.blockUnsafeTableWrite(current.table)) return;
+    const migration = migrateSheetsExtendedTable(current.table);
     if (migration === null) {
       new Notice(t("notice.sheetsNotDetected"));
       return;
@@ -522,6 +534,7 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const t = createTranslator(this.settings.language);
+    if (this.blockUnsafeTableWrite(table)) return;
     try {
       const target = captureBaseEditorTarget(editor, getInfo);
       const prepared = this.basePromotionService.prepare(table, sourceFile);

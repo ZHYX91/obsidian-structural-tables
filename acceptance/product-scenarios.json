@@ -353,6 +353,60 @@
         "structural_table_ids and structural_record_id are absent after confirmed cleanup",
         "Legacy Base uses bracket access for structural-tables and still shows the record"
       ]
+    },
+    {
+      "id": "headerless-and-header-roles",
+      "title": "Headerless tables and content-preserving header roles",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open Header roles in Live Preview and Reading View. Inspect all seven tables, including Callout and list containers; view changes alone must not change source.",
+        "Edit the first data row, add a row and column, then undo and redo. The headerless tables must keep zero column-header rows and every original data row.",
+        "On the Name/Value table, select its complete first row and choose Remove column headers. Set the first row as column headers again, then undo and redo. Inspect text and focus.",
+        "Try setting only the first column of the horizontally merged Group row as row headers. The boundary through the merge must be refused.",
+        "Switch Follow theme, Grid and Three-line in light/dark mode. Inspect row-header alignment, header hierarchy and selected-cell feedback."
+      ],
+      "expected": [
+        "Headerless tables render without an empty thead, including the single-row table and both containers; passive rendering preserves source.",
+        "Edits and insertion preserve headerless roles, text and alignment; undo/redo restore the table and usable focus.",
+        "Removing column headers changes their role while retaining Name and Value as data; restoring headers retains all text. Merge boundaries cannot be split.",
+        "Grid semantic headers share a restrained fill and weight. Three-line row headers add no vertical rule or fill; headerless tables have top/bottom rules only. Explicit alignment, selection and Follow theme styling remain correct."
+      ]
+    },
+    {
+      "id": "gfm-hidden-source-safety",
+      "title": "Ragged GFM rendering and hidden-source write protection",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Enable Take over ordinary Markdown tables and open GFM write safety in Live Preview. Missing cells in Short row must render empty; explicitly edit the first cell and inspect the saved two-column row.",
+        "On Hidden source content, enter a cell draft and attempt commit. On desktop also attempt terminal Tab. The draft must remain available and source must remain unchanged.",
+        "Attempt merge, row/column insertion, header-role changes, formatting, Convert to GFM, Sheets migration and Upgrade to Base. Inspect source after each operation and confirm no Base files are created.",
+        "Copy the visible table as HTML/GFM/CSV/TSV. Switch views and toggle ordinary-table takeover. Recheck the exact original hidden-source row."
+      ],
+      "expected": [
+        "Short rows read correctly and safe explicit edits normalize missing cells without losing data.",
+        "Every hidden-source write is refused, KEEP and the complete source remain unchanged, failed drafts remain available and Base promotion creates no files.",
+        "Copy remains available; view changes and takeover changes do not write source. Terminal Tab is a desktop keyboard check; Android uses touch editing and menus."
+      ]
     }
   ]
 }

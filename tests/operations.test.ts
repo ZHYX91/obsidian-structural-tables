@@ -21,10 +21,55 @@ import {
   splitCell,
 } from "../src/core/operations";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
+import type { StructuralTable } from "../src/core/model";
+import type { OperationResult } from "../src/core/operations";
 
 const source = "| Group | < |\n| A | B |\n| --- | --- |\n| 1 |  |";
 
 describe("table operations", () => {
+  const overflowOperations: [string, (table: StructuralTable) => OperationResult][] = [
+    ["edit cell", (table) => editCellContent(table, 1, 0, "Updated")],
+    ["edit and append", (table) => editCellAndAppendRow(table, 1, 1, "Draft")],
+    ["append row", appendTableRow],
+    ["insert row", (table) => insertTableRow(table, 1, "after")],
+    ["insert column", (table) => insertTableColumn(table, 0, "after")],
+    ["delete row", (table) => deleteTableRows(table, 2, 2)],
+    ["delete column", (table) => deleteTableColumns(table, 1, 1)],
+    ["reorder rows", (table) => reorderTableAxis(table, "row", 1, 1, 3)],
+    ["move rows", (table) => moveTableRows(table, 1, 1, "forward")],
+    ["move columns", (table) => moveTableColumns(table, 0, 0, "forward")],
+    ["align columns", (table) => alignTableColumns(table, 0, 1, "right")],
+    ["merge cell", (table) => mergeCell(table, 1, 1, "left")],
+    ["merge selection", (table) => mergeCellRange(table, 1, 0, 1, 1)],
+    ["split cell", (table) => splitCell(table, 1, 0)],
+    ["set column headers", (table) => setHeaderRowCount(table, 2)],
+    ["remove column headers", (table) => setHeaderRowCount(table, 0)],
+    ["set row headers", (table) => setRowHeaderColumnCount(table, 1)],
+  ];
+
+  it.each(overflowOperations)("refuses %s and preserves all hidden GFM source cells", (_name, operation) => {
+    for (const ending of ["\n", "\r\n", "\r"]) {
+      const text = ["| A | B |", "| --- | --- |", "| 1 | | KEEP |", "| | |"].join(ending);
+      const table = parseEditableTables(text).tables[0]!;
+      expect(table.valid).toBe(true);
+      expect(operation(table)).toMatchObject({ changed: false, code: "gfm-overflow-readonly", source: text });
+      expect(table.source).toBe(text);
+    }
+  });
+
+  it("preserves headerless data and short delimiter alignment through header-role changes", () => {
+    const table = parseEditableTables("| :-: | --: |\n| Alice | 10 |\n| Bob | 20 |").tables[0]!;
+    expect(table).toMatchObject({ valid: true, structural: true, headerRowCount: 0 });
+    const withHeader = setHeaderRowCount(table, 1);
+    expect(withHeader.changed).toBe(true);
+    const removed = setHeaderRowCount(parseEditableTables(withHeader.source).tables[0]!, 0);
+    expect(removed.changed).toBe(true);
+    const next = parseEditableTables(removed.source).tables[0]!;
+    expect(next.headerRowCount).toBe(0);
+    expect(next.alignments).toEqual(["center", "right"]);
+    expect(next.rows.map((row) => row.cells.map((cell) => cell.content))).toEqual([["Alice", "10"], ["Bob", "20"]]);
+  });
+
   it("reorders complete merged row groups atomically and refuses split destinations", () => {
     const text = "> | H | V |\n> | --- || --- |\n> | A | B |\n> | ^ | C |\n> | Z | D |";
     const table = parseStructuralTables(text).tables[0]!;
@@ -54,6 +99,44 @@ describe("table operations", () => {
     expect(reorderTableAxis(merged, "column", 3, 3, 2).changed).toBe(false);
     expect(reorderTableAxis(merged, "column", 1, 2, 4).changed).toBe(true);
   });
+  it("removes and restores column-header roles without deleting content", () => {
+    const table = parseEditableTables("| Name | Age |\n| --- | --- |\n| Alice | 20 |").tables[0]!;
+    const removed = setHeaderRowCount(table, 0);
+    expect(removed).toMatchObject({ changed: true, code: "header-rows-set" });
+    expect(removed.source.split("\n")[0]).toContain("---");
+    const headerless = parseStructuralTables(removed.source).tables[0]!;
+    expect(headerless.headerRowCount).toBe(0);
+    expect(headerless.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual([["Name", "Age"], ["Alice", "20"]]);
+
+    const restored = setHeaderRowCount(headerless, 1);
+    const headerful = parseEditableTables(restored.source).tables[0]!;
+    expect(restored.changed).toBe(true);
+    expect(headerful.headerRowCount).toBe(1);
+    expect(headerful.rows[0]?.cells.map((cell) => cell.content)).toEqual(["Name", "Age"]);
+  });
+
+  it("refuses a header-role boundary that would cut through a merged cell", () => {
+    const table = parseStructuralTables(
+      "| Group | Value |\n| ^ | Detail |\n| --- | --- |\n| A | 1 |",
+    ).tables[0]!;
+    expect(table).toMatchObject({ valid: true, headerRowCount: 2 });
+    const changed = setHeaderRowCount(table, 1);
+    expect(changed.changed).toBe(false);
+    expect(changed.code).toBe("invalid-result");
+    expect(changed.source).toBe(table.source);
+  });
+
+  it("keeps zero header rows when an empty former header row is deleted", () => {
+    const headerless = parseStructuralTables("| --- | --- |\n|  |  |\n| Alice | 20 |").tables[0]!;
+    const withHeader = setHeaderRowCount(headerless, 1);
+    const table = parseEditableTables(withHeader.source).tables[0]!;
+    const deleted = deleteTableRows(table, 0, 0);
+    expect(deleted.changed).toBe(true);
+    expect(parseStructuralTables(deleted.source).tables[0]?.headerRowCount).toBe(0);
+    expect(parseStructuralTables(deleted.source).tables[0]?.rows[0]?.cells[0]?.content).toBe("Alice");
+  });
+
   it("appends a data row to header-only tables without changing header roles", () => {
     const table = parseStructuralTables("| Group | < |\r\n| Name | Value |\r\n| --- | --- |").tables[0]!;
     const result = appendTableRow(table);
@@ -78,6 +161,30 @@ describe("table operations", () => {
     expect(invalid.changed).toBe(false);
     expect(invalid.source).toBe(nested.source);
   });
+  it("normalizes short GFM rows on explicit edits and blocks writes with hidden overflow cells", () => {
+    const shortSource = "| A | B |\n| --- | --- |\n| 1 |";
+    const shortTable = parseEditableTables(shortSource).tables[0]!;
+    const edited = editCellContent(shortTable, 1, 0, "Updated");
+    expect(edited.changed).toBe(true);
+    const normalized = parseEditableTables(edited.source).tables[0]!;
+    expect(normalized.rows[1]?.cells.map((cell) => cell.content)).toEqual(["Updated", ""]);
+    expect(normalized.rows[1]?.sourceCellCount).toBe(2);
+
+    const overflowSource = "| A | B |\n| --- | --- |\n| 1 | 2 | keep-me |";
+    const overflow = parseEditableTables(overflowSource).tables[0]!;
+    expect(overflow.valid).toBe(true);
+    expect(editCellContent(overflow, 1, 0, "Updated")).toMatchObject({
+      changed: false,
+      code: "gfm-overflow-readonly",
+      source: overflowSource,
+    });
+    expect(appendTableRow(overflow)).toMatchObject({
+      changed: false,
+      code: "gfm-overflow-readonly",
+      source: overflowSource,
+    });
+  });
+
   it("merges an empty cell and validates the candidate", () => {
     const table = parseStructuralTables(source).tables[0]!;
     const result = mergeCell(table, 2, 1, "left");

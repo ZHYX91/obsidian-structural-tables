@@ -3,6 +3,39 @@ import { describe, expect, it } from "vitest";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 
 describe("parseStructuralTables", () => {
+  it("parses delimiter-first tables as headerless structural tables", () => {
+    const source = "| --- | --- |\n| A | 1 |\n| B | 2 |";
+    const table = parseStructuralTables(source).tables[0];
+
+    expect(table).toMatchObject({
+      structural: true,
+      valid: true,
+      headerRowCount: 0,
+      rowHeaderColumnCount: 0,
+      startLine: 0,
+      delimiterLine: 0,
+      columnCount: 2,
+    });
+    expect(table?.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual([["A", "1"], ["B", "2"]]);
+    expect(table?.rows.flatMap((row) => row.cells).every((cell) => cell.role === "data")).toBe(true);
+    expect(table?.source).toBe(source);
+  });
+
+  it("supports a single headerless data row with row-header syntax", () => {
+    const source = "| --- || --- |\n| Alice | 10 |";
+    const table = parseStructuralTables(source).tables[0];
+
+    expect(table).toMatchObject({ valid: true, headerRowCount: 0, rowHeaderColumnCount: 1 });
+    expect(table?.rows[0]?.cells[0]?.role).toBe("row_header");
+    expect(table?.rows[0]?.cells[1]?.role).toBe("data");
+  });
+
+  it("does not claim a delimiter row without any table data", () => {
+    expect(parseStructuralTables("| --- | --- |").tables).toEqual([]);
+    expect(parseEditableTables("| --- | --- |").tables).toEqual([]);
+  });
+
   it("does not take ownership of an ordinary GFM table", () => {
     const source = "| A | B |\n| --- | --- |\n| 1 | 2 |";
     expect(parseStructuralTables(source).tables).toEqual([]);
@@ -14,10 +47,35 @@ describe("parseStructuralTables", () => {
     });
   });
 
-  it("rejects delimiter cells shorter than the GFM minimum", () => {
-    const source = "| A | < |\n| - | -- |\n| 1 | 2 |";
+  it("accepts one- and two-hyphen GFM delimiter cells", () => {
+    const source = "| A | B |\n| :-: | --: |\n| 1 | 2 |";
+    expect(parseStructuralTables(source).tables).toEqual([]);
+    expect(parseEditableTables(source).tables[0]).toMatchObject({
+      structural: false,
+      valid: true,
+      alignments: ["center", "right"],
+      columnCount: 2,
+    });
+  });
+
+  it("still rejects delimiter cells without a hyphen", () => {
+    const source = "| A | B |\n| : | : |\n| 1 | 2 |";
     expect(parseStructuralTables(source).tables).toEqual([]);
     expect(parseEditableTables(source).tables).toEqual([]);
+  });
+
+  it("accepts ragged ordinary GFM body rows without losing their source shape", () => {
+    const source = "| A | B |\n| --- | --- |\n| 1 |\n| 2 | 3 | hidden |";
+    const table = parseEditableTables(source).tables[0];
+
+    expect(parseStructuralTables(source).tables).toEqual([]);
+    expect(table).toMatchObject({ structural: false, valid: true, columnCount: 2 });
+    expect(table?.rows[1]).toMatchObject({ sourceCellCount: 1 });
+    expect(table?.rows[1]?.cells.map((cell) => cell.content)).toEqual(["1", ""]);
+    expect(table?.rows[2]).toMatchObject({ sourceCellCount: 3 });
+    expect(table?.rows[2]?.cells.map((cell) => cell.content)).toEqual(["2", "3"]);
+    expect(table?.source).toBe(source);
+    expect(table?.diagnostics).toEqual([]);
   });
 
   it("parses multi-row and row headers with rectangular merges", () => {

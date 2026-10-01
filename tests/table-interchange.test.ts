@@ -160,9 +160,28 @@ describe("HTML table clipboard import", () => {
     expect(parsed?.rowHeaderColumnCount).toBe(1);
   });
 
-  it("treats the first row as headers when pasted HTML has only td cells", () => {
-    expect(structuralSourceFromClipboardHtml("<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"))
-      .toBe("| A   | B   |\n| --- | --- |\n| 1   | 2   |");
+  it("keeps pasted HTML with only td cells headerless", () => {
+    const source = structuralSourceFromClipboardHtml(
+      "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>",
+    );
+    expect(source).toBe("| --- | --- |\n| A   | B   |\n| 1   | 2   |");
+    expect(parseEditableTables(source ?? "").tables[0]).toMatchObject({
+      structural: true,
+      valid: true,
+      headerRowCount: 0,
+    });
+  });
+
+  it("keeps semantic tbody th cells as row headers without inventing column headers", () => {
+    const source = structuralSourceFromClipboardHtml(
+      "<table><tbody><tr><th>A</th><td>1</td></tr><tr><th>B</th><td>2</td></tr></tbody></table>",
+    );
+    expect(parseEditableTables(source ?? "").tables[0]).toMatchObject({
+      valid: true,
+      headerRowCount: 0,
+      rowHeaderColumnCount: 1,
+    });
+    expect(source?.split("\n")[0]).toContain("||");
   });
 
   it("preserves browser and spreadsheet cell line breaks as canonical br tags", () => {
@@ -336,7 +355,7 @@ describe("HTML table clipboard import", () => {
     expect(table?.rows[0]?.cells[0]?.columnSpan).toBe(2);
   });
 
-  it("keeps the first complete span group as headers when Excel supplies only td cells", () => {
+  it("keeps Excel td-only span geometry without inventing column headers", () => {
     const fragment = `<col width=51 span=2><col width=26>
       <tr><td rowspan=2>Region</td><td colspan=2>Sales</td></tr>
       <tr><td>Q1</td><td>Q2</td></tr>
@@ -344,7 +363,7 @@ describe("HTML table clipboard import", () => {
       <tr><td>Second</td></tr>`;
     const table = parseEditableTables(structuralSourceFromClipboardHtml(fragment) ?? "").tables[0];
     expect(table?.valid).toBe(true);
-    expect(table?.headerRowCount).toBe(2);
+    expect(table?.headerRowCount).toBe(0);
     expect(table?.rows[0]?.cells[0]?.rowSpan).toBe(2);
     expect(table?.rows[0]?.cells[1]?.columnSpan).toBe(2);
     expect(table?.rows[2]?.cells[0]?.rowSpan).toBe(2);

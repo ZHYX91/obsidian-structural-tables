@@ -107,6 +107,23 @@ describe("StructuralTableReadingProcessor", () => {
     render.mockRestore();
   });
 
+  it.each(["> ", ">> ", "    "])("renders a headerless container table in an isolated section %j", (prefix) => {
+    const bare = "| --- | --- |\n| Alice | 10 |\n| Bob | 20 |";
+    const source = "- outer\n  - inner\n\n" + bare.split("\n").map((line) => prefix + line).join("\n");
+    const container = document.createElement("div");
+    container.appendChild(rawBlock(bare));
+    const context = {
+      addChild: vi.fn(), sourcePath: "Headerless-container.md",
+      getSectionInfo: () => ({ lineStart: 3, lineEnd: 5, text: source }),
+    } as unknown as MarkdownPostProcessorContext;
+
+    new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, context);
+
+    expect(container.querySelector(".structural-tables-table")).not.toBeNull();
+    expect(container.querySelector("thead")).toBeNull();
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+  });
+
   it("does not acquire YAML scalar text when the section omits the frontmatter delimiters", () => {
     const bare = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
     const source = "---\nexample: |\n" + bare.split("\n").map((line) => "  " + line).join("\n") + "\n---";
@@ -178,6 +195,30 @@ describe("StructuralTableReadingProcessor", () => {
     expect(container.querySelector(".structural-tables-container table")).not.toBeNull();
     expect((container.querySelector("tbody th") as HTMLTableCellElement | null)?.scope).toBe("row");
     expect((container.querySelector("tbody th") as HTMLElement | null)?.dataset.structuralRole).toBe("row_header");
+    expect(addChild).toHaveBeenCalledOnce();
+  });
+
+  it("renders headerless source that the Markdown host leaves as raw pipe text", () => {
+    const table = "| --- | --- |\n| Alice | 10 |\n| Bob | 20 |";
+    const container = document.createElement("div");
+    const raw = container.appendChild(rawBlock(table));
+    const addChild = vi.fn();
+    const context = {
+      addChild,
+      getSectionInfo: () => ({ lineStart: 0, lineEnd: 2, text: table }),
+      sourcePath: "Headerless.md",
+    } as unknown as MarkdownPostProcessorContext;
+    const processor = new StructuralTableReadingProcessor(
+      {} as App,
+      () => ({ ...DEFAULT_SETTINGS, enableReadingView: true }),
+    );
+
+    processor.process(container, context);
+
+    expect(raw.parentElement).toBeNull();
+    expect(container.querySelector(".structural-tables-container table")).not.toBeNull();
+    expect(container.querySelector("thead")).toBeNull();
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
     expect(addChild).toHaveBeenCalledOnce();
   });
 

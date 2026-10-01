@@ -3,6 +3,7 @@ import { projectStructuralTable } from "./interchange";
 import { isMap, isScalar, isSeq, parseDocument } from "yaml";
 import { ignoredMarkdownLines } from "./source-lines";
 import { analyzeBasePromotionContent, type BasePromotionContentReport } from "./base-promotion-content";
+import { assertLosslessTableWrite } from "./table-write-safety";
 
 export const TABLE_MEMBERSHIP_PROPERTY = "structural-tables";
 export const LEGACY_TABLE_MEMBERSHIP_PROPERTY = "structural_table_ids";
@@ -158,6 +159,7 @@ export function buildBasePromotionPlan(
   tableId: string,
 ): BasePromotionPlan {
   if (!table.valid) throw new Error("The table must be valid before promotion.");
+  assertLosslessTableWrite(table);
   if (table.sourcePrefix !== "") throw new Error("Move the table outside its Markdown container before upgrading to Base.");
   const projection = projectStructuralTable(table);
   if (projection.rows.length === 0) throw new Error("The table must contain at least one data row.");

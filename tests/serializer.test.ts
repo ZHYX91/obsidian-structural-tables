@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { markdownSourceDisplayWidth, serializeStructuralTable } from "../src/core/serializer";
 
+it("refuses to serialize GFM display models that omit source cells", () => {
+  const source = "| A | B |\n| --- | --- |\n| 1 | | KEEP |";
+  const table = parseEditableTables(source).tables[0]!;
+  expect(table.valid).toBe(true);
+  expect(() => serializeStructuralTable(table)).toThrow(/extra source cells/u);
+  expect(table.source).toBe(source);
+});
+
 function separatorColumns(line: string): number[] {
   const columns: number[] = [];
   let escaped = false;
@@ -44,6 +52,19 @@ describe("serializeStructuralTable", () => {
 | ^     | 2     |`);
   });
 
+  it("canonicalizes short GFM delimiters without changing table semantics", () => {
+    const source = "| A | B |\n| :-: | --: |\n| 1 | 2 |";
+    const parsed = parseEditableTables(source).tables[0]!;
+    const serialized = serializeStructuralTable(parsed);
+    const reparsed = parseEditableTables(serialized).tables[0]!;
+
+    expect(serialized.split("\n")[1]).toContain(":---:");
+    expect(serialized.split("\n")[1]).toContain("---:");
+    expect(reparsed.alignments).toEqual(["center", "right"]);
+    expect(reparsed.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual([["A", "B"], ["1", "2"]]);
+  });
+
   it("escapes literal marker content", () => {
     const source = String.raw`| Group | \< |
 | Name | Value |
@@ -71,6 +92,25 @@ describe("serializeStructuralTable", () => {
     if (ending === "\r\n") expect(serialized).not.toMatch(/(?<!\r)\n/u);
     else if (ending === "\r") expect(serialized).not.toContain("\n");
     else expect(serialized).not.toContain("\r");
+  });
+
+  it.each([
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+    ["CR", "\r"],
+  ])("round-trips a headerless table with %s endings", (_name, ending) => {
+    const source = ["| --- | --- |", "| A | 1 |", "| B | 2 |"].join(ending);
+    const parsed = parseStructuralTables(source).tables[0]!;
+    const serialized = serializeStructuralTable(parsed);
+    const reparsed = parseStructuralTables(serialized).tables[0]!;
+
+    expect(parsed.headerRowCount).toBe(0);
+    expect(serialized.split(ending)[0]).toContain("---");
+    expect(reparsed.headerRowCount).toBe(0);
+    expect(reparsed.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual([["A", "1"], ["B", "2"]]);
+    if (ending === "\r\n") expect(serialized).not.toMatch(/(?<!\r)\n/u);
+    else if (ending === "\r") expect(serialized).not.toContain("\n");
   });
 
   it.each(["<br>", "<br/>", "<br />"])("preserves the exact %s visual-break spelling", (tag) => {

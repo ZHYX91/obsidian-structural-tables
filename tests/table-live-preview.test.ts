@@ -308,6 +308,47 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it("edits and extends a headerless table without inventing column headers", async () => {
+    const source = "Before\n\n| --- | --- |\n| A | 1 |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      const host = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;
+      expect(host).not.toBeNull();
+      expect(host.querySelector("thead")).toBeNull();
+
+      const first = host.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+      first.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = first.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "Changed";
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables[0]?.rows[0]?.cells[0]?.content).toBe("Changed"));
+
+      parent.querySelector<HTMLButtonElement>(".structural-tables-add-row")!.click();
+      await vi.waitFor(() => expect(parent.querySelector("[data-structural-row='1'][data-structural-column='0'] textarea")).not.toBeNull());
+      let parsed = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(parsed.headerRowCount).toBe(0);
+      expect(parsed.rows).toHaveLength(2);
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+
+      parent.querySelector<HTMLButtonElement>(".structural-tables-add-column")!.click();
+      await vi.waitFor(() => expect(parent.querySelector("[data-structural-row='0'][data-structural-column='2'] textarea")).not.toBeNull());
+      parsed = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(parsed.headerRowCount).toBe(0);
+      expect(parsed.columnCount).toBe(3);
+      expect(parent.querySelector("thead")).toBeNull();
+
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+      expect(undo(view)).toBe(true);
+      expect(parseEditableTables(view.state.doc.toString()).tables[0]?.headerRowCount).toBe(0);
+    } finally {
+      view.destroy();
+    }
+  });
+
   it("adds a bottom data row to a header-only table and preserves backward Tab at the start", async () => {
     const source = "Before\n\n| H | < |\n| --- | --- |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 });

@@ -203,10 +203,12 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     }
     if (headerRows.length === 0 && bodyRows.length === 0) continue;
     const rowSources = [...headerRows, ...bodyRows];
-    const hasMarker = rowSources.some(({ parsed }) => parsed.cells.some((raw) => {
-      const trimmed = raw.trim();
-      return trimmed === "<" || trimmed === "^";
-    }));
+    const hasMarker = rowSources.some(({ parsed }) => parsed.cells
+      .slice(0, delimiter.columnCount)
+      .some((raw) => {
+        const trimmed = raw.trim();
+        return trimmed === "<" || trimmed === "^";
+      }));
     const structural = hasMarker
       || delimiter.rowHeaderColumnCount > 0
       || headerRows.length !== 1

@@ -20,6 +20,20 @@ describe("parseStructuralTables", () => {
     expect(parseEditableTables(source).tables).toEqual([]);
   });
 
+  it("accepts ragged ordinary GFM body rows without losing their source shape", () => {
+    const source = "| A | B |\n| --- | --- |\n| 1 |\n| 2 | 3 | hidden |";
+    const table = parseEditableTables(source).tables[0];
+
+    expect(parseStructuralTables(source).tables).toEqual([]);
+    expect(table).toMatchObject({ structural: false, valid: true, columnCount: 2 });
+    expect(table?.rows[1]).toMatchObject({ sourceCellCount: 1 });
+    expect(table?.rows[1]?.cells.map((cell) => cell.content)).toEqual(["1", ""]);
+    expect(table?.rows[2]).toMatchObject({ sourceCellCount: 3 });
+    expect(table?.rows[2]?.cells.map((cell) => cell.content)).toEqual(["2", "3"]);
+    expect(table?.source).toBe(source);
+    expect(table?.diagnostics).toEqual([]);
+  });
+
   it("parses multi-row and row headers with rectangular merges", () => {
     const source = "| Region | Sales | < |\n| Quarter | Q1 | Q2 |\n| --- || --- | --- |\n| North | 10 | 12 |\n| ^ | 8 | 11 |";
     const table = parseStructuralTables(source).tables[0];

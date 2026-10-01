@@ -50,12 +50,12 @@ export function renderStructuralTable(
 ): HTMLTableElement {
   const wrapper = container.createDiv({ cls: "structural-tables-container markdown-rendered" });
   const rendered = wrapper.createEl("table", { cls: "structural-tables-table" });
-  const head = rendered.createEl("thead");
+  const head = table.headerRowCount > 0 ? rendered.createEl("thead") : null;
   const body = rendered.createEl("tbody");
   const pendingCells: { source: string; target: HTMLElement }[] = [];
   table.rows.forEach((row, rowIndex) => {
     const section = rowIndex < table.headerRowCount ? head : body;
-    const rowElement = section.createEl("tr");
+    const rowElement = (section ?? body).createEl("tr");
     row.cells.forEach((cell) => {
       if (cell.covered) return;
       const header = cell.role !== "data";

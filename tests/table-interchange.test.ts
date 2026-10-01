@@ -355,7 +355,7 @@ describe("HTML table clipboard import", () => {
     expect(table?.rows[0]?.cells[0]?.columnSpan).toBe(2);
   });
 
-  it("keeps the first complete span group as headers when Excel supplies only td cells", () => {
+  it("keeps Excel td-only span geometry without inventing column headers", () => {
     const fragment = `<col width=51 span=2><col width=26>
       <tr><td rowspan=2>Region</td><td colspan=2>Sales</td></tr>
       <tr><td>Q1</td><td>Q2</td></tr>
@@ -363,7 +363,7 @@ describe("HTML table clipboard import", () => {
       <tr><td>Second</td></tr>`;
     const table = parseEditableTables(structuralSourceFromClipboardHtml(fragment) ?? "").tables[0];
     expect(table?.valid).toBe(true);
-    expect(table?.headerRowCount).toBe(2);
+    expect(table?.headerRowCount).toBe(0);
     expect(table?.rows[0]?.cells[0]?.rowSpan).toBe(2);
     expect(table?.rows[0]?.cells[1]?.columnSpan).toBe(2);
     expect(table?.rows[2]?.cells[0]?.rowSpan).toBe(2);

@@ -18,7 +18,7 @@ interface ParsedDelimiter {
   rowHeaderColumnCount: number;
 }
 
-const DELIMITER_CELL = /^:?-{3,}:?$/u;
+const DELIMITER_CELL = /^:?-+:?$/u;
 
 function alignmentFor(token: string): ColumnAlignment {
   const trimmed = token.trim();

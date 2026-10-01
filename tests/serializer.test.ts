@@ -44,6 +44,19 @@ describe("serializeStructuralTable", () => {
 | ^     | 2     |`);
   });
 
+  it("canonicalizes short GFM delimiters without changing table semantics", () => {
+    const source = "| A | B |\n| :-: | --: |\n| 1 | 2 |";
+    const parsed = parseEditableTables(source).tables[0]!;
+    const serialized = serializeStructuralTable(parsed);
+    const reparsed = parseEditableTables(serialized).tables[0]!;
+
+    expect(serialized.split("\n")[1]).toContain(":---:");
+    expect(serialized.split("\n")[1]).toContain("---:");
+    expect(reparsed.alignments).toEqual(["center", "right"]);
+    expect(reparsed.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual([["A", "B"], ["1", "2"]]);
+  });
+
   it("escapes literal marker content", () => {
     const source = String.raw`| Group | \< |
 | Name | Value |

@@ -14,8 +14,19 @@ describe("parseStructuralTables", () => {
     });
   });
 
-  it("rejects delimiter cells shorter than the GFM minimum", () => {
-    const source = "| A | < |\n| - | -- |\n| 1 | 2 |";
+  it("accepts one- and two-hyphen GFM delimiter cells", () => {
+    const source = "| A | B |\n| :-: | --: |\n| 1 | 2 |";
+    expect(parseStructuralTables(source).tables).toEqual([]);
+    expect(parseEditableTables(source).tables[0]).toMatchObject({
+      structural: false,
+      valid: true,
+      alignments: ["center", "right"],
+      columnCount: 2,
+    });
+  });
+
+  it("still rejects delimiter cells without a hyphen", () => {
+    const source = "| A | B |\n| : | : |\n| 1 | 2 |";
     expect(parseStructuralTables(source).tables).toEqual([]);
     expect(parseEditableTables(source).tables).toEqual([]);
   });

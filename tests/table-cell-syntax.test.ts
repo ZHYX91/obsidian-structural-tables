@@ -26,8 +26,8 @@ describe("table cell syntax", () => {
       .toBe("before \\| `code|span` \\| after");
   });
 
-  it("reports diagnostics using document source line coordinates", () => {
-    const table = parseEditableTables("intro\n\n| A | B |\n| --- | --- |\n| only-one |").tables[0];
-    expect(table?.diagnostics[0]?.row).toBe(4);
+  it("reports structural diagnostics using document source line coordinates", () => {
+    const table = parseEditableTables("intro\n\n| A | B |\n| --- || --- |\n| only-one |").tables[0];
+    expect(table?.diagnostics[0]).toMatchObject({ code: "row-width", row: 4 });
   });
 });

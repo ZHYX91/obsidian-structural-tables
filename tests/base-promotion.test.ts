@@ -22,6 +22,15 @@ function table(source: string) {
 }
 
 describe("Base promotion planning", () => {
+  it("rejects hidden GFM overflow before generating a promotion plan", () => {
+    const source = "| Name | Value |\n| --- | --- |\n| Alice | 1 | KEEP |";
+    const parsed = table(source);
+    expect(parsed.valid).toBe(true);
+    expect(() => buildBasePromotionPlan(parsed, "stb_overflow")).toThrow("extra source cells");
+    expect(parsed.source).toBe(source);
+  });
+
+
   it("keeps special property IDs and ownership through YAML save, sorting and extra views", () => {
     const names = ["1", "01", "abc", "中文", "😀", "Due Date", "a.b", 'a"b', "a\\b", "O'Reilly", "a:b", "bracket]", "file.name", "note[\"a\"]"];
     const values = Object.fromEntries(names.map((name, index) => [name, `value ${index}`]));

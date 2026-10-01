@@ -2,6 +2,7 @@ import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
 import { existingTableCellText, mathCellInputProblem } from "./table-cell-syntax";
+import { hasHiddenGfmOverflow } from "./table-write-safety";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -162,7 +163,7 @@ function sourceWithoutColumn(table: StructuralTable, separatorColumn: number): s
 }
 
 export function migrateSheetsExtendedTable(table: StructuralTable): SheetsExtendedMigration | null {
-  if (!table.valid || table.columnCount < 3) return null;
+  if (!table.valid || hasHiddenGfmOverflow(table) || table.columnCount < 3) return null;
   const separatorColumns = Array.from({ length: table.columnCount }, (_value, column) => column)
     .filter((column) => table.rows.every((row) => row.cells[column]?.raw.trim() === "-"));
   if (separatorColumns.length !== 1) return null;

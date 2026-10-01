@@ -80,6 +80,7 @@ function pluginHarness(editor: Editor, sourceFile: MockTFile) {
       formatCurrent: (editor: Editor, sourceFile: TFile | null) => void;
       previewPlainGfmConversion: (editor: Editor, sourceFile: TFile | null) => void;
       copyCurrentTable: (editor: Editor, format: "GFM", sourcePath?: string) => void;
+      migrateSheetsExtended: (editor: Editor) => void;
     },
     setViewFile: (file: MockTFile | null) => { currentViewFile = file; },
     setVaultFile: (file: MockTFile | null) => { vaultFile = file; },
@@ -229,6 +230,43 @@ describe("GFM command boundaries", () => {
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     expect(writeText.mock.calls[0]?.[0]).toContain(content);
     expect(notices).toContain("Table copied as GFM.");
+  });
+
+  it("blocks destructive rewrites with hidden GFM overflow while keeping copy non-destructive", async () => {
+    const source = "| A | B |\n| --- | --- |\n| 1 | 2 | KEEP |";
+    const editor = editorHarness(source);
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+    const open = vi.spyOn(ConversionPreviewModal.prototype, "open");
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+
+    harness.plugin.formatCurrent(editor.editor, file as unknown as TFile);
+    harness.plugin.previewPlainGfmConversion(editor.editor, file as unknown as TFile);
+
+    expect(open).not.toHaveBeenCalled();
+    expect(editor.source()).toBe(source);
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+    expect(notices.filter((notice) => notice.includes("extra source cells"))).toHaveLength(2);
+
+    harness.plugin.copyCurrentTable(editor.editor, "GFM");
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(editor.source()).toBe(source);
+    expect(writeText.mock.calls[0]?.[0]).not.toContain("KEEP");
+  });
+
+  it("blocks Sheets migration when a hidden GFM overflow cell would be discarded", () => {
+    const source = "| Person | - | Q1 |\n| --- | --- | --- |\n| Alice | - | 1 | KEEP |";
+    const editor = editorHarness(source);
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+
+    harness.plugin.migrateSheetsExtended(editor.editor);
+
+    expect(editor.source()).toBe(source);
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+    expect(notices).toContain(
+      "This GFM table has extra source cells that Obsidian does not render. Edit those extra cells in Markdown before using Structural Tables to write the table.",
+    );
   });
 
   it("reports asynchronous clipboard failures", async () => {

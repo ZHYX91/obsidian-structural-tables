@@ -40,6 +40,8 @@ export interface StructuralCell extends TableCellCoordinate {
 
 export interface StructuralRow {
   sourceLine: number;
+  /** Number of source cells before GFM display-width normalization. */
+  sourceCellCount?: number;
   cells: StructuralCell[];
 }
 

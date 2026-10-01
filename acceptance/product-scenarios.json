@@ -13,6 +13,28 @@
   },
   "scenarios": [
     {
+      "id": "reading-block-boundaries",
+      "title": "Reading tables across native sections and adjoining prose",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Reading boundaries in Reading View. Verify both multi-row headers render as two header rows and all row-header tables render instead of raw pipe paragraphs.",
+        "Verify Before/After prose, formatted links and the following ordinary table remain intact. Switch between Live Preview and Reading View, close and reopen the note, and repeat with the plugin Reading View setting disabled and enabled.",
+        "Inspect source mode after the view switches and verify source is unchanged. Open a second pane with the same note and confirm independent rendering."
+      ],
+      "expected": [
+        "All five structural tables render with their correct cells, headers and source order; adjoining prose and the ordinary table remain visible.",
+        "Turning Reading View off restores native output; turning it on restores the owned tables without duplicate or empty replacements.",
+        "Source Markdown is unchanged by rendering, reopening and settings changes."
+      ]
+    },
+    {
       "id": "math-guided-input",
       "title": "Explicit math pipe suggestions and retained unsafe drafts",
       "surfaces": [
@@ -30,13 +52,15 @@
         "Open Math input in Live Preview. Enter $|x|$ in the Absolute value cell and try saving with Enter. Verify the complete draft remains, open the cell editor menu, dismiss it, reopen it and explicitly choose the absolute-value suggestion.",
         "Enter $P(A|B)$ in the Conditional value cell and explicitly choose the conditional suggestion. Verify both saved sources and two-column geometry; undo and redo, switch to Reading View and reopen the note.",
         "Enter $|x\\|$ and $P(\\text{A|B})$ in the respective value cells. Verify saving is refused, complete drafts remain and no rewrite is offered. Cancel explicitly. On desktop also try Tab at the final cell and verify it neither navigates nor adds a row.",
-        "Repeat the absolute-value confirmation inside the Callout. Inspect native Norm and Fraction rendering and confirm their source is unchanged. On Android use the soft keyboard and a separate long press inside the active editor."
+        "Repeat the absolute-value confirmation inside the Callout. Inspect native Norm and Fraction rendering and confirm their source is unchanged. On Android use the soft keyboard and a separate long press inside the active editor.",
+        "Inspect the Safe math matrix in Reading View and Live Preview, then enable ordinary-table takeover and verify the ordinary math table. Confirm absolute value, norm, conditional separator, matrix and aligned equations keep their intended rendering and exact source after formatting and reopening. In a math cell insert an actual draft newline and attempt a commit; the full draft must remain with no source write. Cancel explicitly."
       ],
       "expected": [
         "Only explicit menu selection writes a suggestion; dismissing the menu preserves the complete draft and original table.",
         "Confirmed values store $\\lvert x\\rvert$ and $P(A\\mid B)$, retain two columns and render after undo/redo, view switching and reload.",
         "Escaped boundaries and text-command pipes have no suggestion and cause no source write, row insertion or draft loss.",
-        "Callout confirmation keeps prefixes and focus; existing norm and fraction commands retain their source and intended rendering."
+        "Callout confirmation keeps prefixes and focus; existing norm and fraction commands retain their source and intended rendering.",
+        "Safe single-line TeX, Wiki aliases and image-size pipes remain distinct scanner cases; actual newlines inside math are rejected without converting them to HTML break tags or discarding drafts."
       ]
     },
     {

@@ -1,3 +1,4 @@
+import { ownReadingLayout } from "./layout-owner";
 import { App, Component, MarkdownRenderChild, MarkdownRenderer, type MarkdownPostProcessorContext,
   type MarkdownSectionInformation } from "obsidian";
 
@@ -222,7 +223,7 @@ export class ReadingBlockMapper {
     const owner = scope[0]!;
     const snapshots = scope.map((section) => ({ html: section.element.innerHTML, parent: section.element.parentElement }));
     const comparison = new Component();
-    const staging = owner.element.ownerDocument.createElement("div");
+    const staging = owner.element.ownerDocument.createDocumentFragment().createEl("div");
     staging.className = "structural-tables-container";
     comparison.load();
     let templates: HTMLElement[];
@@ -257,6 +258,7 @@ export class ReadingBlockMapper {
     wrapper.dataset.structuralTablesProcessed = "true";
     component.containerEl = wrapper;
     targets.forEach((target, index) => replaceTarget(target, index === 0 ? wrapper : undefined));
+    ownReadingLayout(wrapper, component);
     owner.context.addChild(component);
   }
 }

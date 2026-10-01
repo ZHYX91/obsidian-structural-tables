@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.14 - 2026-10-01
+
+- Render multi-row and row-header tables across native Reading View block boundaries while preserving surrounding prose, links and media.
+- Track owned reading sections through render-child lifetimes instead of relational CSS selectors, and simplify settings tab styling.
+- Preserve document ownership when creating editor and reading nodes through Obsidian DOM helpers.
+- Update the bundled YAML parser and development dependencies while retaining the host-compatible CodeMirror commands and shared state pins.
+
 ## 0.4.13 - 2026-09-30
 
 - Drag the complete highlighted row or column group when selection expands through merged cells, while preserving header-boundary protection.

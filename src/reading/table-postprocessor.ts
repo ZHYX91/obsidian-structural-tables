@@ -1,3 +1,4 @@
+import { ownReadingLayout } from "./layout-owner";
 import { App, MarkdownRenderChild, type MarkdownPostProcessorContext } from "obsidian";
 
 import { createTranslator, diagnosticNotice } from "../config/i18n";
@@ -104,7 +105,7 @@ export class StructuralTableReadingProcessor {
         }
         return;
       }
-      const staging = existing.ownerDocument.createElement("div");
+      const staging = existing.ownerDocument.createDocumentFragment().createEl("div");
       const component = new MarkdownRenderChild(staging);
       const rendered = renderStructuralTable(this.app, table, staging, context.sourcePath, component);
       const wrapper = rendered.parentElement;
@@ -122,6 +123,7 @@ export class StructuralTableReadingProcessor {
       // queued cell rendering while the visible table is still alive.
       component.containerEl = wrapper;
       existing.replaceWith(wrapper);
+      ownReadingLayout(wrapper, component);
       context.addChild(component);
     });
     if (deferred.length > 0) this.blockMapper.process(container, context, section, deferred);
@@ -156,7 +158,7 @@ export class StructuralTableReadingProcessor {
         }
         continue;
       }
-      const staging = container.ownerDocument.createElement("div");
+      const staging = container.ownerDocument.createDocumentFragment().createEl("div");
       const rendered = renderStructuralTable(this.app, plan.table, staging, context.sourcePath, session);
       const wrapper = rendered.parentElement;
       if (wrapper === null) continue;

@@ -59,6 +59,24 @@ describe("table interchange", () => {
     expect(html).toContain("<tbody>");
   });
 
+  it("exports headerless tables without inventing CSV headers or HTML thead", () => {
+    const source = "| --- || --- |\n| Alice | 10 |\n| Bob | 20 |";
+    const parsed = table(source);
+
+    expect(projectStructuralTable(parsed)).toEqual({
+      columnNames: ["Column 1", "Column 2"],
+      rows: [["Alice", "10"], ["Bob", "20"]],
+      alignments: ["default", "default"],
+    });
+    expect(structuralTableToDelimited(parsed, ",")).toBe("Alice,10\nBob,20");
+    expect(structuralTableToDelimited(parsed, "\t")).toBe("Alice\t10\nBob\t20");
+    expect(structuralTableToPlainGfm(parsed)).toBe("|  |  |\n| --- | --- |\n| Alice | 10 |\n| Bob | 20 |");
+    const html = structuralTableToHtml(parsed);
+    expect(html).not.toContain("<thead>");
+    expect(html).toContain("<tbody>");
+    expect(html).toContain('<th scope="row">Alice</th>');
+  });
+
   it.each(["<br>", "<br/>", "<br />"])("exports %s as a semantic HTML line break", (tag) => {
     const source = `| Name | Note |\n| --- || --- |\n| Alice | First${tag}Second |`;
 

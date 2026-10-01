@@ -76,7 +76,7 @@ export class StructuralTableReadingProcessor {
       return;
     }
     const deferred = allTables.filter((table) => table.valid && table.structural
-      && (table.headerRowCount > 1 || table.rowHeaderColumnCount > 0)
+      && (table.headerRowCount === 0 || table.headerRowCount > 1 || table.rowHeaderColumnCount > 0)
       && table.startLine <= section.lineEnd && table.endLine >= section.lineStart);
     const candidates = renderedTables(container);
     let candidateIndex = 0;
@@ -88,7 +88,7 @@ export class StructuralTableReadingProcessor {
       });
       // An adjacent || delimiter cannot produce a native GFM table. If its raw
       // block cannot be identified, it must never consume a later native table.
-      const native = rawSource === undefined && table.rowHeaderColumnCount === 0;
+      const native = rawSource === undefined && table.headerRowCount > 0 && table.rowHeaderColumnCount === 0;
       const existing = rawSource ?? (native ? candidates[candidateIndex] : undefined);
       if (native) candidateIndex += 1;
       // Multi-row headers may occupy a preceding paragraph and a native table.

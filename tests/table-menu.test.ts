@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Translate } from "../src/config/i18n";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
-import { addBasePromotionMenuItem, addSelectionMenuItems, hasSelectionMenuItems } from "../src/editor/table-menu";
+import { addBasePromotionMenuItem, addSelectionMenuItems, hasSelectionMenuItems, type TableOperation } from "../src/editor/table-menu";
 import { structuralTableSelectionFromBounds } from "../src/editor/table-selection";
 import { Menu as MockMenu } from "./mocks/obsidian";
 
@@ -32,12 +32,12 @@ describe("table menus", () => {
     const table = parseEditableTables("| Name | Age |\n| --- | --- |\n| Alice | 20 |").tables[0]!;
     const selection = structuralTableSelectionFromBounds(table, { row: 0, column: 0 }, { row: 0, column: 1 })!;
     const menu = new MockMenu();
-    const operations: Array<(table: typeof table) => unknown> = [];
+    const operations: TableOperation[] = [];
     addSelectionMenuItems(
       menu as unknown as Menu,
       t,
       selection,
-      (operation) => { operations.push(operation as (table: typeof table) => unknown); },
+      (operation) => { operations.push(operation); },
     );
     expect(menu.items.map((item) => item.title)).toContain("menu.removeHeaderRows");
     const remove = menu.items.find((item) => item.title === "menu.removeHeaderRows");

@@ -116,6 +116,64 @@ describe("table appearance", () => {
     }
   });
 
+  it.each(["grid", "three-line"])("lets explicit column alignment override row-header defaults in %s style", (appearance) => {
+    document.head.appendChild(document.createElement("style")).textContent = styles;
+    const host = document.body.appendChild(document.createElement("div"));
+    host.className = "structural-tables-container markdown-rendered";
+    host.dataset.appearance = appearance;
+    host.innerHTML = `<table class="structural-tables-table"><tbody><tr>
+      <th scope="row" data-align="center">Centered</th>
+      <th scope="row" data-align="right">Right</th>
+      <th scope="rowgroup">Default</th>
+    </tr></tbody></table>`;
+
+    const headers = host.querySelectorAll("th");
+    expect(getComputedStyle(headers[0]!).textAlign).toBe("center");
+    expect(getComputedStyle(headers[1]!).textAlign).toBe("right");
+    expect(getComputedStyle(headers[2]!).textAlign).toBe("start");
+  });
+
+  it.each(["grid", "three-line"])("keeps selected header cells visually selected in %s style", (appearance) => {
+    document.head.appendChild(document.createElement("style")).textContent = `
+      body {
+        --table-header-background: rgb(230, 230, 230);
+        --background-secondary: rgb(240, 240, 240);
+        --text-selection: rgb(120, 160, 220);
+        --interactive-accent: rgb(20, 80, 180);
+        --text-normal: black;
+      }
+    `;
+    document.head.appendChild(document.createElement("style")).textContent = styles;
+    const host = document.body.appendChild(document.createElement("div"));
+    host.className = "structural-tables-live-preview markdown-rendered";
+    host.dataset.appearance = appearance;
+    host.innerHTML = `<table class="structural-tables-table"><tbody><tr>
+      <th scope="row" class="is-selected">North</th><td>10</td>
+    </tr></tbody></table>`;
+
+    expect(getComputedStyle(host.querySelector("th")!).backgroundColor).toBe("rgb(120, 160, 220)");
+  });
+
+  it("leaves header fill and weight to the active theme in Follow theme mode", () => {
+    document.head.appendChild(document.createElement("style")).textContent = `
+      .markdown-rendered .structural-tables-table th {
+        background: rgb(12, 34, 56);
+        font-weight: 500;
+      }
+    `;
+    document.head.appendChild(document.createElement("style")).textContent = styles;
+    const host = document.body.appendChild(document.createElement("div"));
+    host.className = "structural-tables-container markdown-rendered";
+    host.dataset.appearance = "theme";
+    host.innerHTML = `<table class="structural-tables-table"><tbody><tr>
+      <th scope="row">North</th><td>10</td>
+    </tr></tbody></table>`;
+
+    const header = getComputedStyle(host.querySelector("th")!);
+    expect(header.backgroundColor).toBe("rgb(12, 34, 56)");
+    expect(header.fontWeight).toBe("500");
+  });
+
   it("places one rule under the whole header group and removes body cell borders", () => {
     const table = mount("three-line");
     expect(getComputedStyle(table).getPropertyValue("border-block")).toBe("2px solid black");

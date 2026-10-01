@@ -28,6 +28,24 @@ describe("table menus", () => {
     expect(menu.items.map((item) => item.title)).toContain("menu.alignCenter");
   });
 
+  it("offers explicit column-header removal when the complete header region is selected", () => {
+    const table = parseEditableTables("| Name | Age |\n| --- | --- |\n| Alice | 20 |").tables[0]!;
+    const selection = structuralTableSelectionFromBounds(table, { row: 0, column: 0 }, { row: 0, column: 1 })!;
+    const menu = new MockMenu();
+    const operations: Array<(table: typeof table) => unknown> = [];
+    addSelectionMenuItems(
+      menu as unknown as Menu,
+      t,
+      selection,
+      (operation) => { operations.push(operation as (table: typeof table) => unknown); },
+    );
+    expect(menu.items.map((item) => item.title)).toContain("menu.removeHeaderRows");
+    const remove = menu.items.find((item) => item.title === "menu.removeHeaderRows");
+    remove?.callback?.();
+    expect(operations).toHaveLength(1);
+    expect(operations[0]?.(table)).toMatchObject({ changed: true, code: "header-rows-set" });
+  });
+
   it("contributes only bootstrap actions to an ordinary multi-cell selection", () => {
     const table = parseEditableTables("| A | B |\n| --- | --- |\n| 1 |  |").tables[0]!;
     const selection = structuralTableSelectionFromBounds(table, { row: 1, column: 0 }, { row: 1, column: 1 })!;

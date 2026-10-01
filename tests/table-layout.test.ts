@@ -79,6 +79,43 @@ describe("table appearance", () => {
     },
   );
 
+  it.each(["grid", "three-line"])("gives column and row headers a stable hierarchy in %s style", (appearance) => {
+    document.head.appendChild(document.createElement("style")).textContent = `
+      body {
+        --table-border-width: 1px;
+        --table-border-color: rgb(100, 100, 100);
+        --table-header-background: rgb(230, 230, 230);
+        --background-secondary: rgb(240, 240, 240);
+        --font-semibold: 600;
+        --text-normal: black;
+      }
+    `;
+    document.head.appendChild(document.createElement("style")).textContent = styles;
+    const host = document.body.appendChild(document.createElement("div"));
+    host.className = "structural-tables-container markdown-rendered";
+    host.dataset.appearance = appearance;
+    host.innerHTML = `<table class="structural-tables-table">
+      <thead><tr><th data-structural-column="0">Region</th><th data-structural-column="1">Value</th></tr></thead>
+      <tbody><tr><th scope="row" data-structural-column="0">North</th><td data-structural-column="1">10</td></tr></tbody>
+    </table>`;
+    const columnHeader = host.querySelector("thead th")!;
+    const rowHeader = host.querySelector("tbody th")!;
+    const data = host.querySelector("tbody td")!;
+
+    expect(getComputedStyle(columnHeader).fontWeight).toBe("600");
+    expect(getComputedStyle(rowHeader).fontWeight).toBe("600");
+    expect(getComputedStyle(rowHeader).textAlign).toBe("start");
+    if (appearance === "grid") {
+      expect(getComputedStyle(columnHeader).backgroundColor).toBe("rgb(230, 230, 230)");
+      expect(getComputedStyle(rowHeader).backgroundColor).toBe("rgb(230, 230, 230)");
+      expect(getComputedStyle(data).backgroundColor).not.toBe("rgb(230, 230, 230)");
+    } else {
+      expect(getComputedStyle(columnHeader).backgroundColor).toBe("transparent");
+      expect(getComputedStyle(rowHeader).backgroundColor).toBe("transparent");
+      expect(Number.parseFloat(getComputedStyle(rowHeader).borderLeftWidth)).toBe(0);
+    }
+  });
+
   it("places one rule under the whole header group and removes body cell borders", () => {
     const table = mount("three-line");
     expect(getComputedStyle(table).getPropertyValue("border-block")).toBe("2px solid black");

@@ -26,8 +26,9 @@
     "release:verify-transport": "node scripts/release.mjs verify-transport",
     "release:publish-github": "node scripts/release.mjs publish-github-event",
     "release:post-verify": "node scripts/release.mjs post-verify",
-    "check": "npm run check:runtime && npm run format:check && npm run check:readme-i18n && npm run check:docs-i18n && npm run lint && npm run typecheck && npm run test:coverage && npm run build:bundle && npm run check:production && npm run release:validate",
-    "release:check": "npm run check && npm run release:validate-tag"
+    "check": "npm run check:runtime && npm run format:check && npm run check:readme-i18n && npm run check:docs-i18n && npm run lint && npm run typecheck && npm run test:coverage && npm run check:coverage-scope && npm run build:bundle && npm run check:production && npm run release:validate",
+    "release:check": "npm run check && npm run release:validate-tag",
+    "check:coverage-scope": "node scripts/check-coverage-scope.mjs"
   },
   "keywords": [
     "obsidian",

@@ -8,6 +8,7 @@ export default defineConfig({
     },
   },
   test: {
+    setupFiles: ["./tests/mocks/dom-helpers.ts"],
     environment: "node",
     include: ["tests/**/*.test.ts"],
     coverage: {

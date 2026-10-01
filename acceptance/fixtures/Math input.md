@@ -17,3 +17,22 @@ suggestion; rejected drafts must remain editable until explicitly cancelled.
 > | --- || --- |
 > | Absolute | x |
 > | Safe norm | $\lVert x\rVert$ |
+
+## Safe math matrix
+
+| Case | Value |
+| --- || --- |
+| Absolute command | $\lvert x\rvert$ |
+| Norm command | $\lVert x\rVert$ |
+| Conditional command | $P(A\mid B)$ |
+| Matrix | $\begin{matrix}a&b\\c&d\end{matrix}$ |
+| Aligned | $$\begin{aligned}a&=b\\c&=d\end{aligned}$$ |
+| Alias | [[Math input\|Math]] |
+
+## Ordinary math
+
+| Case | Value |
+| --- | --- |
+| Absolute | $\lvert x\rvert$ |
+| Norm | $\lVert x\rVert$ |
+| Conditional | $P(A\mid B)$ |

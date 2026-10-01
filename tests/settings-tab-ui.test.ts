@@ -34,10 +34,10 @@ describe("settings tab UI", () => {
       "utf8",
     );
     expect(styles).toContain("overflow-x: auto");
-    expect(styles).toContain("font-size: var(--font-ui-small) !important");
-    expect(styles).toContain("background: transparent !important");
+    expect(styles).toContain("font-size: var(--font-ui-small);");
+    expect(styles).toContain("background: transparent;");
     expect(styles).toContain("min-block-size: 34px");
-    expect(styles).toContain("font-weight: var(--font-semibold) !important");
+    expect(styles).toContain("font-weight: var(--font-semibold);");
     expect(styles).toContain("margin-block-start: var(--size-4-5)");
     expect(styles).toMatch(/@media \(pointer: coarse\)[\s\S]*min-block-size: 44px/u);
   });

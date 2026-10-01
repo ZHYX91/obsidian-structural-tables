@@ -17,7 +17,7 @@ export type OperationCode =
   | "column-moved"
   | "columns-deleted"
   | "content-would-be-lost"
-  | "header-count-invalid"
+  | "gfm-overflow-readonly"\n  | "header-count-invalid"
   | "header-rows-set"
   | "invalid-result"
   | "merge-crosses-role"
@@ -190,6 +190,14 @@ function resultFromOwnedGrid(
 function unavailable(table: StructuralTable, row?: number, column?: number): OperationResult | null {
   if (!table.valid) {
     return { changed: false, code: "table-invalid", message: "The table must be valid before changing its structure.", source: table.source };
+  }
+  if (table.rows.some((candidate) => (candidate.sourceCellCount ?? candidate.cells.length) > table.columnCount)) {
+    return {
+      changed: false,
+      code: "gfm-overflow-readonly",
+      message: "This GFM table contains extra source cells that Obsidian does not render. Remove or move those cells in Markdown before editing it with Structural Tables.",
+      source: table.source,
+    };
   }
   if (row !== undefined && table.rows[row] === undefined) {
     return { changed: false, code: "row-unavailable", message: "The selected row is unavailable.", source: table.source };

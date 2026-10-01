@@ -1,10 +1,6 @@
 import { withoutSourcePrefixes } from "../core/source-lines";
 import type { StructuralTable } from "../core/model";
 
-export function renderedTableFor<T>(candidates: readonly T[], table: StructuralTable): T | undefined {
-  return candidates[table.sourceTableIndex];
-}
-
 function renderedSourceText(node: Node): string {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
   if (node.nodeName === "BR") return "\n";

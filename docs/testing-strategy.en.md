@@ -131,4 +131,3 @@ When Android regression is selected, record the AVD, Android/API version, Obsidi
 - source preservation and undo/redo after key edits.
 
 Android physical devices and iOS remain outside the formal acceptance scope unless separately scheduled.
-

@@ -767,6 +767,32 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it("keeps an in-place draft when hidden GFM overflow makes the table read-only", async () => {
+    const source = "| A | B |\n| --- | --- |\n| 1 | 2 | KEEP |";
+    const { parent, view } = mountEditor(
+      source,
+      { anchor: source.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "Draft stays";
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      await Promise.resolve();
+
+      expect(view.state.doc.toString()).toBe(source);
+      expect(parent.querySelector<HTMLTextAreaElement>("textarea")).toBe(editor);
+      expect(editor.value).toBe("Draft stays");
+      expect(document.activeElement).toBe(editor);
+    } finally {
+      view.destroy();
+    }
+  });
+
   it("takes over ordinary GFM tables only while the opt-in setting is enabled", () => {
     const source = "| Name | Status |\n| --- | --- |\n| Alice | Doing |";
     const disabled = mountEditor(source, { anchor: source.length });

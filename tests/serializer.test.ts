@@ -73,6 +73,25 @@ describe("serializeStructuralTable", () => {
     else expect(serialized).not.toContain("\r");
   });
 
+  it.each([
+    ["LF", "\n"],
+    ["CRLF", "\r\n"],
+    ["CR", "\r"],
+  ])("round-trips a headerless table with %s endings", (_name, ending) => {
+    const source = ["| --- | --- |", "| A | 1 |", "| B | 2 |"].join(ending);
+    const parsed = parseStructuralTables(source).tables[0]!;
+    const serialized = serializeStructuralTable(parsed);
+    const reparsed = parseStructuralTables(serialized).tables[0]!;
+
+    expect(parsed.headerRowCount).toBe(0);
+    expect(serialized.split(ending)[0]).toContain("---");
+    expect(reparsed.headerRowCount).toBe(0);
+    expect(reparsed.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual([["A", "1"], ["B", "2"]]);
+    if (ending === "\r\n") expect(serialized).not.toMatch(/(?<!\r)\n/u);
+    else if (ending === "\r") expect(serialized).not.toContain("\n");
+  });
+
   it.each(["<br>", "<br/>", "<br />"])("preserves the exact %s visual-break spelling", (tag) => {
     const source = `| Name | Note |\n| --- || --- |\n| Alice | First${tag}Second |`;
     const table = parseStructuralTables(source).tables[0];

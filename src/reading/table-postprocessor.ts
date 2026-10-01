@@ -105,7 +105,7 @@ export class StructuralTableReadingProcessor {
         }
         return;
       }
-      const staging = existing.ownerDocument.createDocumentFragment().createEl("div");
+      const staging = existing.ownerDocument.adoptNode(createEl("div"));
       const component = new MarkdownRenderChild(staging);
       const rendered = renderStructuralTable(this.app, table, staging, context.sourcePath, component);
       const wrapper = rendered.parentElement;
@@ -158,7 +158,7 @@ export class StructuralTableReadingProcessor {
         }
         continue;
       }
-      const staging = container.ownerDocument.createDocumentFragment().createEl("div");
+      const staging = container.ownerDocument.adoptNode(createEl("div"));
       const rendered = renderStructuralTable(this.app, plan.table, staging, context.sourcePath, session);
       const wrapper = rendered.parentElement;
       if (wrapper === null) continue;

@@ -1,8 +1,4 @@
-// Obsidian installs its DOM helpers on Node, including detached fragments.
-if (typeof DocumentFragment !== "undefined") {
-  DocumentFragment.prototype.createEl = function createEl<K extends keyof HTMLElementTagNameMap>(tag: K): HTMLElementTagNameMap[K] {
-    const element = this.ownerDocument.createElement(tag);
-    this.appendChild(element);
-    return element;
-  };
+// Obsidian's global helper creates a detached node; callers adopt the owner document.
+if (typeof document !== "undefined") {
+  globalThis.createEl = <K extends keyof HTMLElementTagNameMap>(tag: K): HTMLElementTagNameMap[K] => document.createElement(tag);
 }

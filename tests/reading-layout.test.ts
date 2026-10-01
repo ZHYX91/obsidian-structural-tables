@@ -27,4 +27,15 @@ describe("reading layout ownership", () => {
     ownReadingLayout(document.createElement("div"), new Component());
     expect(container.className).toBe("");
   });
+
+  it("marks a native section before the host attaches it", () => {
+    const section = document.createElement("div");
+    section.className = "el-p";
+    const wrapper = section.appendChild(document.createElement("div"));
+    const component = new Component();
+    ownReadingLayout(wrapper, component);
+    expect(section.classList.contains("structural-tables-reading-section")).toBe(true);
+    component.unload();
+    expect(section.className).toBe("el-p");
+  });
 });

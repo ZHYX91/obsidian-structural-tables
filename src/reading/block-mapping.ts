@@ -25,6 +25,13 @@ interface TextPosition { node: Text; offset: number; visibleOffset: number }
 interface TextIndex { text: string; compact: string; positions: TextPosition[] }
 interface Target { element: HTMLElement; range?: Range }
 
+/** Obsidian annotates text direction after postprocessors start deferred work. */
+function snapshotHtml(element: HTMLElement): string {
+  const clone = element.cloneNode(true) as HTMLElement;
+  for (const child of clone.querySelectorAll("[dir]")) child.removeAttribute("dir");
+  return clone.innerHTML;
+}
+
 /** Index rendered characters, retaining exact DOM endpoints and line boundaries. */
 function textIndex(element: HTMLElement): TextIndex {
   const result: TextIndex = { text: "", compact: "", positions: [] };
@@ -221,9 +228,9 @@ export class ReadingBlockMapper {
 
   private async replace(scope: readonly Section[], table: StructuralTable): Promise<void> {
     const owner = scope[0]!;
-    const snapshots = scope.map((section) => ({ html: section.element.innerHTML, parent: section.element.parentElement }));
+    const snapshots = scope.map((section) => ({ html: snapshotHtml(section.element), parent: section.element.parentElement }));
     const comparison = new Component();
-    const staging = owner.element.ownerDocument.createDocumentFragment().createEl("div");
+    const staging = owner.element.ownerDocument.adoptNode(createEl("div"));
     staging.className = "structural-tables-container";
     comparison.load();
     let templates: HTMLElement[];
@@ -236,7 +243,7 @@ export class ReadingBlockMapper {
     if (!this.getSettings().enableReadingView || scope.some((section, index) => {
       const info = section.context.getSectionInfo(section.element);
       return !section.session.active || this.sections.get(section.element) !== section
-        || section.element.parentElement !== snapshots[index]!.parent || section.element.innerHTML !== snapshots[index]!.html
+        || section.element.parentElement !== snapshots[index]!.parent || snapshotHtml(section.element) !== snapshots[index]!.html
         || info?.text !== section.info.text || info.lineStart !== section.info.lineStart || info.lineEnd !== section.info.lineEnd;
     })) return;
     const currentScope = this.scope(owner, table);

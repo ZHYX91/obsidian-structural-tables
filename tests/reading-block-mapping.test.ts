@@ -259,6 +259,19 @@ describe("Reading View source/block boundaries", () => {
     expect(view.root.innerHTML).toBe(before);
   });
 
+  it("tolerates host direction annotations while native comparison is pending", async () => {
+    const view = readingView(`**Intro**\n${rowHeader}\nAfter`);
+    vi.mocked(MarkdownRenderer.render).mockImplementation(async (...args: unknown[]) => {
+      (args[2] as HTMLElement).innerHTML = markdown.render(args[1] as string);
+      for (const paragraph of view.root.querySelectorAll("p")) paragraph.setAttribute("dir", "auto");
+    });
+    view.process();
+    await settled();
+    expect(view.root.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+    expect(view.root.textContent).toContain("Intro");
+    expect(view.root.textContent).toContain("After");
+  });
+
   it.each([rowHeader.replace("North", "[North](wanted.md)"), multiHeader.replace("E", "[E](wanted.md)")])(
     "refuses identical visible labels with a different link destination", async (table) => {
       const view = readingView(`Intro\n${table}`);

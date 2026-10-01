@@ -2,9 +2,9 @@
 
 [English](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/README.md) · [简体中文](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-CN.md)
 
-Structural Tables adds merged cells, multi-row column headers, and row headers to ordinary pipe-table Markdown while keeping the source readable and portable.
+Structural Tables extends ordinary Markdown pipe tables with merged cells, multiple column-header rows, row headers, and headerless tables. The Markdown stays readable, and simply viewing a table never rewrites the note.
 
-Tables in blockquotes, callouts and list continuations retain their container when formatted or edited. Keep the same prefix on every table row. Move a nested table to the top level before upgrading it to Base.
+Tables can live in blockquotes, callouts, and list continuations. When you edit or format one, the plugin keeps it in the same place. Move a nested table to the top level only when you want to convert it to an Obsidian Base.
 
 ## Screenshots
 
@@ -29,24 +29,22 @@ Choose Follow theme, Grid, or Three-line table independently of table layout and
 <!-- section: features -->
 ## Features
 
-- Merge left with an exact `<` cell and merge up with an exact `^` cell.
-- Use consecutive header rows before the delimiter for multi-row column headers.
-- Put one adjacent `||` inside the delimiter row to mark row-header columns.
-- Render semantic, accessible tables in Reading view and Live Preview.
-- Edit cells in place with one stable focus border and no column expansion, including automatic `|` escaping for pasted Wiki links.
-- Select complete rows or columns with handles, then insert, delete, move, align, merge, split, or set headers from the context menu. On desktop, hovering a cell reveals its row and column handles; keyboard-focused or selected handles remain visible. Coarse-pointer devices keep touch-sized handles visible. Tab enters each cell or handle group once, while arrow keys move within that group.
-- Paste HTML tables from browsers and spreadsheets while preserving row and column spans plus visual cell line breaks.
-- Copy valid tables as semantic HTML, portable GFM, TSV, or CSV, and preview before flattening a table to GFM.
-- Convert unambiguous Sheets Extended separator columns into canonical row-header syntax.
-- Upgrade a valid ordinary or structural table into an embedded Obsidian Base whose rows are independent Markdown notes, directly from the table context menu or command palette.
-- Keep promoted membership in the Obsidian-friendly `structural-tables` list and allow record notes to move or be renamed without leaving the Base; records need no plugin-specific identity property.
-- Preview every promotion, create a schema-versioned recovery manifest, retain partial output after a failure for review, restore the original table without deleting generated notes, and create later records with the plugin command under the host note's current folder.
-- Diagnose invalid structures without rewriting the note.
+- Merge cells with exact `<` and `^` marker cells.
+- Use multiple rows for column headers, mark left-side row-header columns with `||`, or create a table with no column header at all.
+- Render the same table structure in Reading view and Live Preview.
+- Edit cells directly in Live Preview, add or reorder rows and columns, change alignment, merge or split selections, and change header roles without deleting their text.
+- Paste supported HTML tables from browsers, Excel, and Google Sheets while keeping row and column spans.
+- Copy tables as HTML, plain GFM, TSV, or CSV.
+- Optionally use the Structural Tables editor for ordinary GFM tables. Turning the option off restores Obsidian's native table UI without changing Markdown.
+- Convert a table to an Obsidian Base after reviewing the generated records and Property mapping. Moving or renaming those record notes does not break their Base membership.
+- Refuse edits that would lose non-empty or hidden source content, and show diagnostics for invalid structural syntax instead of silently rewriting it.
 
 <!-- section: requirements-and-compatibility -->
 ## Requirements and compatibility
 
-Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidian and Android. Upgrade to Base additionally requires Obsidian's Bases core plugin to be enabled. Structural Tables owns the meaning of exact `<`, `^`, and delimiter `||` tokens inside a structural table. By default it warns once when an enabled table plugin is known to assign overlapping meanings to those tokens.
+Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidian and Android. Converting a table to a Base also requires Obsidian's Bases core plugin.
+
+Inside a Structural Table, exact `<`, `^`, and delimiter `||` tokens have special meanings. If another enabled table plugin is known to use the same syntax, Structural Tables shows a one-time conflict warning.
 
 <!-- section: installation -->
 ## Installation
@@ -58,20 +56,19 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 <!-- section: usage -->
 ## Usage
 
-1. Create or paste an ordinary pipe table in a Markdown note.
-2. Use an exact `<` cell to merge left, an exact `^` cell to merge up, or one adjacent `||` inside the delimiter row to mark the columns on its left as row headers.
-3. In Live Preview, move the source cursor outside the table, or switch to Reading view, to see the rendered structure.
-4. In Live Preview, click a rendered cell on desktop, double-tap it on a touch screen, or select it and press Enter/F2, to edit it in place. Shift+Enter or **Insert line break in cell** from the editor's context menu inserts a draft newline (saved as `<br>` outside math); Enter commits, Escape cancels, and Tab/Shift+Tab commits and moves through visible cells in source order, skipping merged placeholders.
-5. Use **+** below the table to add a data row or **+** on its right edge to add a column. Tab from the final visible cell adds a data row and opens its first cell; the edit and insertion undo together.
-6. Use the row/column handles, drag across cells with a mouse, or tap the first and last cell of a rectangle on Android. Then right-click or long-press to insert, safely delete, move, align, merge, split, or set headers.
-7. Select a row or column handle first, then drag a selected handle to reorder. Shift-click another handle on desktop, or tap another handle on Android, to select a range. Red drop markers indicate a blocked move: include complete merged cells and stay within the same header/data region. Escape or releasing outside the table cancels a drag.
-8. Paste an HTML table from a browser, Excel, or Google Sheets to preserve supported row and column spans and cell line breaks.
-9. Open the command palette to preview and confirm canonical formatting, copy the current valid table as HTML, GFM, TSV, or CSV, preview a flatten-to-GFM conversion, or migrate a Sheets Extended row-header separator. Explicit table writes align source pipes by display width, including around CJK text, without touching the note during rendering.
-10. Right-click a table and choose **Upgrade to Base…**. Structural tables use **Expand structure and upgrade to Base…**, whose preview explains flattened header paths, ordinary row-header properties, repeated merged row-header values, and any blocking merged data cell before files can be created.
+1. Create or paste a normal Markdown pipe table.
+2. Put `<` in a cell to merge it with the cell on its left, or `^` to merge it with the cell above.
+3. Put one adjacent `||` in the delimiter row to mark the columns on its left as row headers.
+4. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the rendered result.
+5. In Live Preview, click a cell on desktop or double-tap it on touch screens to edit it. Enter saves, Escape cancels, Shift+Enter inserts a visual line break, and Tab moves to the next visible cell.
+6. Use the **+** controls and row/column handles to add, select, move, align, merge, split, delete, or change header roles. Operations that would lose content or split a merged region are refused.
+7. Use the command palette or table context menu for formatting, copying, HTML-table import, Sheets Extended migration, and Base conversion.
 
-In-place editing and table controls are available in Live Preview. Reading view displays the table; switch to Live Preview to edit it. Ordinary tables use Obsidian's native editor until you add structural syntax or enable **Take over ordinary Markdown tables**.
+Reading view is display-only. In-place editing and table controls are available in Live Preview.
 
 ### Table syntax
+
+A structural table can combine multiple column-header rows and row headers:
 
 ```markdown
 | Region  | Sales | <   |
@@ -81,65 +78,82 @@ In-place editing and table controls are available in Live Preview. Reading view 
 | ^       | 8     | 11  |
 ```
 
-All equal-width rows immediately before the delimiter are column-header rows. A delimiter with no table row immediately above it starts a headerless Structural Table, so `| --- | --- |` followed by one or more data rows is valid and `headerRowCount` may be zero. Select the complete column-header region and choose **Remove column headers** to keep its cells while moving them into the data region; selecting top rows can set column headers again. The `||` divider is internal, appears at most once, does not add a column, and makes columns to its left row headers, including in a headerless table. A merge must resolve to one top-left content cell, form a complete rectangle, and stay inside one header/data role region. Write `\<` or `\^` for literal marker text.
+Rows immediately above the delimiter are column headers. The `||` divider does not add a column; it marks the columns on its left as row headers.
 
-### Line breaks and math
+A delimiter can also come first, which creates a table with no column header:
 
-Inside a cell, `<br>`, `<br/>`, and `<br />` all render as a visual line break in Reading view and owned Live Preview tables. Hand-written spellings remain unchanged during formatting; Shift+Enter, the editor menu and paste preserve draft newlines; committing ordinary text converts them to canonical `<br>`, as does supported HTML import. Semantic HTML export emits real break elements, while text-oriented GFM, TSV, and CSV keep the tag as text. This is visual line-break syntax, not block content or a true multiline Markdown cell.
+```markdown
+| --- | --- |
+| Alice | 10 |
+| Bob   | 20 |
+```
 
-Safe single-line math is preserved verbatim, including fractions, superscripts, `\lvert`/`\rvert`, `\lVert`/`\rVert`, `\mid`, existing `\|` norms, and matrices using TeX `\\`. Bare pipes such as `$|x|$` and `$P(A|B)$`, actual newlines inside math, TeX comments/verbatim commands, and incomplete delimiters are refused before saving; the complete draft remains editable. Use explicit TeX commands for the intended pipe symbol, and `\$` for a literal dollar sign. Rejected edits do not navigate or append a row. Interrupted drafts can be recovered within the current plugin session; this is not persistent storage across restarts. Formatting preserves existing math source and does not guess whether an old norm was intended as an absolute value.
+Select the complete column-header area and choose **Remove column headers** to keep the text but turn those rows into data. You can later select rows at the top and make them column headers again.
 
-For simple whole-cell drafts such as `$|x|$` or `$P(A|B)$`, open the cell editor's context menu to choose an explicit TeX rewrite and save. A suggestion is applied only when you select it; complex or ambiguous expressions must be corrected manually.
+Merge markers must form one rectangle and cannot cross a header/data boundary. To show literal `<` or `^` text in a cell, write `\<` or `\^`.
+
+### Editing, line breaks, and math
+
+Shift+Enter, the cell-editor menu, and multiline paste can insert a visual line break. Ordinary text is saved with canonical `<br>`; hand-written `<br>`, `<br/>`, and `<br />` spellings are preserved when the table is only formatted.
+
+Single-line TeX is kept as written when it can be stored safely. A bare pipe inside math, such as `$|x|$` or `$P(A|B)$`, is ambiguous in a Markdown table, so the plugin refuses to save it automatically and keeps the draft open. For those two simple patterns, the cell menu can apply an explicit `\lvert … \rvert` or `\mid` rewrite. More complex expressions must be corrected manually.
+
+### Ordinary GFM tables
+
+Ordinary Markdown tables continue to use Obsidian's native editor by default. Enable **Take over ordinary Markdown tables** if you want the same Live Preview controls on them; disable it to return immediately to Obsidian's native UI.
+
+GFM allows body rows to contain fewer or more source cells than the header. Missing cells display as empty. If a row contains extra source cells that Obsidian does not render, Structural Tables leaves the table readable but makes plugin write operations read-only so those hidden cells cannot be lost.
 
 ### Pasting and copying
 
-Spreadsheet clipboard fragments are supported even when the surrounding table tag is omitted. Semantic `thead` or leading `th` rows become column headers; an HTML table containing only body `td` cells stays headerless instead of inventing a header row. Consecutive leftmost body `th` cells remain row headers. Bold text alone does not identify headers. Pasting a single spreadsheet cell into the cell editor preserves its visible line breaks without adding spreadsheet export quotes or a trailing blank line.
+With **Preserve pasted HTML table spans** enabled, a supported multi-column HTML table can be converted while keeping row and column spans and visual line breaks. HTML that cannot be converted safely is left to Obsidian, or uses the clipboard's complete plain-text form when that fallback is known to be safe.
 
-Whole-table conversion requires **Preserve pasted HTML table spans** to be enabled and a single supported multi-column table. Mixed prose, multiple tables, images, links, and math are left to Obsidian's normal note paste. Some text-only tables that cannot be converted safely use the clipboard's plain-text alternative, or are blocked if it is missing. In a cell editor, unsupported HTML uses plain text with a notice; without a usable alternative, the edit stays intact.
+A body-only HTML table stays headerless instead of having its first row turned into a header. Real `thead`/`th` markup is used when the source provides it.
 
-To paste into Word, right-click a rendered cell and choose **Copy whole table for Word / HTML**, or place the source cursor in the table and run **Copy current table as HTML**. Both copy the entire table, including merged cells and multi-row headers. Bold, emphasis, code, external links, and visual line breaks are exported as portable HTML; math, images, Wiki links and embeds retain their original Markdown/LaTeX references when portable rendering is unavailable. A readable tab-separated alternative is supplied to plain-text destinations. Copying while typing inside a cell retains the normal text-selection behavior. Word's paste option and document style can affect the final appearance; use the option that keeps source formatting.
+Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.
 
-### Editing and formatting
+### Convert to Base
 
-Once a table uses any structural feature, every row must have exactly the delimiter width. Invalid structures keep their Markdown and show a diagnostic. Use **Format current structural table** to preview the canonical representation and confirm before replacing source: the top-left cell stores content, the rest of the top row uses `<`, covered cells below use `^`, and source pipes line up by terminal display width. Row-header `||`, alignment markers, escaped pipes, Wiki links, code spans, and existing LF/CRLF/CR endings remain valid. The same alignment runs after an explicit edit, merge, split, row/column operation, or imported-table write; passive rendering never rewrites Markdown. GFM, TSV, and CSV conversion repeats merged values and joins multi-row column-header paths with ` / ` so the flattened result remains explicit.
+Save the note and move a nested table to the top level before converting it to a Base. The preview shows the target folder, generated record notes, Property names, and any table structure that will be flattened.
 
-In Live Preview, ordinary Markdown tables remain in Obsidian's native editor by default. Enable **Take over ordinary Markdown tables** to give unchanged GFM tables the same rendered widget, row/column handles, cell selection, in-place editor, context menu, layout, density, and alternating-row appearance as structural tables; disabling it restores native behavior immediately. GFM body rows may be shorter or longer than the header: missing cells render empty, while a row with extra source cells stays read-only in the plugin widget so an explicit table write cannot silently discard content that Obsidian does not render. Rendered tables follow native theme styling by default, preserve logical merged borders, and retain touch-sized interactive rows on coarse pointers. Optional density and style overrides do not alter source content. Handles overlay the table's outer gutter instead of shifting its content alignment; hovering a cell reveals only its row and column handles, while keyboard-focused or selected handles remain visible. An owned cell selection clears when focus or the editor cursor moves away. Pasting `[[Target|Alias]]` or `![[Image|Size]]` into an owned cell automatically stores the table-safe forms `[[Target\|Alias]]` and `![[Image\|Size]]`; existing escapes are not doubled. Operations that would discard non-empty content or break a merged rectangle are refused.
+New records are created under `<note-folder>/_structural-table-records/<table-id>/` by default. That folder is only the initial creation location: moving or renaming a record note does not remove it from the Base. The `structural-tables` list Property keeps the association.
 
-### Upgrade to Base
+If conversion fails after creating files, the plugin leaves those files in place and reports their folder so you can inspect them. **Restore table from current promoted Base** restores the original table snapshot from `_promotion.json` but deliberately keeps the generated notes.
 
-Save the note and move nested tables to the top level before upgrading. Review the target folder, header-to-Property mapping, and record previews before confirming. If the table contains `<br>`-related content, the preview explains the resulting Property strings and may require you to accept display differences. Tags remain text: they are not converted to actual newlines, spaces, or record bodies, and Base Text Properties may display them differently from Markdown cells. Cancelling before confirmation creates no files.
-
-Promotion creates records under `<host-folder>/_structural-table-records/<table-id>/`. Each record uses a normal list Property:
-
-```yaml
-structural-tables:
-  - stb_example
-```
-
-The directory is a creation inbox, not a membership boundary: moving or renaming a record note does not change its membership. Existing records stay where the user placed them when the host note moves. The native Base **New** action uses Obsidian's creation location. Structural Tables does not move native-created, copied, imported or synchronized notes. **Create record for current promoted Base** remains available from the command palette and context menu. Use **Restore table from current promoted Base** to recover the original table from `_promotion.json`; generated notes are deliberately kept. This restores the original snapshot, not subsequent edits to Base records. Promotion preserves every non-empty header, including numeric and leading-zero headers, as its Property name and uses `column_n` only for a blank header. Duplicate or reserved names receive a numeric suffix. Imported cell values remain strings, so leading zeroes and identifiers are unchanged.
-
-Existing Bases that use `structural_table_ids` remain supported. Run **Migrate legacy Structural Tables Base properties…** to preview each affected file and its intended changes, replace the old membership Property and Base filters, and optionally remove retired `structural_record_id` values only from notes with valid Structural Tables membership. Cleanup is off by default, and its count plus per-file actions update when the toggle changes. Nothing migrates at startup; invalid or conflicting old/new membership Properties stop the migration without overwriting them, and rollback preserves unrelated edits made concurrently.
+Blank headers become `column_n`; non-empty headers, including numeric and leading-zero names, are kept as Property names when possible. Duplicate or reserved names receive a numeric suffix.
 
 ### Recovering an interrupted edit
 
-If a cell commit is rejected, its editor stays open. If the table changes externally or the view is rebuilt before a draft is saved, a recovery dialog keeps the draft available for copying. Close the dialog and use **Recover interrupted cell drafts** to reopen it, or explicitly discard a draft. Recovery buffers last until Obsidian restarts or the plugin reloads; copy them before either action. Paste preserves fragment whitespace and applies table escaping to the complete cell on commit.
+A rejected cell edit stays open whenever possible. If an external change or view rebuild interrupts an unsaved draft, Structural Tables keeps a session-only recovery copy. Use **Recover interrupted cell drafts** to reopen the recovery dialog. Recovery copies disappear when Obsidian or the plugin restarts, so copy anything important before then.
 
 <!-- section: settings -->
 ## Settings
 
-The settings page follows Obsidian's native controls and has General, Views, and Appearance tabs. General controls HTML-table paste conversion and startup conflict warnings. Views includes the default-off ordinary-table takeover alongside Reading view, Live Preview, and diagnostics. New installations follow the theme for table style, width, and density. Appearance offers **Follow theme**, **Grid**, and **Three-line table** styles, independent content-left/content-center/fill-text-width layouts, comfortable/compact spacing, and alternating rows; language can Follow Obsidian or use English/Simplified Chinese.
+The settings page has **General**, **Views**, and **Appearance** tabs.
 
-Plugin-owned tables stay within the text column, including under theme wide-table classes; wide content scrolls inside the table. Native ordinary tables continue to follow Obsidian and the theme. Enable **Take over ordinary Markdown tables** to apply the same controls to both. Existing explicit width and density preferences are preserved; choose **Follow theme** for native spacing. Three-line style draws the top rule, one separator below the complete header group, and the bottom rule, without vertical or body-row rules. Multi-level column groups also have short, inset rules below spanning titles with child headers; these never cross row-spanning headers. HTML copying uses portable grid or three-line borders when that style is selected; theme mode exports a neutral borderless table. Exported group rules use real cell borders instead of inset decorations for compatibility. Width, density, alternating rows, and theme colors stay in Obsidian. Appearance settings never change Markdown.
+- **General**: language, HTML-table paste conversion, and conflict warnings.
+- **Views**: Reading view, Live Preview, diagnostics, and the default-off **Take over ordinary Markdown tables** option.
+- **Appearance**: Follow theme, Grid, or Three-line table; table width/alignment; comfortable or compact spacing; optional alternating rows.
+
+**Follow theme** leaves header colors and typography to the active Obsidian theme. **Grid** gives semantic headers a consistent header band. **Three-line table** uses top and bottom rules plus one rule below the complete column-header area, with no vertical body rules. A headerless Three-line table naturally has only the top and bottom rules.
+
+Appearance settings affect only rendering; they never change Markdown.
 
 <!-- section: limitations -->
 ## Limitations
 
-Structural Tables does not provide spreadsheet-style formula calculations. Safe TeX math source is preserved subject to the cell-safety rules above. The plugin does not support per-cell styling, block-level or true multiline Markdown cell content, captions, numbering, source attributes for repeated headers, or automatic rich-text-to-Markdown conversion inside imported HTML cells. Imported HTML content becomes plain text plus canonical `<br>` visual breaks. Base upgrade flattens layout structure into properties: multi-row header paths are joined with ` / `, row headers become ordinary properties, and merged row-header values repeat per record. A merged data cell blocks confirmation and identifies its location until it is split. Only the plugin's explicit record-creation command chooses the host inbox; no global file-creation listener moves existing notes. Recovery requires the generated `_promotion.json` to remain at the path recorded in the Base block. The parser deliberately refuses ambiguous or nonrectangular merges.
+Structural Tables is not a spreadsheet engine and does not calculate formulas. It does not support per-cell styling, captions, numbering, block-level Markdown inside cells, or true multiline Markdown cells.
+
+Imported HTML cells are converted to plain text plus supported visual `<br>` breaks; rich HTML is not converted into Markdown formatting. Converting to a Base flattens table layout into Properties: multi-row column-header paths are joined with ` / `, row headers become normal Properties, and merged row-header values repeat for the records they cover. A merged data cell must be split before Base conversion.
+
+Restoring a converted table requires the generated `_promotion.json` file to remain at the path recorded in the Base block.
 
 <!-- section: privacy-and-security -->
 ## Privacy and security
 
-Structural Tables processes tables locally and has no networking or analytics of its own. Cell content is rendered by Obsidian; remote images or embeds in a note remain subject to Obsidian's rendering and network behavior. Rendering never changes source Markdown; in-place and menu edits are explicit and validated before replacement. Promotion creates only the previewed local record notes and recovery manifest. A failed promotion retains its generated directory and any partial records, and reports the folder path and original error. Review those files before manually removing or reusing them; failure handling never trashes concurrent edits or unrelated additions.
+Structural Tables processes tables locally and does not add networking or analytics. Cell contents are rendered by Obsidian, so remote images or embeds still follow Obsidian's own network behavior.
+
+Simply rendering a table never changes its Markdown. Edits and menu commands are explicit and validated before replacement. Base conversion creates only the local files shown in its preview. If a conversion fails partway through, created files are kept for inspection rather than deleted automatically.
 
 <!-- section: development -->
 ## Development

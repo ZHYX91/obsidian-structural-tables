@@ -57,6 +57,19 @@ describe("table operations", () => {
     }
   });
 
+  it.each(["<", "^"])("keeps hidden %s overflow source read-only without taking structural ownership", (marker) => {
+    const source = `| A | B |\n| --- | --- |\n| 1 | 2 | ${marker} |`;
+    const table = parseEditableTables(source).tables[0]!;
+
+    expect(table).toMatchObject({ structural: false, valid: true, columnCount: 2 });
+    expect(editCellContent(table, 1, 0, "Updated")).toMatchObject({
+      changed: false,
+      code: "gfm-overflow-readonly",
+      source,
+    });
+    expect(table.source).toBe(source);
+  });
+
   it("preserves headerless data and short delimiter alignment through header-role changes", () => {
     const table = parseEditableTables("| :-: | --: |\n| Alice | 10 |\n| Bob | 20 |").tables[0]!;
     expect(table).toMatchObject({ valid: true, structural: true, headerRowCount: 0 });

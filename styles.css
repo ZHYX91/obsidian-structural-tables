@@ -170,6 +170,11 @@
   border: var(--table-border-width, 1px) solid var(--table-border-color, var(--background-modifier-border)) !important;
 }
 
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="grid"] .structural-tables-table th {
+  background: var(--table-header-background, var(--background-secondary)) !important;
+  font-weight: var(--font-semibold, 600);
+}
+
 :is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="three-line"] .structural-tables-table {
   border-collapse: collapse !important;
   border: 0 !important;
@@ -179,6 +184,10 @@
 :is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="three-line"] .structural-tables-table :is(th, td) {
   border: 0 !important;
   background: transparent !important;
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="three-line"] .structural-tables-table th {
+  font-weight: var(--font-semibold, 600);
 }
 
 :is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="three-line"] .structural-tables-table thead {

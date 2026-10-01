@@ -158,4 +158,3 @@ Fresh installs follow the theme. Style, layout, and density are independent:
 - explicit column alignment overrides the default row-header alignment.
 
 Layout changes table position and width only. Appearance settings never rewrite Markdown.
-

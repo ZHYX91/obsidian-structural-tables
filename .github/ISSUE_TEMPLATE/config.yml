@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "Q&A"
+    url: https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a
+    about: Usage and configuration questions.
+  - name: "Ideas"
+    url: https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas
+    about: Early feature and workflow ideas.
+  - name: "Show and tell"
+    url: https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/show-and-tell
+    about: Tips, workflows, and reference implementations.

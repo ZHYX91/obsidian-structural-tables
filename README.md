@@ -164,8 +164,9 @@ Developer references:
 <!-- section: support -->
 ## Support
 
-- Use [General](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/general) for workflow ideas and general feedback.
-- Use [Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) for usage and configuration questions.
+- [Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a): Usage and configuration questions.
+- [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas): Early feature and workflow ideas.
+- [Show and tell](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/show-and-tell): Tips, workflows, and reference implementations.
 - Use [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) for reproducible bugs and concrete feature requests. Include the Obsidian version, editing mode, theme, relevant table Markdown, expected result, and actual result.
 - Report vulnerabilities only through GitHub's [private vulnerability reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new); see the [security policy](https://github.com/ZHYX91/obsidian-structural-tables/security/policy) for details.
 

@@ -164,8 +164,9 @@ npm run check
 <!-- section: support -->
 ## 支持
 
-- 工作流想法和一般反馈请发布到 [General](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/general)；
-- 使用和配置问题请发布到 [Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a)；
+- [Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a)：使用和配置问题。
+- [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas)：尚待讨论的功能与工作流想法。
+- [Show and tell](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/show-and-tell)：技巧、工作流和参考实现。
 - 可复现缺陷和明确的功能建议请使用 [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose)，并提供 Obsidian 版本、编辑模式、主题、相关表格 Markdown、预期结果和实际结果；
 - 安全漏洞只能通过 GitHub 的[私人漏洞报告](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)提交，详细要求见[安全策略](https://github.com/ZHYX91/obsidian-structural-tables/security/policy)。
 

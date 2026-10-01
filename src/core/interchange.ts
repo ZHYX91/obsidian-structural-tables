@@ -82,8 +82,11 @@ export function projectStructuralTable(table: StructuralTable): TabularProjectio
 
 export function structuralTableToPlainGfm(table: StructuralTable): string {
   const projection = projectStructuralTable(table);
+  const header = table.headerRowCount === 0
+    ? Array.from({ length: table.columnCount }, () => "")
+    : projection.columnNames;
   const lines = [
-    `| ${projection.columnNames.map(portableCell).join(" | ")} |`,
+    `| ${header.map(portableCell).join(" | ")} |`,
     `| ${projection.alignments.map(delimiterFor).join(" | ")} |`,
     ...projection.rows.map((row) => `| ${row.map(portableCell).join(" | ")} |`),
   ];
@@ -98,7 +101,8 @@ function delimitedCell(value: string, delimiter: "," | "\t"): string {
 
 export function structuralTableToDelimited(table: StructuralTable, delimiter: "," | "\t"): string {
   const projection = projectStructuralTable(table);
-  return [projection.columnNames, ...projection.rows]
+  const rows = table.headerRowCount === 0 ? projection.rows : [projection.columnNames, ...projection.rows];
+  return rows
     .map((row) => row.map((value) => delimitedCell(value, delimiter)).join(delimiter))
     .join("\n");
 }
@@ -232,16 +236,6 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
   for (const [rowIndex, row] of rows.entries()) {
     if (row.section !== "head" && !row.cells.every((cell) => cell.header)) break;
     headerRowCount = rowIndex + 1;
-  }
-  if (headerRowCount === 0) {
-    // Without semantic headers, use the first complete span group. A divider
-    // through a row-spanning first-row cell would make otherwise valid HTML invalid.
-    headerRowCount = 1;
-    for (let row = 0; row < headerRowCount; row += 1) {
-      for (const anchor of owners[row] ?? []) {
-        if (anchor !== undefined) headerRowCount = Math.max(headerRowCount, anchor.row + anchor.rowSpan);
-      }
-    }
   }
   const bodyOwners = owners.slice(headerRowCount);
   let rowHeaderColumnCount = 0;

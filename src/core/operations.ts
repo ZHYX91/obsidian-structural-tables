@@ -3,6 +3,7 @@ import { parseEditableTables } from "./parser";
 import { serializeStructuralTable } from "./serializer";
 import { parseTableWrite } from "./table-write-validation";
 import { sourcePrefix } from "./source-lines";
+import { hasHiddenGfmOverflow } from "./table-write-safety";
 import { mathCellInputProblem, normalizeTableCellText, tableColumnAt as tableSyntaxColumnAt, type MathCellInputProblem } from "./table-cell-syntax";
 
 export type MergeDirection = "left" | "up";
@@ -192,7 +193,7 @@ function unavailable(table: StructuralTable, row?: number, column?: number): Ope
   if (!table.valid) {
     return { changed: false, code: "table-invalid", message: "The table must be valid before changing its structure.", source: table.source };
   }
-  if (table.rows.some((candidate) => (candidate.sourceCellCount ?? candidate.cells.length) > table.columnCount)) {
+  if (hasHiddenGfmOverflow(table)) {
     return {
       changed: false,
       code: "gfm-overflow-readonly",

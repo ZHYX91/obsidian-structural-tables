@@ -344,7 +344,7 @@ export function deleteTableRows(table: StructuralTable, startRow: number, endRow
     return { changed: false, code: "content-would-be-lost", message: "Clear the selected rows before deleting them so no content is lost.", source: table.source };
   }
   const removedHeaderRows = Math.max(0, Math.min(max, table.headerRowCount - 1) - min + 1);
-  const headerRowCount = Math.max(1, table.headerRowCount - removedHeaderRows);
+  const headerRowCount = Math.max(0, table.headerRowCount - removedHeaderRows);
   return resultFromOwnedGrid(table, { ...grid, owners }, "rows-deleted", "Rows deleted.", headerRowCount, table.rowHeaderColumnCount, table.alignments);
 }
 
@@ -588,8 +588,8 @@ export function splitCell(table: StructuralTable, row: number, column: number): 
 export function setHeaderRowCount(table: StructuralTable, count: number): OperationResult {
   const blocked = unavailable(table);
   if (blocked !== null) return blocked;
-  if (!Number.isInteger(count) || count < 1 || count > table.rows.length) {
-    return { changed: false, code: "header-count-invalid", message: "Column headers must use one or more rows from the top of the table.", source: table.source };
+  if (!Number.isInteger(count) || count < 0 || count > table.rows.length) {
+    return { changed: false, code: "header-count-invalid", message: "Column headers must use zero or more rows from the top of the table.", source: table.source };
   }
   if (count === table.headerRowCount) {
     return { changed: false, code: "header-rows-set", message: "Those rows are already column headers.", source: table.source };

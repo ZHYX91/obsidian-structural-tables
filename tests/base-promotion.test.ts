@@ -22,6 +22,22 @@ function table(source: string) {
 }
 
 describe("Base promotion planning", () => {
+  it("promotes every headerless row with generated property keys", () => {
+    const source = "| --- | --- |\n| Alice | 10 |\n| Bob | 20 |";
+    const plan = buildBasePromotionPlan(table(source), "stb_headerless");
+
+    expect(plan.columns.map(({ key, displayName }) => ({ key, displayName }))).toEqual([
+      { key: "column_1", displayName: "Column 1" },
+      { key: "column_2", displayName: "Column 2" },
+    ]);
+    expect(plan.records).toEqual([
+      { fileStem: "Alice", values: { column_1: "Alice", column_2: "10" } },
+      { fileStem: "Bob", values: { column_1: "Bob", column_2: "20" } },
+    ]);
+    expect(plan.records).toHaveLength(2);
+  });
+
+
   it("rejects hidden GFM overflow before generating a promotion plan", () => {
     const source = "| Name | Value |\n| --- | --- |\n| Alice | 1 | KEEP |";
     const parsed = table(source);

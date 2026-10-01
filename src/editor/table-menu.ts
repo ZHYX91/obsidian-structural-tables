@@ -36,6 +36,7 @@ export function addBasePromotionMenuItem(
 
 interface SelectionMenuState {
   canMerge: boolean;
+  canRemoveHeaderRows: boolean;
   canRemoveRowHeaders: boolean;
   canSetHeaderRows: boolean;
   canSetRowHeaderColumns: boolean;
@@ -60,6 +61,8 @@ function selectionMenuState(
     && selection.maxRow === table.rows.length - 1;
   return {
     canMerge: selection.cells.length > 1,
+    canRemoveHeaderRows: selectsWholeRows && table.headerRowCount > 0
+      && selection.minRow === 0 && selection.maxRow === table.headerRowCount - 1,
     canRemoveRowHeaders: selectsWholeColumns && table.rowHeaderColumnCount > 0,
     canSetHeaderRows: selectsWholeRows && selection.minRow === 0,
     canSetRowHeaderColumns: selectsWholeColumns && selection.minColumn === 0 && selection.maxColumn < table.columnCount - 1,
@@ -74,6 +77,7 @@ export function hasSelectionMenuItems(
 ): boolean {
   const state = selectionMenuState(selection, options);
   return state.canMerge
+    || state.canRemoveHeaderRows
     || state.canRemoveRowHeaders
     || state.canSetHeaderRows
     || state.canSetRowHeaderColumns
@@ -191,6 +195,13 @@ export function addSelectionMenuItems(
       .setIcon("rows-3")
       .setTitle(withCount(t("menu.setHeaderRows"), count))
       .onClick(() => apply((current) => setHeaderRowCount(current, count))));
+  }
+  if (state.canRemoveHeaderRows) {
+    menu.addItem((item) => item
+      .setSection("structural-tables")
+      .setIcon("rows-2")
+      .setTitle(t("menu.removeHeaderRows"))
+      .onClick(() => apply((current) => setHeaderRowCount(current, 0))));
   }
   if (state.canSetRowHeaderColumns) {
     const count = selection.maxColumn + 1;

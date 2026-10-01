@@ -3,6 +3,39 @@ import { describe, expect, it } from "vitest";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 
 describe("parseStructuralTables", () => {
+  it("parses delimiter-first tables as headerless structural tables", () => {
+    const source = "| --- | --- |\n| A | 1 |\n| B | 2 |";
+    const table = parseStructuralTables(source).tables[0];
+
+    expect(table).toMatchObject({
+      structural: true,
+      valid: true,
+      headerRowCount: 0,
+      rowHeaderColumnCount: 0,
+      startLine: 0,
+      delimiterLine: 0,
+      columnCount: 2,
+    });
+    expect(table?.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual([["A", "1"], ["B", "2"]]);
+    expect(table?.rows.flatMap((row) => row.cells).every((cell) => cell.role === "data")).toBe(true);
+    expect(table?.source).toBe(source);
+  });
+
+  it("supports a single headerless data row with row-header syntax", () => {
+    const source = "| --- || --- |\n| Alice | 10 |";
+    const table = parseStructuralTables(source).tables[0];
+
+    expect(table).toMatchObject({ valid: true, headerRowCount: 0, rowHeaderColumnCount: 1 });
+    expect(table?.rows[0]?.cells[0]?.role).toBe("row_header");
+    expect(table?.rows[0]?.cells[1]?.role).toBe("data");
+  });
+
+  it("does not claim a delimiter row without any table data", () => {
+    expect(parseStructuralTables("| --- | --- |").tables).toEqual([]);
+    expect(parseEditableTables("| --- | --- |").tables).toEqual([]);
+  });
+
   it("does not take ownership of an ordinary GFM table", () => {
     const source = "| A | B |\n| --- | --- |\n| 1 | 2 |";
     expect(parseStructuralTables(source).tables).toEqual([]);

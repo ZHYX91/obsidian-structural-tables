@@ -37,12 +37,16 @@ export function rawStructuralTableElement(
   const expected = normalizeExpectedSourceBlock(withoutSourcePrefixes(table.source));
   const delimiter = normalizeSourceBlock(withoutSourcePrefixes(table.source).split(/\r\n|\r|\n/u)[table.delimiterLine - table.startLine] ?? "");
   const elements = [container, ...container.querySelectorAll<HTMLElement>("p, div")];
+  const renderBoundary = ".internal-embed, .markdown-embed, .cm-editor";
   return elements.reverse().find((element) => {
+    if (element.closest(renderBoundary) !== container.closest(renderBoundary)
+      || element.querySelector(renderBoundary) !== null) return false;
     if (element.closest("pre, code, table") !== null || element.querySelector("pre, table") !== null) return false;
     const visible = normalizeSourceBlock(renderedSourceText(element));
     // Source identity survives arbitrary inline Markdown rendering; the delimiter keeps
     // nested embeds sharing their parent's section metadata from becoming the target.
     return (delimiter.length > 0 && visible.includes(delimiter) && ownsSourceRange?.(element) === true)
-      || visible === expected;
+      || (visible === expected
+        && element.querySelector("img, svg, iframe, input, audio, video, .math, .internal-embed, .markdown-embed") === null);
   });
 }

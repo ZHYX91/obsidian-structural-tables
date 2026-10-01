@@ -217,14 +217,19 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     if (!structural && !includeOrdinary) continue;
     const diagnostics = [...delimiter.diagnostics];
     const rows: StructuralRow[] = rowSources.map(({ line, parsed }, row) => {
-      if (parsed.cells.length !== delimiter.columnCount) {
+      const sourceCellCount = parsed.cells.length;
+      // GFM permits body rows to be shorter or longer than the header. Keep
+      // structural syntax strict, and keep the GFM header itself exact.
+      if (sourceCellCount !== delimiter.columnCount && (row < headerRows.length || structural)) {
         diagnostics.push({
           code: "row-width",
-          message: `Expected ${delimiter.columnCount} cells, received ${parsed.cells.length}.`,
+          message: `Expected ${delimiter.columnCount} cells, received ${sourceCellCount}.`,
           row: line,
         });
       }
-      const cells = parsed.cells.slice(0, delimiter.columnCount).map((raw, column): StructuralCell => {
+      const cells = Array.from({ length: delimiter.columnCount }, (_unused, column) => (
+        parsed.cells[column] ?? ""
+      )).map((raw, column): StructuralCell => {
         const marker = markerFor(raw);
         return {
           row,
@@ -240,7 +245,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
           covered: false,
         };
       });
-      return { sourceLine: line, cells };
+      return { sourceLine: line, sourceCellCount, cells };
     });
     if (rows.every((row) => row.cells.length === delimiter.columnCount)) resolveMerges(rows, diagnostics);
     const from = offsets[startLine] ?? 0;

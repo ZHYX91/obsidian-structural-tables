@@ -71,6 +71,17 @@ describe("table operations", () => {
     expect(headerful.rows[0]?.cells.map((cell) => cell.content)).toEqual(["Name", "Age"]);
   });
 
+  it("refuses a header-role boundary that would cut through a merged cell", () => {
+    const table = parseStructuralTables(
+      "| Group | Value |\n| ^ | Detail |\n| --- | --- |\n| A | 1 |",
+    ).tables[0]!;
+    expect(table).toMatchObject({ valid: true, headerRowCount: 2 });
+    const changed = setHeaderRowCount(table, 1);
+    expect(changed.changed).toBe(false);
+    expect(changed.code).toBe("invalid-result");
+    expect(changed.source).toBe(table.source);
+  });
+
   it("keeps zero header rows when an empty former header row is deleted", () => {
     const headerless = parseStructuralTables("| --- | --- |\n|  |  |\n| Alice | 20 |").tables[0]!;
     const withHeader = setHeaderRowCount(headerless, 1);

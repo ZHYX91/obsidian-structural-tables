@@ -53,6 +53,26 @@ describe("renderStructuralTable", () => {
     }
   });
 
+  it("renders headerless tables entirely in tbody while keeping row-header scope", async () => {
+    const source = "| --- || --- |\n| Alice | 10 |\n| Bob | 20 |";
+    const table = parseStructuralTables(source).tables[0]!;
+    const container = document.createElement("div");
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      element.textContent = text;
+    });
+    try {
+      const rendered = renderStructuralTable({} as App, table, container, "Headerless.md", new Component());
+      await Promise.resolve();
+      expect(rendered.querySelector("thead")).toBeNull();
+      expect(rendered.querySelectorAll("tbody tr")).toHaveLength(2);
+      expect(rendered.querySelector("tbody th")?.getAttribute("scope")).toBe("row");
+      expect(rendered.querySelector("tbody th")?.textContent).toBe("Alice");
+      expect(rendered.querySelectorAll("tbody td")).toHaveLength(2);
+    } finally {
+      render.mockRestore();
+    }
+  });
+
   it("identifies nested column groups without crossing row-spanning or terminal headers", async () => {
     const source = [
       "| Region | Results | < | < | < |",

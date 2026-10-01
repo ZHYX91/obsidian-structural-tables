@@ -78,6 +78,30 @@ describe("table operations", () => {
     expect(invalid.changed).toBe(false);
     expect(invalid.source).toBe(nested.source);
   });
+  it("normalizes short GFM rows on explicit edits and blocks writes with hidden overflow cells", () => {
+    const shortSource = "| A | B |\n| --- | --- |\n| 1 |";
+    const shortTable = parseEditableTables(shortSource).tables[0]!;
+    const edited = editCellContent(shortTable, 1, 0, "Updated");
+    expect(edited.changed).toBe(true);
+    const normalized = parseEditableTables(edited.source).tables[0]!;
+    expect(normalized.rows[1]?.cells.map((cell) => cell.content)).toEqual(["Updated", ""]);
+    expect(normalized.rows[1]?.sourceCellCount).toBe(2);
+
+    const overflowSource = "| A | B |\n| --- | --- |\n| 1 | 2 | keep-me |";
+    const overflow = parseEditableTables(overflowSource).tables[0]!;
+    expect(overflow.valid).toBe(true);
+    expect(editCellContent(overflow, 1, 0, "Updated")).toMatchObject({
+      changed: false,
+      code: "gfm-overflow-readonly",
+      source: overflowSource,
+    });
+    expect(appendTableRow(overflow)).toMatchObject({
+      changed: false,
+      code: "gfm-overflow-readonly",
+      source: overflowSource,
+    });
+  });
+
   it("merges an empty cell and validates the candidate", () => {
     const table = parseStructuralTables(source).tables[0]!;
     const result = mergeCell(table, 2, 1, "left");

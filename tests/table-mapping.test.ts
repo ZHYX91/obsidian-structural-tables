@@ -41,6 +41,19 @@ describe("rawStructuralTableElement", () => {
     expect(rawStructuralTableElement(section, table)).toBeUndefined();
   });
 
+  it("does not acquire table text from a nested embedded render sharing coarse metadata", () => {
+    const source = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
+    const table = parseStructuralTables(source).tables[0]!;
+    const section = document.createElement("div");
+    const embed = section.appendChild(document.createElement("div"));
+    embed.className = "internal-embed";
+    const paragraph = embed.appendChild(document.createElement("p"));
+    paragraph.textContent = source;
+    expect(rawStructuralTableElement(section, table, () => true)).toBeUndefined();
+    // An embed's own callback remains a valid, separate render context.
+    expect(rawStructuralTableElement(embed, table, () => true)).toBe(paragraph);
+  });
+
   it.each(["<br>", "<br/>", "<br />"])(
     "matches raw row-header source after Obsidian renders %s as a BR element",
     (tag) => {

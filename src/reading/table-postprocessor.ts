@@ -5,6 +5,7 @@ import type { StructuralTablesSettings } from "../config/settings";
 import { parseEditableTables } from "../core/parser";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import { rawStructuralTableElement } from "./table-mapping";
+import { ReadingBlockMapper } from "./block-mapping";
 import type { StructuralTable } from "../core/model";
 import { calloutBlocks, matchingBlocks, renderTableSignatures } from "../rendering/native-table-mapping";
 
@@ -40,10 +41,11 @@ function diagnosticTitle(table: StructuralTable, settings: StructuralTablesSetti
 
 export class StructuralTableReadingProcessor {
   private readonly calloutSessions = new WeakMap<HTMLElement, CalloutRenderSession>();
+  private readonly blockMapper: ReadingBlockMapper;
   constructor(
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
-  ) {}
+  ) { this.blockMapper = new ReadingBlockMapper(app, getSettings); }
 
   process(container: HTMLElement, context: MarkdownPostProcessorContext): void {
     if (container.closest(".structural-tables-container, [data-structural-tables-processed='true']") !== null) return;
@@ -56,7 +58,8 @@ export class StructuralTableReadingProcessor {
     if (source === null) return;
     // Parse with the note's container and protected-region context intact, then
     // translate source lines into this renderer section's coordinate system.
-    const parsed = parseEditableTables(section.text).tables
+    const allTables = parseEditableTables(section.text).tables;
+    const parsed = allTables
       .filter((table) => table.startLine >= section.lineStart && table.endLine <= section.lineEnd)
       .map((table) => ({
         ...table,
@@ -64,7 +67,6 @@ export class StructuralTableReadingProcessor {
         endLine: table.endLine - section.lineStart,
         delimiterLine: table.delimiterLine - section.lineStart,
       }));
-    if (parsed.length === 0) return;
     if (container.matches(".callout") || container.querySelector(".callout") !== null) {
       // Native comparison rendering shares Obsidian's render queue. Returning
       // its promise would hold the current section open while waiting on itself.
@@ -72,6 +74,9 @@ export class StructuralTableReadingProcessor {
       void this.processCallout(container, context, parsed, section.text);
       return;
     }
+    const deferred = allTables.filter((table) => table.valid && table.structural
+      && (table.headerRowCount > 1 || table.rowHeaderColumnCount > 0)
+      && table.startLine <= section.lineEnd && table.endLine >= section.lineStart);
     const candidates = renderedTables(container);
     let candidateIndex = 0;
     parsed.forEach((table) => {
@@ -85,7 +90,12 @@ export class StructuralTableReadingProcessor {
       const native = rawSource === undefined && table.rowHeaderColumnCount === 0;
       const existing = rawSource ?? (native ? candidates[candidateIndex] : undefined);
       if (native) candidateIndex += 1;
+      // Multi-row headers may occupy a preceding paragraph and a native table.
+      // Their complete source must be mapped atomically, never by native position.
+      if (native && table.headerRowCount > 1) return;
       if ((!table.structural && !settings.takeOverOrdinaryTables) || existing === undefined) return;
+      const deferredIndex = deferred.findIndex((candidate) => candidate.range.from === table.range.from);
+      if (deferredIndex >= 0) deferred.splice(deferredIndex, 1);
       existing.dataset.structuralTablesProcessed = "true";
       if (!table.valid) {
         if (settings.showDiagnostics) {
@@ -114,6 +124,7 @@ export class StructuralTableReadingProcessor {
       existing.replaceWith(wrapper);
       context.addChild(component);
     });
+    if (deferred.length > 0) this.blockMapper.process(container, context, section, deferred);
   }
 
   private async processCallout(container: HTMLElement, context: MarkdownPostProcessorContext,

@@ -64,6 +64,7 @@ export default defineConfig([
       "src/app/plugin.ts",
       "src/editor/table-widget.ts",
       "src/reading/table-postprocessor.ts",
+      "src/reading/block-mapping.ts",
     ],
     rules: {
       "obsidianmd/prefer-create-el": "off",

@@ -160,9 +160,28 @@ describe("HTML table clipboard import", () => {
     expect(parsed?.rowHeaderColumnCount).toBe(1);
   });
 
-  it("treats the first row as headers when pasted HTML has only td cells", () => {
-    expect(structuralSourceFromClipboardHtml("<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"))
-      .toBe("| A   | B   |\n| --- | --- |\n| 1   | 2   |");
+  it("keeps pasted HTML with only td cells headerless", () => {
+    const source = structuralSourceFromClipboardHtml(
+      "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>",
+    );
+    expect(source).toBe("| --- | --- |\n| A   | B   |\n| 1   | 2   |");
+    expect(parseEditableTables(source ?? "").tables[0]).toMatchObject({
+      structural: true,
+      valid: true,
+      headerRowCount: 0,
+    });
+  });
+
+  it("keeps semantic tbody th cells as row headers without inventing column headers", () => {
+    const source = structuralSourceFromClipboardHtml(
+      "<table><tbody><tr><th>A</th><td>1</td></tr><tr><th>B</th><td>2</td></tr></tbody></table>",
+    );
+    expect(parseEditableTables(source ?? "").tables[0]).toMatchObject({
+      valid: true,
+      headerRowCount: 0,
+      rowHeaderColumnCount: 1,
+    });
+    expect(source?.split("\n")[0]).toContain("||");
   });
 
   it("preserves browser and spreadsheet cell line breaks as canonical br tags", () => {

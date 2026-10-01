@@ -14,12 +14,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "html"],
-      include: ["src/core/**/*.ts", "src/config/settings.ts"],
+      include: ["src/**/*.ts"],
       thresholds: {
-        statements: 85,
-        branches: 75,
-        functions: 90,
-        lines: 85,
+        statements: 80,
+        branches: 70,
+        functions: 85,
+        lines: 80,
       },
     },
   },

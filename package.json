@@ -44,20 +44,20 @@
     "node": "24.19.0"
   },
   "devDependencies": {
-    "@codemirror/commands": "6.8.1",
+    "@codemirror/commands": "6.11.1",
     "@codemirror/language": "^6.12.4",
     "@codemirror/state": "6.5.0",
     "@codemirror/view": "6.38.6",
     "@eslint/js": "10.0.1",
-    "@types/node": "24.13.3",
+    "@types/node": "24.19.0",
     "@vitest/coverage-v8": "4.1.11",
     "esbuild": "0.28.2",
-    "eslint": "10.9.1",
+    "eslint": "10.11.0",
     "eslint-plugin-obsidianmd": "0.4.2",
-    "happy-dom": "20.11.15",
+    "happy-dom": "20.14.5",
     "obsidian": "1.13.1",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.68.0",
+    "typescript-eslint": "8.70.1",
     "vitest": "4.1.11"
   },
   "allowScripts": {
@@ -69,6 +69,6 @@
     }
   },
   "dependencies": {
-    "yaml": "2.9.0"
+    "yaml": "2.9.1"
   }
 }

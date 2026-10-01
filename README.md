@@ -81,7 +81,7 @@ In-place editing and table controls are available in Live Preview. Reading view 
 | ^       | 8     | 11  |
 ```
 
-All equal-width rows immediately before the delimiter are column-header rows. The `||` divider is internal, appears at most once, does not add a column, and makes columns to its left row headers. A merge must resolve to one top-left content cell, form a complete rectangle, and stay inside one header/data role region. Write `\<` or `\^` for literal marker text.
+All equal-width rows immediately before the delimiter are column-header rows. A delimiter with no table row immediately above it starts a headerless Structural Table, so `| --- | --- |` followed by one or more data rows is valid and `headerRowCount` may be zero. Select the complete column-header region and choose **Remove column headers** to keep its cells while moving them into the data region; selecting top rows can set column headers again. The `||` divider is internal, appears at most once, does not add a column, and makes columns to its left row headers, including in a headerless table. A merge must resolve to one top-left content cell, form a complete rectangle, and stay inside one header/data role region. Write `\<` or `\^` for literal marker text.
 
 ### Line breaks and math
 
@@ -93,7 +93,7 @@ For simple whole-cell drafts such as `$|x|$` or `$P(A|B)$`, open the cell editor
 
 ### Pasting and copying
 
-Spreadsheet clipboard fragments are supported even when the surrounding table tag is omitted. If the source supplies no semantic column headers, the first row and any rows joined to it by merged cells become the header group. Bold text alone does not identify row headers. Pasting a single spreadsheet cell into the cell editor preserves its visible line breaks without adding spreadsheet export quotes or a trailing blank line.
+Spreadsheet clipboard fragments are supported even when the surrounding table tag is omitted. Semantic `thead` or leading `th` rows become column headers; an HTML table containing only body `td` cells stays headerless instead of inventing a header row. Consecutive leftmost body `th` cells remain row headers. Bold text alone does not identify headers. Pasting a single spreadsheet cell into the cell editor preserves its visible line breaks without adding spreadsheet export quotes or a trailing blank line.
 
 Whole-table conversion requires **Preserve pasted HTML table spans** to be enabled and a single supported multi-column table. Mixed prose, multiple tables, images, links, and math are left to Obsidian's normal note paste. Some text-only tables that cannot be converted safely use the clipboard's plain-text alternative, or are blocked if it is missing. In a cell editor, unsupported HTML uses plain text with a notice; without a usable alternative, the edit stays intact.
 

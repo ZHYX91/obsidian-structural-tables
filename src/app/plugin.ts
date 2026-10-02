@@ -281,7 +281,16 @@ export class StructuralTablesPlugin extends Plugin {
       "split-current-merged-cell": t("command.split"),
       "validate-current-note": t("command.validate"),
     };
-    for (const command of this.localizedCommands) command.name = names[command.id] ?? command.name;
+    const idPrefix = `${this.manifest.id}:`;
+    const namePrefix = `${this.manifest.name}: `;
+    for (const command of this.localizedCommands) {
+      const localId = command.id.startsWith(idPrefix) ? command.id.slice(idPrefix.length) : command.id;
+      const localizedName = names[localId];
+      if (localizedName === undefined) continue;
+      command.name = command.name.startsWith(namePrefix)
+        ? `${namePrefix}${localizedName}`
+        : localizedName;
+    }
   }
 
   private registerEditorMenu(): void {

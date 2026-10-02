@@ -972,8 +972,9 @@ describe("StructuralTableEditorController", () => {
       }));
       await Promise.resolve();
 
-      expect(view.state.doc.toString()).toContain("| Saved elsewhere | 1 |");
-      expect(view.state.doc.toString()).toContain("| First | | < |");
+      const parsed = parseEditableTables(view.state.doc.toString()).tables;
+      expect(parsed[1]?.rows[1]?.cells[0]?.content).toBe("Saved elsewhere");
+      expect(parsed[0]?.source).toBe("| A | B |\n| --- | --- |\n| First | | < |");
       expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
     } finally {
       view.destroy();

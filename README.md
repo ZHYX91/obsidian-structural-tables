@@ -62,7 +62,7 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 4. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the rendered result.
 5. In Live Preview, click a cell on desktop or double-tap it on touch screens to edit it. Enter saves, Escape cancels, Shift+Enter inserts a visual line break, and Tab moves to the next visible cell.
 6. Use the **+** controls and row/column handles to add, select, move, align, merge, split, delete, or change header roles. Operations that would lose content or split a merged region are refused.
-7. Use the command palette or table context menu for formatting, copying, HTML-table import, Sheets Extended migration, and Base conversion.
+7. Paste a supported HTML table directly into the Markdown editor to import it. Use the command palette for formatting, copying, and Sheets Extended migration. Convert a table to Base from either the command palette or the table context menu.
 
 Reading view is display-only. In-place editing and table controls are available in Live Preview.
 

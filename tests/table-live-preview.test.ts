@@ -818,6 +818,7 @@ describe("StructuralTableEditorController", () => {
       "| --- | --- |",
       "| First | | ^ |",
     ].join("\n");
+    const noticeStart = notices.length;
     const { parent, view } = mountEditor(
       source,
       { anchor: source.length },
@@ -843,7 +844,7 @@ describe("StructuralTableEditorController", () => {
       expect(firstEditor.value).toBe("B");
       expect(document.activeElement).toBe(firstEditor);
       expect(activeScopes).toHaveLength(1);
-      expect(notices.filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
 
       const secondCell = hosts[1]!.querySelector<HTMLElement>(
         "[data-structural-row='1'][data-structural-column='0']",
@@ -857,7 +858,7 @@ describe("StructuralTableEditorController", () => {
       expect(document.activeElement).toBe(secondEditor);
       expect(firstEditor.value).toBe("B");
       expect(activeScopes).toHaveLength(1);
-      expect(notices.filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
 
       for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
       expect(document.activeElement).toBe(secondEditor);
@@ -880,6 +881,58 @@ describe("StructuralTableEditorController", () => {
     expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value).toBe("B");
   });
 
+  it("keeps rejected-draft focus ownership stable across separate editor views", async () => {
+    const leftSource = "| A | B |\n| --- | --- |\n| First | | < |";
+    const rightSource = "| C | D |\n| --- | --- |\n| First | | ^ |";
+    const left = mountEditor(
+      leftSource,
+      { anchor: leftSource.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    const right = mountEditor(
+      rightSource,
+      { anchor: rightSource.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    try {
+      const leftCell = left.parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      leftCell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const leftEditor = left.parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      leftEditor.value = "Left draft";
+      leftEditor.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", bubbles: true, cancelable: true,
+      }));
+      await Promise.resolve();
+
+      const rightCell = right.parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      rightCell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const rightEditor = right.parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(leftEditor.isConnected).toBe(true);
+      expect(leftEditor.value).toBe("Left draft");
+      expect(document.activeElement).toBe(rightEditor);
+      expect(activeScopes).toHaveLength(1);
+      expect(left.view.state.doc.toString()).toBe(leftSource);
+      expect(right.view.state.doc.toString()).toBe(rightSource);
+
+      for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+      expect(document.activeElement).toBe(rightEditor);
+    } finally {
+      right.view.destroy();
+      left.view.destroy();
+    }
+  });
+
   it("lets another widget commit successfully while a rejected draft remains recoverable", async () => {
     const source = [
       "| A | B |",
@@ -890,6 +943,7 @@ describe("StructuralTableEditorController", () => {
       "| --- | --- |",
       "| First | 1 |",
     ].join("\n");
+    const noticeStart = notices.length;
     const { parent, view } = mountEditor(
       source,
       { anchor: source.length },
@@ -920,7 +974,7 @@ describe("StructuralTableEditorController", () => {
 
       expect(view.state.doc.toString()).toContain("| Saved elsewhere | 1 |");
       expect(view.state.doc.toString()).toContain("| First | | < |");
-      expect(notices.filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
     } finally {
       view.destroy();
     }

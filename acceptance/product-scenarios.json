@@ -397,6 +397,7 @@
         ]
       },
       "steps": [
+        "With ordinary-table takeover disabled, inspect Hidden left marker and Hidden above marker in both views. They must retain the native table UI. Enable takeover and repeat refusal and source-preservation checks on both tables.",
         "Enable Take over ordinary Markdown tables and open GFM write safety in Live Preview. Missing cells in Short row must render empty; explicitly edit the first cell and inspect the saved two-column row.",
         "On Hidden source content, enter a cell draft and attempt commit. On desktop also attempt terminal Tab. The draft must remain available and source must remain unchanged.",
         "Attempt merge, row/column insertion, header-role changes, formatting, Convert to GFM, Sheets migration and Upgrade to Base. Inspect source after each operation and confirm no Base files are created.",
@@ -405,7 +406,30 @@
       "expected": [
         "Short rows read correctly and safe explicit edits normalize missing cells without losing data.",
         "Every hidden-source write is refused, KEEP and the complete source remain unchanged, failed drafts remain available and Base promotion creates no files.",
-        "Copy remains available; view changes and takeover changes do not write source. Terminal Tab is a desktop keyboard check; Android uses touch editing and menus."
+        "Copy remains available; view changes and takeover changes do not write source. Terminal Tab is a desktop keyboard check; Android uses touch editing and menus.",
+        "Hidden < and ^ cells do not claim structural ownership; enabling takeover keeps them read-only without dropping the extra source cell."
+      ]
+    },
+    {
+      "id": "base-filename-collisions",
+      "title": "Base record filenames, bilingual commands and retained restoration",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Base filename collisions in Live Preview and preview Upgrade to Base. Cancel once and verify no files were created. Reopen and confirm conversion.",
+        "Verify the four records retain Alice, ALICE, I and i with values 1, 2, 3 and 4; record paths must be distinct even when compared without case. Move or rename a generated record and verify it remains in the Base.",
+        "Switch plugin language between English and Simplified Chinese using the General tab. Check the actual create-record and restore commands against the README. Restore the original table and verify every generated record remains."
+      ],
+      "expected": [
+        "Cancel creates no files; confirmation creates four distinct records with all original values.",
+        "Moving or renaming a record keeps its Base association. Restoring reproduces the original table and retains all generated records.",
+        "Settings retain General, Views and Appearance tabs; bilingual command names match user guidance."
       ]
     }
   ]

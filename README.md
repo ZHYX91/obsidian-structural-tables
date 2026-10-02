@@ -118,7 +118,7 @@ Save the note and move a nested table to the top level before converting it to a
 
 New records are created under `<note-folder>/_structural-table-records/<table-id>/` by default. That folder is only the initial creation location: moving or renaming a record note does not remove it from the Base. The `structural-tables` list Property keeps the association.
 
-If conversion fails after creating files, the plugin leaves those files in place and reports their folder so you can inspect them. **Restore table from current promoted Base** restores the original table snapshot from `_promotion.json` but deliberately keeps the generated notes.
+If conversion fails after creating files, the plugin leaves those files in place and reports their folder so you can inspect them. **Restore table from current Base** restores the original table snapshot from `_promotion.json` but deliberately keeps the generated notes.
 
 Blank headers become `column_n`; non-empty headers, including numeric and leading-zero names, are kept as Property names when possible. Duplicate or reserved names receive a numeric suffix.
 

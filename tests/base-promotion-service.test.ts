@@ -308,6 +308,22 @@ describe("Base promotion file transaction", () => {
     expect(editor.getValue()).toBe(prepared.replacementSource);
   });
 
+  it("creates distinct records for case-colliding names without losing their values", async () => {
+    const source = "| Name | Value |\n| --- | --- |\n| Alice | 1 |\n| ALICE | 2 |\n| I | 3 |\n| i | 4 |";
+    const table = parseEditableTables(source).tables[0]!;
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(source);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(table, sourceFile);
+    await service.execute(editor as unknown as Editor, table, prepared, sourceTarget(editor, sourceFile));
+    expect(prepared.records.map(({ path }) => path.split("/").pop())).toEqual(["Alice.md", "ALICE 2.md", "I.md", "i 2.md"]);
+    expect(new Set(prepared.records.map(({ path }) => path.toLowerCase())).size).toBe(4);
+    expect(prepared.records.map(({ path }) => parse(host.contents.get(path)!.split("---")[1]!).Value)).toEqual(["1", "2", "3", "4"]);
+    expect(host.trashed).toEqual([]);
+  });
+
   it("retains the generated directory when the table changes during creation", async () => {
     const host = memoryHost();
     const sourceFile = memoryFile("Folder/People.md");

@@ -1,20 +1,40 @@
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+
+const checker = path.resolve("scripts/check-coverage-scope.mjs");
+const fixtures: string[] = [];
+
+afterEach(() => {
+  for (const fixture of fixtures.splice(0)) {
+    assert.equal(path.dirname(path.resolve(fixture)), path.resolve(tmpdir()));
+    assert.ok(path.basename(fixture).startsWith("structural-coverage-test-"));
+    rmSync(fixture, { recursive: true });
+  }
+});
 
 describe("coverage scope contract", () => {
-  it("covers all production TypeScript and verifies the report in npm run check", () => {
-    const config = readFileSync("vitest.config.mts", "utf8");
-    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as {
-      scripts: Record<string, string>;
-    };
-    const checker = readFileSync("scripts/check-coverage-scope.mjs", "utf8");
-
-    expect(config).toContain('include: ["src/**/*.ts"]');
-    expect(pkg.scripts["check:coverage-scope"]).toBe("node scripts/check-coverage-scope.mjs");
-    expect(pkg.scripts.check).toContain(
-      "npm run test:coverage && npm run check:coverage-scope && npm run build:bundle",
-    );
-    expect(checker).toContain('entry.name.endsWith(".ts")');
-    expect(checker).toContain("coverage-summary.json");
+  it.each([false, true])("checks nested production files against actual report entries (missing=%s)", (missing) => {
+    const fixture = mkdtempSync(path.join(tmpdir(), "structural-coverage-test-"));
+    fixtures.push(fixture);
+    mkdirSync(path.join(fixture, "src", "nested"), { recursive: true });
+    mkdirSync(path.join(fixture, "coverage"));
+    const first = path.join(fixture, "src", "first.ts");
+    const nested = path.join(fixture, "src", "nested", "new-module.ts");
+    writeFileSync(first, "export const first = 1;\n");
+    writeFileSync(nested, "export const nested = 2;\n");
+    const report = { total: {}, [first]: {}, ...(missing ? {} : { [nested]: {} }) };
+    writeFileSync(path.join(fixture, "coverage", "coverage-summary.json"), JSON.stringify(report));
+    const result = spawnSync(process.execPath, [checker], { cwd: fixture, encoding: "utf8" });
+    if (missing) {
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain("new-module.ts");
+    } else {
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("2 production source files");
+    }
   });
 });

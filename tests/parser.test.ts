@@ -78,6 +78,21 @@ describe("parseStructuralTables", () => {
     expect(table?.diagnostics).toEqual([]);
   });
 
+  it.each(["<", "^"])("does not claim an ordinary GFM table when hidden overflow content is %s", (marker) => {
+    const source = `| A | B |\n| --- | --- |\n| 1 | 2 | ${marker} |`;
+    const table = parseEditableTables(source).tables[0];
+
+    expect(parseStructuralTables(source).tables).toEqual([]);
+    expect(table).toMatchObject({
+      structural: false,
+      valid: true,
+      columnCount: 2,
+    });
+    expect(table?.rows[1]).toMatchObject({ sourceCellCount: 3 });
+    expect(table?.rows[1]?.cells.map((cell) => cell.content)).toEqual(["1", "2"]);
+    expect(table?.source).toBe(source);
+  });
+
   it("parses multi-row and row headers with rectangular merges", () => {
     const source = "| Region | Sales | < |\n| Quarter | Q1 | Q2 |\n| --- || --- | --- |\n| North | 10 | 12 |\n| ^ | 8 | 11 |";
     const table = parseStructuralTables(source).tables[0];

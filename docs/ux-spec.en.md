@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-09-05
+last_synced: 2026-10-02
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -20,15 +20,26 @@ Source remains visible and recoverable; rendering interprets but never rewrites;
 <!-- section: live-preview -->
 ## Live Preview
 
-Show the semantic table while every CodeMirror cursor and selection is outside it. In the rendered widget, a desktop click, touch-screen double-tap, or Enter/F2 opens an in-place cell editor; desktop drag and modified gestures continue to select cells, and links remain actionable. The editor stays inside the existing column and uses the selected cell's single outer focus border, with no nested textarea border or resize grip. Enter commits, Escape cancels, and Tab/Shift+Tab commits and moves through visible cells in source order, skipping merged placeholders. Paste inserts the complete clipboard text into the draft without fragment-level table escaping; the complete cell is validated and table separators are escaped only when the draft is committed. Do not commit or switch rendering during IME composition.
+When the CodeMirror cursor and selection are outside a table's source range, the plugin may replace that source with an interactive table. Entering the source range must restore raw Markdown immediately so direct source editing is always available.
 
-Escape is owned by an Obsidian keymap scope for the active cell session, preventing the host shortcut from moving focus into raw table source. The scope is removed on commit, cancellation, blur, or widget destruction. Owned blocks stay within the text column and scroll wide content locally; explicit layouts override theme sizing without changing native tables.
+### Cell editing
 
-Bottom and right edge buttons append a data row or column and open the new cell. Tab from the last visible cell commits its draft and appends a data row in one undoable write; Shift+Tab at the first cell does not grow the table. Only-header tables keep their header count when growing downward. An insertion initiated while editing includes the draft in the same validated write.
+- Desktop click, touch double-tap, or Enter/F2 opens the editor.
+- The editor overlays the existing cell without changing column width or adding a second visible input border.
+- Enter commits, Escape cancels, and Shift+Enter inserts a draft line break.
+- Tab/Shift+Tab follows visible cells in source order and skips covered merge slots.
+- A rejected commit keeps the complete draft, does not navigate, and does not append a row.
+- IME composition must not be committed early or have its keys intercepted.
 
-Axis reordering requires explicit handle selection before a second drag gesture. Shift-click or two touch taps on handles selects a range. Dragging cells still selects cells. Valid drop lines use the accent color; blocked lines use the error color. Partial merged groups, destinations that split a merge, and header/data crossings are refused without changing source. Escape, pointer cancellation, source replacement and releasing outside cancel. Complete groups retain content, alignment and container prefixes; the moved handles remain selected. Context menus remain available for keyboard movement.
+### Lifecycle and focus
 
-Unsafe math stays in the complete draft. For a whole-cell absolute-value or conditional-probability formula with simple identifiers and arithmetic, the cell editor context menu offers an explicit TeX rewrite and save. Commands, escapes, grouped arguments and ambiguous pipes receive no rewrite. Dismissing the menu, changing the draft or composing input never accepts an old suggestion; saving still validates the current source table.
+Source-position changes, edits elsewhere in the note, or table-index shifts should keep an active edit bound to the same unchanged table. If an external change invalidates the target, stop the write and retain a recoverable draft.
+
+After undo/redo, restore focus to the corresponding visible cell when possible. Callout tables follow the same rule and must not expose the whole source block merely because the host rerenders it.
+
+### Ordinary GFM tables
+
+Obsidian's native table UI remains the default. With **Take over ordinary Markdown tables** enabled, ordinary GFM uses the same rendering and editing controls as structural tables while its source stays standard GFM. Turning the setting off restores the native UI immediately.
 
 <!-- section: reading-view -->
 ## Reading view
@@ -50,24 +61,66 @@ HTML conversion accepts one complete supported table only. Mixed prose, multiple
 Safe single-line math is preserved verbatim, including fractions, superscripts, `\lvert`/`\rvert`, `\lVert`/`\rVert`, `\mid`, existing `\|` norms, and matrices using TeX `\\`. Bare pipes such as `$|x|$` and `$P(A|B)$`, actual newlines inside math, TeX comments/verbatim commands, and incomplete delimiters are refused before saving; the complete draft remains editable. Use explicit TeX commands for the intended pipe symbol, and `\$` for a literal dollar sign. Rejected edits do not navigate or append a row. Interrupted drafts can be recovered within the current plugin session; this is not persistent storage across restarts. Formatting preserves existing math source and does not guess whether an old norm was intended as an absolute value.
 
 <!-- section: base-promotion -->
-## Upgrade to Base
+## Convert to Base
 
-Right-click an ordinary table to choose Upgrade to Base; an owned structural table labels the same action Expand structure and upgrade to Base. The action works only on a valid table in a saved note and requires the Bases core plugin. Its preview shows the target folder, record count, display-column to stable-property mapping, generated Base source, and every applicable flattening rule: multi-row header paths join with ` / `, merged column headers expand into covered property paths, row headers become ordinary properties, and merged row-header values repeat per record. New promotions preserve trimmed non-empty header paths, including numeric and leading-zero names, as Property keys; display columns use YAML-quoted `note.<key>` property IDs while filters use bracket access expressions. Only a wholly blank header receives `column_n`; canonical duplicate or reserved keys receive a numeric suffix. Existing promoted Bases and records are read without migration. A merged data-region cell remains visible as a row/column/span blocker and disables confirmation. The execute layer checks blockers again before any file creation. While valid work runs the button stays disabled; a creation failure explains the cause, keeps the table, and retains partial output for review with its folder path. A concurrent source change is preserved; users decide whether to remove or reuse retained files.
+Ordinary tables show **Upgrade to Base…** and structural tables show **Expand structure and upgrade to Base…**. Conversion is available only for valid tables in saved notes and requires the Bases core plugin.
 
-The promotion preview also reports break-related content for this conversion. It lists each source row/column and source string, final header key/displayName, affected record Property strings, and expandable prepared record paths/frontmatter; preview payload is always inserted as text rather than executed as HTML. Supported `<br>`, `<br/>`, `<br />` and case variants are distinguished from closed code, escaped or entity literals, math, HTML attribute/comment/raw-text contexts, and unsupported spellings. The report is descriptive only: it does not rewrite Property keys, display names, record values, filenames, or recovery data, and does not convert tags to real newlines, spaces, or record bodies. If any related display difference or uncertain context is present, confirmation requires an unchecked-by-default, one-time acceptance bound to that prepared preview; reopening resets it. Cancelling or closing before execution starts performs no write. Closing after confirmation does not roll back generated files. The execute layer independently rejects missing acceptance before any file creation. This contract does not promise multiline rich-text editing in native Base Text Properties.
+### Preview
 
-Versioned YAML configuration in the generated Base retains the stable table ID and recovery-manifest path. With the cursor on that Base, plugin commands can create a blank record using the host's current folder or preview and restore the original table. Restoration explicitly says generated records are kept. Older metadata comments remain readable. An unmarked Base requires a unique mandatory membership and a matching original manifest before creation or restoration; ambiguous or unprovable ownership is refused. Moving, renaming, or organizing a record produces no warning and does not change membership.
+Before confirmation, show:
 
-The legacy-property migration scans the Vault only after an explicit command. Its modal lists every affected file with its intended change and the counts of membership notes, promoted Base blocks, and retired record IDs. Record-ID cleanup is an off-by-default toggle; changing it immediately updates the selected-removal count and each affected file's action. Cleanup applies only to notes with valid, non-empty Structural Tables membership. Confirmation stale-checks every file and the exact plugin-owned frontmatter values, rejects a source change immediately before a Base rewrite, replaces `structural_table_ids` with `structural-tables`, updates legacy Base filters across LF, CRLF, and CR line endings, and preserves unrelated Properties and note bodies. If a later file fails, rollback reverses only the migration-owned Properties and exact Base blocks so unrelated concurrent edits survive. Base-block discovery ignores examples nested inside longer Markdown fences and literal raw HTML blocks started by `pre`, `script`, `style`, or `textarea`. Invalid or conflicting old/new membership values stop before the preview can be confirmed.
+- target folder and record count;
+- display-column to final Property-key mapping;
+- generated Base source;
+- how multi-row headers, merged column headers, row headers, and merged row headers will be flattened;
+- blockers such as merged data cells;
+- content/display differences such as `<br>` handling;
+- prepared record paths and frontmatter.
+
+If a display difference requires user judgment, confirmation remains disabled until the user explicitly accepts it. Cancelling or closing the preview creates no files.
+
+### Properties and records
+
+Use non-empty headers as Property keys when possible; blank headers become `column_n`. Duplicate or reserved names receive numeric suffixes. Records use the `structural-tables` list Property for membership, independent of their folder, and require no plugin-specific record ID.
+
+The generated directory is only the initial creation location. Moving or renaming a record later must not break its Base membership.
+
+### Writes and failures
+
+Recheck blockers, source identity, and the editor target before writes. Replace the source table only after records and the recovery manifest are created and the original table is still unchanged.
+
+On partial failure, keep created files and report the folder. Do not automatically delete content that a user or sync client may already have changed.
+
+### Restore and legacy migration
+
+Restore uses the original snapshot stored in `_promotion.json` and deliberately keeps generated record notes. Missing manifests, mismatched sources, or ownership that cannot be proven uniquely must be refused.
+
+Legacy-property migration runs only on explicit user request. Its preview lists per-file changes, retired record-ID cleanup is off by default, and writes recheck both source and plugin-owned frontmatter. Rollback restores only plugin-owned changes and preserves unrelated concurrent edits.
 
 <!-- section: table-selection -->
-## Table selection and context menu
+## Table selection and context menus
 
-The add-row and add-column buttons are hidden while idle without removing their gutters. On mouse devices they appear when the table is hovered or contains keyboard focus. On touch devices they appear while the table is selected or focused, and disappear when tapping outside. Keyboard focus always reveals the focused add button. Reading view has no add controls.
+### Row and column handles
 
-By default, use Obsidian's native Markdown-table cell selection, whole-row/whole-column handles, and shared event menu to bootstrap structural syntax from an ordinary GFM table. When Take over ordinary Markdown tables is enabled, inactive ordinary GFM tables use the same plugin widget, handles, in-place editor, full editing menu, layout, density, and alternating-row appearance as structural tables without changing their source; disabling the setting refreshes open views back to native behavior. A mouse drags across cells. A completed touch rectangle stays selected when pressed inside, including during long press; tapping outside starts a new range, and double-tapping a cell still opens its editor. On touch screens, tap the first and last cells to select a rectangle; the initial pointer event remains available to the host so horizontal scrolling and long-press menus are not suppressed. Both ordinary and owned structural table menus expose the appropriate Base-upgrade action without requiring whole-table selection. On fine pointers, hovering a cell reveals only its corresponding row and column handles; a keyboard-focused or selected handle stays visible. Coarse-pointer handles remain visible and at least 44 CSS pixels. Handles are absolutely overlaid in the outer gutter and positioned from the real table rectangle, so theme, content-left, content-center, and fill-text-width layouts retain their table alignment. Cell focus must not reveal every desktop handle, and an owned selection clears when focus or the CodeMirror selection leaves that table or another owned table receives the pointer. Cells, row handles, and column handles each expose one tab stop; arrow keys and Home/End move focus within the active group, with horizontal movement following RTL direction. Focus remains visibly outlined. Comfortable and compact cells keep stable minimum dimensions before and after a merge; coarse pointers preserve their touch minimum. While a cell editor is open, Shift+Enter and **Insert line break in cell** from its context menu insert a real draft newline, and paste preserves its text until the complete cell is validated. Successful commits convert ordinary-text newlines to canonical `<br>`; math newlines are refused without discarding the draft. Explicit edits and table operations serialize one aligned source table using display width for CJK and emoji while preserving `||`, alignment markers, escaped pipes, Wiki links, code spans, and LF/CRLF/CR; display-only rendering never writes. The existing native-like column selection treatment is preserved. A rectangular multi-cell selection offers Merge selected cells; a single merged cell offers Split merged cell. Refuse a merge and preserve source when cells other than the top-left contain content, the selection crosses role boundaries, or it includes only part of an existing merged region.
+- On pointer devices, hovering a cell reveals only its matching row and column handles.
+- Keyboard-focused or selected handles stay visible.
+- Touch handles remain large enough to tap and must not cover preceding text.
+- Handles live outside the table box and must not change table alignment.
+- Cells, row handles, and column handles each expose one Tab stop per group; arrow-key movement stays within the group and horizontal movement follows RTL direction.
 
-A whole-row selection starting at the top can set column-header rows. Selecting the complete current column-header region can remove the column-header role without deleting its cells, producing a headerless table when the count reaches zero. A whole-column selection starting at the left and covering every row can set or remove row-header columns. Deleting rows remains a separate content-destructive action and never substitutes for removing a header role. Plugin-owned table menus also insert, safely delete, move, and align selected rows or columns. Insertion inside a merge expands it; deletion migrates a surviving anchor; any edit that would discard non-empty content, split a merged rectangle, or cross a header boundary is refused. Ordinary tables retain Obsidian's native menus and handles while takeover is disabled.
+### Selection and drag
+
+Mouse drag creates a rectangular cell selection. Touch selects a rectangle by tapping its first and last cells. A completed touch selection must remain intact when the user long-presses inside it.
+
+Row/column reordering is a two-step interaction: first select handles, then drag the selected handles. A move must include complete merged regions and stay on the same side of column-header/data and row-header/data boundaries. Invalid destinations show a blocked state and leave source unchanged. Escape, pointer cancellation, leaving the table, or source replacement cancels safely.
+
+### Menu operations
+
+A rectangular multi-cell selection can merge; a single merged cell can split. Refuse a merge when non-top-left cells contain data, when the selection crosses roles, or when it includes only part of an existing merge.
+
+Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole left-side columns can add or remove row-header roles.
+
+Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled.
 
 <!-- section: diagnostics -->
 ## Diagnostics
@@ -77,4 +130,31 @@ Invalid structures get a red edge and a readable reason. Reading view keeps its 
 <!-- section: settings -->
 ## Settings
 
-Use native Obsidian controls and top tabs for General, Views, and Appearance. The active tab combines an accent underline with a semibold label, and stable space separates the baseline from the content panel. A failed settings save stays visible with an explicit Retry action. Settings from an incompatible explicit schema show a persistent warning and disable controls while preserving the three-tab navigation. Language, HTML-table paste conversion, and startup conflict warnings are General controls; automatic language is labeled Follow Obsidian and includes a description. Views contains a default-off Take over ordinary Markdown tables toggle whose description states that source stays standard, disabling restores native tables, and other table plugins may conflict. Appearance defaults style, layout, and density to Follow theme. Grid and Three-line table are independent of layout and density. Follow theme leaves header typography and fills to the active Obsidian theme. Grid gives all semantic header cells—column headers, row headers, and corner headers—the same restrained header fill and semibold weight while keeping the complete cell grid; data cells do not inherit that header fill. Three-line style uses the table top/bottom rules and one separator below the entire thead, including multi-row headers; semantic header cells are semibold, row headers remain start-aligned, and body cells have no rules or fills. Three-line row headers never add a dedicated vertical divider or background band. Explicit column alignment still overrides the default row-header alignment. Headerless tables omit the thead entirely, so Three-line style naturally renders only the top and bottom rules. Theme styling uses logical cell coordinates for merged outer edges, never DOM first/last-child positions. Explicit width and spacing preferences survive upgrades. Alternating rows are optional. Table layout changes the table box, never cell-content alignment. Labels and descriptions support English and Simplified Chinese.
+Use native Obsidian controls with **General**, **Views**, and **Appearance** tabs. A failed save remains visible with a **Retry** action. If a future incompatible schema is detected, keep navigation available but disable controls that could overwrite those settings.
+
+### General
+
+- language: Follow Obsidian, English, Simplified Chinese;
+- HTML-table paste conversion;
+- warnings about overlapping table-plugin syntax.
+
+### Views
+
+- Reading view;
+- Live Preview;
+- invalid-structure diagnostics;
+- default-off **Take over ordinary Markdown tables**.
+
+The takeover description must make clear that source remains standard GFM, disabling the option restores native tables, and other table plugins may conflict.
+
+### Appearance
+
+Fresh installs follow the theme. Style, layout, and density are independent:
+
+- **Follow theme** leaves header fill and typography to the active Obsidian theme;
+- **Grid** gives column, row, and corner headers one restrained header treatment;
+- **Three-line table** draws top/bottom rules and one rule below the complete column-header area, without a row-header fill or vertical divider;
+- headerless Three-line tables naturally keep only top and bottom rules;
+- explicit column alignment overrides the default row-header alignment.
+
+Layout changes table position and width only. Appearance settings never rewrite Markdown.

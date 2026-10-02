@@ -116,17 +116,21 @@ function randomId(prefix: "stb"): string {
   return `${prefix}_${uuid}`;
 }
 
+export function recordFileNameIdentity(fileName: string): string {
+  return fileName.toLowerCase();
+}
+
 function uniqueRecordPaths(directory: string, plan: BasePromotionPlan): PreparedRecord[] {
   const used = new Set<string>();
   return plan.records.map((record) => {
     const base = record.fileStem;
     let fileName = `${base}.md`;
     let suffix = 2;
-    while (used.has(fileName.toLocaleLowerCase())) {
+    while (used.has(recordFileNameIdentity(fileName))) {
       fileName = `${base} ${suffix}.md`;
       suffix += 1;
     }
-    used.add(fileName.toLocaleLowerCase());
+    used.add(recordFileNameIdentity(fileName));
     return { path: joinedPath(directory, fileName), record, content: recordContent(plan.tableId, record) };
   });
 }

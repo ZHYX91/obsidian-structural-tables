@@ -3,7 +3,12 @@ import { TFile, TFolder } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { parse, stringify } from "yaml";
 
-import { BasePromotionService, acceptBasePromotionContent, captureBaseEditorTarget } from "../src/app/base-promotion-service";
+import {
+  BasePromotionService,
+  acceptBasePromotionContent,
+  captureBaseEditorTarget,
+  recordFileNameIdentity,
+} from "../src/app/base-promotion-service";
 import {
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
   promotionBlockAt,
@@ -194,6 +199,14 @@ function sourceTable() {
   if (parsed === undefined) throw new Error("Expected table fixture.");
   return parsed;
 }
+
+describe("record filename identity", () => {
+  it("uses locale-independent case folding for collision checks", () => {
+    expect(recordFileNameIdentity("Alice.md")).toBe("alice.md");
+    expect(recordFileNameIdentity("ALICE.MD")).toBe("alice.md");
+    expect(recordFileNameIdentity("I.md")).toBe("i.md");
+  });
+});
 
 describe("Base promotion file transaction", () => {
   it.each(["before-confirm", "during-records", "after-manifest"])("refuses a reused editor containing identical text after a file switch: %s", async (stage) => {

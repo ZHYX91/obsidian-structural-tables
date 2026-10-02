@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 - 2026-10-02
+
+- Keep ordinary GFM tables native when only hidden extra cells contain merge markers, while preserving hidden content during rejected edits.
+- Make generated Base record filename collision checks independent of the system locale and simplify Base command labels.
+- Rewrite English and Chinese user guidance and expand coverage reporting to all production source modules.
+
 ## 0.5.0 - 2026-10-02
 
 - Support headerless tables, including a single data row and row headers; remove column-header roles without deleting cell content.

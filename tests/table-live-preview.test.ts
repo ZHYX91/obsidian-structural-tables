@@ -834,6 +834,31 @@ describe("StructuralTableEditorController", () => {
     }
   });
 
+  it.each(["<", "^"])("keeps hidden %s markers native by default and refuses lossy editing after opt-in", async (marker) => {
+    const source = `| Name | Status |\n| --- | --- |\n| Alice | Doing | ${marker} |`;
+    const mounted = mountEditor(source, { anchor: source.length });
+    try {
+      expect(mounted.parent.querySelector(".structural-tables-live-preview")).toBeNull();
+      mounted.updateSettings({ takeOverOrdinaryTables: true });
+      const host = mounted.parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;
+      expect(host.dataset.tableKind).toBe("ordinary");
+      const cell = host.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "Keep this draft";
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
+      await Promise.resolve();
+      expect(mounted.view.state.doc.toString()).toBe(source);
+      expect(mounted.parent.querySelector("textarea")).toBe(editor);
+      expect(editor.value).toBe("Keep this draft");
+      mounted.updateSettings({ takeOverOrdinaryTables: false });
+      expect(mounted.parent.querySelector(".structural-tables-live-preview")).toBeNull();
+      expect(mounted.view.state.doc.toString()).toBe(source);
+    } finally {
+      mounted.view.destroy();
+    }
+  });
+
   it("takes over ordinary GFM tables only while the opt-in setting is enabled", () => {
     const source = "| Name | Status |\n| --- | --- |\n| Alice | Doing |";
     const disabled = mountEditor(source, { anchor: source.length });

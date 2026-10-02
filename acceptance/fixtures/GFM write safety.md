@@ -16,3 +16,15 @@ Enable Take over ordinary Markdown tables before editing these tables.
 | | |
 
 Inspect source after each refused write. KEEP must remain in the exact original row.
+
+## Hidden left marker
+
+| A | B |
+| - | -- |
+| First | Second | < |
+
+## Hidden above marker
+
+| A | B |
+| - | -- |
+| First | Second | ^ |

@@ -295,6 +295,33 @@ describe("StructuralTableReadingProcessor", () => {
     expect(addChild).toHaveBeenCalledOnce();
   });
 
+  it.each(["<", "^"])("preserves native Reading view for hidden %s markers unless takeover is enabled", (marker) => {
+    const source = `| Name | Status |\n| --- | --- |\n| Alice | Doing | ${marker} |`;
+    for (const takeOverOrdinaryTables of [false, true]) {
+      const native = document.createElement("table");
+      native.innerHTML = "<thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Alice</td><td>Doing</td></tr></tbody>";
+      const container = document.createElement("div");
+      container.appendChild(native);
+      const addChild = vi.fn();
+      const context = {
+        addChild,
+        getSectionInfo: () => ({ lineStart: 0, lineEnd: 2, text: source }),
+        sourcePath: "People.md",
+      } as unknown as MarkdownPostProcessorContext;
+      new StructuralTableReadingProcessor({} as App, () => ({ ...DEFAULT_SETTINGS, takeOverOrdinaryTables }))
+        .process(container, context);
+      if (takeOverOrdinaryTables) {
+        expect(native.parentElement).toBeNull();
+        expect(container.querySelector<HTMLElement>(".structural-tables-container")?.dataset.tableKind).toBe("ordinary");
+        expect(addChild).toHaveBeenCalledOnce();
+      } else {
+        expect(native.parentElement).toBe(container);
+        expect(container.querySelector(".structural-tables-container")).toBeNull();
+        expect(addChild).not.toHaveBeenCalled();
+      }
+    }
+  });
+
   it("replaces an ordinary Reading view table only when takeover is enabled", () => {
     const source = "| Name | Status |\n| --- | --- |\n| Alice | Doing |";
     const native = document.createElement("table");

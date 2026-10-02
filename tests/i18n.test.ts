@@ -21,6 +21,13 @@ describe("i18n", () => {
     expect(createTranslator("zh-CN")("menu.flattenAndPromoteBase")).toBe("展开结构并升级为 Base…");
   });
 
+  it("uses direct Base wording without internal promotion terminology", () => {
+    expect(createTranslator("en")("command.createBaseRecord")).toBe("Create record for current Base");
+    expect(createTranslator("en")("command.restorePromotedTable")).toBe("Restore table from current Base");
+    expect(createTranslator("zh-CN")("command.createBaseRecord")).toBe("为当前 Base 新建记录");
+    expect(createTranslator("zh-CN")("command.restorePromotedTable")).toBe("从当前 Base 恢复原表格");
+  });
+
   it("localizes operation notices and count templates", () => {
     const t = createTranslator("zh-CN");
     expect(operationNotice(t, "merged")).toBe("已合并单元格。");

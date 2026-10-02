@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.1 - 2026-10-02
+## 0.5.1 - 2026-10-03
 
 - Keep ordinary GFM tables native when only hidden extra cells contain merge markers, while preserving hidden content during rejected edits.
 - Make generated Base record filename collision checks independent of the system locale and simplify Base command labels.

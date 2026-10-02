@@ -20,7 +20,7 @@ Let users express merged cells, multi-row column headers, and row headers with r
 <!-- section: syntax -->
 ## Syntax contract
 
-An exact `<` merges left, `^` merges up, and `\<` or `\^` is literal text. Every delimiter cell follows GFM and contains at least three hyphens. Contiguous equal-width rows before the delimiter are column headers. At most one whitespace-free `||` inside the delimiter marks columns to its left as row headers and does not add a column.
+An exact `<` merges left, `^` merges up, and `\<` or `\^` is literal text. Every delimiter cell follows GFM and contains one or more hyphens. Contiguous equal-width rows before the delimiter are column headers. At most one whitespace-free `||` inside the delimiter marks columns to its left as row headers and does not add a column.
 
 <!-- section: validity -->
 ## Validity

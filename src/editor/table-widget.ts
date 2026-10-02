@@ -43,6 +43,19 @@ interface PendingCellFocus {
   axisSelection?: AxisSelection;
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
+const activeCellEditors = new WeakMap<Document, HTMLTextAreaElement>();
+
+function ownsCellEditorFocus(editor: HTMLTextAreaElement): boolean {
+  return activeCellEditors.get(editor.ownerDocument) === editor;
+}
+
+function claimCellEditorFocus(editor: HTMLTextAreaElement): void {
+  activeCellEditors.set(editor.ownerDocument, editor);
+}
+
+function releaseCellEditorFocus(editor: HTMLTextAreaElement): void {
+  if (ownsCellEditorFocus(editor)) activeCellEditors.delete(editor.ownerDocument);
+}
 
 function focusNativeTable(view: EditorView, table: StructuralTable, coordinate: TableCellCoordinate): void {
   cancelPendingTableFocus(view);
@@ -686,6 +699,7 @@ class StructuralTableInteraction {
     let settled = false;
     let composing = false;
     let contextMenuOpen = false;
+    let lastRejectedDraft: string | null = null;
     this.releaseNavigationScope();
     const scope = new Scope(this.app.scope);
 
@@ -706,17 +720,22 @@ class StructuralTableInteraction {
         retainCellDraft(this.app, { sourcePath: this.sourcePath, row: anchor.row, column: anchor.column, text: editor.value }, t);
       }
       settled = true;
+      releaseCellEditorFocus(editor);
     };
     const settle = (): void => {
       settled = true;
+      releaseCellEditorFocus(editor);
       this.preserveDraft = null;
       this.finishActiveOperation = null;
       this.releaseCellScope(scope);
     };
     const retainDraft = (message: string): void => {
+      lastRejectedDraft = editor.value;
       new Notice(message);
       queueMicrotask(() => {
-        if (!settled && editor.isConnected) editor.focus({ preventScroll: true });
+        if (!settled && editor.isConnected && ownsCellEditorFocus(editor)) {
+          editor.focus({ preventScroll: true });
+        }
       });
     };
     const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation): void => {
@@ -788,10 +807,19 @@ class StructuralTableInteraction {
       handleKey(event);
       return false;
     });
-    this.cellScope = scope;
-    this.app.keymap.pushScope(scope);
+    const activateCellScope = (): void => {
+      claimCellEditorFocus(editor);
+      if (this.cellScope === scope) return;
+      this.releaseCellScope();
+      this.cellScope = scope;
+      this.app.keymap.pushScope(scope);
+    };
+    editor.addEventListener("focus", activateCellScope);
     editor.addEventListener("keydown", handleKey);
-    editor.addEventListener("input", resizeEditor);
+    editor.addEventListener("input", () => {
+      lastRejectedDraft = null;
+      resizeEditor();
+    });
     editor.addEventListener("beforeinput", (event) => {
       // Soft keyboards can insert a line break before sending a useful keydown.
       // Commit the draft before that insertion replaces the selected cell text.
@@ -857,7 +885,7 @@ class StructuralTableInteraction {
         // Keep the guard until that event has finished, then return to the draft.
         (editor.ownerDocument.defaultView ?? window).setTimeout(() => {
           contextMenuOpen = false;
-          if (!settled) editor.focus({ preventScroll: true });
+          if (!settled && ownsCellEditorFocus(editor)) editor.focus({ preventScroll: true });
         }, 0);
       });
     });
@@ -872,7 +900,10 @@ class StructuralTableInteraction {
       if (editor.ownerDocument.activeElement !== editor && !contextMenuOpen) finish(true, null, false);
     });
     editor.addEventListener("blur", () => {
-      if (!composing && !contextMenuOpen) finish(true, null, false);
+      if (!composing && !contextMenuOpen && lastRejectedDraft !== editor.value) {
+        finish(true, null, false);
+      }
+      this.releaseCellScope(scope);
     });
     editor.focus({ preventScroll: true });
     editor.select();

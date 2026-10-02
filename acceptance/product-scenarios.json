@@ -399,13 +399,13 @@
       "steps": [
         "With ordinary-table takeover disabled, inspect Hidden left marker and Hidden above marker in both views. They must retain the native table UI. Enable takeover and repeat refusal and source-preservation checks on both tables.",
         "Enable Take over ordinary Markdown tables and open GFM write safety in Live Preview. Missing cells in Short row must render empty; explicitly edit the first cell and inspect the saved two-column row.",
-        "On Hidden source content, enter a cell draft and attempt commit. On desktop also attempt terminal Tab. The draft must remain available and source must remain unchanged.",
+        "On Hidden left marker, enter a cell draft and attempt commit. Without changing that rejected draft, move to Hidden above marker and open its first cell; repeat with the two tables visible in separate panes when available. The first draft must remain recoverable, focus and menus must stay responsive, and source must remain unchanged. On desktop also attempt terminal Tab.",
         "Attempt merge, row/column insertion, header-role changes, formatting, Convert to GFM, Sheets migration and Upgrade to Base. Inspect source after each operation and confirm no Base files are created.",
         "Copy the visible table as HTML/GFM/CSV/TSV. Switch views and toggle ordinary-table takeover. Recheck the exact original hidden-source row."
       ],
       "expected": [
         "Short rows read correctly and safe explicit edits normalize missing cells without losing data.",
-        "Every hidden-source write is refused, KEEP and the complete source remain unchanged, failed drafts remain available and Base promotion creates no files.",
+        "Every hidden-source write is refused, KEEP and the complete source remain unchanged, failed drafts remain available, switching tables or panes does not create a focus/refocus loop, and Base promotion creates no files.",
         "Copy remains available; view changes and takeover changes do not write source. Terminal Tab is a desktop keyboard check; Android uses touch editing and menus.",
         "Hidden < and ^ cells do not claim structural ownership; enabling takeover keeps them read-only without dropping the extra source cell."
       ]

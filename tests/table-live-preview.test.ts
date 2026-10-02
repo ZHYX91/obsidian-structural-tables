@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/s
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
-import { activeScopes, lastMenu } from "./mocks/obsidian";
+import { activeScopes, lastMenu, notices } from "./mocks/obsidian";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -806,6 +806,182 @@ describe("StructuralTableEditorController", () => {
     expect(parent.querySelector(".test-native-table")).toBeNull();
 
     view.destroy();
+  });
+
+  it("moves focus between rejected drafts in separate table widgets without a refocus loop", async () => {
+    const source = [
+      "| A | B |",
+      "| --- | --- |",
+      "| First | | < |",
+      "",
+      "| C | D |",
+      "| --- | --- |",
+      "| First | | ^ |",
+    ].join("\n");
+    const noticeStart = notices.length;
+    const { parent, view } = mountEditor(
+      source,
+      { anchor: source.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    try {
+      const hosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+      expect(hosts).toHaveLength(2);
+      const firstCell = hosts[0]!.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      firstCell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const firstEditor = hosts[0]!.querySelector<HTMLTextAreaElement>("textarea")!;
+      firstEditor.value = "B";
+      firstEditor.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", bubbles: true, cancelable: true,
+      }));
+      await Promise.resolve();
+
+      expect(view.state.doc.toString()).toBe(source);
+      expect(firstEditor.value).toBe("B");
+      expect(document.activeElement).toBe(firstEditor);
+      expect(activeScopes).toHaveLength(1);
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
+
+      const secondCell = hosts[1]!.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      secondCell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const secondEditor = hosts[1]!.querySelector<HTMLTextAreaElement>("textarea")!;
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(parent.querySelectorAll(".structural-tables-cell-editor")).toHaveLength(2);
+      expect(document.activeElement).toBe(secondEditor);
+      expect(firstEditor.value).toBe("B");
+      expect(activeScopes).toHaveLength(1);
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
+
+      for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+      expect(document.activeElement).toBe(secondEditor);
+
+      secondEditor.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Escape", bubbles: true, cancelable: true,
+      }));
+      expect(hosts[1]!.querySelector("textarea")).toBeNull();
+      expect(firstEditor.isConnected).toBe(true);
+      expect(firstEditor.value).toBe("B");
+
+      firstEditor.focus();
+      await Promise.resolve();
+      expect(document.activeElement).toBe(firstEditor);
+      expect(activeScopes).toHaveLength(1);
+    } finally {
+      view.destroy();
+    }
+    await Promise.resolve();
+    expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value).toBe("B");
+  });
+
+  it("keeps rejected-draft focus ownership stable across separate editor views", async () => {
+    const leftSource = "| A | B |\n| --- | --- |\n| First | | < |";
+    const rightSource = "| C | D |\n| --- | --- |\n| First | | ^ |";
+    const left = mountEditor(
+      leftSource,
+      { anchor: leftSource.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    const right = mountEditor(
+      rightSource,
+      { anchor: rightSource.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    try {
+      const leftCell = left.parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      leftCell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const leftEditor = left.parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      leftEditor.value = "Left draft";
+      leftEditor.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", bubbles: true, cancelable: true,
+      }));
+      await Promise.resolve();
+
+      const rightCell = right.parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      rightCell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const rightEditor = right.parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(leftEditor.isConnected).toBe(true);
+      expect(leftEditor.value).toBe("Left draft");
+      expect(document.activeElement).toBe(rightEditor);
+      expect(activeScopes).toHaveLength(1);
+      expect(left.view.state.doc.toString()).toBe(leftSource);
+      expect(right.view.state.doc.toString()).toBe(rightSource);
+
+      for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+      expect(document.activeElement).toBe(rightEditor);
+    } finally {
+      right.view.destroy();
+      left.view.destroy();
+    }
+  });
+
+  it("lets another widget commit successfully while a rejected draft remains recoverable", async () => {
+    const source = [
+      "| A | B |",
+      "| --- | --- |",
+      "| First | | < |",
+      "",
+      "| Safe | Value |",
+      "| --- | --- |",
+      "| First | 1 |",
+    ].join("\n");
+    const noticeStart = notices.length;
+    const { parent, view } = mountEditor(
+      source,
+      { anchor: source.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    try {
+      const hosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+      expect(hosts).toHaveLength(2);
+      hosts[0]!.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const rejected = hosts[0]!.querySelector<HTMLTextAreaElement>("textarea")!;
+      rejected.value = "Rejected draft";
+      rejected.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", bubbles: true, cancelable: true,
+      }));
+      await Promise.resolve();
+
+      hosts[1]!.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const successful = hosts[1]!.querySelector<HTMLTextAreaElement>("textarea")!;
+      successful.value = "Saved elsewhere";
+      successful.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", bubbles: true, cancelable: true,
+      }));
+      await Promise.resolve();
+
+      const parsed = parseEditableTables(view.state.doc.toString()).tables;
+      expect(parsed[1]?.rows[1]?.cells[0]?.content).toBe("Saved elsewhere");
+      expect(parsed[0]?.source).toBe("| A | B |\n| --- | --- |\n| First | | < |");
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
+    } finally {
+      view.destroy();
+    }
+    await Promise.resolve();
+    expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value)
+      .toBe("Rejected draft");
   });
 
   it("keeps an in-place draft when hidden GFM overflow makes the table read-only", async () => {

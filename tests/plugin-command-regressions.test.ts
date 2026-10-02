@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 
-import type { App, Editor, TFile } from "obsidian";
+import type { App, Command, Editor, TFile } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StructuralTablesPlugin } from "../src/app/plugin";
 import { ConversionPreviewModal } from "../src/app/conversion-preview-modal";
-import { DEFAULT_SETTINGS } from "../src/config/settings";
+import { createTranslator } from "../src/config/i18n";
+import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
 import { MarkdownView, TFile as MockTFile, notices } from "./mocks/obsidian";
 
 const SOURCE = "| A | B | < |\n| --- | --- | --- |\n| x | y | z |";
@@ -132,6 +133,102 @@ describe("registered conversion command entry", () => {
 
     expect(formatCurrent).toHaveBeenCalledWith(editor, file);
     expect(previewPlainGfmConversion).toHaveBeenCalledWith(editor, file);
+  });
+});
+
+const localizedCommandKeys = [
+  ["insert-structural-table", "command.insert"],
+  ["migrate-legacy-base-properties", "command.migrateBaseProperties"],
+  ["promote-current-table-to-base", "command.promoteBase"],
+  ["restore-current-promoted-base-to-table", "command.restorePromotedTable"],
+  ["create-record-for-current-promoted-base", "command.createBaseRecord"],
+  ["copy-current-table-as-html", "command.copyHtml"],
+  ["copy-current-table-as-plain-gfm", "command.copyGfm"],
+  ["copy-current-table-as-tsv", "command.copyTsv"],
+  ["copy-current-table-as-csv", "command.copyCsv"],
+  ["convert-current-table-to-plain-gfm", "command.convertGfm"],
+  ["convert-current-sheets-extended-table", "command.migrateSheets"],
+  ["format-current-structural-table", "command.format"],
+  ["merge-current-cell-left", "command.mergeLeft"],
+  ["merge-current-cell-up", "command.mergeUp"],
+  ["split-current-merged-cell", "command.split"],
+  ["validate-current-note", "command.validate"],
+  ["recover-cell-drafts", "command.recoverDrafts"],
+] as const;
+
+describe("live command localization", () => {
+  it("refreshes every host-prefixed registered command zh -> en -> zh without re-registering", async () => {
+    const registry = new Map<string, Command>();
+    const addCommand = vi.fn((input: Command): Command => {
+      // Match Obsidian's public addCommand contract closely: the registered
+      // command is returned with plugin-prefixed id/name. Clone the input so
+      // this test does not rely on the old pass-through mock identity.
+      const registered = {
+        ...input,
+        id: `structural-tables:${input.id}`,
+        name: `Structural Tables: ${input.name}`,
+      };
+      registry.set(registered.id, registered);
+      return registered;
+    });
+    const save = vi.fn(async () => undefined);
+    const refresh = vi.fn();
+    const settingsPersistence = {
+      assertWritable: vi.fn(),
+      save,
+    };
+    const plugin = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
+      manifest: { id: "structural-tables", name: "Structural Tables", version: "0.5.1" },
+      app: {
+        workspace: {
+          iterateAllLeaves: vi.fn(),
+        },
+      } as unknown as App,
+      settings: { ...DEFAULT_SETTINGS, language: "zh-CN" },
+      settingsPersistence,
+      editorController: { refresh },
+      localizedCommands: [],
+      addCommand,
+    });
+    const surface = plugin as unknown as {
+      registerCommands: () => void;
+      localizedCommands: Command[];
+      updateSettings: (update: Partial<StructuralTablesSettings>) => Promise<void>;
+    };
+
+    surface.registerCommands();
+    const zh = createTranslator("zh-CN");
+    surface.localizedCommands.push(addCommand({
+      id: "recover-cell-drafts",
+      name: zh("command.recoverDrafts"),
+      callback: () => undefined,
+    }));
+
+    const expectedIds = localizedCommandKeys.map(([id]) => `structural-tables:${id}`);
+    expect([...registry.keys()]).toEqual(expectedIds);
+    expect(surface.localizedCommands).toHaveLength(localizedCommandKeys.length);
+    expect(addCommand).toHaveBeenCalledTimes(localizedCommandKeys.length);
+
+    const assertLanguage = (language: "en" | "zh-CN"): void => {
+      const t = createTranslator(language);
+      for (const [id, key] of localizedCommandKeys) {
+        const command = registry.get(`structural-tables:${id}`);
+        expect(command?.id).toBe(`structural-tables:${id}`);
+        expect(command?.name).toBe(`Structural Tables: ${t(key)}`);
+        expect(command?.name.match(/Structural Tables: /gu)).toHaveLength(1);
+      }
+    };
+
+    assertLanguage("zh-CN");
+    await surface.updateSettings({ language: "en" });
+    assertLanguage("en");
+    await surface.updateSettings({ language: "zh-CN" });
+    assertLanguage("zh-CN");
+
+    expect(addCommand).toHaveBeenCalledTimes(localizedCommandKeys.length);
+    expect([...registry.keys()]).toEqual(expectedIds);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenCalledTimes(2);
   });
 });
 

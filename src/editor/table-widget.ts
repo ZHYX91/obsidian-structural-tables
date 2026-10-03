@@ -900,6 +900,7 @@ class StructuralTableInteraction {
       if (editor.ownerDocument.activeElement !== editor && !contextMenuOpen) finish(true, null, false);
     });
     editor.addEventListener("blur", () => {
+      if (!contextMenuOpen) releaseCellEditorFocus(editor);
       if (!composing && !contextMenuOpen && lastRejectedDraft !== editor.value) {
         finish(true, null, false);
       }

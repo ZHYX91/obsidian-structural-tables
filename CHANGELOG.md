@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Keep focus on external controls after an IME edit is rejected, while preserving recoverable drafts, hidden GFM source, and temporary cell-menu focus restoration.
+- Clarify table-formatting preview text in English and Chinese.
+
 ## 0.5.1 - 2026-10-03
 
 - Prevent rejected cell drafts in separate tables or panes from competing for focus while keeping each draft recoverable and preserving hidden GFM source.

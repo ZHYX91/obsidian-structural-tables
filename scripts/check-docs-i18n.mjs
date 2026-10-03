@@ -17,6 +17,41 @@ function frontmatter(source, file) {
   return values;
 }
 
+
+function sectionShapes(source, file) {
+  const shapes = new Map();
+  let section = "preamble";
+  let fenced = false;
+  const shape = () => {
+    if (!shapes.has(section)) {
+      shapes.set(section, { headings: [], bullets: 0, numbered: 0, tables: 0, fences: 0 });
+    }
+    return shapes.get(section);
+  };
+  shape();
+  for (const line of source.split("\n")) {
+    const marker = /^<!-- section: ([a-z0-9-]+) -->$/u.exec(line);
+    if (marker != null) {
+      section = marker[1];
+      shape();
+      continue;
+    }
+    if (/^(?:```|~~~)/u.test(line)) {
+      if (!fenced) shape().fences += 1;
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
+    const heading = /^(#{2,6})\s+/u.exec(line);
+    if (heading != null) shape().headings.push(heading[1].length);
+    if (/^\s*[-*]\s+/u.test(line)) shape().bullets += 1;
+    if (/^\s*\d+\.\s+/u.test(line)) shape().numbered += 1;
+    if (/^\|.*\|\s*$/u.test(line)) shape().tables += 1;
+  }
+  assert.equal(fenced, false, `${file} must not contain an unclosed fenced code block`);
+  return Object.fromEntries(shapes);
+}
+
 function markers(source, file) {
   const result = [...source.matchAll(/<!-- section: ([a-z0-9-]+) -->/gu)].map((match) => match[1]);
   assert.ok(result.length >= 5, `${file} must contain stable section markers`);
@@ -58,6 +93,11 @@ for (const stem of stems) {
     `${stem} last_synced values must match`);
   assert.deepEqual(markers(translation, translationPath), markers(source, sourcePath),
     `${stem} translations must keep identical section markers and order`);
+  assert.deepEqual(
+    sectionShapes(translation, translationPath),
+    sectionShapes(source, sourcePath),
+    `${stem} translations must keep the same per-section Markdown structure`,
+  );
   assert.ok(source.includes(`(${translationName})`), `${sourcePath} must link to its English translation`);
   assert.ok(translation.includes(`(${sourceName})`), `${translationPath} must link to its Chinese source`);
   for (const [file, content] of [[sourcePath, source], [translationPath, translation]]) {

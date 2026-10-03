@@ -6,4 +6,4 @@ Please report security or data-loss issues privately through [GitHub Security Ad
 
 Do not include private Vault contents. Reduce examples to synthetic notes whenever possible.
 
-The highest-priority issues are unintended Markdown modification, content loss during merge or split commands, unsafe HTML rendering, incorrect table-range replacement, and source-marker interoperability problems.
+The highest-priority issues are unintended Markdown modification, content loss during merge or split commands, unsafe HTML rendering, incorrect table-range replacement, and merge-marker and structural-syntax interoperability problems.

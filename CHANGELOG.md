@@ -2,7 +2,7 @@
 
 ## 0.5.1 - 2026-10-03
 
-- Prevent rejected cell drafts in separate tables or panes from competing for focus while keeping each draft recoverable and preserving hidden GFM source.
+- Prevent rejected cell drafts in separate tables or panes from competing for focus, and keep external UI focus after IME handoff while preserving recoverable drafts and hidden GFM source.
 - Keep ordinary GFM tables native when only hidden extra cells contain merge markers, while preserving hidden content during rejected edits.
 - Make generated Base record filename collision checks independent of the system locale and simplify Base command labels.
 - Rewrite English and Chinese user guidance and expand coverage reporting to all production source modules.

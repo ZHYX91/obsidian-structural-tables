@@ -808,6 +808,108 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it("does not reclaim focus after IME composition hands a rejected draft to external UI", async () => {
+    const source = "| A | B |\n| --- | --- |\n| First | | < |";
+    const noticeStart = notices.length;
+    const { parent, view } = mountEditor(
+      source,
+      { anchor: source.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    const external = document.body.appendChild(document.createElement("button"));
+    external.textContent = "Outside";
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "IME draft";
+      editor.dispatchEvent(new CompositionEvent("compositionstart", {
+        bubbles: true,
+        data: "IME",
+      }));
+      expect(document.activeElement).toBe(editor);
+      expect(activeScopes).toHaveLength(1);
+
+      external.focus();
+      expect(document.activeElement).toBe(external);
+      expect(activeScopes).toHaveLength(0);
+
+      editor.dispatchEvent(new CompositionEvent("compositionend", {
+        bubbles: true,
+        data: "IME draft",
+      }));
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(view.state.doc.toString()).toBe(source);
+      expect(editor.isConnected).toBe(true);
+      expect(editor.value).toBe("IME draft");
+      expect(document.activeElement).toBe(external);
+      expect(activeScopes).toHaveLength(0);
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells")))
+        .toHaveLength(1);
+
+      for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+      expect(document.activeElement).toBe(external);
+    } finally {
+      view.destroy();
+    }
+    await Promise.resolve();
+    expect(document.querySelector<HTMLTextAreaElement>(".structural-tables-recovered-draft")?.value)
+      .toBe("IME draft");
+  });
+
+  it("keeps rejected-draft focus ownership during a temporary cell context-menu blur", async () => {
+    const source = "| A | B |\n| --- | --- |\n| First | | < |";
+    const noticeStart = notices.length;
+    const { parent, view } = mountEditor(
+      source,
+      { anchor: source.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    const external = document.body.appendChild(document.createElement("button"));
+    external.textContent = "Menu surface";
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "Menu draft";
+      editor.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      }));
+      await Promise.resolve();
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells")))
+        .toHaveLength(1);
+
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(lastMenu).not.toBeNull();
+      external.focus();
+      expect(document.activeElement).toBe(external);
+      expect(activeScopes).toHaveLength(0);
+
+      lastMenu?.hide();
+      await vi.waitFor(() => expect(document.activeElement).toBe(editor));
+
+      expect(editor.value).toBe("Menu draft");
+      expect(view.state.doc.toString()).toBe(source);
+      expect(activeScopes).toHaveLength(1);
+      expect(notices.slice(noticeStart).filter((notice) => notice.includes("extra source cells")))
+        .toHaveLength(1);
+    } finally {
+      view.destroy();
+    }
+  });
+
   it("moves focus between rejected drafts in separate table widgets without a refocus loop", async () => {
     const source = [
       "| A | B |",

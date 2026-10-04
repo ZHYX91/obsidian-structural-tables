@@ -22,6 +22,11 @@
   overflow-x: auto;
 }
 
+/* Presentation keeps Markdown authoritative while removing its source lines from layout. */
+.markdown-source-view.mod-cm6 .cm-line.structural-tables-source-hidden {
+  display: none !important;
+}
+
 .structural-tables-live-preview {
   --structural-table-handle-gutter: 1.5rem;
   position: relative;

@@ -429,7 +429,7 @@ const zh: Record<TranslationKey, string> = {
   "settings.layout.contentCenter": "适应内容宽度—居中",
   "settings.layout.pane": "铺满正文宽度",
   "settings.live": "实时预览",
-  "settings.live.desc": "光标位于表格外时渲染有效的结构表格。",
+  "settings.live.desc": "未直接编辑原始 Markdown 源码时渲染有效的结构表格。"
   "settings.takeoverOrdinary": "接管普通 Markdown 表格",
   "settings.takeoverOrdinary.desc": "使用 Structural Tables 渲染和编辑普通 GFM 表格。Markdown 仍保持标准格式；关闭后恢复 Obsidian 原生表格。可能与其他表格插件冲突。",
   "settings.reading": "阅读视图",

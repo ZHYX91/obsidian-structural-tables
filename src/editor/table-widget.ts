@@ -31,7 +31,7 @@ import {
 
 import { retainCellDraft } from "./cell-draft-recovery";
 import { tableCellSourceOffset } from "./table-source-binding";
-import { structuralTableSourceFocus } from "./table-source-focus";
+import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
@@ -366,12 +366,19 @@ class StructuralTableInteraction {
   }
 
   private syncSourceCursor(view: EditorView, coordinate: TableCellCoordinate): void {
+    // Native Callouts own a separate block widget and focus-restoration contract.
+    // Keep their visual interactions local; explicit source handoff still maps
+    // the requested cell through focusTableSource().
+    if (this.host?.closest(".callout") !== null) return;
     const offset = tableCellSourceOffset(view.state.doc.toString(), this.table, coordinate);
     if (offset === null) return;
     const sameSelection = view.state.selection.main.empty && view.state.selection.main.anchor === offset;
     view.dispatch({
       ...(sameSelection ? {} : { selection: { anchor: offset } }),
-      effects: structuralTableSourceFocus.of(false),
+      effects: [
+        structuralTableSourceFocus.of(false),
+        structuralTableLogicalCursorSync.of(undefined),
+      ],
     });
   }
 

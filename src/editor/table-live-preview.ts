@@ -17,6 +17,7 @@ import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
 import { renderTableSignatures } from "../rendering/native-table-mapping";
 import { structuralTableViewMode } from "./table-view-state";
+import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
@@ -35,7 +36,6 @@ interface StructuralTableDecorationState {
 }
 
 const structuralTableComposition = StateEffect.define<boolean>();
-const structuralTableSourceFocus = StateEffect.define<boolean>();
 
 export class StructuralTableEditorController {
   private readonly views = new Set<EditorView>();
@@ -214,7 +214,10 @@ export class StructuralTableEditorController {
           }
         }
         this.calloutTables.schedule();
-        if (!update.transactions.some((transaction) => transaction.selection !== undefined)) return;
+        const externalSelectionChanged = update.transactions.some((transaction) =>
+          transaction.selection !== undefined
+          && !transaction.effects.some((effect) => effect.is(structuralTableLogicalCursorSync)));
+        if (!externalSelectionChanged) return;
         for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
           clearTableWidgetSelection(host);
         }

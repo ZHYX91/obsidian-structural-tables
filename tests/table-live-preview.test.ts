@@ -183,7 +183,8 @@ describe("StructuralTableEditorController", () => {
       const sourceOffset = source.indexOf("10");
       expect(view.state.selection.main.anchor).toBe(sourceOffset);
       expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
-      expect(parent.querySelector(".structural-tables-source-hidden")).not.toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(parent.textContent).not.toContain("| --- | --- | --- |");
 
       cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
       const editSource = lastMenu?.items.find((item) => item.title === "Edit table source");
@@ -193,8 +194,8 @@ describe("StructuralTableEditorController", () => {
       await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
       expect(view.hasFocus).toBe(true);
       expect(view.state.selection.main.anchor).toBe(sourceOffset);
-      expect(parent.querySelector(".structural-tables-source-hidden")).toBeNull();
       expect(view.state.doc.toString()).toBe(source);
+      expect(parent.textContent).toContain("| --- | --- | --- |");
     } finally { view.destroy(); }
   });
 
@@ -211,7 +212,7 @@ describe("StructuralTableEditorController", () => {
     const { parent, view } = mountEditor(source, { anchor: source.indexOf("North") });
     try {
       view.focus();
-      expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
 
       const value = source.indexOf("10");
       view.dispatch({ changes: { from: value, to: value + 2, insert: "20" } });
@@ -222,8 +223,8 @@ describe("StructuralTableEditorController", () => {
 
       view.dispatch({ selection: { anchor: view.state.doc.length } });
       await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
-      expect(parent.querySelector(".structural-tables-source-hidden")).not.toBeNull();
       expect(view.state.doc.toString()).toBe(changed);
+      expect(parent.textContent).not.toContain("| --- | --- | --- |");
     } finally { view.destroy(); }
   });
 
@@ -253,7 +254,7 @@ describe("StructuralTableEditorController", () => {
       view.dispatch({ selection: { anchor: view.state.doc.length } });
       await vi.waitFor(() => expect(parent.querySelector(".structural-tables-invalid")).not.toBeNull());
       expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
-      expect(parent.querySelector(".structural-tables-source-hidden")).toBeNull();
+      expect(parent.textContent).toContain("| --- | --- |");
       expect(view.state.doc.toString()).toBe([
         "Before",
         "",

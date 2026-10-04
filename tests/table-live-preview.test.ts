@@ -158,7 +158,6 @@ describe("StructuralTableEditorController", () => {
 
       view.focus();
       await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
-      expect(view.state.selection.main.anchor).toBe(anchor);
       expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
   });

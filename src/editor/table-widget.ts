@@ -385,7 +385,10 @@ class StructuralTableInteraction {
     this.clearSelection();
     view.dispatch({
       selection: { anchor: offset },
-      effects: EditorView.scrollIntoView(offset, { y: "nearest" }),
+      effects: [
+        structuralTableSourceFocus.of(true),
+        EditorView.scrollIntoView(offset, { y: "nearest" }),
+      ],
     });
     view.focus();
   }

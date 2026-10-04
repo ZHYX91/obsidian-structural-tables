@@ -30,6 +30,7 @@ import {
 } from "./table-selection";
 
 import { retainCellDraft } from "./cell-draft-recovery";
+import { tableCellSourceOffset } from "./table-source-binding";
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
@@ -296,7 +297,7 @@ class StructuralTableInteraction {
     rendered.addEventListener("keydown", (event) => {
       if (event.target !== this.cellForTarget(event.target)) return;
       if (this.handleHistory(event, view)) return;
-      if (this.moveCellFocus(event)) return;
+      if (this.moveCellFocus(event, view)) return;
       if (event.key !== "Enter" && event.key !== "F2") return;
       const coordinate = this.coordinateFor(event.target);
       if (coordinate === null) return;
@@ -363,6 +364,27 @@ class StructuralTableInteraction {
     return Number.isInteger(row) && Number.isInteger(column) ? { row, column } : null;
   }
 
+  private syncSourceCursor(view: EditorView, coordinate: TableCellCoordinate): void {
+    const offset = tableCellSourceOffset(view.state.doc.toString(), this.table, coordinate);
+    if (offset === null || (view.state.selection.main.empty && view.state.selection.main.anchor === offset)) return;
+    view.dispatch({ selection: { anchor: offset } });
+  }
+
+  private focusTableSource(view: EditorView, coordinate: TableCellCoordinate): void {
+    const offset = tableCellSourceOffset(view.state.doc.toString(), this.table, coordinate);
+    if (offset === null) {
+      new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
+      return;
+    }
+    cancelPendingTableFocus(view);
+    this.clearSelection();
+    view.dispatch({
+      selection: { anchor: offset },
+      effects: EditorView.scrollIntoView(offset, { y: "nearest" }),
+    });
+    view.focus();
+  }
+
   private cellForTarget(target: EventTarget | null): HTMLElement | null {
     if (target === null || !("closest" in target) || this.renderedTable === null) return null;
     const cell = (target as Element).closest<HTMLElement>("[data-structural-row][data-structural-column]");
@@ -378,7 +400,7 @@ class StructuralTableInteraction {
     }
   }
 
-  private moveCellFocus(event: KeyboardEvent): boolean {
+  private moveCellFocus(event: KeyboardEvent, view: EditorView): boolean {
     if (event.altKey || event.ctrlKey || event.metaKey || event.target !== this.cellForTarget(event.target)) return false;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return false;
@@ -409,7 +431,10 @@ class StructuralTableInteraction {
       : this.cellElement(target);
     if (element === null) return true;
     const resolved = this.coordinateFor(element);
-    if (resolved !== null) this.selectBounds(resolved, resolved);
+    if (resolved !== null) {
+      this.selectBounds(resolved, resolved);
+      this.syncSourceCursor(view, resolved);
+    }
     this.setRovingCell(element);
     element.focus({ preventScroll: true });
     element.scrollIntoView?.({ block: "nearest", inline: "nearest" });
@@ -423,6 +448,7 @@ class StructuralTableInteraction {
       && (event.target as Element).closest("textarea, input, a") !== null) return;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
+    this.syncSourceCursor(view, coordinate);
     this.axisSelection = null;
     this.touchAxisAnchor = null;
     if (event.pointerType === "touch") {
@@ -599,6 +625,7 @@ class StructuralTableInteraction {
       && (event.target as Element).closest("textarea.structural-tables-cell-editor") !== null) return;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
+    this.syncSourceCursor(view, coordinate);
     event.preventDefault();
     event.stopPropagation();
     this.touchRangeAnchor = null;
@@ -617,6 +644,12 @@ class StructuralTableInteraction {
     const menu = Menu.forEvent(event);
     const t = createTranslator(this.getSettings().language);
     const info = view.state.field(editorInfoField, false);
+    const sourceCoordinate = this.selectionAnchor ?? { row: selection.minRow, column: selection.minColumn };
+    menu.addItem((item) => item
+      .setSection("structural-tables-source")
+      .setTitle(t("menu.editSource"))
+      .setIcon("file-pen-line")
+      .onClick(() => this.focusTableSource(view, sourceCoordinate)));
     menu.addItem((item) => item.setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }
@@ -654,6 +687,7 @@ class StructuralTableInteraction {
     const anchor = cell === undefined ? undefined : this.table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
     const element = anchor === undefined ? null : this.cellElement(anchor);
     if (anchor === undefined || element === null || element.querySelector(".structural-tables-cell-editor") !== null) return;
+    this.syncSourceCursor(view, { row: anchor.row, column: anchor.column });
     const activeEditor = this.renderedTable?.querySelector<HTMLTextAreaElement>(".structural-tables-cell-editor");
     if (activeEditor != null) {
       activeEditor.blur();
@@ -942,6 +976,7 @@ class StructuralTableInteraction {
       return;
     }
     interaction?.selectBounds(coordinate, coordinate);
+    interaction?.syncSourceCursor(view, coordinate);
     cell.focus({ preventScroll: true });
   }
 

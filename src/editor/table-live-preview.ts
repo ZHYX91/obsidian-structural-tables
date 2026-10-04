@@ -1,6 +1,6 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import {
-  Prec, RangeSetBuilder, StateEffect, StateField,
+  Prec, StateEffect, StateField,
   type EditorState, type Extension, type Transaction,
 } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
@@ -110,10 +110,10 @@ export class StructuralTableEditorController {
           });
         }
       }
-      entries.sort((left, right) => left.from - right.from || left.to - right.to);
-      const builder = new RangeSetBuilder<Decoration>();
-      for (const entry of entries) builder.add(entry.from, entry.to, entry.decoration);
-      return builder.finish();
+      return Decoration.set(
+        entries.map((entry) => entry.decoration.range(entry.from, entry.to)),
+        true,
+      );
     };
     const shouldRebuild = (transaction: Transaction): boolean => {
       const refreshed = transaction.effects.some((effect) => effect.is(refreshStructuralTables));

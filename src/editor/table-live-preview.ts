@@ -80,21 +80,14 @@ export class StructuralTableEditorController {
               side: -1,
             }),
           });
-          const firstLine = state.doc.lineAt(table.range.from).number;
-          const lastLine = state.doc.lineAt(Math.max(table.range.from, table.range.to - 1)).number;
-          for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
-            const line = state.doc.line(lineNumber);
-            entries.push({
-              from: line.from,
-              to: line.from,
-              decoration: Decoration.line({
-                attributes: {
-                  class: "structural-tables-source-hidden",
-                  "aria-hidden": "true",
-                },
-              }),
-            });
-          }
+          // Suppress the host/source rendering independently from the semantic
+          // presentation widget. Markdown remains authoritative in EditorState,
+          // while an exact-range replacement also wins over native table widgets.
+          entries.push({
+            from: table.range.from,
+            to: table.range.to,
+            decoration: Decoration.replace({ block: true }),
+          });
         } else if (settings.showDiagnostics) {
           const line = state.doc.lineAt(table.range.from);
           entries.push({
@@ -168,8 +161,9 @@ export class StructuralTableEditorController {
         if (current !== focused) this.view.dispatch({ effects: structuralTableSourceFocus.of(focused) });
       };
       private readonly sourceFocusIn = (): void => {
-        const current = this.view.state.field(decorationField).sourceFocused;
-        if (!current) this.view.dispatch({ effects: structuralTableSourceFocus.of(true) });
+        // Focus can be delivered while CodeMirror is applying another update.
+        // Defer both edges so source ownership never dispatches reentrantly.
+        queueMicrotask(this.updateSourceFocus);
       };
       private readonly sourceFocusOut = (): void => {
         queueMicrotask(this.updateSourceFocus);

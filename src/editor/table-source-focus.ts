@@ -5,3 +5,6 @@ import { StateEffect } from "@codemirror/state";
  * Widget interactions explicitly clear this before synchronizing a logical cursor.
  */
 export const structuralTableSourceFocus = StateEffect.define<boolean>();
+
+/** Marks visual-cell cursor synchronization so it does not clear widget-owned selection. */
+export const structuralTableLogicalCursorSync = StateEffect.define<void>();

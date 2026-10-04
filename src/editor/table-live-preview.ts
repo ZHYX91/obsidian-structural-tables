@@ -159,16 +159,17 @@ export class StructuralTableEditorController {
         const current = this.view.state.field(decorationField).sourceFocused;
         if (current !== focused) this.view.dispatch({ effects: structuralTableSourceFocus.of(focused) });
       };
-      private readonly sourceFocusIn = (): void => {
+      private readonly sourceFocusIn = (event: FocusEvent): void => {
+        const target = event.target;
+        const widgetOwned = target instanceof this.view.dom.ownerDocument.defaultView!.Element
+          && target.closest(".structural-tables-live-preview") !== null;
         // Focus can be delivered while CodeMirror is applying another update.
-        // The focus event itself is authoritative even when the current selection
-        // lies inside a visually suppressed replacement range.
-        queueMicrotask(() => this.setSourceFocus(true));
+        queueMicrotask(() => this.setSourceFocus(!widgetOwned));
       };
-      private readonly sourceFocusOut = (): void => {
-        queueMicrotask(() => {
-          if (!this.view.hasFocus) this.setSourceFocus(false);
-        });
+      private readonly sourceFocusOut = (event: FocusEvent): void => {
+        const next = event.relatedTarget;
+        if (next instanceof this.view.dom.ownerDocument.defaultView!.Node && this.view.dom.contains(next)) return;
+        queueMicrotask(() => this.setSourceFocus(false));
       };
       private readonly clearOtherSelections = (event: Event): void => {
         cancelPendingTableFocus(this.view);
@@ -194,8 +195,8 @@ export class StructuralTableEditorController {
           };
         });
         views.add(view);
-        view.contentDOM.addEventListener("focus", this.sourceFocusIn);
-        view.contentDOM.addEventListener("blur", this.sourceFocusOut);
+        view.dom.addEventListener("focusin", this.sourceFocusIn);
+        view.dom.addEventListener("focusout", this.sourceFocusOut);
         view.dom.addEventListener("pointerdown", this.clearOtherSelections, true);
         view.dom.addEventListener("focusin", this.clearOtherSelections, true);
       }
@@ -222,8 +223,8 @@ export class StructuralTableEditorController {
       destroy(): void {
         cancelPendingTableFocus(this.view);
         this.calloutTables.destroy();
-        this.view.contentDOM.removeEventListener("focus", this.sourceFocusIn);
-        this.view.contentDOM.removeEventListener("blur", this.sourceFocusOut);
+        this.view.dom.removeEventListener("focusin", this.sourceFocusIn);
+        this.view.dom.removeEventListener("focusout", this.sourceFocusOut);
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
         this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);
         views.delete(this.view);

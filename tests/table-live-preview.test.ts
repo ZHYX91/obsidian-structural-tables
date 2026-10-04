@@ -163,6 +163,41 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it("syncs visual cells to source and hands ownership to raw Markdown only on request", async () => {
+    const source = [
+      "Before",
+      "",
+      "| Region | Sales | < |",
+      "| --- | --- | --- |",
+      "| North | 10 | 12 |",
+      "",
+      "End",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      expect(cell).not.toBeNull();
+      dispatchPointerDown(cell, "mouse");
+      const sourceOffset = source.indexOf("10");
+      expect(view.state.selection.main.anchor).toBe(sourceOffset);
+      expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+      expect(parent.querySelector(".structural-tables-source-hidden")).not.toBeNull();
+
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const editSource = lastMenu?.items.find((item) => item.title === "Edit table source");
+      expect(editSource).toBeDefined();
+      editSource?.callback?.();
+
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
+      expect(view.hasFocus).toBe(true);
+      expect(view.state.selection.main.anchor).toBe(sourceOffset);
+      expect(parent.querySelector(".structural-tables-source-hidden")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it.each([
     { axis: "column", pointerType: "mouse" },
     { axis: "column", pointerType: "touch" },

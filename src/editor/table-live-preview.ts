@@ -156,7 +156,7 @@ export class StructuralTableEditorController {
     const viewTracker = ViewPlugin.fromClass(class {
       private readonly calloutTables: CalloutTables;
       private readonly updateSourceFocus = (): void => {
-        const focused = this.view.dom.ownerDocument.activeElement === this.view.contentDOM;
+        const focused = this.view.hasFocus;
         const current = this.view.state.field(decorationField).sourceFocused;
         if (current !== focused) this.view.dispatch({ effects: structuralTableSourceFocus.of(focused) });
       };

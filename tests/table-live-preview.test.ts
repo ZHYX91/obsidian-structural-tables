@@ -139,7 +139,7 @@ describe("StructuralTableEditorController", () => {
     try {
       view.focus();
       expect(view.state.selection.main.anchor).toBe(anchor);
-      expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
 
       const external = document.body.appendChild(document.createElement("button"));
       external.focus();

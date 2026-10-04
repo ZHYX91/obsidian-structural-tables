@@ -31,6 +31,7 @@ import {
 
 import { retainCellDraft } from "./cell-draft-recovery";
 import { tableCellSourceOffset } from "./table-source-binding";
+import { structuralTableSourceFocus } from "./table-source-focus";
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
@@ -366,8 +367,12 @@ class StructuralTableInteraction {
 
   private syncSourceCursor(view: EditorView, coordinate: TableCellCoordinate): void {
     const offset = tableCellSourceOffset(view.state.doc.toString(), this.table, coordinate);
-    if (offset === null || (view.state.selection.main.empty && view.state.selection.main.anchor === offset)) return;
-    view.dispatch({ selection: { anchor: offset } });
+    if (offset === null) return;
+    const sameSelection = view.state.selection.main.empty && view.state.selection.main.anchor === offset;
+    view.dispatch({
+      ...(sameSelection ? {} : { selection: { anchor: offset } }),
+      effects: structuralTableSourceFocus.of(false),
+    });
   }
 
   private focusTableSource(view: EditorView, coordinate: TableCellCoordinate): void {

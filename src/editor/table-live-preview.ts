@@ -155,18 +155,20 @@ export class StructuralTableEditorController {
     });
     const viewTracker = ViewPlugin.fromClass(class {
       private readonly calloutTables: CalloutTables;
-      private readonly updateSourceFocus = (): void => {
-        const focused = this.view.hasFocus;
+      private readonly setSourceFocus = (focused: boolean): void => {
         const current = this.view.state.field(decorationField).sourceFocused;
         if (current !== focused) this.view.dispatch({ effects: structuralTableSourceFocus.of(focused) });
       };
       private readonly sourceFocusIn = (): void => {
         // Focus can be delivered while CodeMirror is applying another update.
-        // Defer both edges so source ownership never dispatches reentrantly.
-        queueMicrotask(this.updateSourceFocus);
+        // The focus event itself is authoritative even when the current selection
+        // lies inside a visually suppressed replacement range.
+        queueMicrotask(() => this.setSourceFocus(true));
       };
       private readonly sourceFocusOut = (): void => {
-        queueMicrotask(this.updateSourceFocus);
+        queueMicrotask(() => {
+          if (!this.view.hasFocus) this.setSourceFocus(false);
+        });
       };
       private readonly clearOtherSelections = (event: Event): void => {
         cancelPendingTableFocus(this.view);

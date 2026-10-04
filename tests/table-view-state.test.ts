@@ -31,6 +31,12 @@ describe("structuralTableViewMode", () => {
     ], [])).toBe("source");
   });
 
+  it("keeps presentation visible when the source editor no longer owns focus", () => {
+    expect(structuralTableViewMode(structural, DEFAULT_SETTINGS, [
+      { from: structural.range.from + 1, to: structural.range.from + 1, empty: true },
+    ], [], false)).toBe("presentation");
+  });
+
   it("leaves ordinary tables alone unless takeover is enabled", () => {
     expect(structuralTableViewMode(ordinary, DEFAULT_SETTINGS, [], [])).toBe("ignored");
     expect(structuralTableViewMode(

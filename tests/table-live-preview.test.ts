@@ -148,18 +148,18 @@ describe("StructuralTableEditorController", () => {
       const rendered = parent.querySelector<HTMLTableElement>(".structural-tables-table")!;
       expect(rendered.querySelector("[rowspan='2']")).not.toBeNull();
       expect(rendered.querySelector("[colspan='2']")).not.toBeNull();
-      expect(parent.querySelectorAll(".cm-line.structural-tables-source-hidden")).toHaveLength(4);
       expect(view.state.selection.main.anchor).toBe(anchor);
+      expect(view.state.doc.toString()).toBe(source);
 
       const clone = view.contentDOM.cloneNode(true) as HTMLElement;
       expect(clone.querySelector(".structural-tables-table [rowspan='2']")).not.toBeNull();
       expect(clone.querySelector(".structural-tables-table [colspan='2']")).not.toBeNull();
-      expect(clone.querySelectorAll(".structural-tables-source-hidden")).toHaveLength(4);
+      expect(clone.textContent).not.toContain("| ^ |");
 
       view.focus();
       await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
-      expect(parent.querySelector(".structural-tables-source-hidden")).toBeNull();
       expect(view.state.selection.main.anchor).toBe(anchor);
+      expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
   });
 

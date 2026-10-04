@@ -208,7 +208,7 @@ const en = {
   "settings.layout.contentCenter": "Fit content — Center",
   "settings.layout.pane": "Fill text width",
   "settings.live": "Live Preview",
-  "settings.live.desc": "Render valid structural tables while the cursor is outside them.",
+  "settings.live.desc": "Render valid structural tables while their raw Markdown source is not being edited.",
   "settings.takeoverOrdinary": "Take over ordinary Markdown tables",
   "settings.takeoverOrdinary.desc": "Render and edit ordinary GFM tables with Structural Tables. Markdown stays standard, and turning this off restores Obsidian's native tables. May conflict with other table plugins.",
   "settings.reading": "Reading view",

@@ -17,6 +17,7 @@ import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
 import { renderTableSignatures } from "../rendering/native-table-mapping";
 import { structuralTableViewMode } from "./table-view-state";
+import { structuralTableSourceFocus } from "./table-source-focus";
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
@@ -35,7 +36,6 @@ interface StructuralTableDecorationState {
 }
 
 const structuralTableComposition = StateEffect.define<boolean>();
-const structuralTableSourceFocus = StateEffect.define<boolean>();
 
 export class StructuralTableEditorController {
   private readonly views = new Set<EditorView>();

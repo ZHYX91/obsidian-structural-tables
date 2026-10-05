@@ -181,9 +181,9 @@ export class StructuralTableEditorController {
       private readonly sourceFocusCapture = (event: FocusEvent): void => {
         const target = event.target;
         if (!(target instanceof this.view.dom.ownerDocument.defaultView!.Node)
-          || !this.view.contentDOM.contains(target)
-          || (target instanceof this.view.dom.ownerDocument.defaultView!.Element
-            && target.closest(".structural-tables-live-preview") !== null)) return;
+          || !this.view.contentDOM.contains(target)) return;
+        const element = target.nodeType === Node.ELEMENT_NODE ? target as Element : target.parentElement;
+        if (element?.closest(".structural-tables-live-preview") !== null) return;
         // CodeMirror can relocate a caret whose range is currently replaced by
         // presentation decorations while focus is being restored. Reveal the
         // authoritative source synchronously in the capture phase, before the

@@ -155,22 +155,27 @@ export class StructuralTableEditorController {
     });
     const viewTracker = ViewPlugin.fromClass(class {
       private readonly calloutTables: CalloutTables;
+      private sourceFocusTimer: number | null = null;
       private readonly setSourceFocus = (focused: boolean): void => {
         const current = this.view.state.field(decorationField).sourceFocused;
         if (current !== focused) this.view.dispatch({ effects: structuralTableSourceFocus.of(focused) });
       };
-      private readonly sourceFocusIn = (event: FocusEvent): void => {
-        const target = event.target;
-        const widgetOwned = target instanceof this.view.dom.ownerDocument.defaultView!.Element
-          && target.closest(".structural-tables-live-preview") !== null;
-        // Focus can be delivered while CodeMirror is applying another update.
-        queueMicrotask(() => this.setSourceFocus(!widgetOwned));
+      private readonly scheduleSourceFocus = (): void => {
+        const win = this.view.dom.ownerDocument.defaultView;
+        if (win === null) return;
+        if (this.sourceFocusTimer !== null) win.clearTimeout(this.sourceFocusTimer);
+        this.sourceFocusTimer = win.setTimeout(() => {
+          this.sourceFocusTimer = null;
+          if (!this.view.dom.isConnected) return;
+          const active = this.view.dom.ownerDocument.activeElement;
+          const sourceOwned = active !== null
+            && this.view.contentDOM.contains(active)
+            && active.closest(".structural-tables-live-preview") === null;
+          this.setSourceFocus(sourceOwned);
+        }, 0);
       };
-      private readonly sourceFocusOut = (event: FocusEvent): void => {
-        const next = event.relatedTarget;
-        if (next instanceof this.view.dom.ownerDocument.defaultView!.Node && this.view.dom.contains(next)) return;
-        queueMicrotask(() => this.setSourceFocus(false));
-      };
+      private readonly sourceFocusIn = (): void => this.scheduleSourceFocus();
+      private readonly sourceFocusOut = (): void => this.scheduleSourceFocus();
       private readonly clearOtherSelections = (event: Event): void => {
         cancelPendingTableFocus(this.view);
         const target = event.target;
@@ -226,6 +231,9 @@ export class StructuralTableEditorController {
       destroy(): void {
         cancelPendingTableFocus(this.view);
         this.calloutTables.destroy();
+        const win = this.view.dom.ownerDocument.defaultView;
+        if (this.sourceFocusTimer !== null && win !== null) win.clearTimeout(this.sourceFocusTimer);
+        this.sourceFocusTimer = null;
         this.view.dom.removeEventListener("focusin", this.sourceFocusIn);
         this.view.dom.removeEventListener("focusout", this.sourceFocusOut);
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);

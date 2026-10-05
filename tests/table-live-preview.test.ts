@@ -181,6 +181,100 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it("preserves a visual cell's logical source cursor when native focus returns from an external control", async () => {
+    const source = [
+      "Before",
+      "",
+      "| Region | Sales | < |",
+      "| --- | --- | --- |",
+      "| North | 10 | 12 |",
+      "",
+      "End",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      dispatchPointerDown(cell, "mouse");
+      const sourceOffset = source.indexOf("10");
+      expect(view.state.selection.main.anchor).toBe(sourceOffset);
+      expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+
+      const external = document.body.appendChild(document.createElement("button"));
+      external.focus();
+      view.focus();
+
+      await vi.waitFor(() => {
+        expect(view.hasFocus).toBe(true);
+        expect(view.state.selection.main.anchor).toBe(sourceOffset);
+        expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+      });
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("syncs the logical source cursor when keyboard focus enters a visual cell", () => {
+    const source = [
+      "Before",
+      "",
+      "| Region | Sales | < |",
+      "| --- | --- | --- |",
+      "| North | 10 | 12 |",
+      "",
+      "End",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.focus();
+      expect(document.activeElement).toBe(cell);
+      expect(view.state.selection.main.anchor).toBe(source.indexOf("10"));
+      expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("hands a padded ragged GFM cell to a source position inside the table", async () => {
+    const source = [
+      "Before",
+      "",
+      "| A | B | C |",
+      "| --- | --- | --- |",
+      "| 1 | 2 |",
+      "",
+      "End",
+    ].join("\n");
+    const { parent, view } = mountEditor(
+      source,
+      { anchor: source.length },
+      [],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='2']",
+      )!;
+      expect(cell).not.toBeNull();
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const editSource = lastMenu?.items.find((item) => item.title === "Edit table source");
+      expect(editSource).toBeDefined();
+      editSource?.callback?.();
+
+      const table = parseEditableTables(source).tables[0]!;
+      await vi.waitFor(() => {
+        expect(view.hasFocus).toBe(true);
+        expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+        expect(view.state.selection.main.anchor).toBeGreaterThanOrEqual(table.range.from);
+        expect(view.state.selection.main.anchor).toBeLessThan(table.range.to);
+      });
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it("accepts a valid external source edit and rebuilds semantic presentation", async () => {
     const source = [
       "Before",

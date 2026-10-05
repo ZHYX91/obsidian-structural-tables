@@ -137,10 +137,18 @@ function valuesFromOwnedGrid(grid: OwnedGrid): string[][] | null {
   }
   const values = grid.owners.map((row) => row.map(() => ""));
   for (const [owner, position] of positions) {
-    const minRow = Math.min(...position.rows);
-    const maxRow = Math.max(...position.rows);
-    const minColumn = Math.min(...position.columns);
-    const maxColumn = Math.max(...position.columns);
+    let minRow = Number.POSITIVE_INFINITY;
+    let maxRow = Number.NEGATIVE_INFINITY;
+    let minColumn = Number.POSITIVE_INFINITY;
+    let maxColumn = Number.NEGATIVE_INFINITY;
+    for (const row of position.rows) {
+      if (row < minRow) minRow = row;
+      if (row > maxRow) maxRow = row;
+    }
+    for (const column of position.columns) {
+      if (column < minColumn) minColumn = column;
+      if (column > maxColumn) maxColumn = column;
+    }
     const expected = (maxRow - minRow + 1) * (maxColumn - minColumn + 1);
     if (position.rows.length !== expected) return null;
     for (let row = minRow; row <= maxRow; row += 1) {

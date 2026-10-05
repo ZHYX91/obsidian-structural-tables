@@ -159,6 +159,31 @@ function promotionManifest(value: unknown): PromotionManifest | null {
   return source as PromotionManifest;
 }
 
+async function readPromotionManifest(app: App, expected: PromotionBlockMetadata): Promise<PromotionManifest> {
+  const manifestFile = app.vault.getFileByPath(expected.manifestPath);
+  if (manifestFile === null) throw new Error("The promotion manifest could not be found.");
+  const manifest = promotionManifest(JSON.parse(await app.vault.read(manifestFile)) as unknown);
+  if (manifest === null || manifest.tableId !== expected.tableId) {
+    throw new Error("The promotion manifest does not match this Base.");
+  }
+  if (expected.recoveredSourcePath !== undefined) {
+    const original = promotionBlockAt(manifest.replacementSource, 1);
+    if (manifest.sourceFilePath !== expected.recoveredSourcePath
+      || original?.tableId !== expected.tableId || original.manifestPath !== expected.manifestPath) {
+      throw new Error("The recovery manifest does not prove ownership of this Base.");
+    }
+  }
+  return manifest;
+}
+
+export async function assertRecoveredPromotionOwnership(
+  app: App,
+  expected: PromotionBlockMetadata,
+): Promise<void> {
+  if (expected.recoveredSourcePath === undefined) return;
+  await readPromotionManifest(app, expected);
+}
+
 export class BasePromotionService {
   constructor(
     private readonly app: App,
@@ -304,19 +329,6 @@ export class BasePromotionService {
   }
 
   private async readManifest(expected: PromotionBlockMetadata): Promise<PromotionManifest> {
-    const manifestFile = this.app.vault.getFileByPath(expected.manifestPath);
-    if (manifestFile === null) throw new Error("The promotion manifest could not be found.");
-    const manifest = promotionManifest(JSON.parse(await this.app.vault.read(manifestFile)) as unknown);
-    if (manifest === null || manifest.tableId !== expected.tableId) {
-      throw new Error("The promotion manifest does not match this Base.");
-    }
-    if (expected.recoveredSourcePath !== undefined) {
-      const original = promotionBlockAt(manifest.replacementSource, 1);
-      if (manifest.sourceFilePath !== expected.recoveredSourcePath
-        || original?.tableId !== expected.tableId || original.manifestPath !== expected.manifestPath) {
-        throw new Error("The recovery manifest does not prove ownership of this Base.");
-      }
-    }
-    return manifest;
+    return readPromotionManifest(this.app, expected);
   }
 }

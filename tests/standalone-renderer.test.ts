@@ -71,6 +71,15 @@ describe("standalone Markdown rendering", () => {
     expect(h.container.textContent).not.toContain("one");
   });
 
+  it("keeps merged geometry when a structural table contains inline code", async () => {
+    const source = merged.replace("North", "`North`");
+    const h = harness(source);
+    await h.run();
+    expect(h.container.querySelector("[rowspan='2'] code")?.textContent).toBe("North");
+    expect(h.container.querySelector("[colspan='2']")).not.toBeNull();
+    expect(h.container.textContent).not.toContain("^");
+  });
+
   it("waits for delayed cell renderers before resolving", async () => {
     const h = harness();
     h.render.mockImplementation(async (_app, text, target) => {
@@ -98,11 +107,51 @@ describe("standalone Markdown rendering", () => {
     expect(h.container.innerHTML).toBe(original);
   });
 
+  it("does not acquire a hand-written HTML table that matches a structural Markdown table", async () => {
+    const structural = "| A | < |\n| --- | --- |\n| foo bar | x |";
+    const html = [
+      "<table>",
+      "<thead><tr><th>A</th><th>&lt;</th></tr></thead>",
+      "<tbody><tr><td>foo bar</td><td>x</td></tr></tbody>",
+      "</table>",
+    ].join("");
+    const h = harness(structural + "\n\n" + html, html);
+    const original = h.container.innerHTML;
+    await h.run();
+    expect(h.container.innerHTML).toBe(original);
+    expect(h.container.querySelector(".structural-tables-table")).toBeNull();
+  });
+
   it("refuses ambiguous escaped and structural tables with identical native DOM", async () => {
     const h = harness(merged + "\n\n" + merged.replace(/</gu, "\\<").replace(/\^/gu, "\\^"), merged);
     const original = h.container.innerHTML;
     await h.run();
     expect(h.container.innerHTML).toBe(original);
+  });
+
+  it("does not let an older session commit after its final source read resumes", async () => {
+    const literal = merged.replace(/</gu, "\\<").replace(/\^/gu, "\\^");
+    const h = harness();
+    let release!: (value: string) => void;
+    const pending = new Promise<string>((resolve) => { release = resolve; });
+    h.cachedRead.mockReset();
+    h.cachedRead
+      .mockResolvedValueOnce(merged)
+      .mockImplementationOnce(async () => pending)
+      .mockResolvedValue(literal);
+
+    const older = h.run();
+    await vi.waitFor(() => expect(h.cachedRead).toHaveBeenCalledTimes(2));
+
+    h.container.innerHTML = markdown.render(literal);
+    await h.run();
+    expect(h.container.querySelector(".structural-tables-table")).toBeNull();
+
+    release(merged);
+    await older;
+    expect(h.container.querySelector(".structural-tables-table")).toBeNull();
+    expect(h.container.textContent).toContain("<");
+    expect(h.container.textContent).toContain("^");
   });
 
   it.each(["source", "disabled", "unload", "DOM"])("abandons stale work after %s changes", async (kind) => {

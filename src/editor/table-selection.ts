@@ -28,10 +28,16 @@ export function structuralTableSelectionFromCoordinates(
   }
   const cells = [...selected.values()];
   if (cells.length === 0) return null;
-  const minRow = Math.min(...cells.map((cell) => cell.row));
-  const maxRow = Math.max(...cells.map((cell) => cell.row));
-  const minColumn = Math.min(...cells.map((cell) => cell.column));
-  const maxColumn = Math.max(...cells.map((cell) => cell.column));
+  let minRow = Number.POSITIVE_INFINITY;
+  let maxRow = Number.NEGATIVE_INFINITY;
+  let minColumn = Number.POSITIVE_INFINITY;
+  let maxColumn = Number.NEGATIVE_INFINITY;
+  for (const cell of cells) {
+    if (cell.row < minRow) minRow = cell.row;
+    if (cell.row > maxRow) maxRow = cell.row;
+    if (cell.column < minColumn) minColumn = cell.column;
+    if (cell.column > maxColumn) maxColumn = cell.column;
+  }
   const rectangular = cells.length === (maxRow - minRow + 1) * (maxColumn - minColumn + 1);
   return { table, cells, minRow, maxRow, minColumn, maxColumn, rectangular };
 }

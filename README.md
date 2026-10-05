@@ -48,6 +48,8 @@ Inside a Structural Table, exact `<`, `^`, and delimiter `||` tokens have specia
 
 Image exporters that use Obsidian's Markdown renderer can render merged tables with **Reading view rendering** enabled. Save the note before exporting and check the preview. If an exported fragment cannot be matched uniquely to the saved source, the plugin leaves it unchanged rather than guessing a merge.
 
+On Obsidian 1.13.7, some desktop combinations with FakeLink can leave a newly opened separate window blank in Reading view. Switch to Obsidian's main window once, then return to the separate window; this can let the note finish rendering. If it remains blank, use the main window or Live Preview.
+
 To use source-based commands from plugins such as Advanced Tables, right-click a cell and choose **Edit table source**. Opening a toolbar or dialog keeps your source selection in place. Advanced Tables controls its own Tab/Enter behavior; use Obsidian's Source mode when those bindings require it. After third-party sorting or row/column moves, check the cell values and merge relationships: valid syntax alone does not guarantee that their meaning was preserved. Invalid structural syntax remains visible with diagnostics; Structural Tables does not silently repair or undo another plugin's changes.
 
 <!-- section: installation -->

@@ -209,7 +209,7 @@ export class ReadingBlockMapper {
     const owner = scope[0]!;
     const snapshots = scope.map((section) => ({ html: snapshotHtml(section.element), parent: section.element.parentElement }));
     const comparison = new Component();
-    const staging = owner.element.ownerDocument.adoptNode(createEl("div"));
+    const staging = owner.element.ownerDocument.createElement("div");
     staging.className = "structural-tables-container";
     comparison.load();
     let templates: HTMLElement[];

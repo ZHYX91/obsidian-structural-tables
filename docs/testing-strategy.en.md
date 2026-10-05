@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-02
+last_synced: 2026-10-06
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -24,6 +24,8 @@ Verification has five layers, and success at one layer does not replace the next
 5. **Real Obsidian acceptance** for host UI, IME, themes, minimum-version behavior, and mobile interaction.
 
 Reading-view regressions use the full note text and reported source-line ranges so one table can never consume another table in the same note.
+
+Separate-window DOM regressions use independent jsdom realms and host helpers that close over their creation document. Check both `ownerDocument` and the constructors of plugin-owned wrappers, tables and cell containers; adoption alone must not satisfy the test. Native Markdown descendants may retain the host's constructors, but surrounding text, cell content and merge structure must remain intact. Cover native sections, Callouts, deferred block mapping, standalone exports and native comparisons.
 
 DOM emulation is useful for structure and most CSS contracts, but it does not replace real Obsidian geometry, scrolling, theme variables, or touch behavior.
 
@@ -119,6 +121,7 @@ Check:
 - standalone full-note and selected-table export with HTML lookalikes, inline code, delayed content, superseded sessions and DOM-removing render-child cleanup;
 - Advanced Tables operations after source handoff, with exact caret/range preservation and diagnostics for invalid resulting topology;
 - native menu coexistence, row/column range preservation, cell reattachment and popout-window closure.
+- cold-start Reading view in a separate desktop window, including combinations with FakeLink. Record the initial result before switching focus, then check whether activating the main window and returning restores content; recovery does not turn an initial blank page into an unqualified pass.
 
 Screenshots and DOM tests are supporting evidence, not substitutes for real-host acceptance.
 

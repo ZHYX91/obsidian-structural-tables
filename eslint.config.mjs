@@ -53,8 +53,9 @@ export default defineConfig([
     },
   },
   {
-    // Clipboard HTML leaves Obsidian and uses a detached standard DOM document.
-    files: ["src/rendering/table-clipboard.ts"],
+    // Clipboard and cross-window rendering must create nodes in the target document.
+    files: ["src/rendering/table-clipboard.ts", "src/rendering/native-table-mapping.ts",
+      "src/reading/standalone-renderer.ts"],
     rules: {
       "obsidianmd/prefer-create-el": "off",
     },

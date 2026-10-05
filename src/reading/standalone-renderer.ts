@@ -40,7 +40,7 @@ async function nativeSnapshot(
   document: Document,
 ): Promise<HTMLElement> {
   const owner = new Component();
-  const staging = document.adoptNode(createDiv());
+  const staging = document.createElement("div");
   // Suppress Structural Tables' own postprocessor while still allowing the
   // matcher below to inspect this root as a native-render inventory.
   staging.className = "structural-tables-container";
@@ -121,7 +121,7 @@ export class StandaloneTableRenderer {
       const targets = plan.targets[0]!;
       if (plans.some((other) => other !== plan && other.targets.some((group) => group.some((element) => targets.includes(element))))) continue;
       if (!targets.every((element, index) => container.contains(element) && signature(element) === plan.keys[index])) continue;
-      const staging = container.ownerDocument.adoptNode(createDiv());
+      const staging = container.ownerDocument.createElement("div");
       const rendered = renderStructuralTable(this.app, plan.table, staging, context.sourcePath, session);
       completions.push(tableRenderingComplete(rendered));
       const wrapper = rendered.parentElement!;

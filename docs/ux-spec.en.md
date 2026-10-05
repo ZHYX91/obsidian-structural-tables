@@ -20,7 +20,7 @@ Source remains visible and recoverable; rendering interprets but never rewrites;
 <!-- section: live-preview -->
 ## Live Preview
 
-A valid structural table is presented by a semantic block widget while its Markdown remains authoritative in the CodeMirror document. When the native CodeMirror source surface owns focus and its selection intersects the table, raw Markdown is shown for direct editing; when that source surface loses focus, semantic presentation returns even if the logical selection remains inside the table. Visual cell interactions synchronize the logical source position without leaving presentation mode. **Edit table source** explicitly hands focus and the mapped cell position back to CodeMirror.
+A valid structural table is presented by a semantic block widget while its Markdown remains authoritative in the CodeMirror document. When the native CodeMirror source surface owns focus and its selection intersects the table, raw Markdown is shown for direct editing; opening an external control preserves that source-editing session and its exact selection. Visual cell interactions synchronize the logical source position without leaving presentation mode. **Edit table source** explicitly hands focus and the mapped cell position back to CodeMirror.
 
 ### Cell editing
 

@@ -7,13 +7,19 @@ interface PendingCellRender {
 }
 
 const pendingByComponent = new WeakMap<Component, Set<PendingCellRender>>();
+const completionByTable = new WeakMap<HTMLTableElement, Promise<void>>();
+
+/** Standalone consumers may clone the DOM as soon as their render promise settles. */
+export function tableRenderingComplete(table: HTMLTableElement): Promise<void> {
+  return completionByTable.get(table) ?? Promise.resolve();
+}
 
 function scheduleCellRendering(
   app: App,
   cells: readonly { source: string; target: HTMLElement }[],
   sourcePath: string,
   component: Component,
-): void {
+): Promise<void> {
   let pending = pendingByComponent.get(component);
   if (pending === undefined) {
     pending = new Set();
@@ -27,8 +33,8 @@ function scheduleCellRendering(
   }
   const task: PendingCellRender = { cancelled: false };
   pending.add(task);
-  queueMicrotask(() => {
-    if (task.cancelled) return;
+  return new Promise((resolve) => queueMicrotask(() => {
+    if (task.cancelled) { resolve(); return; }
     const renders = cells.map(async ({ source, target }) => {
       if (task.cancelled) return;
       try {
@@ -37,8 +43,8 @@ function scheduleCellRendering(
         if (!task.cancelled) target.textContent = source;
       }
     });
-    void Promise.allSettled(renders).finally(() => pending?.delete(task));
-  });
+    void Promise.allSettled(renders).finally(() => { pending?.delete(task); resolve(); });
+  }));
 }
 
 export function renderStructuralTable(
@@ -83,6 +89,6 @@ export function renderStructuralTable(
   // Never re-enter Obsidian's Markdown post-processor pipeline while CodeMirror
   // is still constructing the widget DOM. The owning component cancels stale
   // work if the view is destroyed before this microtask runs.
-  scheduleCellRendering(app, pendingCells, sourcePath, component);
+  completionByTable.set(rendered, scheduleCellRendering(app, pendingCells, sourcePath, component));
   return rendered;
 }

@@ -106,6 +106,17 @@ describe("native table menu bridge", () => {
     expect(lastMenu?.items.filter(({ title }) => title === "Upgrade to Base…")).toHaveLength(1);
   });
 
+  it("releases a native cell listener when the host removes that cell", async () => {
+    const { cell } = fixture(false);
+    const remove = vi.spyOn(cell, "removeEventListener");
+
+    cell.remove();
+
+    await vi.waitFor(() => {
+      expect(remove.mock.calls.some(([type]) => type === "contextmenu")).toBe(true);
+    });
+  });
+
   it("does not contribute outside a native table widget", () => {
     const { cell, outside } = fixture(false);
     openContextMenu(cell);

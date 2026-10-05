@@ -56,6 +56,28 @@ describe("settings persistence status UI", () => {
     cleanup();
   });
 
+  it("refreshes the open settings surface after a successful retry", async () => {
+    const host = createHost({
+      state: "pending",
+      error: new Error("disk unavailable"),
+    }, "en");
+    const tab = new StructuralTablesSettingTab(new App(), host as never);
+    const display = vi.spyOn(tab, "display").mockImplementation(() => undefined);
+    const container = document.body.appendChild(document.createElement("div"));
+    installDomHelpers(container);
+    const cleanup = (tab as unknown as {
+      renderSaveStatus: (target: HTMLElement) => () => void;
+    }).renderSaveStatus(container);
+    const retry = container.querySelector<HTMLButtonElement>("button")!;
+
+    retry.click();
+    await vi.waitFor(() => expect(display).toHaveBeenCalledOnce());
+
+    expect(host.retrySettingsSave).toHaveBeenCalledOnce();
+    cleanup();
+    container.remove();
+  });
+
   it("keeps a failed save visible and exposes retry", () => {
     const host = createHost({
       state: "pending",

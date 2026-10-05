@@ -1,5 +1,7 @@
 import { TFile, type App } from "obsidian";
 
+import { assertRecoveredPromotionOwnership } from "./base-promotion-service";
+
 import {
   LEGACY_RECORD_ID_PROPERTY,
   LEGACY_TABLE_MEMBERSHIP_PROPERTY,
@@ -71,8 +73,12 @@ function sameValue(left: unknown, right: unknown): boolean {
   }
 }
 
-function restoreMigratedBaseBlocks(source: string, changes: readonly MigratedBaseBlock[]): string {
-  const available = promotionBlocks(source);
+function restoreMigratedBaseBlocks(
+  source: string,
+  changes: readonly MigratedBaseBlock[],
+  sourceFilePath?: string,
+): string {
+  const available = promotionBlocks(source, sourceFilePath);
   const replacements = changes.map((change) => {
     const index = available.findIndex((block) => block.tableId === change.tableId && block.source === change.after);
     const block = index < 0 ? undefined : available.splice(index, 1)[0];
@@ -114,7 +120,11 @@ export class BasePropertyMigrationService {
         && membership.ids.length > 0;
       if (hasLegacyRecordId) legacyRecordIdCount += 1;
       const originalSource = await this.app.vault.read(file);
-      const fileLegacyBaseCount = promotionBlocksNeedingMigration(originalSource).length;
+      const legacyBases = promotionBlocksNeedingMigration(originalSource, file.path);
+      for (const block of legacyBases) {
+        await assertRecoveredPromotionOwnership(this.app, block);
+      }
+      const fileLegacyBaseCount = legacyBases.length;
       legacyBaseCount += fileLegacyBaseCount;
       if (migrateMembership || hasLegacyRecordId || fileLegacyBaseCount > 0) {
         files.push({
@@ -152,6 +162,13 @@ export class BasePropertyMigrationService {
       const current = await this.app.vault.read(candidate.file);
       if (current !== candidate.originalSource) {
         throw new Error(`A migration file changed after preview: ${candidate.path}.`);
+      }
+      const currentBases = promotionBlocksNeedingMigration(current, candidate.path);
+      if (currentBases.length !== candidate.legacyBaseCount) {
+        throw new Error(`A promoted Base changed after preview: ${candidate.path}.`);
+      }
+      for (const block of currentBases) {
+        await assertRecoveredPromotionOwnership(this.app, block);
       }
     }
 
@@ -193,24 +210,24 @@ export class BasePropertyMigrationService {
 
         if (candidate.legacyBaseCount > 0) {
           let plannedBases: MigratedBaseBlock[] = [];
-          const expectedTableIds = promotionBlocksNeedingMigration(candidate.originalSource)
+          const expectedTableIds = promotionBlocksNeedingMigration(candidate.originalSource, candidate.path)
             .map(({ tableId }) => tableId);
           const migrated = await this.app.vault.process(candidate.file, (source) => {
             if (source !== expectedSource) {
               throw new Error(`A migration file changed during migration: ${candidate.path}.`);
             }
-            const currentTableIds = promotionBlocksNeedingMigration(source)
+            const currentTableIds = promotionBlocksNeedingMigration(source, candidate.path)
               .map(({ tableId }) => tableId);
             if (JSON.stringify(currentTableIds) !== JSON.stringify(expectedTableIds)) {
               throw new Error(`A promoted Base changed during migration: ${candidate.path}.`);
             }
-            const currentBlocks = promotionBlocksNeedingMigration(source);
+            const currentBlocks = promotionBlocksNeedingMigration(source, candidate.path);
             plannedBases = currentBlocks.map((block) => ({
               tableId: block.tableId,
               before: block.source,
               after: migrateMembershipFilter(block.source),
             }));
-            return migrateLegacyPromotionBlocks(source).source;
+            return migrateLegacyPromotionBlocks(source, candidate.path).source;
           });
           if (migrated === expectedSource) throw new Error(`A promoted Base changed during migration: ${candidate.path}.`);
           changes.bases = plannedBases;
@@ -224,7 +241,7 @@ export class BasePropertyMigrationService {
         if (changes === undefined) continue;
         try {
           if (changes.bases.length > 0) {
-            await this.app.vault.process(candidate.file, (source) => restoreMigratedBaseBlocks(source, changes.bases));
+            await this.app.vault.process(candidate.file, (source) => restoreMigratedBaseBlocks(source, changes.bases, candidate.path));
           }
           if (changes.frontmatter) {
             await this.app.fileManager.processFrontMatter(candidate.file, (frontmatter: Record<string, unknown>) => {

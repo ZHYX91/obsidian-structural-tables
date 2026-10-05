@@ -33,7 +33,7 @@ function matches(root: HTMLElement, keys: readonly string[]): HTMLElement[][] {
   return result;
 }
 
-async function nativeRender(
+async function nativeSnapshot(
   app: App,
   source: string,
   sourcePath: string,
@@ -47,7 +47,9 @@ async function nativeRender(
   owner.load();
   try {
     await MarkdownRenderer.render(app, source, staging, sourcePath, owner);
-    return staging;
+    // Render children may remove or restore DOM on unload. Capture the native
+    // inventory while they still own it; only detached, inert nodes escape.
+    return staging.cloneNode(true) as HTMLElement;
   } finally {
     owner.unload();
   }
@@ -80,7 +82,7 @@ export class StandaloneTableRenderer {
     if (!tables.some((table) => table.valid && table.structural)) return;
     const [templates, sourceRender] = await Promise.all([
       Promise.all(tables.map(async (table) => {
-        const staging = await nativeRender(
+        const staging = await nativeSnapshot(
           this.app,
           withoutSourcePrefixes(table.source),
           context.sourcePath,
@@ -88,7 +90,7 @@ export class StandaloneTableRenderer {
         );
         return Array.from(staging.children, (element) => signature(element as HTMLElement));
       })),
-      nativeRender(this.app, source, context.sourcePath, container.ownerDocument),
+      nativeSnapshot(this.app, source, context.sourcePath, container.ownerDocument),
     ]);
     if (!session.active || this.sessions.get(container) !== session
       || this.app.vault.getAbstractFileByPath(context.sourcePath) !== file) return;

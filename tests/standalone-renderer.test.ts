@@ -80,6 +80,35 @@ describe("standalone Markdown rendering", () => {
     expect(h.container.textContent).not.toContain("^");
   });
 
+  it("captures native ownership before third-party render children clean up their DOM", async () => {
+    const h = harness();
+    const cleaned: HTMLElement[] = [];
+    h.render.mockImplementation(async (_app, text, target, _path, owner) => {
+      target.innerHTML = markdown.render(text);
+      owner.register(() => {
+        cleaned.push(target);
+        target.replaceChildren();
+      });
+    });
+    await h.run();
+    expect(cleaned).toHaveLength(2);
+    expect(cleaned.every((target) => target.childElementCount === 0)).toBe(true);
+    expect(h.container.querySelector("[rowspan='2']")?.textContent).toContain("North");
+    expect(h.container.querySelector("[colspan='2']")).not.toBeNull();
+  });
+
+  it("retains ambiguity evidence even when third-party cleanup removes duplicate native blocks", async () => {
+    const html = markdown.render(merged);
+    const h = harness(merged + "\n\n" + html, html);
+    const original = h.container.innerHTML;
+    h.render.mockImplementation(async (_app, text, target, _path, owner) => {
+      target.innerHTML = markdown.render(text);
+      owner.register(() => target.querySelectorAll("table").forEach((table) => table.remove()));
+    });
+    await h.run();
+    expect(h.container.innerHTML).toBe(original);
+  });
+
   it("waits for delayed cell renderers before resolving", async () => {
     const h = harness();
     h.render.mockImplementation(async (_app, text, target) => {

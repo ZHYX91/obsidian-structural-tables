@@ -178,6 +178,18 @@ export class StructuralTableEditorController {
         }, 0);
       };
       private readonly sourceFocusIn = (): void => this.scheduleSourceFocus();
+      private readonly sourceFocusCapture = (event: FocusEvent): void => {
+        const target = event.target;
+        if (!(target instanceof this.view.dom.ownerDocument.defaultView!.Node)
+          || !this.view.contentDOM.contains(target)
+          || (target instanceof this.view.dom.ownerDocument.defaultView!.Element
+            && target.closest(".structural-tables-live-preview") !== null)) return;
+        // CodeMirror can relocate a caret whose range is currently replaced by
+        // presentation decorations while focus is being restored. Reveal the
+        // authoritative source synchronously in the capture phase, before the
+        // host handles the focus transition.
+        this.setSourceFocus(true);
+      };
       private readonly clearOtherSelections = (event: Event): void => {
         cancelPendingTableFocus(this.view);
         const target = event.target;
@@ -202,6 +214,7 @@ export class StructuralTableEditorController {
           };
         });
         views.add(view);
+        view.dom.addEventListener("focusin", this.sourceFocusCapture, true);
         view.dom.addEventListener("focusin", this.sourceFocusIn);
         view.dom.addEventListener("pointerdown", this.clearOtherSelections, true);
         view.dom.addEventListener("focusin", this.clearOtherSelections, true);
@@ -235,6 +248,7 @@ export class StructuralTableEditorController {
         const win = this.view.dom.ownerDocument.defaultView;
         if (this.sourceFocusTimer !== null && win !== null) win.clearTimeout(this.sourceFocusTimer);
         this.sourceFocusTimer = null;
+        this.view.dom.removeEventListener("focusin", this.sourceFocusCapture, true);
         this.view.dom.removeEventListener("focusin", this.sourceFocusIn);
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
         this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);

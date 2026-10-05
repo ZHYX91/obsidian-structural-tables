@@ -53,6 +53,8 @@ describe("HTML table clipboard import", () => {
 
   it.each([
     ["preformatted whitespace", "<td><pre>A\n  B\tC</pre></td>", "A\n  B\tC"],
+    ["inherited whitespace", '<div style="white-space: pre-wrap"><table><tr><td>A\n  B\tC</td></tr></table></div>', "A\n  B\tC"],
+    ["preserved newlines", '<td style="white-space: pre-line">A\nB</td>', "A\nB"],
     ["superscript", "<td>x<sup>2</sup></td>", "x²"],
     ["subscript", "<td>H<sub>2</sub>O</td>", "H₂O"],
   ])("falls back to complete plain text for %s", (_name, html, plain) => {
@@ -60,6 +62,17 @@ describe("HTML table clipboard import", () => {
     expect(cellClipboardText(html, plain)).toEqual({ kind: "text", text: plain, fallback: true });
     expect(cellClipboardText(html, "")).toEqual({ kind: "unsupported" });
   });
+  it.each([
+    ["preserved whitespace", '<table><tr><td style="white-space: pre-wrap">A\n  B\tC</td><td>2</td></tr></table>', "A\n  B\tC\t2"],
+    ["inherited whitespace", '<div style="white-space: pre-wrap"><table><tr><td>A\n  B\tC</td><td>2</td></tr></table></div>', "A\n  B\tC\t2"],
+    ["preserved newlines", '<table><tr><td style="white-space: pre-line">A\nB</td><td>2</td></tr></table>', "A\nB\t2"],
+    ["heading boundaries", "<table><tr><td><h3>First</h3><h3>Second</h3></td><td>2</td></tr></table>", "First\nSecond\t2"],
+  ])("uses complete plain text instead of flattening %s", (_name, html, plain) => {
+    expect(structuralSourceFromClipboardHtml(html)).toBeNull();
+    expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "plain", text: plain });
+    expect(wholeTableClipboardImport(html, "")).toEqual({ kind: "blocked-unsafe-text" });
+  });
+
   beforeEach(() => {
     const window = new Window();
     globalThis.DOMParser = window.DOMParser as unknown as typeof DOMParser;

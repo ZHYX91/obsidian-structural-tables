@@ -52,7 +52,18 @@ function parsedClipboardTable(html: string): ClipboardTable | null {
 }
 
 const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, embed, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
-const TEXT_SEMANTIC_CONTENT = "pre, sup, sub";
+const TEXT_SEMANTIC_CONTENT = "pre, sup, sub, h1, h2, h3, h4, h5, h6";
+
+function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
+  const ancestors: HTMLElement[] = [];
+  for (let element = table.parentElement; element !== null; element = element.parentElement) ancestors.push(element);
+  // white-space is inherited. Clipboard wrappers can carry the cell's visible
+  // whitespace semantics even when the table has no inline style of its own.
+  return [table, ...ancestors, ...table.querySelectorAll<HTMLElement>("[style]")].some((element) => {
+    const whiteSpace = element.style.whiteSpace.trim().toLowerCase();
+    return whiteSpace === "pre" || whiteSpace === "pre-wrap" || whiteSpace === "pre-line" || whiteSpace === "break-spaces";
+  });
+}
 
 function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {
   return table.matches(HARD_UNSUPPORTED_CONTENT)
@@ -64,7 +75,9 @@ function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {
 }
 
 function hasUnsupportedCellContent(table: HTMLTableElement): boolean {
-  return hasHardUnsupportedCellContent(table) || table.querySelector(TEXT_SEMANTIC_CONTENT) !== null;
+  return hasHardUnsupportedCellContent(table)
+    || table.querySelector(TEXT_SEMANTIC_CONTENT) !== null
+    || hasPreservedWhitespaceSemantics(table);
 }
 
 function hasMeaningfulContentOutsideTable(document: Document): boolean {
@@ -136,7 +149,10 @@ function isPlainFallbackTextSemanticTable(html: string): boolean {
     || hasHardUnsupportedCellContent(parsed.table)
   ) return false;
   const cells = parsed.table.querySelectorAll<HTMLTableCellElement>("td, th");
-  return cells.length > 0 && parsed.table.querySelector(TEXT_SEMANTIC_CONTENT) !== null;
+  return cells.length > 0 && (
+    parsed.table.querySelector(TEXT_SEMANTIC_CONTENT) !== null
+    || hasPreservedWhitespaceSemantics(parsed.table)
+  );
 }
 
 export function structuralSourceFromClipboardHtml(html: string): string | null {

@@ -151,7 +151,14 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     retry.type = "button";
     retry.addEventListener("click", () => {
       retry.disabled = true;
-      void this.structuralPlugin.retrySettingsSave().catch(() => undefined);
+      void this.structuralPlugin.retrySettingsSave()
+        .then(() => {
+          // A failed language save updates in-memory UI state before persistence.
+          // Once retry succeeds, rebuild the still-open tab from that current
+          // language instead of leaving labels captured before the failure.
+          if (retry.isConnected) this.display();
+        })
+        .catch(() => undefined);
     });
     const update = (status: SettingsSaveStatus): void => {
       row.hidden = status.state === "saved";

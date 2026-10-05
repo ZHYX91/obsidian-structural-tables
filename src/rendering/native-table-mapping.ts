@@ -56,10 +56,13 @@ export function calloutBlocks(root: HTMLElement, originals: ReadonlyMap<HTMLElem
         && child.matches("p, table")) {
         group.push({ element: child, signature: blockSignature(child) });
       } else {
+        const protectedSelector = ".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview";
+        if (child.matches(protectedSelector) || child.querySelector(protectedSelector) !== null) {
+          flush();
+          continue;
+        }
         const nestedTables = child.querySelectorAll<HTMLTableElement>("table");
-        const nested = nestedTables.length === 1
-          && !child.querySelector(".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview")
-          ? nestedTables[0] : undefined;
+        const nested = nestedTables.length === 1 ? nestedTables[0] : undefined;
         if (nested === undefined) {
           flush();
         } else {

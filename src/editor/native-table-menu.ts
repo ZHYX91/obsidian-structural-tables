@@ -21,6 +21,7 @@ export class NativeTableMenuBridge {
   private readonly contributedEvents = new WeakSet<Event>();
   private readonly registeredDocuments = new WeakSet<Document>();
   private readonly registeredTargets = new WeakSet<HTMLElement>();
+  private readonly targetCleanups = new Map<HTMLElement, () => void>();
 
   constructor(
     private readonly app: App,
@@ -29,6 +30,10 @@ export class NativeTableMenuBridge {
   ) {}
 
   register(component: Component): void {
+    component.register(() => {
+      for (const cleanup of [...this.targetCleanups.values()]) cleanup();
+      this.targetCleanups.clear();
+    });
     this.registerDocument(component, document);
     component.registerEvent(this.app.workspace.on("window-open", (_workspaceWindow, window) => {
       this.registerDocument(component, window.document);
@@ -43,6 +48,9 @@ export class NativeTableMenuBridge {
     if (Observer === undefined || targetDocument.body === null) return;
     const observer = new Observer((records) => {
       for (const record of records) {
+        for (const node of record.removedNodes) {
+          if (node.nodeType === 1) this.unregisterNativeTargets(node as Element);
+        }
         for (const node of record.addedNodes) {
           if (node.nodeType === 1) this.registerNativeTargets(component, node as Element);
         }
@@ -63,8 +71,24 @@ export class NativeTableMenuBridge {
     for (const target of targets) {
       if (this.registeredTargets.has(target)) continue;
       this.registeredTargets.add(target);
-      component.registerDomEvent(target, "contextmenu", (event) => this.contribute(event));
+      const listener = (event: MouseEvent): void => this.contribute(event);
+      target.addEventListener("contextmenu", listener);
+      const cleanup = (): void => {
+        target.removeEventListener("contextmenu", listener);
+        this.targetCleanups.delete(target);
+        this.registeredTargets.delete(target);
+      };
+      this.targetCleanups.set(target, cleanup);
     }
+  }
+
+  private unregisterNativeTargets(root: ParentNode): void {
+    const selector = ".cm-table-widget th, .cm-table-widget td";
+    const targets = [
+      ...(("matches" in root && (root as Element).matches(selector)) ? [root as HTMLElement] : []),
+      ...root.querySelectorAll<HTMLElement>(selector),
+    ];
+    for (const target of targets) this.targetCleanups.get(target)?.();
   }
 
   private contribute(event: MouseEvent): void {

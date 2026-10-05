@@ -396,9 +396,7 @@ class StructuralTableInteraction {
     // changing the browser DOM selection. Native focus/selection follows in
     // the next task, outside the current CodeMirror update.
     view.dispatch({ effects: structuralTableSourceFocus.of(true) });
-    const schedule = view.dom.ownerDocument.defaultView?.setTimeout.bind(view.dom.ownerDocument.defaultView)
-      ?? setTimeout;
-    schedule(() => {
+    queueMicrotask(() => {
       if (!view.dom.isConnected) return;
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) return;
@@ -411,7 +409,7 @@ class StructuralTableInteraction {
         effects: EditorView.scrollIntoView(currentOffset, { y: "nearest" }),
       });
       view.focus();
-    }, 0);
+    });
   }
 
   private cellForTarget(target: EventTarget | null): HTMLElement | null {

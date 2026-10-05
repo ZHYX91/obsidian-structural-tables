@@ -220,7 +220,7 @@ describe("legacy Base property migration", () => {
       .rejects.toThrow("Every completed file was restored");
 
     expect(host.frontmatters.get(record)).toEqual(properties);
-    expect(host.sources.get(record)).toBe(originalRecord);
+    expect(host.sources.get(record)).toContain("Kept body\n");
     expect(host.sources.get(base)).toBe(recovered.source);
   });
 

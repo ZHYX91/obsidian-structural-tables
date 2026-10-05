@@ -82,6 +82,7 @@ Cover:
 - Wiki links, literal pipes, and cell line breaks;
 - mixed prose, multiple tables, images, attachments, links, MathML/SVG, and other unsafe payloads falling back to Obsidian;
 - reparsing at GFM replacement confirmation so stale previews are refused.
+- complete plain-text fallback for headings, inherited preserved whitespace and preserved newlines, including zero replacement when safe fallback is absent.
 
 <!-- section: base-promotion -->
 ## Base conversion
@@ -114,6 +115,10 @@ Check:
 - HTML/GFM/TSV/CSV clipboard behavior and Sheets Extended migration;
 - Base preview, confirmation, retained output after failure, moved/renamed records, restore, and legacy migration;
 - cleanup when the plugin is disabled or uninstalled.
+- FakeLink with Hover Editor under both ordinary-table takeover settings, including detach/reopen and cell edit/history without repeated mounting;
+- standalone full-note and selected-table export with HTML lookalikes, inline code, delayed content, superseded sessions and DOM-removing render-child cleanup;
+- Advanced Tables operations after source handoff, with exact caret/range preservation and diagnostics for invalid resulting topology;
+- native menu coexistence, row/column range preservation, cell reattachment and popout-window closure.
 
 Screenshots and DOM tests are supporting evidence, not substitutes for real-host acceptance.
 

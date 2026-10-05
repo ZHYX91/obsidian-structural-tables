@@ -5,6 +5,12 @@
 - Preserve source selections when opening external controls, and offer an explicit cell-to-source editing handoff.
 - Render source-verified merged tables in standalone Markdown export containers and finish cell content before exporters clone the result.
 - Retain third-party postprocessor and detached-editor protections, and clarify the limits of source-based table commands.
+- Preserve Callout text around wrapped tables and leave ambiguous Reading View or export targets untouched.
+- Keep recovered legacy Base links connected during property migration, with manifest verification and rollback.
+- Protect fenced examples nested in lists and quotes, and avoid argument-count limits on large merged tables.
+- Preserve heading boundaries and inherited whitespace in HTML paste through safe plain-text fallback.
+- Release native table menu resources when cells or windows close, and preserve right-clicked row/column ranges.
+- Refresh settings labels after a successful save retry and include the bundled dependency license in the runtime asset.
 
 ## 0.5.2 - 2026-10-03
 

@@ -46,6 +46,10 @@ Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidia
 
 Inside a Structural Table, exact `<`, `^`, and delimiter `||` tokens have special meanings. If another enabled table plugin is known to use the same syntax, Structural Tables shows a one-time conflict warning.
 
+Live Preview keeps the semantic table DOM available whenever the raw CodeMirror source surface does not own editing focus, so DOM capture and export tools can consume real `rowspan`/`colspan` markup without plugin-specific hooks.
+
+For source-oriented table plugins such as Advanced Tables, right-click a rendered cell and choose **Edit table source**. This hands the authoritative Markdown back to Obsidian's editor so source-based third-party commands can operate on it. Structural Tables reparses every resulting source change: a valid table returns to semantic presentation, while an invalid merge or header topology stays as raw Markdown with diagnostics instead of being guessed or silently repaired. Advanced Tables' own Tab/Enter bindings in Live Preview remain governed by Advanced Tables and are not overridden or emulated here. Third-party row/column moves and sorting are therefore only safe when their resulting Markdown remains a valid Structural Table.
+
 <!-- section: installation -->
 ## Installation
 
@@ -59,7 +63,7 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 1. Create or paste a normal Markdown pipe table.
 2. Put `<` in a cell to merge it with the cell on its left, or `^` to merge it with the cell above.
 3. Put one adjacent `||` in the delimiter row to mark the columns on its left as row headers.
-4. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the rendered result.
+4. Leave raw-source editing by moving the source cursor outside the table, or move focus away from the raw editor, to see the rendered result. From a rendered table, right-click a cell and choose **Edit table source** when you deliberately want raw Markdown editing.
 5. In Live Preview, click a cell on desktop or double-tap it on touch screens to edit it. Enter saves, Escape cancels, Shift+Enter inserts a visual line break, and Tab moves to the next visible cell.
 6. Use the **+** controls and row/column handles to add, select, move, align, merge, split, delete, or change header roles. Operations that would lose content or split a merged region are refused.
 7. Paste a supported HTML table directly into the Markdown editor to import it. Use the command palette for formatting, copying, and Sheets Extended migration. Convert a table to Base from either the command palette or the table context menu.

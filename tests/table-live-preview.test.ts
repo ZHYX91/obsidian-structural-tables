@@ -200,6 +200,75 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it("accepts a valid external source edit and rebuilds semantic presentation", async () => {
+    const source = [
+      "Before",
+      "",
+      "| Region | Sales | < |",
+      "| --- | --- | --- |",
+      "| North | 10 | 12 |",
+      "",
+      "End",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: source.indexOf("North") });
+    try {
+      view.focus();
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
+
+      const value = source.indexOf("10");
+      view.dispatch({ changes: { from: value, to: value + 2, insert: "20" } });
+      const changed = view.state.doc.toString();
+      const parsed = parseEditableTables(changed).tables[0]!;
+      expect(parsed.valid).toBe(true);
+      expect(parsed.rows[1]?.cells[1]?.content).toBe("20");
+
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
+      expect(view.state.doc.toString()).toBe(changed);
+      expect(parent.textContent).not.toContain("| --- | --- | --- |");
+    } finally { view.destroy(); }
+  });
+
+  it("fails closed when an external source edit breaks merge topology", async () => {
+    const source = [
+      "Before",
+      "",
+      "| A | B |",
+      "| --- | --- |",
+      "| X | 1 |",
+      "| ^ | 2 |",
+      "",
+      "End",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: source.indexOf("X") });
+    try {
+      view.focus();
+      const from = source.indexOf("| X | 1 |");
+      const to = source.indexOf("\n\nEnd");
+      const replacement = "| ^ | 2 |\n| X | 1 |";
+      view.dispatch({ changes: { from, to, insert: replacement } });
+      const changed = view.state.doc.toString();
+      const parsed = parseEditableTables(changed).tables[0]!;
+      expect(parsed.valid).toBe(false);
+      expect(parsed.diagnostics.some((diagnostic) => diagnostic.code === "merge-boundary")).toBe(true);
+
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-invalid")).not.toBeNull());
+      expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+      expect(parent.textContent).toContain("| --- | --- |");
+      expect(view.state.doc.toString()).toBe([
+        "Before",
+        "",
+        "| A | B |",
+        "| --- | --- |",
+        "| ^ | 2 |",
+        "| X | 1 |",
+        "",
+        "End",
+      ].join("\n"));
+    } finally { view.destroy(); }
+  });
+
   it.each([
     { axis: "column", pointerType: "mouse" },
     { axis: "column", pointerType: "touch" },

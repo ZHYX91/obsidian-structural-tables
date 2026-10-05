@@ -1,5 +1,5 @@
 import { watch } from "node:fs";
-import { copyFile, mkdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import esbuild from "esbuild";
@@ -8,6 +8,8 @@ const production = process.argv.includes("production");
 const projectRoot = process.cwd();
 const outputDirectory = path.join(projectRoot, "dist");
 const staticAssets = ["manifest.json", "styles.css"];
+const thirdPartyNotices = await readFile(path.join(projectRoot, "THIRD_PARTY_NOTICES.txt"), "utf8");
+const thirdPartyBanner = `/*!\n${thirdPartyNotices.trimEnd()}\n*/`;
 
 const syncStaticAssets = async () => {
   await mkdir(outputDirectory, { recursive: true });
@@ -36,6 +38,7 @@ const context = await esbuild.context({
   minify: production,
   logLevel: "info",
   treeShaking: true,
+  banner: { js: thirdPartyBanner },
 });
 
 if (production) {

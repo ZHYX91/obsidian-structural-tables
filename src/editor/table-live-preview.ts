@@ -1,6 +1,6 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import {
-  Prec, RangeSetBuilder, StateEffect, StateField,
+  Prec, StateEffect, StateField,
   type EditorState, type Extension, type Transaction,
 } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
@@ -29,11 +29,13 @@ interface DecorationEntry {
 interface StructuralTableDecorationState {
   callouts: readonly { from: number; to: number }[];
   composing: boolean;
+  sourceFocused: boolean;
   tables: readonly StructuralTable[] | null;
   decorations: DecorationSet;
 }
 
 const structuralTableComposition = StateEffect.define<boolean>();
+const structuralTableSourceFocus = StateEffect.define<boolean>();
 
 export class StructuralTableEditorController {
   private readonly views = new Set<EditorView>();
@@ -53,7 +55,12 @@ export class StructuralTableEditorController {
       if (!settingsProvider().enableLivePreview || !state.field(editorLivePreviewField, false)) return null;
       return cached ?? parseEditableTables(state.doc.toString()).tables;
     };
-    const buildDecorations = (state: EditorState, tables: readonly StructuralTable[] | null, callouts: readonly { from: number; to: number }[]): DecorationSet => {
+    const buildDecorations = (
+      state: EditorState,
+      tables: readonly StructuralTable[] | null,
+      callouts: readonly { from: number; to: number }[],
+      sourceFocused: boolean,
+    ): DecorationSet => {
       const settings = settingsProvider();
       const livePreview = state.field(editorLivePreviewField, false) ?? false;
       if (!livePreview || !settings.enableLivePreview) return Decoration.none;
@@ -61,16 +68,25 @@ export class StructuralTableEditorController {
       const selections = state.selection.ranges;
       const entries: DecorationEntry[] = [];
       for (const table of tables ?? []) {
-        const mode = structuralTableViewMode(table, settings, selections, callouts);
+        const mode = structuralTableViewMode(table, settings, selections, callouts, sourceFocused);
         if (mode === "ignored" || mode === "source") continue;
         if (mode === "presentation") {
           entries.push({
             from: table.range.from,
-            to: table.range.to,
-            decoration: Decoration.replace({
+            to: table.range.from,
+            decoration: Decoration.widget({
               widget: new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote),
               block: true,
+              side: -1,
             }),
+          });
+          // Suppress the host/source rendering independently from the semantic
+          // presentation widget. Markdown remains authoritative in EditorState,
+          // while an exact-range replacement also wins over native table widgets.
+          entries.push({
+            from: table.range.from,
+            to: table.range.to,
+            decoration: Decoration.replace({ block: true }),
           });
         } else if (settings.showDiagnostics) {
           const line = state.doc.lineAt(table.range.from);
@@ -87,27 +103,38 @@ export class StructuralTableEditorController {
           });
         }
       }
-      entries.sort((left, right) => left.from - right.from || left.to - right.to);
-      const builder = new RangeSetBuilder<Decoration>();
-      for (const entry of entries) builder.add(entry.from, entry.to, entry.decoration);
-      return builder.finish();
+      return Decoration.set(
+        entries.map((entry) => entry.decoration.range(entry.from, entry.to)),
+        true,
+      );
     };
     const shouldRebuild = (transaction: Transaction): boolean => {
       const refreshed = transaction.effects.some((effect) => effect.is(refreshStructuralTables));
       const compositionChanged = transaction.effects.some((effect) => effect.is(structuralTableComposition));
+      const sourceFocusChanged = transaction.effects.some((effect) => effect.is(structuralTableSourceFocus));
       const modeChanged = transaction.startState.field(editorLivePreviewField, false)
         !== transaction.state.field(editorLivePreviewField, false);
-      return transaction.docChanged || transaction.selection !== undefined || refreshed || compositionChanged || modeChanged;
+      return transaction.docChanged || transaction.selection !== undefined || refreshed
+        || compositionChanged || sourceFocusChanged || modeChanged;
     };
     const decorationField = StateField.define<StructuralTableDecorationState>({
       create: (state) => {
         const tables = readTables(state, null);
         const callouts = calloutRanges(state.doc.toString());
-        return { composing: false, tables, callouts, decorations: buildDecorations(state, tables, callouts) };
+        const sourceFocused = true;
+        return {
+          composing: false,
+          sourceFocused,
+          tables,
+          callouts,
+          decorations: buildDecorations(state, tables, callouts, sourceFocused),
+        };
       },
       update: (value, transaction) => {
         const composition = transaction.effects.find((effect) => effect.is(structuralTableComposition));
+        const sourceFocus = transaction.effects.find((effect) => effect.is(structuralTableSourceFocus));
         const composing = composition?.value ?? value.composing;
+        const sourceFocused = sourceFocus?.value ?? value.sourceFocused;
         if (!shouldRebuild(transaction)) return value;
         const mapped = transaction.docChanged ? mapTablesThroughProseEdit(value.tables, transaction) : value.tables;
         const tables = readTables(transaction.state, mapped);
@@ -116,15 +143,34 @@ export class StructuralTableEditorController {
           : value.callouts.map((range) => ({ from: transaction.changes.mapPos(range.from, 1), to: transaction.changes.mapPos(range.to, -1) }));
         return {
           composing,
+          sourceFocused,
           tables,
           callouts,
-          decorations: composing ? Decoration.none : buildDecorations(transaction.state, tables, callouts),
+          decorations: composing
+            ? Decoration.none
+            : buildDecorations(transaction.state, tables, callouts, sourceFocused),
         };
       },
       provide: (field) => Prec.highest(EditorView.decorations.from(field, (value) => value.decorations)),
     });
     const viewTracker = ViewPlugin.fromClass(class {
       private readonly calloutTables: CalloutTables;
+      private readonly setSourceFocus = (focused: boolean): void => {
+        const current = this.view.state.field(decorationField).sourceFocused;
+        if (current !== focused) this.view.dispatch({ effects: structuralTableSourceFocus.of(focused) });
+      };
+      private readonly sourceFocusIn = (event: FocusEvent): void => {
+        const target = event.target;
+        const widgetOwned = target instanceof this.view.dom.ownerDocument.defaultView!.Element
+          && target.closest(".structural-tables-live-preview") !== null;
+        // Focus can be delivered while CodeMirror is applying another update.
+        queueMicrotask(() => this.setSourceFocus(!widgetOwned));
+      };
+      private readonly sourceFocusOut = (event: FocusEvent): void => {
+        const next = event.relatedTarget;
+        if (next instanceof this.view.dom.ownerDocument.defaultView!.Node && this.view.dom.contains(next)) return;
+        queueMicrotask(() => this.setSourceFocus(false));
+      };
       private readonly clearOtherSelections = (event: Event): void => {
         cancelPendingTableFocus(this.view);
         const target = event.target;
@@ -149,6 +195,8 @@ export class StructuralTableEditorController {
           };
         });
         views.add(view);
+        view.dom.addEventListener("focusin", this.sourceFocusIn);
+        view.dom.addEventListener("focusout", this.sourceFocusOut);
         view.dom.addEventListener("pointerdown", this.clearOtherSelections, true);
         view.dom.addEventListener("focusin", this.clearOtherSelections, true);
       }
@@ -175,6 +223,8 @@ export class StructuralTableEditorController {
       destroy(): void {
         cancelPendingTableFocus(this.view);
         this.calloutTables.destroy();
+        this.view.dom.removeEventListener("focusin", this.sourceFocusIn);
+        this.view.dom.removeEventListener("focusout", this.sourceFocusOut);
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
         this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);
         views.delete(this.view);

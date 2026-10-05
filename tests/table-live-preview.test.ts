@@ -123,6 +123,45 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it("keeps semantic merged presentation available when source focus leaves the editor", async () => {
+    const source = [
+      "Before",
+      "",
+      "| Region | Sales | < |",
+      "| --- | --- | --- |",
+      "| North | 10 | < |",
+      "| ^ | 8 | 11 |",
+      "",
+      "End",
+    ].join("\n");
+    const anchor = source.indexOf("North");
+    const { parent, view } = mountEditor(source, { anchor });
+    try {
+      view.focus();
+      expect(view.state.selection.main.anchor).toBe(anchor);
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
+
+      const external = document.body.appendChild(document.createElement("button"));
+      external.focus();
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
+
+      const rendered = parent.querySelector<HTMLTableElement>(".structural-tables-table")!;
+      expect(rendered.querySelector("[rowspan='2']")).not.toBeNull();
+      expect(rendered.querySelector("[colspan='2']")).not.toBeNull();
+      expect(view.state.selection.main.anchor).toBe(anchor);
+      expect(view.state.doc.toString()).toBe(source);
+
+      const clone = view.contentDOM.cloneNode(true) as HTMLElement;
+      expect(clone.querySelector(".structural-tables-table [rowspan='2']")).not.toBeNull();
+      expect(clone.querySelector(".structural-tables-table [colspan='2']")).not.toBeNull();
+      expect(clone.textContent).not.toContain("| ^ |");
+
+      view.focus();
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it.each([
     { axis: "column", pointerType: "mouse" },
     { axis: "column", pointerType: "touch" },

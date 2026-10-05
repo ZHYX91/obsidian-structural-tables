@@ -28,11 +28,12 @@ export function structuralTableViewMode(
   settings: StructuralTablesSettings,
   selections: readonly TableSelectionRange[],
   ownedRanges: readonly TableOwnedRange[],
+  sourceFocused = true,
 ): StructuralTableViewMode {
   if (ownedRanges.some((range) => table.range.from >= range.from && table.range.to <= range.to)) {
     return "ignored";
   }
   if (!table.structural && !settings.takeOverOrdinaryTables) return "ignored";
-  if (selections.some((selection) => selectionIntersectsTable(selection, table))) return "source";
+  if (sourceFocused && selections.some((selection) => selectionIntersectsTable(selection, table))) return "source";
   return table.valid ? "presentation" : "invalid";
 }

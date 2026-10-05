@@ -56,8 +56,30 @@ export function calloutBlocks(root: HTMLElement, originals: ReadonlyMap<HTMLElem
         && child.matches("p, table")) {
         group.push({ element: child, signature: blockSignature(child) });
       } else {
-        const protectedSelector = ".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview";
-        if (child.matches(protectedSelector) || child.querySelector(protectedSelector) !== null) {
+        const hardBoundary = ".callout, .internal-embed, .markdown-embed, pre, .cm-editor";
+        const mountedSelector = ".structural-tables-live-preview";
+        if (child.matches(hardBoundary) || child.querySelector(hardBoundary) !== null) {
+          flush();
+          continue;
+        }
+        const nestedHosts = Array.from(child.querySelectorAll<HTMLElement>(mountedSelector));
+        if (nestedHosts.length > 0) {
+          if (nestedHosts.length !== 1) {
+            flush();
+            continue;
+          }
+          const host = nestedHosts[0]!;
+          const savedHost = originals.get(host);
+          const foreignTables = Array.from(child.querySelectorAll("table"))
+            .some((table) => !host.contains(table));
+          if (savedHost === undefined || foreignTables) {
+            flush();
+            continue;
+          }
+          group.push(...savedHost.map((element) => ({ element: host, signature: blockSignature(element) })));
+          continue;
+        }
+        if (child.matches(mountedSelector)) {
           flush();
           continue;
         }

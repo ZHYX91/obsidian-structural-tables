@@ -33,6 +33,19 @@ describe("tableCellSourceOffset", () => {
     expect(source.slice(anchor!, anchor! + 5)).toBe("Sales");
   });
 
+  it("maps a GFM-padded missing cell to a stable position inside the owning row", () => {
+    const source = [
+      "| A | B | C |",
+      "| --- | --- | --- |",
+      "| 1 | 2 |",
+    ].join("\n");
+    const table = parseEditableTables(source).tables[0]!;
+    const offset = tableCellSourceOffset(source, table, { row: 1, column: 2 });
+    expect(offset).not.toBeNull();
+    expect(offset!).toBeLessThan(table.range.to);
+    expect(source.slice(0, offset! + 1)).toContain("| 1 | 2 |");
+  });
+
   it("preserves container prefixes when locating nested table source", () => {
     const source = [
       "> Intro",

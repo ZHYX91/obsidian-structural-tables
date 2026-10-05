@@ -27,9 +27,11 @@ export function blockSignature(element: HTMLElement): string {
 }
 
 /** Inline formatting is interpreted by the same renderer as the native callout. */
-export async function renderTableSignatures(app: App, table: StructuralTable, sourcePath: string): Promise<string[]> {
+export async function renderTableSignatures(app: App, table: StructuralTable, sourcePath: string,
+  document: Document): Promise<string[]> {
   const component = new Component();
-  const container = createDiv({ cls: "structural-tables-container" });
+  const container = document.createElement("div");
+  container.className = "structural-tables-container";
   // Keep our own postprocessor out of this detached native-render comparison.
   component.load();
   try {

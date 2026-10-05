@@ -11,6 +11,7 @@
 - Preserve heading boundaries and inherited whitespace in HTML paste through safe plain-text fallback.
 - Release native table menu resources when cells or windows close, and preserve right-clicked row/column ranges.
 - Refresh settings labels after a successful save retry and include the bundled dependency license in the runtime asset.
+- Create Reading view, export and native-comparison containers in their target document, preserving separate-window DOM constructors.
 
 ## 0.5.2 - 2026-10-03
 

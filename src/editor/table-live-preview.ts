@@ -206,7 +206,7 @@ export class StructuralTableEditorController {
           const sourcePath = view.state.field(editorInfoField, false)?.file?.path ?? "";
           return {
             tables: value.tables ?? [], ranges: value.callouts, sourcePath,
-            render: (table) => renderTableSignatures(app, table, sourcePath),
+            render: (table) => renderTableSignatures(app, table, sourcePath, this.view.dom.ownerDocument),
             owns: (table) => !value.composing && settings.enableLivePreview
               && Boolean(view.state.field(editorLivePreviewField, false))
               && table.valid && (table.structural || settings.takeOverOrdinaryTables),

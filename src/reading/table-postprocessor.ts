@@ -134,7 +134,7 @@ export class StructuralTableReadingProcessor {
         }
         return;
       }
-      const staging = existing.ownerDocument.adoptNode(createEl("div"));
+      const staging = existing.ownerDocument.createElement("div");
       const component = new MarkdownRenderChild(staging);
       const rendered = renderStructuralTable(this.app, table, staging, context.sourcePath, component);
       const wrapper = rendered.parentElement;
@@ -164,7 +164,7 @@ export class StructuralTableReadingProcessor {
     this.calloutSessions.set(container, session);
     context.addChild(session);
     const templates = await Promise.all(tables.map(async (table) => {
-      try { return await renderTableSignatures(this.app, table, context.sourcePath); }
+      try { return await renderTableSignatures(this.app, table, context.sourcePath, container.ownerDocument); }
       catch { return []; }
     }));
     if (!session.active || this.calloutSessions.get(container) !== session
@@ -187,7 +187,7 @@ export class StructuralTableReadingProcessor {
         }
         continue;
       }
-      const staging = container.ownerDocument.adoptNode(createEl("div"));
+      const staging = container.ownerDocument.createElement("div");
       const rendered = renderStructuralTable(this.app, plan.table, staging, context.sourcePath, session);
       const wrapper = rendered.parentElement;
       if (wrapper === null) continue;

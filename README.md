@@ -112,6 +112,8 @@ GFM allows body rows to contain fewer or more source cells than the header. Miss
 
 With **Preserve pasted HTML table spans** enabled, a supported multi-column HTML table can be converted while keeping row and column spans and visual line breaks. HTML that cannot be converted safely is left to Obsidian, or uses the clipboard's complete plain-text form when that fallback is known to be safe.
 
+For text with preserved spaces, tabs, line breaks or heading boundaries, the plugin uses the complete plain-text alternative. This keeps the text but may lose table layout or rich formatting. If no safe alternative is available, the paste is blocked and your current selection is kept.
+
 A body-only HTML table stays headerless instead of having its first row turned into a header. Real `thead`/`th` markup is used when the source provides it.
 
 Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.

@@ -20,7 +20,7 @@ Source remains visible and recoverable; rendering interprets but never rewrites;
 <!-- section: live-preview -->
 ## Live Preview
 
-When the CodeMirror cursor and selection are outside a table's source range, the plugin may replace that source with an interactive table. Entering the source range must restore raw Markdown immediately so direct source editing is always available.
+A valid structural table is presented by a semantic block widget while its Markdown remains authoritative in the CodeMirror document. When the native CodeMirror source surface owns focus and its selection intersects the table, raw Markdown is shown for direct editing; when that source surface loses focus, semantic presentation returns even if the logical selection remains inside the table. Visual cell interactions synchronize the logical source position without leaving presentation mode. **Edit table source** explicitly hands focus and the mapped cell position back to CodeMirror.
 
 ### Cell editing
 

@@ -433,6 +433,47 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it.each(["row", "column"] as const)("keeps a selected %s handle range through right-click pointerdown", (axis) => {
+    const source = "Before\n\n| H | V | W |\n| --- || --- | --- |\n| A | B | C |\n| D | E | F |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    const selector = (index: number) => parent.querySelector<HTMLElement>(
+      `[data-structural-${axis}-handle='${index}']`,
+    )!;
+    const selected = () => parent.querySelectorAll(`.structural-tables-${axis}-handle.is-selected`).length;
+    try {
+      selector(1).click();
+      selector(2).dispatchEvent(new PointerEvent("pointerdown", {
+        pointerId: 1,
+        isPrimary: true,
+        button: 0,
+        pointerType: "mouse",
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      expect(selected()).toBe(2);
+
+      selector(1).dispatchEvent(new PointerEvent("pointerdown", {
+        pointerId: 2,
+        isPrimary: true,
+        button: 2,
+        pointerType: "mouse",
+        bubbles: true,
+        cancelable: true,
+      }));
+      expect(selected()).toBe(2);
+
+      selector(1).dispatchEvent(new MouseEvent("contextmenu", {
+        button: 2,
+        bubbles: true,
+        cancelable: true,
+      }));
+      expect(selected()).toBe(2);
+    } finally {
+      view.destroy();
+    }
+  });
+
   it("moves a two-tap handle range in one history transaction and keeps its handles selected", async () => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n| C | D |\n| E | F |\n\nEnd";
     const rectangle = (left: number, top: number, width: number, height: number): DOMRect =>

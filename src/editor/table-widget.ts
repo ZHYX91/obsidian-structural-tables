@@ -1058,6 +1058,7 @@ class StructuralTableInteraction {
         handle.addEventListener(type, (event) => event.stopPropagation(), { passive: true });
       }
       handle.addEventListener("pointerdown", (event) => {
+        if (!event.isPrimary || event.button !== 0) return;
         if (this.axisDrag?.start(event, axis, index)) return;
         event.preventDefault();
         event.stopPropagation();

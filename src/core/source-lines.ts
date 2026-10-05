@@ -139,6 +139,25 @@ export function ignoredMarkdownLines(
       }
     }
 
+    if (fence === null && protectedBlock === null && !rawLiteralHtml) {
+      const nestedQuote = /^(?: {0,3}>[\t ]?)*/u.exec(line)?.[0] ?? "";
+      const nestedDepth = nestedQuote.split(">").length - 1;
+      const nestedLine = line.slice(nestedQuote.length);
+      const nestedOpening = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(nestedLine);
+      const nestedRun = nestedOpening?.[1];
+      const nestedInfo = (nestedOpening?.[2] ?? "").trim();
+      if (nestedDepth > 0 && nestedRun !== undefined
+        && (nestedRun[0] === "~" || !nestedInfo.includes("`"))) {
+        // A block quote may begin after a list marker on the same line
+        // (- > ```), while continuation lines expose the quote prefix at
+        // the physical line start. Record that effective quote depth now so
+        // the following quoted lines remain inside the same fence scope.
+        line = nestedLine;
+        quoteDepth = depth + nestedDepth;
+        listIndent = 0;
+      }
+    }
+
     if (fence !== null) {
       ignored.add(index);
       const closing = /^ {0,3}(`{3,}|~{3,})[\t ]*$/u.exec(line);

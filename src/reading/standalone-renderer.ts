@@ -10,7 +10,7 @@ class RenderSession extends MarkdownRenderChild {
   override onunload(): void { this.active = false; }
 }
 
-const boundary = ".internal-embed, .markdown-embed, .cm-editor, pre, code, .structural-tables-container";
+const boundary = ".internal-embed, .markdown-embed, .cm-editor, pre, .structural-tables-container";
 
 function signature(element: HTMLElement): string {
   return element.tagName + contentSignature(element);
@@ -21,7 +21,8 @@ function matches(root: HTMLElement, keys: readonly string[]): HTMLElement[][] {
   if (keys.length === 0) return [];
   const result: HTMLElement[][] = [];
   for (const parent of [root, ...root.querySelectorAll<HTMLElement>("div, blockquote, li")]) {
-    if (parent.closest(boundary) !== null) continue;
+    const enclosingBoundary = parent.closest(boundary);
+    if (enclosingBoundary !== null && enclosingBoundary !== root) continue;
     const children = Array.from(parent.children) as HTMLElement[];
     for (let index = 0; index <= children.length - keys.length; index += 1) {
       const targets = children.slice(index, index + keys.length);
@@ -30,6 +31,26 @@ function matches(root: HTMLElement, keys: readonly string[]): HTMLElement[][] {
     }
   }
   return result;
+}
+
+async function nativeRender(
+  app: App,
+  source: string,
+  sourcePath: string,
+  document: Document,
+): Promise<HTMLElement> {
+  const owner = new Component();
+  const staging = document.adoptNode(createDiv());
+  // Suppress Structural Tables' own postprocessor while still allowing the
+  // matcher below to inspect this root as a native-render inventory.
+  staging.className = "structural-tables-container";
+  owner.load();
+  try {
+    await MarkdownRenderer.render(app, source, staging, sourcePath, owner);
+    return staging;
+  } finally {
+    owner.unload();
+  }
 }
 
 /** Source-verified rendering for export/preview containers without section metadata. */
@@ -57,25 +78,41 @@ export class StandaloneTableRenderer {
     const source = await this.app.vault.cachedRead(file);
     const tables = parseEditableTables(source).tables;
     if (!tables.some((table) => table.valid && table.structural)) return;
-    const templates = await Promise.all(tables.map(async (table) => {
-      const owner = new Component();
-      const staging = container.ownerDocument.adoptNode(createDiv());
-      staging.className = "structural-tables-container";
-      owner.load();
-      try {
-        await MarkdownRenderer.render(this.app, withoutSourcePrefixes(table.source), staging, context.sourcePath, owner);
+    const [templates, sourceRender] = await Promise.all([
+      Promise.all(tables.map(async (table) => {
+        const staging = await nativeRender(
+          this.app,
+          withoutSourcePrefixes(table.source),
+          context.sourcePath,
+          container.ownerDocument,
+        );
         return Array.from(staging.children, (element) => signature(element as HTMLElement));
-      } finally { owner.unload(); }
-    }));
+      })),
+      nativeRender(this.app, source, context.sourcePath, container.ownerDocument),
+    ]);
+    if (!session.active || this.sessions.get(container) !== session
+      || this.app.vault.getAbstractFileByPath(context.sourcePath) !== file) return;
+    const confirmedSource = await this.app.vault.cachedRead(file);
+    // The final source read is asynchronous. A newer render session can take
+    // ownership while it is pending, so repeat every authority check after it.
     if (!session.active || this.sessions.get(container) !== session
       || this.app.vault.getAbstractFileByPath(context.sourcePath) !== file
-      || await this.app.vault.cachedRead(file) !== source) return;
+      || confirmedSource !== source) return;
     const settings = this.settings();
     if (!settings.enableReadingView) return;
-    const plans = tables.map((table, index) => ({ table, keys: templates[index]!, targets: matches(container, templates[index]!) }));
+    const plans = tables.map((table, index) => ({
+      table,
+      keys: templates[index]!,
+      sourceTargets: matches(sourceRender, templates[index]!),
+      targets: matches(container, templates[index]!),
+    }));
     const completions: Promise<void>[] = [];
     for (const plan of plans) {
-      if (!plan.table.valid || !plan.table.structural || plan.targets.length !== 1) continue;
+      // A standalone container can be a selection or an export fragment. Only
+      // acquire it when the same native block has one unique origin in the full
+      // saved note; HTML or other source constructs may render identically.
+      if (!plan.table.valid || !plan.table.structural
+        || plan.sourceTargets.length !== 1 || plan.targets.length !== 1) continue;
       // A literal escaped marker may render identically to structural syntax.
       // Include ordinary tables in ambiguity checks rather than guessing by DOM.
       if (plans.some((other) => other !== plan && JSON.stringify(other.keys) === JSON.stringify(plan.keys))) continue;

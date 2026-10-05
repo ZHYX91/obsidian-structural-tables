@@ -216,7 +216,8 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
       column += columnSpan;
     }
   }
-  const columnCount = Math.max(...owners.map((row) => row.length));
+  let columnCount = 0;
+  for (const row of owners) if (row.length > columnCount) columnCount = row.length;
   if (columnCount < 2) return null;
   for (let row = 0; row < owners.length; row += 1) {
     const target = owners[row] ?? [];

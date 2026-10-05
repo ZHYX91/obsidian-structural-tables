@@ -53,11 +53,21 @@ export function calloutBlocks(root: HTMLElement, originals: ReadonlyMap<HTMLElem
       if (saved !== undefined) {
         group.push(...saved.map((element) => ({ element: child, signature: blockSignature(element) })));
       } else if (!child.matches(".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview")
-        && (child.matches("p, table") || (child.querySelectorAll("table").length === 1
-        && !child.querySelector(".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview")))) {
+        && child.matches("p, table")) {
         group.push({ element: child, signature: blockSignature(child) });
       } else {
-        flush();
+        const nestedTables = child.querySelectorAll<HTMLTableElement>("table");
+        const nested = nestedTables.length === 1
+          && !child.querySelector(".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview")
+          ? nestedTables[0] : undefined;
+        if (nested === undefined) {
+          flush();
+        } else {
+          // A list item or other wrapper can contain text before and after one
+          // native table. The table is the owned render target; replacing the
+          // wrapper would hide unrelated callout content.
+          group.push({ element: nested, signature: blockSignature(nested) });
+        }
       }
     }
     flush();

@@ -83,10 +83,9 @@ export class NativeTableMenuBridge {
   }
 
   private unregisterNativeTargets(root: ParentNode): void {
-    const selector = ".cm-table-widget th, .cm-table-widget td";
     const targets = [
-      ...(("matches" in root && (root as Element).matches(selector)) ? [root as HTMLElement] : []),
-      ...root.querySelectorAll<HTMLElement>(selector),
+      ...(root instanceof HTMLElement ? [root] : []),
+      ...root.querySelectorAll<HTMLElement>("th, td"),
     ];
     for (const target of targets) this.targetCleanups.get(target)?.();
   }

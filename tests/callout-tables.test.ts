@@ -64,6 +64,21 @@ describe("source-owned callout mounting", () => {
     expect(render).toHaveBeenCalledOnce();
   });
 
+  it("preserves wrapper content around one owned native table", async () => {
+    const wrapped = `<ul><li><span class="keep-intro">Keep intro</span>${tableHtml}<span class="keep-tail">Keep tail</span></li></ul>`;
+    const { root, manager } = mount(tableSource, wrapped);
+    await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("mounted"));
+
+    expect(root.querySelector(".keep-intro")?.textContent).toBe("Keep intro");
+    expect(root.querySelector(".keep-tail")?.textContent).toBe("Keep tail");
+    expect(root.querySelector("li > .structural-tables-live-preview")).not.toBeNull();
+
+    manager.destroy();
+    expect(root.querySelector(".keep-intro")?.textContent).toBe("Keep intro");
+    expect(root.querySelector(".keep-tail")?.textContent).toBe("Keep tail");
+    expect(root.querySelector("li > table")?.textContent).toBe("A<xy");
+  });
+
   it("retains a temporarily detached editor's host without release/remount feedback", async () => {
     const { root, manager } = mount(tableSource, tableHtml);
     await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("mounted"));
@@ -174,6 +189,13 @@ describe("native block matching", () => {
     expect(calloutBlocks(root, new Map())).toEqual([]);
     expect(matchingBlocks(calloutBlocks(root, new Map([[host, [original]]])), [blockSignature(original)])).toEqual([[host]]);
   });
+  it("returns the table rather than a wrapper that contains unrelated content", () => {
+    const root = element(`<div class="callout"><div class="callout-content"><ul><li><span>Keep intro</span>${tableHtml}<span>Keep tail</span></li></ul></div></div>`);
+    const table = root.querySelector("table")!;
+    const matches = matchingBlocks(calloutBlocks(root, new Map()), [blockSignature(table)]);
+    expect(matches).toEqual([[table]]);
+  });
+
   it("preserves document order across outer and nested identical tables", () => {
     const root = element(`<div class="callout"><div class="callout-content">${tableHtml}<div class="callout"><div class="callout-content">${tableHtml}</div></div>${tableHtml}</div></div>`);
     const native = [...root.querySelectorAll("table")];

@@ -53,11 +53,46 @@ export function calloutBlocks(root: HTMLElement, originals: ReadonlyMap<HTMLElem
       if (saved !== undefined) {
         group.push(...saved.map((element) => ({ element: child, signature: blockSignature(element) })));
       } else if (!child.matches(".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview")
-        && (child.matches("p, table") || (child.querySelectorAll("table").length === 1
-        && !child.querySelector(".callout, .internal-embed, .markdown-embed, pre, .cm-editor, .structural-tables-live-preview")))) {
+        && child.matches("p, table")) {
         group.push({ element: child, signature: blockSignature(child) });
       } else {
-        flush();
+        const hardBoundary = ".callout, .internal-embed, .markdown-embed, pre, .cm-editor";
+        const mountedSelector = ".structural-tables-live-preview";
+        if (child.matches(hardBoundary) || child.querySelector(hardBoundary) !== null) {
+          flush();
+          continue;
+        }
+        const nestedHosts = Array.from(child.querySelectorAll<HTMLElement>(mountedSelector));
+        if (nestedHosts.length > 0) {
+          if (nestedHosts.length !== 1) {
+            flush();
+            continue;
+          }
+          const host = nestedHosts[0]!;
+          const savedHost = originals.get(host);
+          const foreignTables = Array.from(child.querySelectorAll("table"))
+            .some((table) => !host.contains(table));
+          if (savedHost === undefined || foreignTables) {
+            flush();
+            continue;
+          }
+          group.push(...savedHost.map((element) => ({ element: host, signature: blockSignature(element) })));
+          continue;
+        }
+        if (child.matches(mountedSelector)) {
+          flush();
+          continue;
+        }
+        const nestedTables = child.querySelectorAll<HTMLTableElement>("table");
+        const nested = nestedTables.length === 1 ? nestedTables[0] : undefined;
+        if (nested === undefined) {
+          flush();
+        } else {
+          // A list item or other wrapper can contain text before and after one
+          // native table. The table is the owned render target; replacing the
+          // wrapper would hide unrelated callout content.
+          group.push({ element: nested, signature: blockSignature(nested) });
+        }
       }
     }
     flush();

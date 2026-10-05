@@ -90,6 +90,38 @@ describe("StructuralTableReadingProcessor", () => {
       expect([...container.querySelectorAll("table")].pop()?.textContent).toBe("PlainTableKeptNative");
     } finally { render.mockRestore(); vi.unstubAllGlobals(); }
   });
+  it("preserves non-table callout content when one nested native table is replaced", async () => {
+    const structural = "> | A | < |\n> | --- | --- |\n> | x | y |";
+    const source = `> [!custom] Mixed\n${structural}`;
+    const native = "<table><thead><tr><th>A</th><th>&lt;</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table>";
+    const container = document.createElement("div");
+    container.innerHTML = `<div class="callout"><div class="callout-content"><ul><li><span class="keep-intro">Keep intro</span>${native}<span class="keep-tail">Keep tail</span></li></ul></div></div>`;
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div");
+      element.className = options.cls;
+      return element;
+    });
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const target = args[2] as HTMLElement;
+      if (target.className === "structural-tables-container") target.innerHTML = native;
+    });
+    try {
+      new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, {
+        addChild: vi.fn(),
+        sourcePath: "Callout.md",
+        getSectionInfo: () => ({ text: source, lineStart: 0, lineEnd: 3 }),
+      } as unknown as MarkdownPostProcessorContext);
+
+      await vi.waitFor(() => expect(container.querySelectorAll(".structural-tables-table")).toHaveLength(1));
+      expect(container.querySelector(".keep-intro")?.textContent).toBe("Keep intro");
+      expect(container.querySelector(".keep-tail")?.textContent).toBe("Keep tail");
+      expect(container.querySelector("li > .structural-tables-container")).not.toBeNull();
+    } finally {
+      render.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each(["> ", ">> ", "    "])("renders a container table in an isolated section %j", async (prefix) => {
     const bare = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
     const source = "- outer\n  - inner\n\n" + bare.split("\n").map((line) => prefix + line).join("\n");
@@ -345,6 +377,60 @@ describe("StructuralTableReadingProcessor", () => {
     expect(container.querySelector<HTMLElement>(".structural-tables-container")?.dataset.tableKind).toBe("ordinary");
     expect(container.querySelector("thead th")?.getAttribute("data-structural-role")).toBe("column_header");
     expect(addChild).toHaveBeenCalledOnce();
+  });
+
+  it("fails closed instead of replacing a hand-written HTML table by native position", () => {
+    const source = [
+      "<table><tr><td>Hand written</td></tr></table>",
+      "",
+      "| Name | Status |",
+      "| --- | --- |",
+      "| Alice | Ready |",
+    ].join("\n");
+    const container = document.createElement("div");
+    const html = container.appendChild(document.createElement("table"));
+    html.innerHTML = "<tbody><tr><td>Hand written</td></tr></tbody>";
+    const native = container.appendChild(document.createElement("table"));
+    native.innerHTML = "<thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Alice</td><td>Ready</td></tr></tbody>";
+    const context = {
+      addChild: vi.fn(),
+      getSectionInfo: () => ({ lineStart: 0, lineEnd: 4, text: source }),
+      sourcePath: "People.md",
+    } as unknown as MarkdownPostProcessorContext;
+
+    new StructuralTableReadingProcessor(
+      {} as App,
+      () => ({ ...DEFAULT_SETTINGS, takeOverOrdinaryTables: true }),
+    ).process(container, context);
+
+    expect(html.parentElement).toBe(container);
+    expect(native.parentElement).toBe(container);
+    expect(container.querySelector(".structural-tables-container")).toBeNull();
+  });
+
+  it("ignores a nested embed table when mapping an owned native table", () => {
+    const source = "| Name | Status |\n| --- | --- |\n| Alice | Ready |";
+    const container = document.createElement("div");
+    const embed = container.appendChild(document.createElement("div"));
+    embed.className = "internal-embed";
+    const foreign = embed.appendChild(document.createElement("table"));
+    foreign.innerHTML = "<tbody><tr><td>Foreign</td></tr></tbody>";
+    const native = container.appendChild(document.createElement("table"));
+    native.innerHTML = "<thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Alice</td><td>Ready</td></tr></tbody>";
+    const context = {
+      addChild: vi.fn(),
+      getSectionInfo: () => ({ lineStart: 0, lineEnd: 2, text: source }),
+      sourcePath: "People.md",
+    } as unknown as MarkdownPostProcessorContext;
+
+    new StructuralTableReadingProcessor(
+      {} as App,
+      () => ({ ...DEFAULT_SETTINGS, takeOverOrdinaryTables: true }),
+    ).process(container, context);
+
+    expect(foreign.parentElement).toBe(embed);
+    expect(native.parentElement).toBeNull();
+    expect(container.querySelectorAll(".structural-tables-container")).toHaveLength(1);
   });
 
   it("uses the element's bounded source lines instead of substituting an earlier structural table", async () => {

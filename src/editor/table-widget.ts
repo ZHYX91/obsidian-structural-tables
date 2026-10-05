@@ -267,6 +267,8 @@ class StructuralTableInteraction {
       const cell = this.cellForTarget(event.target);
       if (cell !== null) this.setRovingCell(cell);
       if (cell === null || event.target !== cell) return;
+      const coordinate = this.coordinateFor(cell);
+      if (coordinate !== null) this.syncSourceCursor(view, coordinate);
       this.releaseNavigationScope();
       const scope = new Scope(this.app.scope);
       scope.register([], "F2", (keyEvent) => {

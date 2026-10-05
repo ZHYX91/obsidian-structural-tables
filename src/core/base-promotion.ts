@@ -306,17 +306,24 @@ export function migrateMembershipFilter(source: string): string {
 }
 
 /** Ownership and migration need are distinct: current global filters may coexist with legacy views. */
-export function promotionBlocksNeedingMigration(source: string): PromotionBlockMetadata[] {
-  return promotionBlocks(source).filter((block) => migrateMembershipFilter(block.source) !== block.source);
+export function promotionBlocksNeedingMigration(
+  source: string,
+  sourceFilePath?: string,
+): PromotionBlockMetadata[] {
+  return promotionBlocks(source, sourceFilePath)
+    .filter((block) => migrateMembershipFilter(block.source) !== block.source);
 }
 
-export function migrateLegacyPromotionBlocks(source: string): { source: string; count: number } {
-  const legacy = promotionBlocksNeedingMigration(source)
+export function migrateLegacyPromotionBlocks(
+  source: string,
+  sourceFilePath?: string,
+): { source: string; count: number } {
+  const legacy = promotionBlocksNeedingMigration(source, sourceFilePath)
     .sort((left, right) => right.range.from - left.range.from);
   let migrated = source;
   for (const block of legacy) {
     const replacement = migrateMembershipFilter(block.source);
-    const verified = promotionBlocks(replacement).find((candidate) => candidate.tableId === block.tableId
+    const verified = promotionBlocks(replacement, sourceFilePath).find((candidate) => candidate.tableId === block.tableId
       && candidate.manifestPath === block.manifestPath);
     if (verified === undefined || verified.membershipProperty === LEGACY_TABLE_MEMBERSHIP_PROPERTY
       || (block.membershipProperty !== null && verified.membershipProperty !== TABLE_MEMBERSHIP_PROPERTY)

@@ -81,6 +81,27 @@ export function tableColumnAt(line: string, character: number): number {
   return Math.max(0, separatorsBefore - (leadingPipe ? 1 : 0));
 }
 
+/** Return a stable source position inside a visible table cell. */
+export function tableCellContentOffset(line: string, column: number): number | null {
+  if (!Number.isInteger(column) || column < 0) return null;
+  const separators = tablePipeSeparators(line);
+  if (separators.length === 0) return null;
+  const leadingPipe = line.trimStart().startsWith("|");
+  const left = leadingPipe
+    ? separators[column]
+    : column === 0 ? -1 : separators[column - 1];
+  const right = leadingPipe
+    ? separators[column + 1]
+    : separators[column];
+  if (left === undefined || (column > 0 && left < 0)) return null;
+  const from = Math.max(0, left + 1);
+  const to = right ?? line.length;
+  if (from > to || from > line.length) return null;
+  const visible = line.slice(from, to);
+  const leadingSpace = /^\s*/u.exec(visible)?.[0].length ?? 0;
+  return Math.min(to, from + leadingSpace);
+}
+
 export type MathCellInputProblem = "math-pipe-unsafe" | "math-multiline-unsafe" | "math-syntax-unsafe";
 
 /** Validate the complete draft before any table escaping or newline conversion. */

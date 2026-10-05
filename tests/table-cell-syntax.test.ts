@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { normalizeTableCellInput } from "../src/core/operations";
 import { parseEditableTables } from "../src/core/parser";
+import { tableCellContentOffset, tableColumnAt } from "../src/core/table-cell-syntax";
 
 describe("table cell syntax", () => {
   it("treats unmatched and escaped backticks as text rather than hiding pipe separators", () => {
@@ -24,6 +25,21 @@ describe("table cell syntax", () => {
   it("keeps closed code spans opaque while escaping ordinary pipes", () => {
     expect(normalizeTableCellInput("before | `code|span` | after"))
       .toBe("before \\| `code|span` \\| after");
+  });
+
+  it("maps visible cell content offsets back to the parser's column boundaries", () => {
+    for (const [line, expected] of [
+      ["| A | B |", [0, 1]],
+      ["A | B", [0, 1]],
+      ["| `A|B` | C |", [0, 1]],
+      ["| A\\|B | C |", [0, 1]],
+    ] as const) {
+      expected.forEach((column) => {
+        const offset = tableCellContentOffset(line, column);
+        expect(offset).not.toBeNull();
+        expect(tableColumnAt(line, offset! + 1)).toBe(column);
+      });
+    }
   });
 
   it("reports structural diagnostics using document source line coordinates", () => {

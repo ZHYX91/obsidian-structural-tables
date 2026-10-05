@@ -123,45 +123,26 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
-  it("keeps semantic merged presentation available when source focus leaves the editor", async () => {
-    const source = [
-      "Before",
-      "",
-      "| Region | Sales | < |",
-      "| --- | --- | --- |",
-      "| North | 10 | < |",
-      "| ^ | 8 | 11 |",
-      "",
-      "End",
-    ].join("\n");
+  it.each([false, true])("preserves raw source selection across external focus (range=%s)", async (range) => {
+    const source = "Before\n\n| Region | Sales | < |\n| --- | --- | --- |\n| North | 10 | < |\n| ^ | 8 | 11 |\n\nEnd";
     const anchor = source.indexOf("North");
-    const { parent, view } = mountEditor(source, { anchor });
+    const head = range ? anchor + 5 : anchor;
+    const { parent, view } = mountEditor(source, { anchor, head });
     try {
       view.focus();
-      expect(view.state.selection.main.anchor).toBe(anchor);
-      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
-
       const external = document.body.appendChild(document.createElement("button"));
       external.focus();
-      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
-
-      const rendered = parent.querySelector<HTMLTableElement>(".structural-tables-table")!;
-      expect(rendered.querySelector("[rowspan='2']")).not.toBeNull();
-      expect(rendered.querySelector("[colspan='2']")).not.toBeNull();
-      expect(view.state.selection.main.anchor).toBe(anchor);
-      expect(view.state.doc.toString()).toBe(source);
-
-      const clone = view.contentDOM.cloneNode(true) as HTMLElement;
-      expect(clone.querySelector(".structural-tables-table [rowspan='2']")).not.toBeNull();
-      expect(clone.querySelector(".structural-tables-table [colspan='2']")).not.toBeNull();
-      expect(clone.textContent).not.toContain("| ^ |");
-
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
       view.focus();
-      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(view.hasFocus).toBe(true);
+      expect(view.state.selection.main.anchor).toBe(anchor);
+      expect(view.state.selection.main.head).toBe(head);
+      expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
       expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
   });
-
   it("syncs visual cells to source and hands ownership to raw Markdown only on request", async () => {
     const source = [
       "Before",
@@ -2055,4 +2036,37 @@ describe("wide-table keyboard entry", () => {
       expect(handles.some((handle) => !handle.hidden && handle.tabIndex === 0)).toBe(true);
     } finally { view.destroy(); }
   });
+});
+
+it("third-party DOM mutation keeps a detached ordinary-table widget stable", async () => {
+  const source = "Before\n\n| Name | Value |\n| --- | --- |\n| Target | 10 |\n\nEnd";
+  const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
+    const link = target.ownerDocument.createElement("a");
+    link.className = "review-virtual-link";
+    link.textContent = markdown;
+    target.replaceChildren(link);
+  });
+  const { parent, view } = mountEditor(source, { anchor: 0 }, [], undefined, { takeOverOrdinaryTables: true });
+  try {
+    parent.remove();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const host = parent.querySelector(".structural-tables-live-preview");
+    expect(host).not.toBeNull();
+    expect(parent.querySelectorAll(".review-virtual-link")).toHaveLength(4);
+    expect(render).toHaveBeenCalledTimes(4);
+    document.body.appendChild(parent);
+    for (let index = 0; index < 5; index += 1) {
+      const link = parent.querySelector(".review-virtual-link")!;
+      link.appendChild(document.createTextNode(" "));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+    }
+    parent.remove();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    document.body.appendChild(parent);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+    expect(render).toHaveBeenCalledTimes(4);
+    expect(view.state.doc.toString()).toBe(source);
+  } finally { view.destroy(); }
 });

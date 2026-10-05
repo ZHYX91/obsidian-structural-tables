@@ -171,11 +171,13 @@ export class StructuralTableEditorController {
           const sourceOwned = active !== null
             && this.view.contentDOM.contains(active)
             && active.closest(".structural-tables-live-preview") === null;
-          this.setSourceFocus(sourceOwned);
+          // External controls do not end a source-editing session. Suppressing
+          // its range on blur would make CodeMirror relocate the native caret
+          // when focus returns. Only a visual-cell interaction yields ownership.
+          if (sourceOwned) this.setSourceFocus(true);
         }, 0);
       };
       private readonly sourceFocusIn = (): void => this.scheduleSourceFocus();
-      private readonly sourceFocusOut = (): void => this.scheduleSourceFocus();
       private readonly clearOtherSelections = (event: Event): void => {
         cancelPendingTableFocus(this.view);
         const target = event.target;
@@ -201,7 +203,6 @@ export class StructuralTableEditorController {
         });
         views.add(view);
         view.dom.addEventListener("focusin", this.sourceFocusIn);
-        view.dom.addEventListener("focusout", this.sourceFocusOut);
         view.dom.addEventListener("pointerdown", this.clearOtherSelections, true);
         view.dom.addEventListener("focusin", this.clearOtherSelections, true);
       }
@@ -235,7 +236,6 @@ export class StructuralTableEditorController {
         if (this.sourceFocusTimer !== null && win !== null) win.clearTimeout(this.sourceFocusTimer);
         this.sourceFocusTimer = null;
         this.view.dom.removeEventListener("focusin", this.sourceFocusIn);
-        this.view.dom.removeEventListener("focusout", this.sourceFocusOut);
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
         this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);
         views.delete(this.view);

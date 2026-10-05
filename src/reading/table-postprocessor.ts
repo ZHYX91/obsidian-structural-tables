@@ -7,6 +7,7 @@ import { parseEditableTables } from "../core/parser";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import { rawStructuralTableElement } from "./table-mapping";
 import { ReadingBlockMapper } from "./block-mapping";
+import { StandaloneTableRenderer } from "./standalone-renderer";
 import type { StructuralTable } from "../core/model";
 import { calloutBlocks, matchingBlocks, renderTableSignatures } from "../rendering/native-table-mapping";
 
@@ -43,18 +44,24 @@ function diagnosticTitle(table: StructuralTable, settings: StructuralTablesSetti
 export class StructuralTableReadingProcessor {
   private readonly calloutSessions = new WeakMap<HTMLElement, CalloutRenderSession>();
   private readonly blockMapper: ReadingBlockMapper;
+  private readonly standalone: StandaloneTableRenderer;
   constructor(
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
-  ) { this.blockMapper = new ReadingBlockMapper(app, getSettings); }
+  ) {
+    this.blockMapper = new ReadingBlockMapper(app, getSettings);
+    this.standalone = new StandaloneTableRenderer(app, getSettings);
+  }
 
-  process(container: HTMLElement, context: MarkdownPostProcessorContext): void {
+  process(container: HTMLElement, context: MarkdownPostProcessorContext): Promise<void> | void {
     if (container.closest(".structural-tables-container, [data-structural-tables-processed='true']") !== null) return;
     const settings = this.getSettings();
     if (!settings.enableReadingView) return;
     if (!(container.textContent ?? "").includes("|") && renderedTables(container).length === 0) return;
     const section = context.getSectionInfo(container);
-    if (section === null || section === undefined) return;
+    if (section === null || section === undefined) {
+      return this.standalone.process(container, context);
+    }
     const source = sectionSource(section.text, section.lineStart, section.lineEnd);
     if (source === null) return;
     // Parse with the note's container and protected-region context intact, then

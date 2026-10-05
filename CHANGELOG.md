@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Preserve source selections when opening external controls, and offer an explicit cell-to-source editing handoff.
+- Render source-verified merged tables in standalone Markdown export containers and finish cell content before exporters clone the result.
+- Retain third-party postprocessor and detached-editor protections, and clarify the limits of source-based table commands.
+
 ## 0.5.2 - 2026-10-03
 
 - Keep focus on external controls after an IME edit is rejected, while preserving recoverable drafts, hidden GFM source, and temporary cell-menu focus restoration.

@@ -1,6 +1,31 @@
-const { Plugin, MarkdownView, Notice, TFile } = require("obsidian");
+const { Plugin, MarkdownView, Notice, TFile, Component, MarkdownRenderer, Modal } = require("obsidian");
 module.exports = class extends Plugin {
   onload() {
+    this.addCommand({
+      id: "preview-standalone-tables",
+      name: "Preview standalone table rendering",
+      callback: async () => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view?.file?.path !== "Interoperability.md") return;
+        const source = await this.app.vault.cachedRead(view.file);
+        if (!source.includes("<!-- structural-tables-interop-fixture -->")) return;
+        const owner = new Component();
+        owner.load();
+        const staging = createDiv();
+        try {
+          await MarkdownRenderer.render(this.app, source, staging, view.file.path, owner);
+          const modal = new Modal(this.app);
+          modal.setTitle("Standalone table preview");
+          modal.contentEl.classList.add("markdown-rendered");
+          modal.contentEl.append(staging.cloneNode(true));
+          modal.onClose = () => owner.unload();
+          modal.open();
+        } catch (error) {
+          owner.unload();
+          new Notice(`Standalone preview failed: ${String(error)}`);
+        }
+      },
+    });
     this.addCommand({
       id: "arm-promotion-failure",
       name: "Arm promotion failure",

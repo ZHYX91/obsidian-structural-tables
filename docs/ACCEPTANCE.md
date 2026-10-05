@@ -55,14 +55,16 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 
 ### Third-party interoperability
 
-- [ ] With a merged Structural Table's raw source selected and CodeMirror focused, source remains visible. Move focus to an external modal/control without changing the logical selection: Live Preview must expose one semantic table with real `rowspan`/`colspan`, keep the Markdown unchanged in EditorState, and hide the source lines from layout and accessibility.
+- [ ] With a merged Structural Table's raw source selected, open and close an external modal/control. Source remains visible and the exact caret or range is retained; subsequent typing and source commands act at that position.
 - [ ] Return focus to the native source editor: the same logical selection restores raw Markdown without scrolling to an unrelated location or changing the note.
 - [ ] Click, keyboard-navigate, and edit rendered cells: the logical CodeMirror cursor tracks the mapped source cell while the semantic table stays mounted. Cell textarea IME, Enter, Escape, Shift+Enter and Tab remain Structural Tables-owned and are not handed to external editor keymaps.
 - [ ] Choose **Edit table source** from a rendered cell: CodeMirror receives native focus at that cell's Markdown source position and presentation yields immediately.
 - [ ] Run source-oriented table tooling (including Advanced Tables where installed) only after source handoff. Safe formatting/content edits that leave valid structural syntax must reparse and return to semantic presentation unchanged in meaning.
 - [ ] Verify that Structural Tables does not spoof third-party editor mode or call private plugin APIs. In particular, Advanced Tables' own Live Preview Tab/Enter policy remains external to Structural Tables; source handoff guarantees authoritative Markdown access, not forced takeover of third-party keybindings.
 - [ ] Exercise third-party row/column movement and sorting against merged, multi-row-header, row-header and headerless fixtures. Any result that breaks merge/header topology must remain raw Markdown with diagnostics; Structural Tables must not guess a repair or perform a follow-up structural write.
-- [ ] Capture or export the Live Preview DOM with a DOM-based image/export tool while source focus is external. Merged geometry and visible content must match the on-screen semantic table; no exporter-specific hook or plugin ID is required.
+- [ ] Export a saved note and a selected complete table through Export Image's independent Markdown renderer, then inspect the saved image. Check cell text, rowspan/colspan, Callouts, multi-row headers and row headers. Escaped literals, ambiguous source matches and invalid topology must not be guessed into merges. Export completion must include asynchronous cell content, not just empty table geometry.
+- [ ] Recheck FakeLink with Hover Editor, with ordinary-table takeover both disabled and enabled. Open, pin, close and reopen hover editors containing ordinary, merged and Callout tables. Virtual-link DOM changes and temporary detachment must not loop, repeatedly mount widgets or change Markdown. Repeat source handoff and external-focus return with a draft present.
+- [ ] Compare the previous version and candidate under the same plugin versions, note fixtures and Minimal theme. Verify native ordinary-table ownership, Callout editing/undo, widths and reading headers separately from third-party export results.
 - [ ] Reading view output and lifecycle remain unchanged by the Live Preview ownership work.
 
 ### Ownership, geometry and interactions

@@ -431,6 +431,32 @@
         "Moving or renaming a record keeps its Base association. Restoring reproduces the original table and retains all generated records.",
         "Settings retain General, Views and Appearance tabs; bilingual command names match user guidance."
       ]
+    },
+    {
+      "id": "source-interoperability",
+      "title": "Source handoff and standalone Markdown rendering",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open Interoperability in Live Preview. Edit North to North edited using the cell editor, commit, then undo and redo. Confirm merged geometry and literal markers remain correct.",
+        "Open the rendered North cell menu and choose Edit table source. Open and dismiss an external command panel; return to the raw editor and verify the original caret or range is retained, with no scroll to an unrelated table.",
+        "Save the note. Run Preview standalone table rendering from the acceptance provider. Inspect the cloned modal output: North edited spans two rows, Sales and 10 span two columns, literal < and ^ remain visible, and the Callout retains its merged Team/Result table. Close the modal.",
+        "Switch between Reading View and Live Preview, then edit the Callout cell 20 to 21 and commit. Undo and redo and verify only that cell changes; the callout and surrounding prose remain intact."
+      ],
+      "expected": [
+        "Native source ownership survives external controls without relocating the caret or losing a draft. Explicit source handoff addresses the selected cell.",
+        "The standalone clone contains completed text and semantic spans; escaped literals remain literal and render-only operations do not modify the note.",
+        "Cell commits and history preserve the corresponding source, table geometry and Callout prefixes."
+      ]
     }
   ]
 }

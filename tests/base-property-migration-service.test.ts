@@ -16,7 +16,7 @@ function testFile(path: string): TFile {
     path,
     name,
     basename: name.replace(/\.[^.]+$/u, ""),
-    extension: "md",
+    extension: name.includes(".") ? name.split(".").pop() ?? "" : "",
     parent: null,
   });
 }
@@ -29,10 +29,14 @@ function yaml(frontmatter: Record<string, unknown>, body = ""): string {
   return `---\n${lines.join("\n")}\n---\n${body}`;
 }
 
-function promotedBase(tableId: string, ending = "\n"): string {
+function promotedBase(
+  tableId: string,
+  ending = "\n",
+  manifestPath = `Records/${tableId}/_promotion.json`,
+): string {
   return `\`\`\`base
 # structural-tables-promotion: ${tableId}
-# structural-tables-manifest: "Records/${tableId}/_promotion.json"
+# structural-tables-manifest: "${manifestPath}"
 filters:
   and:
     - 'list(note.structural_table_ids).contains("${tableId}")'
@@ -42,6 +46,7 @@ filters:
 interface MigrationHost {
   app: App;
   files: TFile[];
+  supportFiles: Map<string, TFile>;
   sources: Map<TFile, string>;
   frontmatters: Map<TFile, Record<string, unknown>>;
   failProcessPath?: string;
@@ -52,12 +57,14 @@ interface MigrationHost {
 
 function migrationHost(): MigrationHost {
   const files: TFile[] = [];
+  const supportFiles = new Map<string, TFile>();
   const sources = new Map<TFile, string>();
   const frontmatters = new Map<TFile, Record<string, unknown>>();
-  const host = { files, sources, frontmatters } as MigrationHost;
+  const host = { files, supportFiles, sources, frontmatters } as MigrationHost;
   host.app = {
     vault: {
       getMarkdownFiles: () => files,
+      getFileByPath: (path: string) => files.find((file) => file.path === path) ?? supportFiles.get(path) ?? null,
       read: async (file: ObsidianTFile) => sources.get(file as TFile) ?? "",
       process: async (file: ObsidianTFile, update: (source: string) => string) => {
         host.beforeProcess?.(file as TFile);
@@ -91,7 +98,132 @@ function migrationHost(): MigrationHost {
   return host;
 }
 
+function addSupportFile(host: MigrationHost, path: string, source: string): TFile {
+  const file = testFile(path);
+  host.supportFiles.set(path, file);
+  host.sources.set(file, source);
+  return file;
+}
+
+function recoveredPromotionFixture(sourceFilePath: string, tableId: string) {
+  const slash = sourceFilePath.lastIndexOf("/");
+  const parent = slash < 0 ? "" : sourceFilePath.slice(0, slash + 1);
+  const manifestPath = `${parent}_structural-table-records/${tableId}/_promotion.json`;
+  const replacementSource = promotedBase(tableId, "\n", manifestPath);
+  const source = replacementSource
+    .split("\n")
+    .filter((line) => !line.startsWith("# structural-tables-promotion:")
+      && !line.startsWith("# structural-tables-manifest:"))
+    .join("\n");
+  const manifestContent = `${JSON.stringify({
+    version: 2,
+    pluginVersion: "0.5.2",
+    tableId,
+    sourceFilePath,
+    originalTableSource: "| Name |\n| --- |\n| Alice |",
+    replacementSource,
+    createdAt: "2026-10-05T00:00:00.000Z",
+    records: [],
+  }, null, 2)}\n`;
+  return { source, manifestPath, manifestContent };
+}
+
 describe("legacy Base property migration", () => {
+  it("migrates a markerless legacy Base only when its recovery manifest proves ownership", async () => {
+    const host = migrationHost();
+    const record = testFile("Folder/Records/Alice.md");
+    const base = testFile("Folder/People.md");
+    host.files.push(record, base);
+    host.frontmatters.set(record, {
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      name: "Alice",
+    });
+    host.sources.set(record, yaml(host.frontmatters.get(record) ?? {}, "Kept body\n"));
+    const recovered = recoveredPromotionFixture(base.path, "stb_people");
+    host.sources.set(base, recovered.source);
+    addSupportFile(host, recovered.manifestPath, recovered.manifestContent);
+    const service = new BasePropertyMigrationService(host.app);
+
+    const prepared = await service.prepare();
+    expect(prepared).toMatchObject({ membershipNoteCount: 1, legacyBaseCount: 1 });
+    await service.execute(prepared, false);
+
+    expect(host.frontmatters.get(record)).toEqual({
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      name: "Alice",
+    });
+    expect(host.sources.get(base)).toContain('list(note["structural-tables"])');
+    expect(host.sources.get(base)).not.toContain("note.structural_table_ids");
+    expect((await service.prepare()).files).toHaveLength(0);
+  });
+
+  it("fails closed before changing membership when markerless Base ownership cannot be proven", async () => {
+    const host = migrationHost();
+    const record = testFile("Folder/Records/Alice.md");
+    const base = testFile("Folder/People.md");
+    host.files.push(record, base);
+    const properties = { [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"], name: "Alice" };
+    host.frontmatters.set(record, properties);
+    const originalRecord = yaml(properties, "Kept body\n");
+    host.sources.set(record, originalRecord);
+    const recovered = recoveredPromotionFixture(base.path, "stb_people");
+    host.sources.set(base, recovered.source);
+    const service = new BasePropertyMigrationService(host.app);
+
+    await expect(service.prepare()).rejects.toThrow("promotion manifest could not be found");
+    expect(host.frontmatters.get(record)).toEqual(properties);
+    expect(host.sources.get(record)).toBe(originalRecord);
+    expect(host.sources.get(base)).toBe(recovered.source);
+  });
+
+  it("revalidates recovered Base ownership after preview before changing any file", async () => {
+    const host = migrationHost();
+    const record = testFile("Folder/Records/Alice.md");
+    const base = testFile("Folder/People.md");
+    host.files.push(record, base);
+    const properties = { [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"], name: "Alice" };
+    host.frontmatters.set(record, properties);
+    const originalRecord = yaml(properties, "Kept body\n");
+    host.sources.set(record, originalRecord);
+    const recovered = recoveredPromotionFixture(base.path, "stb_people");
+    host.sources.set(base, recovered.source);
+    const manifestFile = addSupportFile(host, recovered.manifestPath, recovered.manifestContent);
+    const service = new BasePropertyMigrationService(host.app);
+    const prepared = await service.prepare();
+    const manifest = JSON.parse(recovered.manifestContent) as Record<string, unknown>;
+    host.sources.set(manifestFile, `${JSON.stringify({ ...manifest, sourceFilePath: "Folder/Other.md" }, null, 2)}\n`);
+
+    await expect(service.execute(prepared, false)).rejects.toThrow("does not prove ownership");
+    expect(host.frontmatters.get(record)).toEqual(properties);
+    expect(host.sources.get(record)).toBe(originalRecord);
+    expect(host.sources.get(base)).toBe(recovered.source);
+  });
+
+  it("rolls back a recovered markerless Base when a later write fails", async () => {
+    const host = migrationHost();
+    const record = testFile("Folder/Records/Alice.md");
+    const base = testFile("Folder/People.md");
+    const later = testFile("Later.md");
+    host.files.push(record, base, later);
+    const properties = { [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"], name: "Alice" };
+    host.frontmatters.set(record, properties);
+    const originalRecord = yaml(properties, "Kept body\n");
+    host.sources.set(record, originalRecord);
+    const recovered = recoveredPromotionFixture(base.path, "stb_people");
+    host.sources.set(base, recovered.source);
+    addSupportFile(host, recovered.manifestPath, recovered.manifestContent);
+    host.sources.set(later, promotedBase("stb_later"));
+    host.failProcessPath = later.path;
+    const service = new BasePropertyMigrationService(host.app);
+
+    await expect(service.execute(await service.prepare(), false))
+      .rejects.toThrow("Every completed file was restored");
+
+    expect(host.frontmatters.get(record)).toEqual(properties);
+    expect(host.sources.get(record)).toContain("Kept body\n");
+    expect(host.sources.get(base)).toBe(recovered.source);
+  });
+
   it.each(["none", "before-write", "later-write"])("handles membership and a custom-filter Base in one file: %s", async (failure) => {
     const host = migrationHost();
     const base = testFile("People.md");

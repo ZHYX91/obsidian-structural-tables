@@ -136,10 +136,16 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
     const [anchorRowText, anchorColumnText] = anchorKey.split(":");
     const anchorRow = Number(anchorRowText);
     const anchorColumn = Number(anchorColumnText);
-    const minRow = Math.min(...group.map((cell) => cell.row));
-    const maxRow = Math.max(...group.map((cell) => cell.row));
-    const minColumn = Math.min(...group.map((cell) => cell.column));
-    const maxColumn = Math.max(...group.map((cell) => cell.column));
+    let minRow = Number.POSITIVE_INFINITY;
+    let maxRow = Number.NEGATIVE_INFINITY;
+    let minColumn = Number.POSITIVE_INFINITY;
+    let maxColumn = Number.NEGATIVE_INFINITY;
+    for (const cell of group) {
+      if (cell.row < minRow) minRow = cell.row;
+      if (cell.row > maxRow) maxRow = cell.row;
+      if (cell.column < minColumn) minColumn = cell.column;
+      if (cell.column > maxColumn) maxColumn = cell.column;
+    }
     let rectangular = minRow === anchorRow && minColumn === anchorColumn;
     for (let row = minRow; row <= maxRow; row += 1) {
       for (let column = minColumn; column <= maxColumn; column += 1) {

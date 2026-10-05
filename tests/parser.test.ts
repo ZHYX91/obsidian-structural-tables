@@ -102,6 +102,20 @@ describe("parseStructuralTables", () => {
     expect(table?.rows[3]?.cells[0]).toMatchObject({ covered: true, anchorRow: 2, role: "row_header" });
   });
 
+  it("parses a large rectangular merge without spreading the merge group into function arguments", () => {
+    const size = 400;
+    const delimiter = `| ${Array.from({ length: size }, () => "---").join(" | ")} |`;
+    const first = `| A | ${Array.from({ length: size - 1 }, () => "<").join(" | ")} |`;
+    const continued = `| ^ | ${Array.from({ length: size - 1 }, () => "<").join(" | ")} |`;
+    const source = [delimiter, first, ...Array.from({ length: size - 1 }, () => continued)].join("\n");
+
+    const table = parseStructuralTables(source).tables[0];
+
+    expect(table).toMatchObject({ valid: true, headerRowCount: 0, columnCount: size });
+    expect(table?.rows[0]?.cells[0]).toMatchObject({ rowSpan: size, columnSpan: size, covered: false });
+    expect(table?.rows[size - 1]?.cells[size - 1]).toMatchObject({ anchorRow: 0, anchorColumn: 0, covered: true });
+  });
+
   it("treats escaped markers as literal content", () => {
     const source = String.raw`| Group | \< |
 | Name | Value |

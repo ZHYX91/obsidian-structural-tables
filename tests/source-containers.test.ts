@@ -58,6 +58,23 @@ describe("source containers", () => {
     expect(parseStructuralTables(withSourcePrefix("```md\n" + tableSource + "\n```", prefix)).tables).toEqual([]);
   });
 
+  it.each(["```", "~~~"])("keeps a fence opened after a list marker and quote protected: %s", (fence) => {
+    const source = [
+      `- > ${fence}md`,
+      "  > | Fake | < |",
+      "  > | --- | --- |",
+      "  > | x | y |",
+      `  > ${fence}`,
+      "",
+      "| Real | < |",
+      "| --- | --- |",
+      "| x | y |",
+    ].join("\n");
+    const tables = parseStructuralTables(source).tables;
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.rows[0]?.cells[0]?.content).toBe("Real");
+  });
+
   it("does not join rows across containers or leak quote fences", () => {
     const source = withSourcePrefix(tableSource, "> ") + "\n| outside | row |\n\n> ```md\n> code\n\n" + tableSource;
     const tables = parseStructuralTables(source).tables;

@@ -190,9 +190,11 @@ describe("StructuralTableEditorController", () => {
       expect(editSource).toBeDefined();
       editSource?.callback?.();
 
-      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
-      expect(view.hasFocus).toBe(true);
-      expect(view.state.selection.main.anchor).toBe(sourceOffset);
+      await vi.waitFor(() => {
+        expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+        expect(view.hasFocus).toBe(true);
+        expect(view.state.selection.main.anchor).toBe(sourceOffset);
+      });
       expect(view.state.doc.toString()).toBe(source);
       expect(parent.textContent).toContain("| --- | --- | --- |");
     } finally { view.destroy(); }

@@ -43,7 +43,7 @@ export class NativeTableMenuBridge {
   private registerDocument(component: Component, targetDocument: Document): void {
     if (this.registeredDocuments.has(targetDocument)) return;
     this.registeredDocuments.add(targetDocument);
-    this.registerNativeTargets(component, targetDocument);
+    this.registerNativeTargets(targetDocument);
     const Observer = targetDocument.defaultView?.MutationObserver;
     if (Observer === undefined || targetDocument.body === null) return;
     const observer = new Observer((records) => {
@@ -52,7 +52,7 @@ export class NativeTableMenuBridge {
           if (node.nodeType === 1) this.unregisterNativeTargets(node as Element);
         }
         for (const node of record.addedNodes) {
-          if (node.nodeType === 1) this.registerNativeTargets(component, node as Element);
+          if (node.nodeType === 1) this.registerNativeTargets(node as Element);
         }
       }
     });
@@ -60,7 +60,7 @@ export class NativeTableMenuBridge {
     component.register(() => observer.disconnect());
   }
 
-  private registerNativeTargets(component: Component, root: ParentNode): void {
+  private registerNativeTargets(root: ParentNode): void {
     // Obsidian builds this menu in each cell's own listener instead of emitting editor-menu.
     // Registering after the native listener lets Menu.forEvent reuse that menu without replacing it.
     const selector = ".cm-table-widget th, .cm-table-widget td";

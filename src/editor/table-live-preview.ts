@@ -16,6 +16,7 @@ import { mapTablesThroughProseEdit } from "./table-parse-cache";
 import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
 import { renderTableSignatures } from "../rendering/native-table-mapping";
+import { structuralTableViewMode } from "./table-view-state";
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
@@ -60,13 +61,9 @@ export class StructuralTableEditorController {
       const selections = state.selection.ranges;
       const entries: DecorationEntry[] = [];
       for (const table of tables ?? []) {
-        if (callouts.some((range) => table.range.from >= range.from && table.range.to <= range.to)) continue;
-        if (!table.structural && !settings.takeOverOrdinaryTables) continue;
-        const active = selections.some((selection) => selection.empty
-          ? selection.from >= table.range.from && selection.from < table.range.to
-          : selection.from < table.range.to && selection.to > table.range.from);
-        if (active) continue;
-        if (table.valid) {
+        const mode = structuralTableViewMode(table, settings, selections, callouts);
+        if (mode === "ignored" || mode === "source") continue;
+        if (mode === "presentation") {
           entries.push({
             from: table.range.from,
             to: table.range.to,

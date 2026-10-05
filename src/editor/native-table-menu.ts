@@ -19,7 +19,7 @@ import { structuralTableSelectionFromCoordinates } from "./table-selection";
 
 export class NativeTableMenuBridge {
   private readonly contributedEvents = new WeakSet<Event>();
-  private readonly registeredDocuments = new WeakSet<Document>();
+  private readonly documentCleanups = new Map<Document, () => void>();
   private readonly registeredTargets = new WeakSet<HTMLElement>();
   private readonly targetCleanups = new Map<HTMLElement, () => void>();
 
@@ -31,22 +31,22 @@ export class NativeTableMenuBridge {
 
   register(component: Component): void {
     component.register(() => {
-      for (const cleanup of [...this.targetCleanups.values()]) cleanup();
-      this.targetCleanups.clear();
+      for (const cleanup of [...this.documentCleanups.values()]) cleanup();
     });
-    this.registerDocument(component, document);
+    this.registerDocument(document);
     component.registerEvent(this.app.workspace.on("window-open", (_workspaceWindow, window) => {
-      this.registerDocument(component, window.document);
+      this.registerDocument(window.document);
+    }));
+    component.registerEvent(this.app.workspace.on("window-close", (_workspaceWindow, window) => {
+      this.documentCleanups.get(window.document)?.();
     }));
   }
 
-  private registerDocument(component: Component, targetDocument: Document): void {
-    if (this.registeredDocuments.has(targetDocument)) return;
-    this.registeredDocuments.add(targetDocument);
+  private registerDocument(targetDocument: Document): void {
+    if (this.documentCleanups.has(targetDocument)) return;
     this.registerNativeTargets(targetDocument);
     const Observer = targetDocument.defaultView?.MutationObserver;
-    if (Observer === undefined || targetDocument.body === null) return;
-    const observer = new Observer((records) => {
+    const observer = Observer === undefined ? undefined : new Observer((records) => {
       for (const record of records) {
         for (const node of record.removedNodes) {
           if (node.nodeType === 1) this.unregisterNativeTargets(node as Element);
@@ -56,8 +56,16 @@ export class NativeTableMenuBridge {
         }
       }
     });
-    observer.observe(targetDocument.body, { childList: true, subtree: true });
-    component.register(() => observer.disconnect());
+    if (targetDocument.body !== null) observer?.observe(targetDocument.body, { childList: true, subtree: true });
+    this.documentCleanups.set(targetDocument, () => {
+      observer?.disconnect();
+      // Closing a window does not produce a cell-removal mutation. Include
+      // detached cells whose observer records have not been delivered yet.
+      for (const [target, cleanup] of [...this.targetCleanups]) {
+        if (target.ownerDocument === targetDocument) cleanup();
+      }
+      this.documentCleanups.delete(targetDocument);
+    });
   }
 
   private registerNativeTargets(root: ParentNode): void {

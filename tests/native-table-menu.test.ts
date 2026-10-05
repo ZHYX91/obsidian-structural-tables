@@ -21,6 +21,7 @@ function fixture(takeOverOrdinaryTables = false): {
   cell: HTMLTableCellElement;
   outside: HTMLElement;
   promote: ReturnType<typeof vi.fn>;
+  emitWindow: (event: string, window: Window) => void;
 } {
   document.body.innerHTML = `
     <div class="markdown-view">
@@ -43,10 +44,14 @@ function fixture(takeOverOrdinaryTables = false): {
     editor,
     file: null,
   });
+  const windowCallbacks = new Map<string, (workspaceWindow: unknown, window: Window) => void>();
   const app = {
     workspace: {
       iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => callback({ view: markdownView }),
-      on: () => ({}),
+      on: (event: string, callback: (workspaceWindow: unknown, window: Window) => void) => {
+        windowCallbacks.set(event, callback);
+        return {};
+      },
     },
   } as unknown as App;
   const component = {
@@ -79,6 +84,7 @@ function fixture(takeOverOrdinaryTables = false): {
     cell,
     outside: document.querySelector<HTMLElement>(".outside")!,
     promote,
+    emitWindow: (event, window) => windowCallbacks.get(event)?.({}, window),
   };
 }
 
@@ -115,6 +121,31 @@ describe("native table menu bridge", () => {
     await vi.waitFor(() => {
       expect(remove.mock.calls.some(([type]) => type === "contextmenu")).toBe(true);
     });
+  });
+
+  it("releases listeners when a popout window closes without removing its cells", () => {
+    const { emitWindow } = fixture(false);
+    const iframe = document.body.appendChild(document.createElement("iframe"));
+    const popout = iframe.contentWindow!;
+    popout.document.body.innerHTML = '<div class="cm-table-widget"><table><tr><td>Popout</td></tr></table></div>';
+    const cell = popout.document.querySelector<HTMLElement>("td")!;
+    emitWindow("window-open", popout);
+    const remove = vi.spyOn(cell, "removeEventListener");
+
+    emitWindow("window-close", popout);
+
+    expect(remove.mock.calls.some(([type]) => type === "contextmenu")).toBe(true);
+  });
+
+  it("registers a removed cell again after reattachment without duplicate menu contributions", async () => {
+    const { cell } = fixture(false);
+    const row = cell.parentElement!;
+    cell.remove();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    row.prepend(cell);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    openContextMenu(cell);
+    expect(lastMenu?.items.filter(({ title }) => title === "Upgrade to Base…")).toHaveLength(1);
   });
 
   it("does not contribute outside a native table widget", () => {

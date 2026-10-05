@@ -117,6 +117,24 @@ describe("registered whole-note HTML paste entry", () => {
   });
 
   it.each([
+    ["preserved whitespace", '<table><tr><td style="white-space: pre-wrap">A\n  B\tC</td><td>2</td></tr></table>', "A\n  B\tC\t2"],
+    ["heading boundaries", "<table><tr><td><h3>First</h3><h3>Second</h3></td><td>2</td></tr></table>", "First\nSecond\t2"],
+  ])("uses the complete plain fallback for %s instead of flattening text semantics", (_name, html, plain) => {
+    const handler = registeredPasteHandler();
+    const replaceSelection = vi.fn();
+    const { event, preventDefault } = clipboardEvent(html, plain);
+
+    handler(event, { replaceSelection } as unknown as Editor);
+
+    expect(replaceSelection).toHaveBeenCalledOnce();
+    expect(replaceSelection).toHaveBeenCalledWith(plain);
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(notices).toEqual([
+      "Pasted the complete plain-text alternative. Rich formatting and attachments may need to be added separately.",
+    ]);
+  });
+
+  it.each([
     ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>"],
     ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>"],
     ["preformatted text", "<table><tr><td><pre>A\n  B</pre></td><td>2</td></tr></table>"],

@@ -390,14 +390,28 @@ class StructuralTableInteraction {
     }
     cancelPendingTableFocus(view);
     this.clearSelection();
-    view.dispatch({
-      selection: { anchor: offset },
-      effects: [
-        structuralTableSourceFocus.of(true),
-        EditorView.scrollIntoView(offset, { y: "nearest" }),
-      ],
-    });
-    view.focus();
+
+    // Handoff is deliberately two-phase. First release presentation ownership
+    // so CodeMirror can materialize the raw source without simultaneously
+    // changing the browser DOM selection. Native focus/selection follows in
+    // the next task, outside the current CodeMirror update.
+    view.dispatch({ effects: structuralTableSourceFocus.of(true) });
+    const schedule = view.dom.ownerDocument.defaultView?.setTimeout.bind(view.dom.ownerDocument.defaultView)
+      ?? setTimeout;
+    schedule(() => {
+      if (!view.dom.isConnected) return;
+      const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
+      if (current === null) return;
+      const currentOffset = tableCellSourceOffset(view.state.doc.toString(), current, coordinate);
+      if (currentOffset === null) return;
+      const sameSelection = view.state.selection.main.empty
+        && view.state.selection.main.anchor === currentOffset;
+      view.dispatch({
+        ...(sameSelection ? {} : { selection: { anchor: currentOffset } }),
+        effects: EditorView.scrollIntoView(currentOffset, { y: "nearest" }),
+      });
+      view.focus();
+    }, 0);
   }
 
   private cellForTarget(target: EventTarget | null): HTMLElement | null {

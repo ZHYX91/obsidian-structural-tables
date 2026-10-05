@@ -19,7 +19,9 @@ class CalloutRenderSession extends MarkdownRenderChild {
 function renderedTables(container: HTMLElement): HTMLTableElement[] {
   const tables = Array.from(container.querySelectorAll<HTMLTableElement>("table"));
   if (container.tagName === "TABLE") tables.unshift(container as HTMLTableElement);
-  return tables.filter((table) => !table.classList.contains("structural-tables-table"));
+  const owner = container.closest(".internal-embed, .markdown-embed, .cm-editor");
+  return tables.filter((table) => !table.classList.contains("structural-tables-table")
+    && table.closest(".internal-embed, .markdown-embed, .cm-editor") === owner);
 }
 
 function sectionSource(
@@ -86,8 +88,7 @@ export class StructuralTableReadingProcessor {
       && (table.headerRowCount === 0 || table.headerRowCount > 1 || table.rowHeaderColumnCount > 0)
       && table.startLine <= section.lineEnd && table.endLine >= section.lineStart);
     const candidates = renderedTables(container);
-    let candidateIndex = 0;
-    parsed.forEach((table) => {
+    const mappings = parsed.map((table) => {
       const rawSource = rawStructuralTableElement(container, table, (element) => {
         const info = context.getSectionInfo(element);
         return info?.lineStart === section.lineStart + table.startLine
@@ -96,8 +97,29 @@ export class StructuralTableReadingProcessor {
       // An adjacent || delimiter cannot produce a native GFM table. If its raw
       // block cannot be identified, it must never consume a later native table.
       const native = rawSource === undefined && table.headerRowCount > 0 && table.rowHeaderColumnCount === 0;
-      const existing = rawSource ?? (native ? candidates[candidateIndex] : undefined);
-      if (native) candidateIndex += 1;
+      return { table, rawSource, native };
+    });
+    // Positional native mapping is safe only when every native table in this
+    // render section has a source counterpart. Hand-written HTML and nested
+    // embeds can also produce TABLE elements without belonging to parsed GFM.
+    const positionalNativeSafe = candidates.length === mappings.filter(({ native }) => native).length;
+    let candidateIndex = 0;
+    mappings.forEach(({ table, rawSource, native }) => {
+      let nativeCandidate: HTMLTableElement | undefined;
+      if (native) {
+        if (positionalNativeSafe) {
+          nativeCandidate = candidates[candidateIndex];
+        } else {
+          const exact = candidates.filter((candidate) => {
+            const info = context.getSectionInfo(candidate);
+            return info?.lineStart === section.lineStart + table.startLine
+              && info.lineEnd === section.lineStart + table.endLine;
+          });
+          if (exact.length === 1) nativeCandidate = exact[0];
+        }
+        candidateIndex += 1;
+      }
+      const existing = rawSource ?? nativeCandidate;
       // Multi-row headers may occupy a preceding paragraph and a native table.
       // Their complete source must be mapped atomically, never by native position.
       if (native && table.headerRowCount > 1) return;

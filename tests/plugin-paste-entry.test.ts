@@ -118,6 +118,8 @@ describe("registered whole-note HTML paste entry", () => {
 
   it.each([
     ["preserved whitespace", '<table><tr><td style="white-space: pre-wrap">A\n  B\tC</td><td>2</td></tr></table>', "A\n  B\tC\t2"],
+    ["inherited whitespace", '<div style="white-space: pre-wrap"><table><tr><td>A\n  B\tC</td><td>2</td></tr></table></div>', "A\n  B\tC\t2"],
+    ["preserved newlines", '<table><tr><td style="white-space: pre-line">A\nB</td><td>2</td></tr></table>', "A\nB\t2"],
     ["heading boundaries", "<table><tr><td><h3>First</h3><h3>Second</h3></td><td>2</td></tr></table>", "First\nSecond\t2"],
   ])("uses the complete plain fallback for %s instead of flattening text semantics", (_name, html, plain) => {
     const handler = registeredPasteHandler();
@@ -138,6 +140,8 @@ describe("registered whole-note HTML paste entry", () => {
     ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>"],
     ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>"],
     ["preformatted text", "<table><tr><td><pre>A\n  B</pre></td><td>2</td></tr></table>"],
+    ["inherited whitespace", '<div style="white-space: pre-wrap"><table><tr><td>A\n  B\tC</td><td>2</td></tr></table></div>'],
+    ["preserved newlines", '<table><tr><td style="white-space: pre-line">A\nB</td><td>2</td></tr></table>'],
   ])("blocks %s without plain text and preserves the selection", (_name, html) => {
     const handler = registeredPasteHandler();
     const replaceSelection = vi.fn();

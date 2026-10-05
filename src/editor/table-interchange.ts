@@ -55,9 +55,13 @@ const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, embed, .interna
 const TEXT_SEMANTIC_CONTENT = "pre, sup, sub, h1, h2, h3, h4, h5, h6";
 
 function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
-  return [table, ...table.querySelectorAll<HTMLElement>("[style]")].some((element) => {
+  const ancestors: HTMLElement[] = [];
+  for (let element = table.parentElement; element !== null; element = element.parentElement) ancestors.push(element);
+  // white-space is inherited. Clipboard wrappers can carry the cell's visible
+  // whitespace semantics even when the table has no inline style of its own.
+  return [table, ...ancestors, ...table.querySelectorAll<HTMLElement>("[style]")].some((element) => {
     const whiteSpace = element.style.whiteSpace.trim().toLowerCase();
-    return whiteSpace === "pre" || whiteSpace === "pre-wrap" || whiteSpace === "break-spaces";
+    return whiteSpace === "pre" || whiteSpace === "pre-wrap" || whiteSpace === "pre-line" || whiteSpace === "break-spaces";
   });
 }
 

@@ -14,6 +14,12 @@ for (const staticFile of ["manifest.json", "styles.css"]) {
 }
 
 const bundle = await readFile(path.join(root, "dist", "main.js"), "utf8");
+const thirdPartyNotices = await readFile(path.join(root, "THIRD_PARTY_NOTICES.txt"), "utf8");
+for (const line of thirdPartyNotices.split(/\r?\n/u).map((value) => value.trim()).filter(Boolean)) {
+  if (!bundle.includes(line)) {
+    throw new Error(`Production bundle is missing third-party notice text: ${line}`);
+  }
+}
 if (Buffer.byteLength(bundle) > 1_500_000) {
   throw new Error("Production bundle exceeds the 1.5 MB release budget.");
 }

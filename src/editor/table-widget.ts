@@ -1679,6 +1679,7 @@ class StructuralTableInteraction {
   }
 
   private selectBounds(first: TableCellCoordinate, last: TableCellCoordinate): void {
+    this.selectionEpoch += 1;
     this.axisSelection = null;
     this.touchAxisAnchor = null;
     this.touchRangeAnchor = null;

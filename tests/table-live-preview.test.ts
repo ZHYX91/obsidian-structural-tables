@@ -1095,6 +1095,30 @@ describe("StructuralTableEditorController", () => {
       name: "intraword Unicode punctuation content-only selection",
       value: "中*！*文", start: 2, end: 3, key: "i",
     },
+    {
+      name: "intraword plus symbol marker selection",
+      value: "a*+*b", start: 1, end: 4, key: "i",
+    },
+    {
+      name: "intraword plus symbol content-only selection",
+      value: "a*+*b", start: 2, end: 3, key: "i",
+    },
+    {
+      name: "intraword dollar symbol marker selection",
+      value: "a*$*b", start: 1, end: 4, key: "i",
+    },
+    {
+      name: "intraword dollar symbol content-only selection",
+      value: "a*$*b", start: 2, end: 3, key: "i",
+    },
+    {
+      name: "intraword Unicode symbol marker selection",
+      value: "a*©*b", start: 1, end: 4, key: "i",
+    },
+    {
+      name: "intraword Unicode symbol content-only selection",
+      value: "a*©*b", start: 2, end: 3, key: "i",
+    },
   ] as const)("keeps non-flanking literal stars for $name", ({ value, start, end, key }) => {
     const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 });
@@ -1141,6 +1165,30 @@ describe("StructuralTableEditorController", () => {
     {
       name: "standalone Unicode punctuation content",
       value: "*！*", start: 1, end: 2, key: "i", expected: "！",
+    },
+    {
+      name: "standalone plus symbol wrapper",
+      value: "*+*", start: 0, end: 3, key: "i", expected: "+",
+    },
+    {
+      name: "standalone plus symbol content",
+      value: "*+*", start: 1, end: 2, key: "i", expected: "+",
+    },
+    {
+      name: "standalone dollar symbol wrapper",
+      value: "*$*", start: 0, end: 3, key: "i", expected: "$",
+    },
+    {
+      name: "standalone dollar symbol content",
+      value: "*$*", start: 1, end: 2, key: "i", expected: "$",
+    },
+    {
+      name: "standalone Unicode symbol wrapper",
+      value: "*©*", start: 0, end: 3, key: "i", expected: "©",
+    },
+    {
+      name: "standalone Unicode symbol content",
+      value: "*©*", start: 1, end: 2, key: "i", expected: "©",
     },
   ] as const)("recognizes flanking punctuation emphasis for $name", ({ value, start, end, key, expected }) => {
     const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";

@@ -2029,7 +2029,7 @@ class StructuralTableInteraction {
     const tableDeleted = result.code === "table-deleted";
     let coordinate = next ?? selectionAnchor ?? { row: 0, column: 0 };
     let restoredAxis = axisSelection;
-    let restoredBounds = result.code === "cells-cleared"
+    let restoredBounds = (result.code === "cells-cleared" || result.code === "range-pasted")
       && selectionAnchor !== null && selectionHead !== null
       ? { first: selectionAnchor, last: selectionHead } : undefined;
 

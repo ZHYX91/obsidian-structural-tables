@@ -74,6 +74,9 @@ export function renderStructuralTable(
       if (rowIndex < table.headerRowCount) {
         element.dataset.structuralHeaderEnd = String(cell.row + cell.rowSpan === table.headerRowCount);
       }
+      if (table.rowHeaderColumnCount > 0 && cell.column + cell.columnSpan === table.rowHeaderColumnCount) {
+        element.dataset.structuralRowHeaderBoundary = "true";
+      }
       if (cell.rowSpan > 1) element.rowSpan = cell.rowSpan;
       if (cell.columnSpan > 1) element.colSpan = cell.columnSpan;
       const alignment = table.alignments[cell.column] ?? "default";

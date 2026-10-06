@@ -149,7 +149,7 @@ The settings page has **General**, **Views**, and **Appearance** tabs.
 - **Views**: Reading view, Live Preview, diagnostics, and the default-off **Take over ordinary Markdown tables** option.
 - **Appearance**: Follow theme, Grid, or Three-line table; table width/alignment; comfortable or compact spacing; optional alternating rows.
 
-**Follow theme** leaves header colors and typography to the active Obsidian theme. **Grid** gives semantic headers a consistent header band. **Three-line table** uses top and bottom rules plus one rule below the complete column-header area, with no vertical body rules. A headerless Three-line table naturally has only the top and bottom rules.
+**Follow theme** leaves header colors and typography to the active Obsidian theme. **Grid** gives semantic headers a consistent header band, with slightly thicker single lines below the complete column-header area and along the row-header divider declared by `||`. Both boundaries remain visible even before data rows are added. These lines follow merged-cell edges; tables without headers keep a uniform grid. **Three-line table** uses top and bottom rules plus one rule below the complete column-header area, with no vertical body rules. A headerless Three-line table naturally has only the top and bottom rules.
 
 Appearance settings affect only rendering; they never change Markdown.
 

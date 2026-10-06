@@ -176,6 +176,15 @@
   font-weight: var(--font-semibold, 600);
 }
 
+/* Emphasize complete header regions, including the edges of spanning anchors. */
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="grid"] .structural-tables-table [data-structural-header-end="true"] {
+  border-block-end-width: 2px !important;
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="grid"] .structural-tables-table [data-structural-row-header-boundary="true"] {
+  border-inline-end-width: 2px !important;
+}
+
 :is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="three-line"] .structural-tables-table {
   border-collapse: collapse !important;
   border: 0 !important;

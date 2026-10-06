@@ -177,7 +177,7 @@ The takeover description must make clear that source remains standard GFM, disab
 Fresh installs follow the theme. Style, layout, and density are independent:
 
 - **Follow theme** leaves header fill and typography to the active Obsidian theme;
-- **Grid** gives column, row, and corner headers one restrained header treatment;
+- **Grid** gives column, row, and corner headers one restrained header treatment, with a slightly thicker single rule below the complete column-header area and along the row-header divider declared by `||`. Both declared boundaries remain visible in header-only tables. These rules follow merged-cell edges; tables without headers keep a uniform grid;
 - **Three-line table** draws top/bottom rules and one rule below the complete column-header area, without a row-header fill or vertical divider;
 - headerless Three-line tables naturally keep only top and bottom rules;
 - explicit column alignment overrides the default row-header alignment.

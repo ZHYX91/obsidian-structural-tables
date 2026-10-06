@@ -1333,10 +1333,12 @@ describe("StructuralTableEditorController", () => {
       expect(restoredFirst.querySelector("textarea")).toBeNull();
 
       expect(redo(view)).toBe(true);
-      await Promise.resolve();
-      expect(view.state.doc.toString()).toBe(expectedRemoved);
-      expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(1);
-      expect(view.hasFocus).toBe(true);
+      await vi.waitFor(() => expect(view.state.doc.toString()).toBe(expectedRemoved));
+      const remaining = parseEditableTables(view.state.doc.toString()).tables;
+      expect(remaining).toHaveLength(1);
+      await vi.waitFor(() => expect(view.hasFocus).toBe(true));
+      expect(view.state.selection.main.anchor).toBe(first.range.from);
+      expect(view.state.selection.main.anchor).toBeLessThan(remaining[0]!.range.from);
     } finally {
       view.destroy();
     }

@@ -1077,7 +1077,9 @@ class StructuralTableInteraction {
       if (event.defaultPrevented) return;
       // Gboard may replace the selection with an empty insertText before Enter.
       // Explicit deletion uses delete input types and must remain available.
-      if (event.inputType === "insertText" && event.data === "" && editor.selectionStart !== editor.selectionEnd) {
+      if (!composing && !event.isComposing
+        && event.inputType === "insertText" && event.data === ""
+        && editor.selectionStart !== editor.selectionEnd) {
         event.preventDefault();
         return;
       }

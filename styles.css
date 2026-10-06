@@ -162,6 +162,11 @@
   border-block-end-width: var(--table-row-last-border-width, var(--table-border-width, 1px));
 }
 
+/* The theme's top outer edge also applies when there is no column-header section. */
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table [data-structural-row="0"] {
+  border-block-start-width: var(--table-header-border-width, var(--table-border-width, 1px));
+}
+
 :is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="grid"] .structural-tables-table {
   border-collapse: collapse !important;
   border: var(--table-border-width, 1px) solid var(--table-border-color, var(--background-modifier-border)) !important;

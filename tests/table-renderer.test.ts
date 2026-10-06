@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { type App, Component, MarkdownRenderer } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { parseStructuralTables } from "../src/core/parser";
+import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { renderStructuralTable } from "../src/rendering/table-renderer";
 
 interface ObsidianElementOptions {
@@ -24,6 +24,91 @@ beforeAll(() => {
   HTMLElement.prototype.createDiv = function createDiv(options?: ObsidianElementOptions): HTMLDivElement {
     return this.createEl("div", options);
   };
+});
+
+describe("theme outer borders", () => {
+  const cases = [
+    { name: "no headers", source: "| --- | --- |\n| Alice | 10 |\n| Bob | 20 |" },
+    { name: "row headers with a rowspan", source: "| --- || --- |\n| North | 10 |\n| ^ | 20 |" },
+    { name: "headerless merged data", source: "| --- | --- |\n| Group | < |\n| Alice | 10 |" },
+    { name: "empty headerless data", source: "| --- | --- |\n|  |  |\n|  |  |" },
+    { name: "ordinary column headers", source: "| Name | Value |\n| --- | --- |\n| Alice | 10 |" },
+    { name: "merged column headers without data", source: "| Group | < |\n| ^ | ^ |\n| --- | --- |" },
+  ];
+
+  it.each(cases)("uses theme outer edges without losing inner lines: $name", async ({ source }) => {
+    const table = parseEditableTables(source).tables[0]!;
+    expect(table.valid).toBe(true);
+    const style = document.head.appendChild(document.createElement("style"));
+    style.textContent = "body { --table-border-width: 1px; --table-header-border-width: 0px; "
+      + "--table-column-first-border-width: 0px; --table-column-last-border-width: 0px; --table-row-last-border-width: 0px; }\n"
+      + ".markdown-rendered :is(th, td) { border: var(--table-border-width) solid gray; }\n"
+      + ".markdown-rendered thead th { border-block-start-width: var(--table-header-border-width); }\n"
+      + readFileSync("styles.css", "utf8");
+    const container = document.body.appendChild(document.createElement("div"));
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      element.textContent = text;
+    });
+    try {
+      const rendered = renderStructuralTable({} as App, table, container, "Theme.md", new Component());
+      (rendered.parentElement as HTMLElement).dataset.appearance = "theme";
+      await Promise.resolve();
+      const cells = [...rendered.querySelectorAll<HTMLElement>("th, td")];
+      const top = cells.filter((cell) => cell.dataset.structuralRow === "0");
+      expect(top.length).toBeGreaterThan(0);
+      for (const cell of top) {
+        expect(getComputedStyle(cell).getPropertyValue("border-block-start-width")).toBe("0px");
+      }
+      for (const cell of cells) {
+        const computed = getComputedStyle(cell);
+        expect(computed.getPropertyValue("border-inline-start-width"))
+          .toBe(cell.dataset.structuralColumn === "0" ? "0px" : "1px");
+        expect(computed.getPropertyValue("border-inline-end-width"))
+          .toBe(cell.dataset.structuralInlineEnd === "true" ? "0px" : "1px");
+        if (cell.dataset.structuralBlockEnd === "true") {
+          expect(computed.getPropertyValue("border-block-end-width")).toBe("0px");
+        } else {
+          expect(computed.borderBottomWidth).toBe("1px");
+        }
+        if (cell.dataset.structuralRow !== "0") expect(computed.borderTopWidth).toBe("1px");
+      }
+      // A theme can restore its outer frame without changing table structure.
+      container.style.setProperty("--table-header-border-width", "1px");
+      for (const cell of top) {
+        expect(getComputedStyle(cell).getPropertyValue("border-block-start-width")).toBe("1px");
+      }
+      expect(table.source).toBe(source);
+    } finally {
+      render.mockRestore();
+      container.remove();
+      style.remove();
+    }
+  });
+
+  it("uses the same theme variable in Live Preview and leaves unowned tables untouched", () => {
+    const style = document.head.appendChild(document.createElement("style"));
+    style.textContent = "body { --table-border-width: 1px; --table-header-border-width: 3px; }\n"
+      + ".markdown-rendered :is(th, td) { border: 1px solid gray; }\n"
+      + readFileSync("styles.css", "utf8");
+    const container = document.body.appendChild(document.createElement("div"));
+    container.className = "structural-tables-live-preview";
+    container.dataset.appearance = "theme";
+    const native = document.body.appendChild(document.createElement("div"));
+    native.className = "markdown-rendered";
+    native.innerHTML = "<table><tbody><tr><td>Native</td></tr></tbody></table>";
+    try {
+      const table = parseStructuralTables("| --- || --- |\n| North | 10 |").tables[0]!;
+      const rendered = renderStructuralTable({} as App, table, container, "Live.md", new Component());
+      for (const cell of rendered.querySelectorAll("th, td")) {
+        expect(getComputedStyle(cell).getPropertyValue("border-block-start-width")).toBe("3px");
+      }
+      expect(getComputedStyle(native.querySelector("td")!).borderTopWidth).toBe("1px");
+    } finally {
+      container.remove();
+      native.remove();
+      style.remove();
+    }
+  });
 });
 
 describe("Grid header boundaries", () => {

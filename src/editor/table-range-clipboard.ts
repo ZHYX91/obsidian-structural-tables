@@ -3,6 +3,7 @@ import {
   tableRangeHtml,
   tableRangePlainText,
   TABLE_RANGE_CLIPBOARD_MIME,
+  TABLE_RANGE_CLIPBOARD_WEB_MIME,
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
 
@@ -64,7 +65,7 @@ export async function writeTableRangeToNavigator(
   const representations = tableRangeClipboardRepresentations(payload);
   try {
     const item = new ClipboardItemCtor({
-      [TABLE_RANGE_CLIPBOARD_MIME]: new Blob([representations.structured], { type: TABLE_RANGE_CLIPBOARD_MIME }),
+      [TABLE_RANGE_CLIPBOARD_WEB_MIME]: new Blob([representations.structured], { type: TABLE_RANGE_CLIPBOARD_MIME }),
       "text/plain": new Blob([representations.plain], { type: "text/plain" }),
       "text/html": new Blob([representations.html], { type: "text/html" }),
     });
@@ -87,8 +88,11 @@ export async function readTableRangeFromNavigator(
   try {
     const items = await clipboard.read();
     for (const item of items) {
-      if (!item.types.includes(TABLE_RANGE_CLIPBOARD_MIME)) continue;
-      const blob = await item.getType(TABLE_RANGE_CLIPBOARD_MIME);
+      const structuredType = item.types.includes(TABLE_RANGE_CLIPBOARD_WEB_MIME)
+        ? TABLE_RANGE_CLIPBOARD_WEB_MIME
+        : item.types.includes(TABLE_RANGE_CLIPBOARD_MIME) ? TABLE_RANGE_CLIPBOARD_MIME : null;
+      if (structuredType === null) continue;
+      const blob = await item.getType(structuredType);
       const payload = parseTableRangePayload(await blob.text());
       return payload === null ? { kind: "failed" } : { kind: "payload", payload };
     }

@@ -28,6 +28,7 @@ A valid structural table is presented by a semantic block widget while its Markd
 - The editor overlays the existing cell without changing column width or adding a second visible input border.
 - Enter commits, Escape cancels, and Shift+Enter inserts a draft line break.
 - Tab/Shift+Tab follows visible cells in source order and skips covered merge slots.
+- While the textarea owns editing focus, Cmd/Ctrl+B and Cmd/Ctrl+I toggle bold/italic only on its current draft selection and preserve the other emphasis style. Typing, composition input, paste, draft line breaks, and these format operations participate in one draft-local undo/redo history; inherited main-editor history and formatting commands must not touch saved source before commit. Other formatting commands remain source-oriented and require **Edit table source**.
 - A rejected commit keeps the complete draft, does not navigate, and does not append a row.
 - IME composition must not be committed early or have its keys intercepted.
 

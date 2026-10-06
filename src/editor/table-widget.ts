@@ -763,13 +763,200 @@ class StructuralTableInteraction {
     let composing = false;
     let contextMenuOpen = false;
     let lastRejectedDraft: string | null = null;
+    type DraftSnapshot = { value: string; start: number; end: number };
+    type DraftHistoryGroup = "typing" | "composition" | "deletion" | "native" | "format" | "paste" | "break";
+    type DraftHistoryEntry = {
+      before: DraftSnapshot;
+      after: DraftSnapshot;
+      group: DraftHistoryGroup;
+    };
+    const draftUndo: DraftHistoryEntry[] = [];
+    const draftRedo: DraftHistoryEntry[] = [];
+    let lastHistorySnapshot: DraftSnapshot;
+    let pendingNativeInput: { before: DraftSnapshot; group: DraftHistoryGroup } | null = null;
+    let allowNativeHistoryMerge = true;
+    const draftSnapshot = (): DraftSnapshot => ({
+      value: editor.value,
+      start: editor.selectionStart,
+      end: editor.selectionEnd,
+    });
+    lastHistorySnapshot = draftSnapshot();
+    const sameDraftSnapshot = (left: DraftSnapshot, right: DraftSnapshot): boolean =>
+      left.value === right.value && left.start === right.start && left.end === right.end;
+    const restoreDraftSnapshot = (snapshot: DraftSnapshot): void => {
+      editor.value = snapshot.value;
+      editor.setSelectionRange(snapshot.start, snapshot.end);
+      lastHistorySnapshot = snapshot;
+      pendingNativeInput = null;
+      lastRejectedDraft = null;
+      resizeEditor();
+      editor.focus({ preventScroll: true });
+    };
+    const recordDraftHistory = (
+      before: DraftSnapshot,
+      after: DraftSnapshot,
+      group: DraftHistoryGroup,
+      merge: boolean,
+    ): void => {
+      if (sameDraftSnapshot(before, after)) {
+        lastHistorySnapshot = after;
+        return;
+      }
+      const previous = draftUndo[draftUndo.length - 1];
+      if (merge && previous?.group === group && sameDraftSnapshot(previous.after, before)) {
+        previous.after = after;
+      } else {
+        draftUndo.push({ before, after, group });
+      }
+      draftRedo.length = 0;
+      lastHistorySnapshot = after;
+    };
+    const applyDraftMutation = (group: DraftHistoryGroup, mutate: () => void): void => {
+      const before = draftSnapshot();
+      mutate();
+      recordDraftHistory(before, draftSnapshot(), group, false);
+      lastRejectedDraft = null;
+      resizeEditor();
+      editor.focus({ preventScroll: true });
+    };
+    const nativeHistoryGroup = (event: InputEvent): DraftHistoryGroup => {
+      const inputType = event.inputType ?? "";
+      if (composing || event.isComposing || inputType.includes("Composition")) return "composition";
+      if (inputType === "insertText") return "typing";
+      if (inputType === "deleteContentBackward" || inputType === "deleteContentForward") return "deletion";
+      return "native";
+    };
+    const isEscapedAt = (value: string, index: number): boolean => {
+      let backslashes = 0;
+      for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) backslashes += 1;
+      return backslashes % 2 === 1;
+    };
+    const starRunBefore = (value: string, index: number): { from: number; length: number } | null => {
+      let from = index;
+      while (from > 0 && value[from - 1] === "*") from -= 1;
+      const length = index - from;
+      return length >= 1 && length <= 3 && !isEscapedAt(value, from) ? { from, length } : null;
+    };
+    const starRunAfter = (value: string, index: number): { to: number; length: number } | null => {
+      let to = index;
+      while (to < value.length && value[to] === "*") to += 1;
+      const length = to - index;
+      return length >= 1 && length <= 3 && !isEscapedAt(value, index) ? { to, length } : null;
+    };
+    const codePointBefore = (value: string, index: number): string | null =>
+      /[\s\S]$/u.exec(value.slice(0, index))?.[0] ?? null;
+    const codePointAfter = (value: string, index: number): string | null =>
+      /^[\s\S]/u.exec(value.slice(index))?.[0] ?? null;
+    const isMarkdownWhitespace = (character: string | null): boolean =>
+      character === null || /\s/u.test(character);
+    const isMarkdownPunctuation = (character: string | null): boolean =>
+      character !== null && /[\p{P}\p{S}]/u.test(character);
+    const starRunFlanking = (
+      value: string,
+      from: number,
+      to: number,
+    ): { left: boolean; right: boolean } => {
+      const previous = codePointBefore(value, from);
+      const next = codePointAfter(value, to);
+      const previousWhitespace = isMarkdownWhitespace(previous);
+      const nextWhitespace = isMarkdownWhitespace(next);
+      const previousPunctuation = isMarkdownPunctuation(previous);
+      const nextPunctuation = isMarkdownPunctuation(next);
+      return {
+        left: !nextWhitespace && (!nextPunctuation || previousWhitespace || previousPunctuation),
+        right: !previousWhitespace && (!previousPunctuation || nextWhitespace || nextPunctuation),
+      };
+    };
+    const isValidStarWrapper = (
+      value: string,
+      openingFrom: number,
+      openingTo: number,
+      closingFrom: number,
+      closingTo: number,
+    ): boolean =>
+      starRunFlanking(value, openingFrom, openingTo).left
+      && starRunFlanking(value, closingFrom, closingTo).right;
+    const selectedStarWrapper = (
+      value: string,
+      start: number,
+      end: number,
+    ): { content: string; length: number } | null => {
+      if (start >= end || value[start] !== "*" || value[end - 1] !== "*") return null;
+      let left = start;
+      while (left < end && value[left] === "*") left += 1;
+      let right = end;
+      while (right > start && value[right - 1] === "*") right -= 1;
+      const leftLength = left - start;
+      const rightLength = end - right;
+      const content = value.slice(left, right);
+      if (leftLength !== rightLength || leftLength < 1 || leftLength > 3 || left >= right) return null;
+
+      let fullLeft = start;
+      while (fullLeft > 0 && value[fullLeft - 1] === "*") fullLeft -= 1;
+      let fullRight = end;
+      while (fullRight < value.length && value[fullRight] === "*") fullRight += 1;
+      const completeLeftLength = left - fullLeft;
+      const completeRightLength = fullRight - right;
+      if (completeLeftLength > 3 || completeRightLength > 3
+        || isEscapedAt(value, fullLeft) || isEscapedAt(value, right)
+        || !isValidStarWrapper(value, fullLeft, left, right, fullRight)) return null;
+      return { content, length: leftLength };
+    };
+    const ambiguousSelectedStarBoundary = (value: string, start: number, end: number): boolean =>
+      start < end && (value[start] === "*" || value[end - 1] === "*");
+    const toggledStarRunLength = (current: number, target: 1 | 2): number => {
+      let italic = current === 1 || current === 3;
+      let bold = current === 2 || current === 3;
+      if (target === 1) italic = !italic;
+      else bold = !bold;
+      return (bold ? 2 : 0) + (italic ? 1 : 0);
+    };
     this.releaseNavigationScope();
     const scope = new Scope(this.app.scope);
 
     const insertBreak = (start = editor.selectionStart, end = editor.selectionEnd): void => {
-      editor.setRangeText("\n", start, end, "end");
-      resizeEditor();
-      editor.focus({ preventScroll: true });
+      applyDraftMutation("break", () => {
+        editor.setRangeText("\n", start, end, "end");
+      });
+    };
+    const toggleDraftInlineFormat = (marker: "*" | "**"): void => {
+      const target = marker.length as 1 | 2;
+      applyDraftMutation("format", () => {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const value = editor.value;
+        const selected = value.slice(start, end);
+        if (start === end) {
+          editor.setRangeText(marker + marker, start, end, "end");
+          const caret = start + target;
+          editor.setSelectionRange(caret, caret);
+          return;
+        }
+
+        const selectedWrapper = selectedStarWrapper(value, start, end);
+        if (selectedWrapper !== null) {
+          const nextLength = toggledStarRunLength(selectedWrapper.length, target);
+          const stars = "*".repeat(nextLength);
+          editor.setRangeText(stars + selectedWrapper.content + stars, start, end, "end");
+          editor.setSelectionRange(start + nextLength, start + nextLength + selectedWrapper.content.length);
+          return;
+        }
+
+        const before = starRunBefore(value, start);
+        const after = starRunAfter(value, end);
+        if (before !== null && after !== null && before.length === after.length) {
+          if (!isValidStarWrapper(value, before.from, start, end, after.to)) return;
+          const nextLength = toggledStarRunLength(before.length, target);
+          const stars = "*".repeat(nextLength);
+          editor.setRangeText(stars + selected + stars, before.from, after.to, "end");
+          editor.setSelectionRange(before.from + nextLength, before.from + nextLength + selected.length);
+          return;
+        }
+
+        if (before !== null || after !== null || ambiguousSelectedStarBoundary(value, start, end)) return;
+        editor.setRangeText(marker + selected + marker, start, end, "end");
+        editor.setSelectionRange(start + target, end + target);
+      });
     };
 
     const restore = (focus: boolean): void => {
@@ -863,13 +1050,52 @@ class StructuralTableInteraction {
         } else finish(true, next);
       }
     };
-    // Obsidian handles Escape in its app scope before DOM bubbling. Own that
-    // shortcut only while this textarea is active, so it cannot focus raw source.
+    // Obsidian handles app Scope shortcuts before textarea bubbling. Own only
+    // the draft-local shortcuts here so parent editor commands cannot rewrite
+    // the saved cell while this textarea has editing ownership.
     scope.register([], "Escape", (event) => {
       if (composing || event.isComposing || contextMenuOpen) return;
       handleKey(event);
       return false;
     });
+    const registerDraftFormat = (key: "b" | "i", marker: "*" | "**"): void => {
+      scope.register(["Mod"], key, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (settled || composing || event.isComposing || contextMenuOpen
+          || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return false;
+        toggleDraftInlineFormat(marker);
+        return false;
+      });
+    };
+    registerDraftFormat("b", "**");
+    registerDraftFormat("i", "*");
+    const registerDraftHistory = (
+      modifiers: ("Mod" | "Ctrl" | "Shift")[],
+      key: "z" | "y",
+      redo: boolean,
+    ): void => {
+      scope.register(modifiers, key, (event) => {
+        if (settled || composing || event.isComposing || contextMenuOpen
+          || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return true;
+        event.preventDefault();
+        event.stopPropagation();
+        const from = redo ? draftRedo : draftUndo;
+        const to = redo ? draftUndo : draftRedo;
+        const entry = from.pop();
+        if (entry !== undefined) {
+          to.push(entry);
+          restoreDraftSnapshot(redo ? entry.after : entry.before);
+          // Typing after history navigation starts a new branch. Do not merge
+          // it back into a typing transaction that predates the undo/redo.
+          allowNativeHistoryMerge = false;
+        }
+        return false;
+      });
+    };
+    registerDraftHistory(["Mod"], "z", false);
+    registerDraftHistory(["Mod", "Shift"], "z", true);
+    registerDraftHistory(["Ctrl"], "y", true);
     const activateCellScope = (): void => {
       claimCellEditorFocus(editor);
       if (this.cellScope === scope) return;
@@ -879,7 +1105,19 @@ class StructuralTableInteraction {
     };
     editor.addEventListener("focus", activateCellScope);
     editor.addEventListener("keydown", handleKey);
-    editor.addEventListener("input", () => {
+    editor.addEventListener("input", (event) => {
+      const inputEvent = event;
+      const after = draftSnapshot();
+      const pending = pendingNativeInput;
+      pendingNativeInput = null;
+      const group = pending?.group ?? nativeHistoryGroup(inputEvent);
+      recordDraftHistory(
+        pending?.before ?? lastHistorySnapshot,
+        after,
+        (pending?.group ?? nativeHistoryGroup(inputEvent)),
+        allowNativeHistoryMerge && (group === "typing" || group === "composition"),
+      );
+      allowNativeHistoryMerge = true;
       lastRejectedDraft = null;
       resizeEditor();
     });
@@ -887,17 +1125,22 @@ class StructuralTableInteraction {
       // Soft keyboards can insert a line break before sending a useful keydown.
       // Commit the draft before that insertion replaces the selected cell text.
       event.stopPropagation();
-      if (event.defaultPrevented || composing || event.isComposing) return;
+      if (event.defaultPrevented) return;
       // Gboard may replace the selection with an empty insertText before Enter.
       // Explicit deletion uses delete input types and must remain available.
-      if (event.inputType === "insertText" && event.data === "" && editor.selectionStart !== editor.selectionEnd) {
+      if (!composing && !event.isComposing
+        && event.inputType === "insertText" && event.data === ""
+        && editor.selectionStart !== editor.selectionEnd) {
         event.preventDefault();
         return;
       }
-      if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
+      if (!composing && !event.isComposing
+        && (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph")) {
         event.preventDefault();
         finish(true);
+        return;
       }
+      pendingNativeInput = { before: draftSnapshot(), group: nativeHistoryGroup(event) };
     });
     editor.addEventListener("paste", (event) => {
       if (event.clipboardData === null) return;
@@ -914,8 +1157,9 @@ class StructuralTableInteraction {
       const end = editor.selectionEnd;
       // A fragment may be inside an existing math/code/link span. Preserve it
       // in the draft and validate the full cell only when committing.
-      editor.setRangeText(pasted, start, end, "end");
-      resizeEditor();
+      applyDraftMutation("paste", () => {
+        editor.setRangeText(pasted, start, end, "end");
+      });
     });
     editor.addEventListener("contextmenu", (event) => {
       event.preventDefault();

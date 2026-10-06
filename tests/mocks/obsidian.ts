@@ -172,12 +172,70 @@ export function getLanguage(): string {
 
 export const activeScopes: Scope[] = [];
 
+interface MockScopeHandler {
+  modifiers: string[] | null;
+  key: string | null;
+  callback: (event: KeyboardEvent) => boolean | void;
+}
+
 export class Scope {
-  readonly handlers: Array<{ key: string | null; callback: (event: KeyboardEvent) => boolean | void }> = [];
-  constructor(_parent?: Scope) {}
-  register(_modifiers: string[] | null, key: string | null, callback: (event: KeyboardEvent) => boolean | void): void {
-    this.handlers.push({ key, callback });
+  readonly handlers: MockScopeHandler[] = [];
+  constructor(readonly parent?: Scope) {}
+  register(modifiers: string[] | null, key: string | null, callback: (event: KeyboardEvent) => boolean | void): void {
+    this.handlers.push({ modifiers, key, callback });
   }
+}
+
+function scopeKey(value: string | null): string | null {
+  return value !== null && value.length === 1 ? value.toLowerCase() : value;
+}
+
+export type MockModKey = "ctrl" | "meta";
+let mockModKey: MockModKey = "ctrl";
+
+export function setMockModKey(value: MockModKey): void {
+  mockModKey = value;
+}
+
+export function resetMockModKey(): void {
+  mockModKey = "ctrl";
+}
+
+function scopeModifiersMatch(modifiers: string[] | null, event: KeyboardEvent): boolean {
+  if (modifiers === null) return true;
+  const wantsMod = modifiers.includes("Mod");
+  const wantsCtrl = modifiers.includes("Ctrl") || (wantsMod && mockModKey === "ctrl");
+  const wantsMeta = modifiers.includes("Meta") || (wantsMod && mockModKey === "meta");
+  const wantsShift = modifiers.includes("Shift");
+  const wantsAlt = modifiers.includes("Alt");
+  return event.ctrlKey === wantsCtrl
+    && event.metaKey === wantsMeta
+    && event.shiftKey === wantsShift
+    && event.altKey === wantsAlt;
+}
+
+/** Simulate Obsidian's active child Scope resolving before inherited parent hotkeys. */
+export function dispatchScopeKey(event: KeyboardEvent): boolean {
+  let scope = activeScopes[activeScopes.length - 1];
+  while (scope !== undefined) {
+    const handler = scope.handlers.find((candidate) =>
+      scopeKey(candidate.key) === scopeKey(event.key)
+      && scopeModifiersMatch(candidate.modifiers, event));
+    if (handler !== undefined) {
+      const result = handler.callback(event);
+      if (result === false && !event.defaultPrevented) event.preventDefault();
+      return true;
+    }
+    scope = scope.parent;
+  }
+  return false;
+}
+
+/** Scope capture runs before the textarea's keydown bubble listener. */
+export function dispatchScopeCaptureThenDom(target: HTMLElement, event: KeyboardEvent): boolean {
+  const handled = dispatchScopeKey(event);
+  if (!event.cancelBubble) target.dispatchEvent(event);
+  return handled;
 }
 
 export class App {

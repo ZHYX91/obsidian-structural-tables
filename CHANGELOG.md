@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep Cmd/Ctrl+B and Cmd/Ctrl+I inside active cell drafts, preserve nested bold/italic markers, and route typing, composition, paste, line breaks and formatting through draft-local undo/redo until explicit commit.
 - Preserve source selections when opening external controls, and offer an explicit cell-to-source editing handoff.
 - Render source-verified merged tables in standalone Markdown export containers and finish cell content before exporters clone the result.
 - Retain third-party postprocessor and detached-editor protections, and clarify the limits of source-based table commands.

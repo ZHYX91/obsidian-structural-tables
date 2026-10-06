@@ -38,7 +38,7 @@ describe("table range clipboard payload", () => {
       o0: "Group",
       o5: "**North**",
       o6: String.raw`[[Target\|Alias]]`,
-      o7: String.raw``a\|b`<br>$x$`,
+      o7: "`a\\|b`<br>$x$",
     });
     expect(parseTableRangePayload(JSON.stringify(payload))).toEqual(payload);
   });
@@ -141,7 +141,7 @@ describe("table range clipboard payload", () => {
     const pasted = parseStructuralTables(result.source).tables[0]!;
     expect(pasted.rows[1]!.cells[0]!.raw.trim()).toBe("**A**");
     expect(pasted.rows[1]!.cells[2]!.raw.trim()).toBe(String.raw`[[N\|A]]`);
-    expect(pasted.rows[2]!.cells[2]!.raw.trim()).toBe(String.raw``x\|y``);
+    expect(pasted.rows[2]!.cells[2]!.raw.trim()).toBe("`x\\|y`");
     expect(pasted.headerRowCount).toBe(target.headerRowCount);
     expect(pasted.alignments).toEqual(target.alignments);
   });

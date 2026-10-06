@@ -925,6 +925,57 @@ describe("StructuralTableEditorController", () => {
       }
     });
 
+  it("keeps draft formatting undo/redo ahead of inherited main-editor history", () => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { app, parent, view } = mountEditor(source, { anchor: 0 });
+    const inheritedUndo = vi.fn(() => false);
+    const inheritedRedo = vi.fn(() => false);
+    app.scope.register(["Mod"], "z", inheritedUndo);
+    app.scope.register(["Mod", "Shift"], "z", inheritedRedo);
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "West draft";
+      editor.select();
+      expect(dispatchScopeKey(new KeyboardEvent("keydown", {
+        key: "b", ctrlKey: true, cancelable: true,
+      }))).toBe(true);
+      expect(editor.value).toBe("**West draft**");
+
+      const undoFormat = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true });
+      expect(dispatchScopeKey(undoFormat)).toBe(true);
+      expect(undoFormat.defaultPrevented).toBe(true);
+      expect(inheritedUndo).not.toHaveBeenCalled();
+      expect(editor.value).toBe("West draft");
+      expect(editor.selectionStart).toBe(0);
+      expect(editor.selectionEnd).toBe("West draft".length);
+      expect(view.state.doc.toString()).toBe(source);
+
+      const redoFormat = new KeyboardEvent("keydown", {
+        key: "z", ctrlKey: true, shiftKey: true, cancelable: true,
+      });
+      expect(dispatchScopeKey(redoFormat)).toBe(true);
+      expect(redoFormat.defaultPrevented).toBe(true);
+      expect(inheritedRedo).not.toHaveBeenCalled();
+      expect(editor.value).toBe("**West draft**");
+
+      expect(dispatchScopeKey(new KeyboardEvent("keydown", {
+        key: "z", ctrlKey: true, cancelable: true,
+      }))).toBe(true);
+      const nativeUndo = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true });
+      expect(dispatchScopeKey(nativeUndo)).toBe(true);
+      expect(nativeUndo.defaultPrevented).toBe(false);
+      expect(inheritedUndo).not.toHaveBeenCalled();
+      expect(editor.value).toBe("West draft");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
   it("commits a draft-local format as one main-document history change", async () => {
     const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);

@@ -854,16 +854,6 @@ describe("StructuralTableEditorController", () => {
       expect(undo(view)).toBe(true);
       await vi.waitFor(() => expect(view.state.doc.toString()).toBe(source));
       await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
-      if (kind === "table") {
-        const restored = parent.querySelector<HTMLElement>(
-          ".callout [data-structural-row='1'][data-structural-column='1']",
-        )!;
-        await vi.waitFor(() => expect(document.activeElement).toBe(restored));
-        const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
-        expect(activeScopes[activeScopes.length - 1]!.handlers
-          .find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
-        expect(restored.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("1");
-      }
     } finally {
       view.destroy();
     }
@@ -939,6 +929,16 @@ describe("StructuralTableEditorController", () => {
       expect(undo(view)).toBe(true);
       await vi.waitFor(() => expect(view.state.doc.toString()).toBe(source));
       await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      if (kind === "table") {
+        const restored = parent.querySelector<HTMLElement>(
+          ".callout [data-structural-row='1'][data-structural-column='1']",
+        )!;
+        await vi.waitFor(() => expect(document.activeElement).toBe(restored));
+        const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
+        expect(activeScopes[activeScopes.length - 1]!.handlers
+          .find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
+        expect(restored.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("1");
+      }
     } finally {
       view.destroy();
     }

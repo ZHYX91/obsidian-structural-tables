@@ -177,6 +177,17 @@ function dispatchDraftShortcut(
   return event;
 }
 
+function dispatchOwnedGridKey(
+  target: HTMLElement,
+  key: "Delete" | "Backspace",
+  throughScope = true,
+): KeyboardEvent {
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+  if (throughScope) dispatchScopeCaptureThenDom(target, event);
+  else target.dispatchEvent(event);
+  return event;
+}
+
 function dispatchPointerDown(
   target: HTMLElement,
   pointerType: "mouse" | "touch",
@@ -899,6 +910,143 @@ describe("StructuralTableEditorController", () => {
     expect(parent.querySelector("textarea")).toBeNull();
     view.destroy();
     expect(activeScopes).toHaveLength(0);
+  });
+
+  it.each([
+    ["single", "Delete"],
+    ["partial", "Backspace"],
+    ["row", "Delete"],
+    ["column", "Backspace"],
+    ["all", "Delete"],
+  ] as const)("clears %s owned-grid selection with unmodified %s while preserving structure", async (mode, key) => {
+    const source = [
+      "| H1 | H2 | < |",
+      "| --- || :---: | ---: |",
+      "| R1 | A | B |",
+      "| R2 | C | D |",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      const cell = (row: number, column: number) => parent.querySelector<HTMLElement>(
+        `[data-structural-row='${row}'][data-structural-column='${column}']`,
+      )!;
+      if (mode === "single") {
+        dispatchPointerDown(cell(1, 1), "mouse");
+      } else if (mode === "partial") {
+        dispatchPointerDown(cell(1, 1), "mouse");
+        cell(1, 2).dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      } else if (mode === "row") {
+        const handle = parent.querySelector<HTMLButtonElement>("[data-structural-row-handle='1']")!;
+        handle.focus();
+        handle.click();
+      } else if (mode === "column") {
+        const handle = parent.querySelector<HTMLButtonElement>("[data-structural-column-handle='0']")!;
+        handle.focus();
+        handle.click();
+      } else {
+        dispatchPointerDown(cell(0, 0), "mouse");
+        cell(2, 2).dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      }
+      const active = document.activeElement as HTMLElement;
+      const event = dispatchOwnedGridKey(active, key);
+      expect(event.defaultPrevented).toBe(true);
+
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(table).toMatchObject({
+        valid: true,
+        columnCount: 3,
+        headerRowCount: 1,
+        rowHeaderColumnCount: 1,
+      });
+      expect(table.alignments).toEqual(["default", "center", "right"]);
+      expect(table.rows[0]!.cells[2]!.marker).toBe("left");
+
+      if (mode === "single") {
+        expect(table.rows[1]!.cells.map((item) => item.content)).toEqual(["R1", "", "B"]);
+      } else if (mode === "partial") {
+        expect(table.rows[1]!.cells.map((item) => item.content)).toEqual(["R1", "", ""]);
+      } else if (mode === "row") {
+        expect(table.rows[1]!.cells.filter((item) => !item.covered).every((item) => item.content === "")).toBe(true);
+      } else if (mode === "column") {
+        expect(table.rows.map((row) => row.cells[0]!.content)).toEqual(["", "", ""]);
+      } else {
+        expect(table.rows.every((row) => row.cells.filter((item) => !item.covered).every((item) => item.content === ""))).toBe(true);
+      }
+      expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("runs Scope capture and DOM fallback through one clear handler without duplicate writes", () => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    let writes = 0;
+    const listener = EditorView.updateListener.of((update) => {
+      if (update.docChanged) writes += 1;
+    });
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(), listener]);
+    try {
+      const select = () => {
+        const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+        dispatchPointerDown(cell, "mouse");
+        return cell;
+      };
+      const first = select();
+      const captured = dispatchOwnedGridKey(first, "Delete", true);
+      expect(captured.defaultPrevented).toBe(true);
+      expect(writes).toBe(1);
+
+      expect(undo(view)).toBe(true);
+      const second = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      dispatchPointerDown(second, "mouse");
+      const bubbled = dispatchOwnedGridKey(second, "Backspace", false);
+      expect(bubbled.defaultPrevented).toBe(true);
+      expect(writes).toBe(3);
+      expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[1]!.content).toBe("");
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("does not turn textarea Delete or Backspace into a grid operation", () => {
+    const source = "| H | V |\n| --- || --- |\n| A | West |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.setSelectionRange(1, 3);
+      for (const key of ["Delete", "Backspace"] as const) {
+        const keyEvent = dispatchOwnedGridKey(editor, key);
+        expect(keyEvent.defaultPrevented).toBe(false);
+      }
+      const before = draftInputEvent("beforeinput", "deleteContentBackward", null);
+      expect(editor.dispatchEvent(before)).toBe(true);
+      editor.setRangeText("", editor.selectionStart, editor.selectionEnd, "end");
+      editor.dispatchEvent(draftInputEvent("input", "deleteContentBackward", null));
+      expect(editor.value).toBe("Wt");
+      expect(view.state.doc.toString()).toBe(source);
+      dispatchDraftShortcut(editor, "z");
+      expect(editor.value).toBe("West");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("keeps an empty clear byte-stable and adds no extra history entry", () => {
+    const source = "| H | V |\n| --- || --- |\n| A |  |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      dispatchPointerDown(cell, "mouse");
+      const event = dispatchOwnedGridKey(cell, "Delete");
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+    } finally {
+      view.destroy();
+    }
   });
 
   it("refreshes appearance without changing source or merge semantics", () => {

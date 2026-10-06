@@ -763,6 +763,8 @@ class StructuralTableInteraction {
     const selection = this.selection;
     if (selection === null) return;
     const menu = Menu.forEvent(event);
+    this.selectionMenuOpen = true;
+    menu.onHide(() => { this.selectionMenuOpen = false; });
     const t = createTranslator(this.getSettings().language);
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = this.selectionAnchor ?? { row: selection.minRow, column: selection.minColumn };
@@ -782,13 +784,19 @@ class StructuralTableInteraction {
     if (this.promote !== undefined && info?.editor !== undefined) {
       addBasePromotionMenuItem(menu, t, this.table, () => this.promote?.(info.editor!, () => view.dom.isConnected ? view.state.field(editorInfoField, false) ?? null : null, this.table));
     }
-    const menuOptions = { fullEditor: true } as const;
+    const menuOptions = { fullEditor: true, explicitRemoval: true } as const;
     if (!hasSelectionMenuItems(selection, menuOptions)) return;
     addSelectionMenuItems(
       menu,
       t,
       selection,
-      (operation) => this.applyMenuOperation(view, operation),
+      (operation, intent) => this.applyMenuOperation(
+        view,
+        operation,
+        undefined,
+        intent === "owned-grid" ? this.axisSelection ?? undefined : undefined,
+        intent,
+      ),
       menuOptions,
     );
   }
@@ -1405,6 +1413,7 @@ class StructuralTableInteraction {
         this.selectAxis({ axis, start: Math.min(this.axisAnchor, index), end: Math.max(this.axisAnchor, index) });
         this.touchAxisAnchor = event.pointerType === "touch" && !extendTouch ? { axis, index } : null;
         handle.focus({ preventScroll: true });
+        this.activateAxisClearScope(view, handle, axis, index);
       });
       handle.addEventListener("click", () => {
         if (this.axisDrag?.consumeClick()) return;
@@ -1412,6 +1421,7 @@ class StructuralTableInteraction {
           this.axisAnchor = index;
           this.selectAxis({ axis, start: index, end: index });
         }
+        this.activateAxisClearScope(view, handle, axis, index);
       });
       handle.addEventListener("contextmenu", (event) => {
         this.touchAxisAnchor = null;
@@ -1421,6 +1431,7 @@ class StructuralTableInteraction {
           this.axisAnchor = index;
           this.selectAxis({ axis, start: index, end: index });
         }
+        this.activateAxisClearScope(view, handle, axis, index);
         this.showSelectionMenu(event, view);
       });
     };
@@ -1512,8 +1523,12 @@ class StructuralTableInteraction {
       handle.tabIndex = index === 0 ? 0 : -1;
       handle.addEventListener("focus", () => {
         handles.forEach((candidate) => { candidate.tabIndex = candidate === handle ? 0 : -1; });
+        const axis = orientation === "vertical" ? "row" : "column";
+        this.activateAxisClearScope(view, handle, axis, index);
       });
+      handle.addEventListener("blur", () => this.releaseNavigationScope());
       handle.addEventListener("keydown", (event) => {
+        if (this.handleGridClear(event, view)) return;
         if (this.handleHistory(event, view, orientation === "vertical"
           ? { row: index, column: 0 } : { row: 0, column: index })) return;
         const rtl = rendered.ownerDocument.defaultView?.getComputedStyle(rendered).direction === "rtl";

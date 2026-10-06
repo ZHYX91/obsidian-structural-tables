@@ -858,6 +858,43 @@ class StructuralTableInteraction {
     }
   }
 
+  private freezeGridSelection(): FrozenGridSelection | null {
+    const selection = this.selection;
+    const anchor = this.selectionAnchor;
+    const head = this.selectionHead;
+    const host = this.host;
+    if (selection === null || anchor === null || head === null || host === null || !host.isConnected) return null;
+    const payload = tableRangePayload(this.table, {
+      minRow: selection.minRow,
+      maxRow: selection.maxRow,
+      minColumn: selection.minColumn,
+      maxColumn: selection.maxColumn,
+    });
+    if (payload === null) return null;
+    return {
+      sourcePath: this.sourcePath,
+      from: this.table.range.from,
+      source: this.table.source,
+      host,
+      epoch: this.selectionEpoch,
+      selection,
+      anchor: { ...anchor },
+      head: { ...head },
+      ...(this.axisSelection === null ? {} : { axisSelection: { ...this.axisSelection } }),
+      payload,
+    };
+  }
+
+  private currentTableForFrozenSelection(
+    view: EditorView,
+    frozen: FrozenGridSelection,
+  ): StructuralTable | null {
+    if (this.host !== frozen.host || !frozen.host.isConnected || this.selectionEpoch !== frozen.epoch
+      || view.state.field(editorInfoField, false)?.file?.path !== frozen.sourcePath
+      || view.state.doc.sliceString(frozen.from, frozen.from + frozen.source.length) !== frozen.source) return null;
+    return reparseUnchangedTable(view.state.doc.toString(), frozen.selection.table);
+  }
+
   private revealHandlesForPointer(event: PointerEvent): void {
     if (event.pointerType === "touch" || this.host === null) return;
     const coordinate = this.coordinateFor(event.target);
@@ -909,14 +946,15 @@ class StructuralTableInteraction {
   }
 
   private showSelectionMenu(event: MouseEvent, view: EditorView): void {
-    const selection = this.selection;
-    if (selection === null) return;
+    const frozen = this.freezeGridSelection();
+    if (frozen === null) return;
+    const selection = frozen.selection;
     const menu = Menu.forEvent(event);
     this.selectionMenuOpen = true;
     menu.onHide(() => { this.selectionMenuOpen = false; });
     const t = createTranslator(this.getSettings().language);
     const info = view.state.field(editorInfoField, false);
-    const sourceCoordinate = this.selectionAnchor ?? { row: selection.minRow, column: selection.minColumn };
+    const sourceCoordinate = frozen.anchor;
     menu.addItem((item) => item
       .setSection("structural-tables-source")
       .setTitle(t("menu.editSource"))
@@ -943,8 +981,9 @@ class StructuralTableInteraction {
         view,
         operation,
         undefined,
-        intent === "owned-grid" ? this.axisSelection ?? undefined : undefined,
+        intent === "owned-grid" ? frozen.axisSelection : undefined,
         intent,
+        frozen,
       ),
       menuOptions,
     );
@@ -1826,21 +1865,25 @@ class StructuralTableInteraction {
     next?: TableCellCoordinate,
     axisSelection?: AxisSelection,
     intent: TableOperationIntent = "standard",
+    frozen?: FrozenGridSelection,
   ): void {
     const t = createTranslator(this.getSettings().language);
+    const expected = frozen?.selection.table ?? this.table;
     if (intent === "owned-grid"
-      && view.state.field(editorInfoField, false)?.file?.path !== this.sourcePath) {
+      && view.state.field(editorInfoField, false)?.file?.path !== (frozen?.sourcePath ?? this.sourcePath)) {
       new Notice(t("notice.staleTable"));
       return;
     }
-    const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
+    const current = frozen === undefined
+      ? reparseUnchangedTable(view.state.doc.toString(), expected)
+      : this.currentTableForFrozenSelection(view, frozen);
     if (current === null) {
       new Notice(t("notice.staleTable"));
       return;
     }
-    const selection = this.selection;
-    const selectionAnchor = this.selectionAnchor;
-    const selectionHead = this.selectionHead;
+    const selection = frozen?.selection ?? this.selection;
+    const selectionAnchor = frozen?.anchor ?? this.selectionAnchor;
+    const selectionHead = frozen?.head ?? this.selectionHead;
     const result = operation(current);
     if (!result.changed) {
       if (result.code !== "cells-cleared") new Notice(operationNotice(t, result.code));

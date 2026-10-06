@@ -105,12 +105,9 @@ export function restoreTableHistoryFocus(view: EditorView,
       focusNativeTable(view, table, target.coordinate);
       return;
     }
-    // A whole-table removal hands ownership to the native source surface.
-    // Undo restores the exact table through history metadata; return that
-    // verified target to presentation so its widget can consume pending focus.
     view.dispatch({
       effects: [
-        structuralTableSourceFocus.of(false),
+        ...(target.restorePresentation === true ? [structuralTableSourceFocus.of(false)] : []),
         EditorView.scrollIntoView(table.range.from, { y: "nearest" }),
       ],
     });
@@ -1687,7 +1684,13 @@ class StructuralTableInteraction {
     view.dispatch({
       changes: { from: current.range.from, to: current.range.to, insert: result.source },
       ...((nativeCallout || ownedGrid)
-        ? tableWriteHistory(current, result.source, this.sourcePath, historyCoordinate) : {}),
+        ? tableWriteHistory(
+          current,
+          result.source,
+          this.sourcePath,
+          historyCoordinate,
+          tableDeleted ? { restorePresentation: true } : {},
+        ) : {}),
       ...(!nativeCallout ? {
         selection: { anchor: tableDeleted ? current.range.from : current.range.from + result.source.length },
       } : {}),

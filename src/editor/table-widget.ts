@@ -85,7 +85,7 @@ export function restoreTableHistoryFocus(view: EditorView,
       if (view.state !== state || !view.dom.isConnected) return;
       view.dispatch({
         selection: { anchor },
-        effects: structuralTableSourceFocus.of(true),
+        effects: EditorView.scrollIntoView(anchor, { y: "nearest" }),
       });
       view.focus();
     });
@@ -105,12 +105,7 @@ export function restoreTableHistoryFocus(view: EditorView,
       focusNativeTable(view, table, target.coordinate);
       return;
     }
-    view.dispatch({
-      effects: [
-        ...(target.restorePresentation === true ? [structuralTableSourceFocus.of(false)] : []),
-        EditorView.scrollIntoView(table.range.from, { y: "nearest" }),
-      ],
-    });
+    view.dispatch({ effects: EditorView.scrollIntoView(table.range.from, { y: "nearest" }) });
   });
 }
 

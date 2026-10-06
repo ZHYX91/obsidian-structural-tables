@@ -1055,15 +1055,16 @@ class StructuralTableInteraction {
     editor.addEventListener("focus", activateCellScope);
     editor.addEventListener("keydown", handleKey);
     editor.addEventListener("input", (event) => {
+      const inputEvent = event as InputEvent;
       const after = draftSnapshot();
       const pending = pendingNativeInput;
       pendingNativeInput = null;
+      const group = pending?.group ?? nativeHistoryGroup(inputEvent);
       recordDraftHistory(
         pending?.before ?? lastHistorySnapshot,
         after,
-        pending?.group ?? nativeHistoryGroup(event),
-        (pending?.group ?? nativeHistoryGroup(event)) === "typing"
-          || (pending?.group ?? nativeHistoryGroup(event)) === "composition",
+        group,
+        group === "typing" || group === "composition",
       );
       lastRejectedDraft = null;
       resizeEditor();

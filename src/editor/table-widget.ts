@@ -6,14 +6,31 @@ import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor } fro
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
-import { adjacentTableCell } from "../core/table-navigation";
+import { adjacentTableCell, tableCellInDirection, type TableGridDirection } from "../core/table-navigation";
 import { mathPipeSuggestions } from "../core/table-cell-syntax";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
-import { appendTableRow, clearTableCells, editCellContent, editCellAndTransform, insertTableColumn, reorderTableAxis, type TableAxis } from "../core/operations";
+import {
+  appendTableRow,
+  clearTableCells,
+  editCellContent,
+  editCellAndTransform,
+  insertTableColumn,
+  pasteTableRangeRaw,
+  reorderTableAxis,
+  type TableAxis,
+} from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
 import { sourcePrefix } from "../core/source-lines";
+import {
+  parseTableRangePayload,
+  tableRangeHtml,
+  tableRangePayload,
+  tableRangePlainText,
+  TABLE_RANGE_CLIPBOARD_MIME,
+  type TableRangeClipboardPayloadV1,
+} from "../core/table-range-clipboard";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import { renderTableClipboard } from "../rendering/table-clipboard";
 import { cellClipboardText, copyHtml } from "./table-interchange";
@@ -50,6 +67,21 @@ interface PendingCellFocus {
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
 const activeCellEditors = new WeakMap<Document, HTMLTextAreaElement>();
+
+type CellEditEntryIntent = "select-all" | { caretOffset: number };
+
+interface FrozenGridSelection {
+  sourcePath: string;
+  from: number;
+  source: string;
+  host: HTMLElement;
+  epoch: number;
+  selection: StructuralTableSelection;
+  anchor: TableCellCoordinate;
+  head: TableCellCoordinate;
+  axisSelection?: AxisSelection;
+  payload: TableRangeClipboardPayloadV1;
+}
 
 function ownsCellEditorFocus(editor: HTMLTextAreaElement): boolean {
   return activeCellEditors.get(editor.ownerDocument) === editor;

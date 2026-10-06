@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 
+import { readFileSync } from "node:fs";
 import { type App, Component, MarkdownRenderer } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -23,6 +24,126 @@ beforeAll(() => {
   HTMLElement.prototype.createDiv = function createDiv(options?: ObsidianElementOptions): HTMLDivElement {
     return this.createEl("div", options);
   };
+});
+
+describe("Grid header boundaries", () => {
+  const cases = [
+    {
+      name: "merged corner and row headers with nested column headers",
+      source: "| Region | < | Results | < |\n| ^ | ^ | Q1 | Q2 |\n| --- | --- || --- | --- |\n| North | < | 10 | 12 |\n| ^ | ^ | 20 | 22 |",
+      block: ["0:0", "1:2", "1:3"],
+      inline: ["0:0", "2:0"],
+    },
+    {
+      name: "row headers without column headers",
+      source: "| --- | --- || --- | --- |\n| North | < | 10 | 12 |\n| ^ | ^ | 20 | 22 |",
+      block: [],
+      inline: ["0:0"],
+    },
+    {
+      name: "multiple row-header columns with an interior rowspan",
+      source: "| Region | Site | Value |\n| --- | --- || --- |\n| North | A | 10 |\n| ^ | B | 20 |",
+      block: ["0:0", "0:1", "0:2"],
+      inline: ["0:1", "1:1", "2:1"],
+    },
+    {
+      name: "column headers without row headers",
+      source: "| Region | Results | < |\n| ^ | Q1 | Q2 |\n| --- | --- | --- |\n| North | 10 | 12 |",
+      block: ["0:0", "1:1", "1:2"],
+      inline: [],
+    },
+    {
+      name: "no headers",
+      source: "| --- | --- |\n| Alice | 10 |\n| Bob | 20 |",
+      block: [],
+      inline: [],
+    },
+    {
+      name: "column headers with no body",
+      source: "| Region | Results | < |\n| ^ | Q1 | Q2 |\n| --- | --- | --- |",
+      block: [],
+      inline: [],
+    },
+  ];
+
+  it.each(cases)("emphasizes only the complete semantic boundaries: $name", async ({ source, block, inline }) => {
+    const table = parseStructuralTables(source).tables[0]!;
+    expect(table.valid).toBe(true);
+    const style = document.head.appendChild(document.createElement("style"));
+    style.textContent = "body { --table-border-width: 1px; --table-border-color: rgb(80, 140, 200); }\n"
+      + readFileSync("styles.css", "utf8");
+    const container = document.body.appendChild(document.createElement("div"));
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      element.textContent = text;
+    });
+    try {
+      const rendered = renderStructuralTable({} as App, table, container, "Grid.md", new Component());
+      (rendered.parentElement as HTMLElement).dataset.appearance = "grid";
+      await Promise.resolve();
+      const cells = [...rendered.querySelectorAll<HTMLElement>("th, td")];
+      const emphasized = (property: string): string[] => cells
+        .filter((cell) => getComputedStyle(cell).getPropertyValue(property) === "2px")
+        .map((cell) => `${cell.dataset.structuralRow}:${cell.dataset.structuralColumn}`);
+      expect(emphasized("border-block-end-width")).toEqual(block);
+      expect(emphasized("border-inline-end-width")).toEqual(inline);
+      for (const cell of cells) {
+        expect(getComputedStyle(cell).borderTopWidth).toBe("1px");
+        expect(getComputedStyle(cell).borderTopColor).toBe("rgb(80, 140, 200)");
+        expect(getComputedStyle(cell).borderTopStyle).toBe("solid");
+      }
+      expect(table.source).toBe(source);
+    } finally {
+      render.mockRestore();
+      container.remove();
+      style.remove();
+    }
+  });
+
+  it.each(["ltr", "rtl"])("keeps the row-header boundary on the logical inline end in %s Live Preview", (direction) => {
+    const style = document.head.appendChild(document.createElement("style"));
+    style.textContent = "body { --table-border-width: 1px; --table-border-color: gray; }\n"
+      + readFileSync("styles.css", "utf8");
+    const container = document.body.appendChild(document.createElement("div"));
+    container.className = "structural-tables-live-preview";
+    container.dataset.appearance = "grid";
+    container.dir = direction;
+    try {
+      const table = parseStructuralTables("| --- || --- |\n| North | 10 |").tables[0]!;
+      const rendered = renderStructuralTable({} as App, table, container, "Direction.md", new Component());
+      const header = getComputedStyle(rendered.querySelector("th")!);
+      expect(header.getPropertyValue("border-inline-end-width")).toBe("2px");
+      expect(header.getPropertyValue("border-inline-start-width")).toBe("1px");
+      expect(header.borderLeftWidth).toBe("1px");
+      expect(header.borderRightWidth).toBe("1px");
+    } finally {
+      container.remove();
+      style.remove();
+    }
+  });
+
+  it.each(["theme", "three-line"])("does not add Grid boundary emphasis to %s", (appearance) => {
+    const style = document.head.appendChild(document.createElement("style"));
+    style.textContent = "body { --table-border-width: 1px; --table-border-color: gray; --text-normal: black; }\n"
+      + ".markdown-rendered :is(th, td) { border: 1px solid gray; }\n"
+      + readFileSync("styles.css", "utf8");
+    const container = document.body.appendChild(document.createElement("div"));
+    try {
+      const table = parseStructuralTables("| Region | Value |\n| --- || --- |\n| North | 10 |").tables[0]!;
+      const rendered = renderStructuralTable({} as App, table, container, "Appearance.md", new Component());
+      (rendered.parentElement as HTMLElement).dataset.appearance = appearance;
+      for (const cell of rendered.querySelectorAll("th, td")) {
+        const computed = getComputedStyle(cell);
+        expect(computed.getPropertyValue("border-block-end-width")).not.toBe("2px");
+        expect(computed.getPropertyValue("border-inline-end-width")).not.toBe("2px");
+      }
+      if (appearance === "three-line") {
+        expect(getComputedStyle(rendered.tHead!).getPropertyValue("border-block-end")).toBe("1px solid black");
+      }
+    } finally {
+      container.remove();
+      style.remove();
+    }
+  });
 });
 
 describe("renderStructuralTable", () => {

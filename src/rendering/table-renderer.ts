@@ -73,6 +73,12 @@ export function renderStructuralTable(
       element.dataset.structuralInlineEnd = String(cell.column + cell.columnSpan === table.columnCount);
       if (rowIndex < table.headerRowCount) {
         element.dataset.structuralHeaderEnd = String(cell.row + cell.rowSpan === table.headerRowCount);
+        if (table.headerRowCount < table.rows.length && cell.row + cell.rowSpan === table.headerRowCount) {
+          element.dataset.structuralColumnHeaderBoundary = "true";
+        }
+      }
+      if (table.rowHeaderColumnCount > 0 && cell.column + cell.columnSpan === table.rowHeaderColumnCount) {
+        element.dataset.structuralRowHeaderBoundary = "true";
       }
       if (cell.rowSpan > 1) element.rowSpan = cell.rowSpan;
       if (cell.columnSpan > 1) element.colSpan = cell.columnSpan;

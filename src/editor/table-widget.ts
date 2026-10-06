@@ -1678,6 +1678,27 @@ class StructuralTableInteraction {
       } : {}),
     });
 
+    if (!ownedGrid) {
+      if (nativeCallout) {
+        this.restoreCalloutFocus(
+          view,
+          result.source,
+          coordinate,
+          next !== undefined && axisSelection === undefined,
+        );
+        const pending = pendingCellFocus.get(view);
+        if (pending !== undefined && axisSelection !== undefined) pending.axisSelection = axisSelection;
+      } else if (axisSelection !== undefined) {
+        queueMicrotask(() => this.interactionAfterUpdate(view)?.focusAxis(axisSelection));
+      } else if (next !== undefined) {
+        queueMicrotask(() => this.openCellAfterUpdate(view, coordinate));
+      } else {
+        queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
+      }
+      new Notice(operationNotice(t, result.code));
+      return;
+    }
+
     if (tableDeleted) {
       cancelPendingTableFocus(view);
       this.clearSelection();
@@ -1702,8 +1723,6 @@ class StructuralTableInteraction {
         restoredBounds.last,
         coordinate,
       ));
-    } else if (ownedGrid || next !== undefined) {
-      queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     } else {
       queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     }

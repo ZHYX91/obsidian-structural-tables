@@ -30,6 +30,9 @@ A valid structural table is presented by a semantic block widget while its Markd
 - Tab/Shift+Tab follows visible cells in source order and skips covered merge slots.
 - While the textarea owns editing focus, Cmd/Ctrl+B and Cmd/Ctrl+I toggle bold/italic only on its current draft selection and preserve the other emphasis style. Typing, composition input, paste, draft line breaks, and these format operations participate in one draft-local undo/redo history; inherited main-editor history and formatting commands must not touch saved source before commit. Other formatting commands remain source-oriented and require **Edit table source**.
 - A rejected commit keeps the complete draft, does not navigate, and does not append a row.
+- Outside the textarea, unmodified Delete/Backspace clears the complete visible owner set represented by the current grid selection. Clearing never removes rows, columns, header roles, alignments, merge topology, or the table itself; an already-empty selection is a no-op.
+- The owned grid context menu offers the same clear intent plus explicit Delete selected rows, Delete selected columns, and Delete table actions. Explicit removal may discard the selected visible content without a pre-clear step, remains one undoable host transaction, and removes the whole table when all rows or all columns are explicitly selected.
+- Ordinary GFM retains Obsidian's native Delete behavior while takeover is disabled. When takeover is enabled, the same clear/removal policy applies; hidden GFM overflow remains read-only until its extra source cells are handled in Markdown.
 - IME composition must not be committed early or have its keys intercepted.
 
 ### Lifecycle and focus

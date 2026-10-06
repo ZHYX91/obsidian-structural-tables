@@ -1,6 +1,7 @@
 import type { StructuralTable } from "./model";
 
 export const TABLE_RANGE_CLIPBOARD_MIME = "application/x-structural-tables-range+json";
+export const TABLE_RANGE_CLIPBOARD_WEB_MIME = `web ${TABLE_RANGE_CLIPBOARD_MIME}`;
 
 export interface TableRangeClipboardPayloadV1 {
   version: 1;

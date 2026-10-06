@@ -842,23 +842,36 @@ class StructuralTableInteraction {
       const length = to - index;
       return length >= 1 && length <= 3 && !isEscapedAt(value, index) ? { to, length } : null;
     };
+    const hasValidEmphasisContentBoundary = (content: string): boolean =>
+      content.length > 0 && !/\s/u.test(content[0]!) && !/\s/u.test(content[content.length - 1]!);
     const selectedStarWrapper = (
       value: string,
       start: number,
       end: number,
     ): { content: string; length: number } | null => {
-      if (start >= end || value[start] !== "*" || value[end - 1] !== "*"
-        || value[start - 1] === "*" || value[end] === "*" || isEscapedAt(value, start)) return null;
+      if (start >= end || value[start] !== "*" || value[end - 1] !== "*") return null;
       let left = start;
       while (left < end && value[left] === "*") left += 1;
       let right = end;
       while (right > start && value[right - 1] === "*") right -= 1;
       const leftLength = left - start;
       const rightLength = end - right;
+      const content = value.slice(left, right);
       if (leftLength !== rightLength || leftLength < 1 || leftLength > 3
-        || left >= right || isEscapedAt(value, right)) return null;
-      return { content: value.slice(left, right), length: leftLength };
+        || left >= right || !hasValidEmphasisContentBoundary(content)) return null;
+
+      let fullLeft = start;
+      while (fullLeft > 0 && value[fullLeft - 1] === "*") fullLeft -= 1;
+      let fullRight = end;
+      while (fullRight < value.length && value[fullRight] === "*") fullRight += 1;
+      const completeLeftLength = left - fullLeft;
+      const completeRightLength = fullRight - right;
+      if (completeLeftLength > 3 || completeRightLength > 3
+        || isEscapedAt(value, fullLeft) || isEscapedAt(value, right)) return null;
+      return { content, length: leftLength };
     };
+    const ambiguousSelectedStarBoundary = (value: string, start: number, end: number): boolean =>
+      start < end && (value[start] === "*" || value[end - 1] === "*");
     const toggledStarRunLength = (current: number, target: 1 | 2): number => {
       let italic = current === 1 || current === 3;
       let bold = current === 2 || current === 3;
@@ -899,7 +912,8 @@ class StructuralTableInteraction {
 
         const before = starRunBefore(value, start);
         const after = starRunAfter(value, end);
-        if (before !== null && after !== null && before.length === after.length) {
+        if (before !== null && after !== null && before.length === after.length
+          && hasValidEmphasisContentBoundary(selected)) {
           const nextLength = toggledStarRunLength(before.length, target);
           const stars = "*".repeat(nextLength);
           editor.setRangeText(stars + selected + stars, before.from, after.to, "end");
@@ -907,6 +921,7 @@ class StructuralTableInteraction {
           return;
         }
 
+        if (ambiguousSelectedStarBoundary(value, start, end)) return;
         editor.setRangeText(marker + selected + marker, start, end, "end");
         editor.setSelectionRange(start + target, end + target);
       });

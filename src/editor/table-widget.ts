@@ -9,7 +9,7 @@ import type { StructuralTable } from "../core/model";
 import { adjacentTableCell } from "../core/table-navigation";
 import { mathPipeSuggestions } from "../core/table-cell-syntax";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
-import { appendTableRow, editCellContent, editCellAndTransform, insertTableColumn, reorderTableAxis, type TableAxis } from "../core/operations";
+import { appendTableRow, clearTableCells, editCellContent, editCellAndTransform, insertTableColumn, reorderTableAxis, type TableAxis } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
@@ -21,6 +21,7 @@ import {
   addSelectionMenuItems,
   hasSelectionMenuItems,
   type TableOperation,
+  type TableOperationIntent,
 } from "./table-menu";
 import {
   structuralTableSelectionFromBounds,
@@ -74,6 +75,20 @@ export function restoreTableHistoryFocus(view: EditorView,
   target: TableHistoryTarget,
   settings: StructuralTablesSettings): void {
   if (view.state.field(editorInfoField, false)?.file?.path !== target.sourcePath) return;
+  if (target.after === "") {
+    cancelPendingTableFocus(view);
+    const state = view.state;
+    const anchor = Math.min(target.from, state.doc.length);
+    queueMicrotask(() => {
+      if (view.state !== state || !view.dom.isConnected) return;
+      view.dispatch({
+        selection: { anchor },
+        effects: structuralTableSourceFocus.of(true),
+      });
+      view.focus();
+    });
+    return;
+  }
   const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
     candidate.range.from === target.from && candidate.source === target.after);
   if (table === undefined || !table.valid) return;
@@ -174,6 +189,7 @@ class StructuralTableInteraction {
   private axisAnchor = 0;
   private touchAxisAnchor: { axis: TableAxis; index: number } | null = null;
   private axisDrag: TableAxisDrag | null = null;
+  private selectionMenuOpen = false;
 
   constructor(
     private readonly app: App,
@@ -279,6 +295,7 @@ class StructuralTableInteraction {
         this.beginCellEdit(view, coordinate);
         return false;
       });
+      this.registerGridClearScope(scope, view);
       this.navigationScope = scope;
       this.app.keymap.pushScope(scope);
     });
@@ -299,6 +316,7 @@ class StructuralTableInteraction {
     });
     rendered.addEventListener("keydown", (event) => {
       if (event.target !== this.cellForTarget(event.target)) return;
+      if (this.handleGridClear(event, view)) return;
       if (this.handleHistory(event, view)) return;
       if (this.moveCellFocus(event, view)) return;
       if (event.key !== "Enter" && event.key !== "F2") return;

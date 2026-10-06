@@ -35,6 +35,76 @@ function rawBlock(source: string): HTMLDivElement {
 }
 
 describe("StructuralTableReadingProcessor", () => {
+  it.each(["raw", "native", "callout", "standalone"])(
+    "leaves %s editor content to Live Preview without acquiring render ownership",
+    (kind) => {
+      const editor = document.createElement("div");
+      editor.className = "cm-editor";
+      const container = editor.appendChild(document.createElement("div"));
+      const source = "| A | < |\n| --- | --- |\n| x | y |";
+      const native = "<table><thead><tr><th>A</th><th>&lt;</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table>";
+      if (kind === "raw") container.appendChild(rawBlock(source));
+      else if (kind === "callout") container.innerHTML = `<div class="callout"><div class="callout-content">${native}</div></div>`;
+      else container.innerHTML = native;
+      const original = container.innerHTML;
+      const context = {
+        addChild: vi.fn(), sourcePath: "Editor.md",
+        getSectionInfo: vi.fn(() => kind === "standalone" ? undefined : {
+          text: source, lineStart: 0, lineEnd: 2,
+        }),
+      } as unknown as MarkdownPostProcessorContext;
+      const render = vi.spyOn(MarkdownRenderer, "render");
+      try {
+        new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, context);
+        expect(container.innerHTML).toBe(original);
+        expect(context.addChild).not.toHaveBeenCalled();
+        expect(context.getSectionInfo).not.toHaveBeenCalled();
+        expect(render).not.toHaveBeenCalled();
+      } finally { render.mockRestore(); }
+    },
+  );
+
+  it.each(["cm-editor", "internal-embed", "markdown-embed"])(
+    "rechecks deferred Callout ownership after attachment to %s",
+    async (owner) => {
+      const source = "> [!custom]+ Test\n> | A | < |\n> | --- | --- |\n> | x | y |";
+      const native = "<table><thead><tr><th>A</th><th>&lt;</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table>";
+      const container = document.createElement("div");
+      container.innerHTML = `<div class="callout"><div class="callout-content">${native}</div></div>`;
+      const original = container.innerHTML;
+      let releaseRender!: () => void;
+      const renderQueue = new Promise<void>((resolve) => { releaseRender = resolve; });
+      const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+        await renderQueue;
+        const target = args[2] as HTMLElement;
+        if (target.className === "structural-tables-container") target.innerHTML = native;
+      });
+      try {
+        const context = {
+          addChild: vi.fn(), sourcePath: "Callout.md",
+          getSectionInfo: () => ({ text: source, lineStart: 0, lineEnd: 3 }),
+        } as unknown as MarkdownPostProcessorContext;
+        new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(container, context);
+        const editor = document.createElement("div");
+        editor.className = "cm-editor";
+        const parent = owner === "cm-editor" ? editor : editor.appendChild(document.createElement("div"));
+        parent.className = owner;
+        parent.appendChild(container);
+        releaseRender();
+        if (owner !== "cm-editor") {
+          await vi.waitFor(() => expect(container.querySelectorAll(".structural-tables-table")).toHaveLength(1));
+          expect(container.querySelector("thead th")?.getAttribute("colspan")).toBe("2");
+        } else {
+          await renderQueue;
+          // Flush the resumed render's complete microtask chain before checking no-write.
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          expect(container.innerHTML).toBe(original);
+          expect(container.querySelector(".structural-tables-container")).toBeNull();
+        }
+      } finally { releaseRender(); render.mockRestore(); }
+    },
+  );
+
   it("keeps deferred list cells owned by the replacement instead of the removed source block", async () => {
     const bare = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
     const source = "- outer\n  - inner\n\n" + bare.split("\n").map((line) => "    " + line).join("\n");

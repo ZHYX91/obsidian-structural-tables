@@ -16,6 +16,11 @@ class CalloutRenderSession extends MarkdownRenderChild {
   override onunload(): void { this.active = false; }
 }
 
+function editorOwns(container: HTMLElement): boolean {
+  // Embedded notes have their own reading surface even inside Live Preview.
+  return container.closest(".internal-embed, .markdown-embed, .cm-editor")?.classList.contains("cm-editor") ?? false;
+}
+
 function renderedTables(container: HTMLElement): HTMLTableElement[] {
   const tables = Array.from(container.querySelectorAll<HTMLTableElement>("table"));
   if (container.tagName === "TABLE") tables.unshift(container as HTMLTableElement);
@@ -56,7 +61,8 @@ export class StructuralTableReadingProcessor {
   }
 
   process(container: HTMLElement, context: MarkdownPostProcessorContext): Promise<void> | void {
-    if (container.closest(".structural-tables-container, [data-structural-tables-processed='true']") !== null) return;
+    if (editorOwns(container)
+      || container.closest(".structural-tables-container, [data-structural-tables-processed='true']") !== null) return;
     const settings = this.getSettings();
     if (!settings.enableReadingView) return;
     if (!(container.textContent ?? "").includes("|") && renderedTables(container).length === 0) return;
@@ -167,7 +173,9 @@ export class StructuralTableReadingProcessor {
       try { return await renderTableSignatures(this.app, table, context.sourcePath, container.ownerDocument); }
       catch { return []; }
     }));
-    if (!session.active || this.calloutSessions.get(container) !== session
+    // Obsidian may attach a detached Callout to its editor while native
+    // comparison rendering is pending. Live Preview must retain the originals.
+    if (editorOwns(container) || !session.active || this.calloutSessions.get(container) !== session
       || context.getSectionInfo(container)?.text !== source) return;
     const settings = this.getSettings();
     if (!settings.enableReadingView) return;

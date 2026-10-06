@@ -12,7 +12,16 @@ import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
 import { recoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
-import { activeScopes, dispatchScopeKey, lastMenu, notices } from "./mocks/obsidian";
+import {
+  activeScopes,
+  dispatchScopeCaptureThenDom,
+  dispatchScopeKey,
+  lastMenu,
+  notices,
+  resetMockModKey,
+  setMockModKey,
+  type MockModKey,
+} from "./mocks/obsidian";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -65,6 +74,7 @@ beforeAll(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  resetMockModKey();
   document.body.replaceChildren();
 });
 
@@ -107,6 +117,65 @@ function mountEditor(
       controller.refresh();
     },
   };
+}
+
+function draftInputEvent(
+  type: "beforeinput" | "input",
+  inputType: string,
+  data: string | null,
+  isComposing = false,
+): InputEvent {
+  const event = new Event(type, {
+    bubbles: true,
+    cancelable: type === "beforeinput",
+  }) as InputEvent;
+  Object.defineProperties(event, {
+    inputType: { value: inputType },
+    data: { value: data },
+    isComposing: { value: isComposing },
+  });
+  return event;
+}
+
+function typeDraftText(editor: HTMLTextAreaElement, text: string): void {
+  for (const character of text) {
+    const before = draftInputEvent("beforeinput", "insertText", character);
+    if (!editor.dispatchEvent(before)) continue;
+    editor.setRangeText(character, editor.selectionStart, editor.selectionEnd, "end");
+    editor.dispatchEvent(draftInputEvent("input", "insertText", character));
+  }
+}
+
+function replaceDraftText(editor: HTMLTextAreaElement, text: string): void {
+  editor.select();
+  typeDraftText(editor, text);
+}
+
+function modEvent(
+  key: string,
+  platform: MockModKey = "ctrl",
+  shiftKey = false,
+): KeyboardEvent {
+  setMockModKey(platform);
+  return new KeyboardEvent("keydown", {
+    key,
+    ctrlKey: platform === "ctrl",
+    metaKey: platform === "meta",
+    shiftKey,
+    bubbles: true,
+    cancelable: true,
+  });
+}
+
+function dispatchDraftShortcut(
+  editor: HTMLTextAreaElement,
+  key: string,
+  platform: MockModKey = "ctrl",
+  shiftKey = false,
+): KeyboardEvent {
+  const event = modEvent(key, platform, shiftKey);
+  dispatchScopeCaptureThenDom(editor, event);
+  return event;
 }
 
 function dispatchPointerDown(

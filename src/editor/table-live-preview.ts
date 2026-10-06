@@ -133,8 +133,11 @@ export class StructuralTableEditorController {
       update: (value, transaction) => {
         const composition = transaction.effects.find((effect) => effect.is(structuralTableComposition));
         const sourceFocus = transaction.effects.find((effect) => effect.is(structuralTableSourceFocus));
+        const historyFocus = transaction.effects.find((effect) => effect.is(tableHistoryTarget));
         const composing = composition?.value ?? value.composing;
-        const sourceFocused = sourceFocus?.value ?? value.sourceFocused;
+        const sourceFocused = historyFocus?.value.restorePresentation === true
+          ? historyFocus.value.after === ""
+          : sourceFocus?.value ?? value.sourceFocused;
         if (!shouldRebuild(transaction)) return value;
         const mapped = transaction.docChanged ? mapTablesThroughProseEdit(value.tables, transaction) : value.tables;
         const tables = readTables(transaction.state, mapped);

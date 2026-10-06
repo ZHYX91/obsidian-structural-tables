@@ -172,12 +172,56 @@ export function getLanguage(): string {
 
 export const activeScopes: Scope[] = [];
 
+interface MockScopeHandler {
+  modifiers: string[] | null;
+  key: string | null;
+  callback: (event: KeyboardEvent) => boolean | void;
+}
+
 export class Scope {
-  readonly handlers: Array<{ key: string | null; callback: (event: KeyboardEvent) => boolean | void }> = [];
-  constructor(_parent?: Scope) {}
-  register(_modifiers: string[] | null, key: string | null, callback: (event: KeyboardEvent) => boolean | void): void {
-    this.handlers.push({ key, callback });
+  readonly handlers: MockScopeHandler[] = [];
+  constructor(readonly parent?: Scope) {}
+  register(modifiers: string[] | null, key: string | null, callback: (event: KeyboardEvent) => boolean | void): void {
+    this.handlers.push({ modifiers, key, callback });
   }
+}
+
+function scopeKey(value: string | null): string | null {
+  return value !== null && value.length === 1 ? value.toLowerCase() : value;
+}
+
+function scopeModifiersMatch(modifiers: string[] | null, event: KeyboardEvent): boolean {
+  if (modifiers === null) return true;
+  const wantsMod = modifiers.includes("Mod");
+  const wantsCtrl = modifiers.includes("Ctrl");
+  const wantsMeta = modifiers.includes("Meta");
+  const wantsShift = modifiers.includes("Shift");
+  const wantsAlt = modifiers.includes("Alt");
+  if (event.shiftKey !== wantsShift || event.altKey !== wantsAlt) return false;
+  if (wantsMod) {
+    if (event.ctrlKey === event.metaKey) return false;
+    if (wantsCtrl && !event.ctrlKey) return false;
+    if (wantsMeta && !event.metaKey) return false;
+    return true;
+  }
+  return event.ctrlKey === wantsCtrl && event.metaKey === wantsMeta;
+}
+
+/** Simulate Obsidian's active child Scope resolving before inherited parent hotkeys. */
+export function dispatchScopeKey(event: KeyboardEvent): boolean {
+  let scope = activeScopes[activeScopes.length - 1];
+  while (scope !== undefined) {
+    const handler = scope.handlers.find((candidate) =>
+      scopeKey(candidate.key) === scopeKey(event.key)
+      && scopeModifiersMatch(candidate.modifiers, event));
+    if (handler !== undefined) {
+      const result = handler.callback(event);
+      if (result === false && !event.defaultPrevented) event.preventDefault();
+      return true;
+    }
+    scope = scope.parent;
+  }
+  return false;
 }
 
 export class App {

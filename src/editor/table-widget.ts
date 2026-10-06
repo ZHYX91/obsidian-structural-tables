@@ -843,8 +843,39 @@ class StructuralTableInteraction {
       const length = to - index;
       return length >= 1 && length <= 3 && !isEscapedAt(value, index) ? { to, length } : null;
     };
-    const hasValidEmphasisContentBoundary = (content: string): boolean =>
-      content.length > 0 && !/\s/u.test(content[0]!) && !/\s/u.test(content[content.length - 1]!);
+    const codePointBefore = (value: string, index: number): string | null =>
+      /[\s\S]$/u.exec(value.slice(0, index))?.[0] ?? null;
+    const codePointAfter = (value: string, index: number): string | null =>
+      /^[\s\S]/u.exec(value.slice(index))?.[0] ?? null;
+    const isMarkdownWhitespace = (character: string | null): boolean =>
+      character === null || /\s/u.test(character);
+    const isMarkdownPunctuation = (character: string | null): boolean =>
+      character !== null && /\p{P}/u.test(character);
+    const starRunFlanking = (
+      value: string,
+      from: number,
+      to: number,
+    ): { left: boolean; right: boolean } => {
+      const previous = codePointBefore(value, from);
+      const next = codePointAfter(value, to);
+      const previousWhitespace = isMarkdownWhitespace(previous);
+      const nextWhitespace = isMarkdownWhitespace(next);
+      const previousPunctuation = isMarkdownPunctuation(previous);
+      const nextPunctuation = isMarkdownPunctuation(next);
+      return {
+        left: !nextWhitespace && (!nextPunctuation || previousWhitespace || previousPunctuation),
+        right: !previousWhitespace && (!previousPunctuation || nextWhitespace || nextPunctuation),
+      };
+    };
+    const isValidStarWrapper = (
+      value: string,
+      openingFrom: number,
+      openingTo: number,
+      closingFrom: number,
+      closingTo: number,
+    ): boolean =>
+      starRunFlanking(value, openingFrom, openingTo).left
+      && starRunFlanking(value, closingFrom, closingTo).right;
     const selectedStarWrapper = (
       value: string,
       start: number,
@@ -858,8 +889,7 @@ class StructuralTableInteraction {
       const leftLength = left - start;
       const rightLength = end - right;
       const content = value.slice(left, right);
-      if (leftLength !== rightLength || leftLength < 1 || leftLength > 3
-        || left >= right || !hasValidEmphasisContentBoundary(content)) return null;
+      if (leftLength !== rightLength || leftLength < 1 || leftLength > 3 || left >= right) return null;
 
       let fullLeft = start;
       while (fullLeft > 0 && value[fullLeft - 1] === "*") fullLeft -= 1;
@@ -868,7 +898,8 @@ class StructuralTableInteraction {
       const completeLeftLength = left - fullLeft;
       const completeRightLength = fullRight - right;
       if (completeLeftLength > 3 || completeRightLength > 3
-        || isEscapedAt(value, fullLeft) || isEscapedAt(value, right)) return null;
+        || isEscapedAt(value, fullLeft) || isEscapedAt(value, right)
+        || !isValidStarWrapper(value, fullLeft, left, right, fullRight)) return null;
       return { content, length: leftLength };
     };
     const ambiguousSelectedStarBoundary = (value: string, start: number, end: number): boolean =>
@@ -913,8 +944,8 @@ class StructuralTableInteraction {
 
         const before = starRunBefore(value, start);
         const after = starRunAfter(value, end);
-        if (before !== null && after !== null && before.length === after.length
-          && hasValidEmphasisContentBoundary(selected)) {
+        if (before !== null && after !== null && before.length === after.length) {
+          if (!isValidStarWrapper(value, before.from, start, end, after.to)) return;
           const nextLength = toggledStarRunLength(before.length, target);
           const stars = "*".repeat(nextLength);
           editor.setRangeText(stars + selected + stars, before.from, after.to, "end");
@@ -922,7 +953,7 @@ class StructuralTableInteraction {
           return;
         }
 
-        if (ambiguousSelectedStarBoundary(value, start, end)) return;
+        if (before !== null || after !== null || ambiguousSelectedStarBoundary(value, start, end)) return;
         editor.setRangeText(marker + selected + marker, start, end, "end");
         editor.setSelectionRange(start + target, end + target);
       });

@@ -190,21 +190,28 @@ function scopeKey(value: string | null): string | null {
   return value !== null && value.length === 1 ? value.toLowerCase() : value;
 }
 
+export type MockModKey = "ctrl" | "meta";
+let mockModKey: MockModKey = "ctrl";
+
+export function setMockModKey(value: MockModKey): void {
+  mockModKey = value;
+}
+
+export function resetMockModKey(): void {
+  mockModKey = "ctrl";
+}
+
 function scopeModifiersMatch(modifiers: string[] | null, event: KeyboardEvent): boolean {
   if (modifiers === null) return true;
   const wantsMod = modifiers.includes("Mod");
-  const wantsCtrl = modifiers.includes("Ctrl");
-  const wantsMeta = modifiers.includes("Meta");
+  const wantsCtrl = modifiers.includes("Ctrl") || (wantsMod && mockModKey === "ctrl");
+  const wantsMeta = modifiers.includes("Meta") || (wantsMod && mockModKey === "meta");
   const wantsShift = modifiers.includes("Shift");
   const wantsAlt = modifiers.includes("Alt");
-  if (event.shiftKey !== wantsShift || event.altKey !== wantsAlt) return false;
-  if (wantsMod) {
-    if (event.ctrlKey === event.metaKey) return false;
-    if (wantsCtrl && !event.ctrlKey) return false;
-    if (wantsMeta && !event.metaKey) return false;
-    return true;
-  }
-  return event.ctrlKey === wantsCtrl && event.metaKey === wantsMeta;
+  return event.ctrlKey === wantsCtrl
+    && event.metaKey === wantsMeta
+    && event.shiftKey === wantsShift
+    && event.altKey === wantsAlt;
 }
 
 /** Simulate Obsidian's active child Scope resolving before inherited parent hotkeys. */
@@ -222,6 +229,13 @@ export function dispatchScopeKey(event: KeyboardEvent): boolean {
     scope = scope.parent;
   }
   return false;
+}
+
+/** Scope capture runs before the textarea's keydown bubble listener. */
+export function dispatchScopeCaptureThenDom(target: HTMLElement, event: KeyboardEvent): boolean {
+  const handled = dispatchScopeKey(event);
+  if (!event.cancelBubble) target.dispatchEvent(event);
+  return handled;
 }
 
 export class App {

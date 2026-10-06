@@ -34,7 +34,13 @@ describe("table history targets", () => {
     const table = parseEditableTables(source).tables[0]!;
     state = state.update({
       changes: { from: table.range.from, to: table.range.to, insert: "" },
-      ...tableWriteHistory(table, "", "Test.md", { row: 1, column: 0 }),
+      ...tableWriteHistory(
+        table,
+        "",
+        "Test.md",
+        { row: 1, column: 0 },
+        { restorePresentation: true },
+      ),
     }).state;
     state = state.update({
       changes: { from: 0, insert: "Prefix\n" },
@@ -54,6 +60,7 @@ describe("table history targets", () => {
       before: "",
       after: table.source,
       coordinate: { row: 1, column: 0 },
+      restorePresentation: true,
     });
 
     expect(redo({ state, dispatch })).toBe(true);
@@ -62,6 +69,7 @@ describe("table history targets", () => {
       from: table.range.from + 7,
       before: table.source,
       after: "",
+      restorePresentation: true,
     });
   });
 

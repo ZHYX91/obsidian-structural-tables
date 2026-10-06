@@ -1,7 +1,7 @@
 import type { BaseEditorInfo } from "../src/app/base-promotion-service";
 // @vitest-environment happy-dom
 
-import { EditorState, Prec, StateField, type Extension } from "@codemirror/state";
+import { EditorState, Prec, StateField, Transaction, type Extension } from "@codemirror/state";
 import { history, redo, undo } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { App, MarkdownRenderer, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
@@ -1044,6 +1044,121 @@ describe("StructuralTableEditorController", () => {
       expect(event.defaultPrevented).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
       expect(undo(view)).toBe(false);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it.each([
+    ["clear", "Clear selected cells"],
+    ["row", "Delete selected rows"],
+    ["column", "Delete selected columns"],
+  ] as const)("applies the explicit %s context-menu intent to non-empty owned content", async (kind, title) => {
+    const source = [
+      "| H | V | W |",
+      "| --- || --- | --- |",
+      "| A | 1 | 2 |",
+      "| B | 3 | 4 |",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      if (kind === "row") {
+        const handle = parent.querySelector<HTMLButtonElement>("[data-structural-row-handle='1']")!;
+        handle.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      } else if (kind === "column") {
+        const handle = parent.querySelector<HTMLButtonElement>("[data-structural-column-handle='1']")!;
+        handle.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      } else {
+        const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+        cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      }
+      const item = lastMenu?.items.find((candidate) => candidate.title === title);
+      expect(item).toBeDefined();
+      item?.callback?.();
+      await Promise.resolve();
+
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      if (kind === "clear") {
+        expect(table.rows).toHaveLength(3);
+        expect(table.columnCount).toBe(3);
+        expect(table.rows[1]!.cells[1]!.content).toBe("");
+      } else if (kind === "row") {
+        expect(table.rows).toHaveLength(2);
+        expect(table.rows[1]!.cells.map((cell) => cell.content)).toEqual(["B", "3", "4"]);
+      } else {
+        expect(table.columnCount).toBe(2);
+        expect(table.rows[1]!.cells.map((cell) => cell.content)).toEqual(["A", "2"]);
+      }
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("removes exactly the selected table and restores it through host Undo/Redo", async () => {
+    const tableText = "| H | V |\n| --- || --- |\n| A | 1 |";
+    const source = `Before\n\n${tableText}\n\nBetween\n\n${tableText}\n\nAfter`;
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      const tablesBefore = parseEditableTables(source).tables;
+      const first = tablesBefore[0]!;
+      const expectedRemoved = source.slice(0, first.range.from) + source.slice(first.range.to);
+      const hosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+      expect(hosts).toHaveLength(2);
+      const firstCell = hosts[0]!.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      firstCell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const remove = lastMenu?.items.find((candidate) => candidate.title === "Delete table");
+      expect(remove).toBeDefined();
+      remove?.callback?.();
+      await Promise.resolve();
+
+      expect(view.state.doc.toString()).toBe(expectedRemoved);
+      expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(1);
+      expect(view.state.doc.toString()).toContain("Before\n\n");
+      expect(view.state.doc.toString()).toContain("\n\nBetween\n\n");
+      expect(view.state.doc.toString()).toContain(`${tableText}\n\nAfter`);
+
+      expect(undo(view)).toBe(true);
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(2);
+
+      expect(redo(view)).toBe(true);
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(expectedRemoved);
+      expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(1);
+      expect(view.hasFocus).toBe(true);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("isolates whole-table removal history from adjacent prose edits and maps through unrecorded prefixes", async () => {
+    const tableText = "| H | V |\n| --- || --- |\n| A | 1 |";
+    const original = `Lead\n\n${tableText}\n\nTail`;
+    const { parent, view } = mountEditor(original, { anchor: original.length }, [history()]);
+    try {
+      view.dispatch({ changes: { from: 0, insert: "Typed " } });
+      view.dispatch({
+        changes: { from: 0, insert: "Prefix\n" },
+        annotations: Transaction.addToHistory.of(false),
+      });
+      const current = view.state.doc.toString();
+      const table = parseEditableTables(current).tables[0]!;
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Delete table")?.callback?.();
+      await Promise.resolve();
+
+      expect(view.state.doc.toString()).toBe(current.slice(0, table.range.from) + current.slice(table.range.to));
+      expect(undo(view)).toBe(true);
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(current);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(`Prefix\n${original}`);
     } finally {
       view.destroy();
     }

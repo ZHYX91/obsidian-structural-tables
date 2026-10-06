@@ -208,23 +208,50 @@ describe("table appearance", () => {
 });
 
 describe("explicit table layouts", () => {
-  it.each([0, 5])("reserves column-handle space only for touch input (%i touch points)", (touchPoints) => {
+  it.each([0, 5])("reserves column-handle space after preceding content for touch input (%i touch points)", (touchPoints) => {
     vi.spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(touchPoints);
     document.head.appendChild(document.createElement("style")).textContent = styles;
     document.body.innerHTML = `<div class="structural-tables-live-preview">
+      <div class="structural-tables-container"><p class="caption">Table caption</p>
+        <table class="structural-tables-table"><tbody><tr><td>Value</td></tr></tbody></table>
+      </div>
       <button class="structural-tables-column-handle"></button>
     </div><div class="structural-tables-container"></div>`;
     const host = getComputedStyle(document.querySelector(".structural-tables-live-preview")!);
     const handle = getComputedStyle(document.querySelector("button")!);
+    const table = getComputedStyle(document.querySelector("table")!);
     if (touchPoints > 0) {
       const gutter = document.body.appendChild(document.createElement("div"));
-      gutter.style.height = host.getPropertyValue("padding-block-start");
+      gutter.style.height = table.getPropertyValue("margin-block-start");
       expect(Number.parseFloat(getComputedStyle(gutter).height)).toBeGreaterThanOrEqual(Number.parseFloat(handle.height));
     } else {
-      expect(Number.parseFloat(host.getPropertyValue("padding-block-start")) || 0).toBe(0);
+      expect(Number.parseFloat(table.getPropertyValue("margin-block-start")) || 0).toBe(0);
     }
+    expect(Number.parseFloat(host.getPropertyValue("padding-block-start")) || 0).toBe(0);
     expect(Number.parseFloat(getComputedStyle(document.querySelector(".structural-tables-container")!)
       .getPropertyValue("padding-block-start")) || 0).toBe(0);
+  });
+
+  it.each(["", "callout"])("keeps full touch row targets inside %s hosts without changing reading or native tables", (parentClass) => {
+    vi.spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(5);
+    document.head.appendChild(document.createElement("style")).textContent = styles;
+    document.body.innerHTML = `<div class="${parentClass}"><div class="structural-tables-live-preview">
+      <div class="structural-tables-container"><p>Caption</p><table class="structural-tables-table"></table></div>
+      <button class="structural-tables-row-handle"></button>
+    </div></div><div class="structural-tables-container reading"><table class="structural-tables-table"></table></div>
+      <table class="native-reference"></table>`;
+    const host = getComputedStyle(document.querySelector(".structural-tables-live-preview")!);
+    const rowHandle = getComputedStyle(document.querySelector("button")!);
+    const inset = document.body.appendChild(document.createElement("div"));
+    inset.style.width = host.getPropertyValue("padding-inline-start");
+    expect(Number.parseFloat(getComputedStyle(inset).width)).toBeGreaterThanOrEqual(Number.parseFloat(rowHandle.width));
+    expect(host.boxSizing).toBe("border-box");
+    expect(Number.parseFloat(host.getPropertyValue("padding-block-start")) || 0).toBe(0);
+    for (const selector of [".reading table", ".native-reference"]) {
+      expect(Number.parseFloat(getComputedStyle(document.querySelector(selector)!).getPropertyValue("margin-block-start")) || 0).toBe(0);
+    }
+    // The important editor-width layer must retain the touch inset rather than reset it.
+    expect(styles).toMatch(/@layer structural-tables-layout\s*\{[^}]*padding-inline:\s*var\(--structural-table-control-inset, 0\) 0 !important/u);
   });
 
   it("keeps the owned handle gutter paintable without changing other editor widgets", () => {

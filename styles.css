@@ -12,7 +12,7 @@
     width: var(--structural-table-content-width, 100%) !important;
     max-width: var(--structural-table-content-max-width, 100%) !important;
     margin-inline: var(--structural-table-content-margin, 0) !important;
-    padding-inline: 0 !important;
+    padding-inline: var(--structural-table-control-inset, 0) 0 !important;
   }
 }
 
@@ -40,9 +40,14 @@
 
 /* Native Callout content clips its children; keep control gutters inside it. */
 .callout .structural-tables-live-preview {
+  --structural-table-column-gutter: var(--structural-table-handle-gutter);
   box-sizing: border-box;
   padding-inline-start: var(--structural-table-handle-gutter);
-  padding-block-start: var(--structural-table-handle-gutter);
+}
+
+/* Reserve column controls immediately before the table, after preceding captions. */
+.structural-tables-live-preview .structural-tables-table {
+  margin-block-start: var(--structural-table-column-gutter, 0) !important;
 }
 
 .structural-tables-live-preview > button.structural-tables-add-row,
@@ -507,8 +512,11 @@
   .structural-tables-live-preview {
     --structural-table-handle-gutter: 2.75rem;
     --structural-table-touch-row-height: 2.75rem;
-    /* Always-visible touch handles need their own space above the table. */
-    padding-block-start: var(--structural-table-handle-gutter);
+    --structural-table-control-inset: var(--structural-table-handle-gutter);
+    --structural-table-column-gutter: var(--structural-table-handle-gutter);
+    box-sizing: border-box;
+    /* Keep full row targets inside the editor's visible column. */
+    padding-inline-start: var(--structural-table-control-inset);
   }
 
   .structural-tables-row-handle,

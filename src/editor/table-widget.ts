@@ -44,6 +44,7 @@ interface PendingCellFocus {
   sourcePath: string;
   coordinate: TableCellCoordinate;
   edit: boolean;
+  deferFocus?: boolean;
   axisSelection?: AxisSelection;
   selectionBounds?: { first: TableCellCoordinate; last: TableCellCoordinate };
 }
@@ -102,7 +103,12 @@ export function restoreTableHistoryFocus(view: EditorView,
   if (table === undefined || !table.valid) return;
   const state = view.state;
   const pending: PendingCellFocus = {
-    from: target.from, source: target.after, sourcePath: target.sourcePath, coordinate: target.coordinate, edit: false,
+    from: target.from,
+    source: target.after,
+    sourcePath: target.sourcePath,
+    coordinate: target.coordinate,
+    edit: false,
+    ...(target.restorePresentation === true ? { deferFocus: true } : {}),
   };
   pendingCellFocus.set(view, pending);
   const restoreOwned = (): void => {
@@ -254,20 +260,27 @@ class StructuralTableInteraction {
         this.clearSelection();
       }
     });
-    queueMicrotask(() => {
+    const consumePendingFocus = (): void => {
       const pending = pendingCellFocus.get(view);
       if (!host.isConnected || pending === undefined || pending.from !== this.table.range.from
         || pending.source !== this.table.source || pending.sourcePath !== this.sourcePath) return;
-      pendingCellFocus.delete(view);
-      if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
-      else if (pending.edit) {
-        this.beginCellEdit(view, pending.coordinate);
-        this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-      } else if (pending.selectionBounds !== undefined) {
-        this.selectBounds(pending.selectionBounds.first, pending.selectionBounds.last);
-        this.cellElement(pending.coordinate)?.focus({ preventScroll: true });
-      } else this.focusCellAfterUpdate(view, pending.coordinate);
-    });
+      const focus = (): void => {
+        if (!host.isConnected || pendingCellFocus.get(view) !== pending) return;
+        pendingCellFocus.delete(view);
+        if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
+        else if (pending.edit) {
+          this.beginCellEdit(view, pending.coordinate);
+          this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+        } else if (pending.selectionBounds !== undefined) {
+          this.selectBounds(pending.selectionBounds.first, pending.selectionBounds.last);
+          this.cellElement(pending.coordinate)?.focus({ preventScroll: true });
+        } else this.focusCellAfterUpdate(view, pending.coordinate);
+      };
+      const win = host.ownerDocument.defaultView;
+      if (pending.deferFocus === true && win !== null) win.setTimeout(focus, 0);
+      else focus();
+    };
+    queueMicrotask(consumePendingFocus);
     return host;
   }
 

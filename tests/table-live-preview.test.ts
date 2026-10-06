@@ -1299,12 +1299,17 @@ describe("StructuralTableEditorController", () => {
       expect(undo(view)).toBe(true);
       await Promise.resolve();
       expect(view.state.doc.toString()).toBe(source);
-      expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(2);
+      const restoredTables = parseEditableTables(view.state.doc.toString()).tables;
+      expect(restoredTables).toHaveLength(2);
       await vi.waitFor(() => {
-        const restoredHosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
-        expect(restoredHosts).toHaveLength(2);
-        expect(restoredHosts[0]!.contains(document.activeElement)).toBe(true);
-        expect(restoredHosts[1]!.contains(document.activeElement)).toBe(false);
+        expect(view.hasFocus).toBe(true);
+        const selection = view.state.selection.main;
+        expect(selection.anchor).toBeGreaterThanOrEqual(restoredTables[0]!.range.from);
+        expect(selection.anchor).toBeLessThan(restoredTables[0]!.range.to);
+        expect(selection.anchor).toBeLessThan(restoredTables[1]!.range.from);
+        // Source ownership keeps the restored target raw; the later identical
+        // table remains the only presentation widget.
+        expect(parent.querySelectorAll(".structural-tables-live-preview")).toHaveLength(1);
       });
 
       expect(redo(view)).toBe(true);

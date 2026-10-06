@@ -15,7 +15,7 @@ translation_of: ux-spec.zh-CN.md
 <!-- section: principles -->
 ## Principles
 
-Source remains visible and recoverable; rendering interprets but never rewrites; an operation that could lose content is refused.
+Source remains visible and recoverable; rendering interprets but never rewrites; unintended loss of unselected or hidden content is refused. Explicit clear/remove actions may discard the selected visible content, while guarded legacy operations keep their loss-prevention contract.
 
 <!-- section: live-preview -->
 ## Live Preview
@@ -24,14 +24,15 @@ A valid structural table is presented by a semantic block widget while its Markd
 
 ### Cell editing
 
-- Desktop click, touch double-tap, or Enter/F2 opens the editor.
-- The editor overlays the existing cell without changing column width or adding a second visible input border.
-- Enter commits, Escape cancels, and Shift+Enter inserts a draft line break.
-- Tab/Shift+Tab follows visible cells in source order and skips covered merge slots.
+- Desktop click, touch double-tap, or Enter/F2 opens the editor. A provably plain-text desktop click places the textarea caret at the clicked UTF-16 offset; formatted or ambiguous content, keyboard entry, and touch entry select the draft instead of guessing a Markdown offset.
+- The editor overlays the existing cell without changing column width or adding a second visible input border. Its editing surface does not inherit the grid-range selection fill, so theme header/zebra/background and borders remain visible around the caret.
+- Enter commits and opens the same logical column on the next row; at the last row the edit and appended row are one host transaction. Escape cancels, and Shift+Enter inserts a draft line break.
+- Tab/Shift+Tab follows visible cells in source order and skips covered merge slots. At a collapsed horizontal text boundary, Left/Right may move to the adjacent visible cell; internal text arrows and text selections remain native. Up/Down moves between rows only when textarea geometry proves a stable single visual line; otherwise it stays native.
 - While the textarea owns editing focus, Cmd/Ctrl+B and Cmd/Ctrl+I toggle bold/italic only on its current draft selection and preserve the other emphasis style. Typing, composition input, paste, draft line breaks, and these format operations participate in one draft-local undo/redo history; inherited main-editor history and formatting commands must not touch saved source before commit. Other formatting commands remain source-oriented and require **Edit table source**.
 - A rejected commit keeps the complete draft, does not navigate, and does not append a row.
 - Outside the textarea, unmodified Delete/Backspace clears the complete visible owner set represented by the current grid selection. Clearing never removes rows, columns, header roles, alignments, merge topology, or the table itself; an already-empty selection is a no-op.
 - The owned grid context menu offers the same clear intent plus explicit Delete selected rows, Delete selected columns, and Delete table actions. Explicit removal may discard the selected visible content without a pre-clear step, remains one undoable host transaction, and removes the whole table when all rows or all columns are explicitly selected.
+- Shift+Arrow extends or shrinks a grid range from its original logical anchor/head and reuses merge-owner closure; it never replaces the logical head with expanded bounds. Textarea selection shortcuts remain text-local.
 - Ordinary GFM retains Obsidian's native Delete behavior while takeover is disabled. When takeover is enabled, the same clear/removal policy applies; hidden GFM overflow remains read-only until its extra source cells are handled in Markdown.
 - IME composition must not be committed early or have its keys intercepted.
 
@@ -58,7 +59,7 @@ Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TS
 <!-- section: interchange -->
 ## Paste and interchange
 
-When Preserve pasted HTML table spans is enabled, a verifiable multi-column table is converted structurally.
+In the note editor's HTML-import route, a verifiable multi-column table is converted structurally when Preserve pasted HTML table spans is enabled.
 
 A single otherwise-safe table that is either completely empty or contains only text semantics the importer cannot preserve faithfully (`pre`, `sup`, or `sub`) uses the complete non-empty plain-text clipboard alternative verbatim when available; no TSV, Markdown, or TeX equivalence is inferred. If that known-lossy payload has no plain-text alternative, the paste is blocked and the current selection is kept.
 
@@ -70,7 +71,13 @@ A thead or consecutive th rows become column headers, consecutive leftmost th co
 
 Cell content is imported as plain text, with HTML break and block boundaries normalized to canonical `<br>` visual breaks.
 
-Plain GFM, TSV, and CSV output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, scope, and break elements.
+A selected owned-grid range has a separate bounded clipboard contract. Copy emits the plugin's normalized owner topology and raw tokens without writing source. Cut clears only after clipboard write success and exact source/path/range/selection/session revalidation. Paste accepts only this plugin's range payload, requires exact dimensions and owner topology, and replaces only selected owner raw tokens in one validated table write. Single cells, single columns, all-empty ranges, and complete horizontal/vertical/2D merges are supported. Plain text, ordinary HTML, unsupported range data, and stale sessions produce no source write and never fall through to the hidden CodeMirror caret.
+
+Menu Copy/Cut and menu Paste check platform clipboard-write and clipboard-read support independently; support for one does not imply support for the other. To paste ordinary text, enter a single cell's editor. To import an HTML table, use the note editor; **Edit table source** provides direct Markdown editing.
+
+Range Copy also exposes portable HTML and plain Markdown. Range HTML escapes each owner's raw Markdown as text and represents spans; it does not render that Markdown as rich content. Plain Markdown makes the first copied row a header and retains structural markers where representable. It does not promise equivalent merge topology in external GFM, especially for vertical merges.
+
+Plain GFM, TSV, and CSV whole-table output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, scope, and break elements.
 
 HTML conversion accepts one complete supported table only. Mixed prose, multiple tables, captions, math, images, attachments, and links that cannot be preserved are left to native note paste. In a cell editor, unsupported HTML uses the complete plain-text alternative with a notice; if none exists, the current edit remains intact. A verified empty cell can still clear the selected text. HTML copy falls back to original Markdown/LaTeX for math, images, attachments, and internal or relative links, preserving references without embedding arbitrary HTML.
 

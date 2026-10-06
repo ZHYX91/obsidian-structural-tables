@@ -1,5 +1,11 @@
 import type { ColumnAlignment, StructuralTable } from "./model";
 import { parseEditableTables } from "./parser";
+import {
+  sameTableRangeTopology,
+  tableRangePayload,
+  type TableRangeBounds,
+  type TableRangeClipboardPayloadV1,
+} from "./table-range-clipboard";
 import { serializeStructuralTable } from "./serializer";
 import { parseTableWrite } from "./table-write-validation";
 import { sourcePrefix } from "./source-lines";
@@ -32,6 +38,7 @@ export type OperationCode =
   | "merged"
   | "no-adjacent-cell"
   | "not-merged"
+  | "range-pasted"
   | "row-header-count-invalid"
   | "row-headers-set"
   | "row-inserted"
@@ -403,6 +410,98 @@ export function clearTableCells(
     table.rowHeaderColumnCount,
     table.alignments,
   );
+}
+
+export function pasteTableRangeRaw(
+  table: StructuralTable,
+  bounds: TableRangeBounds,
+  payload: TableRangeClipboardPayloadV1,
+): OperationResult {
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
+  const target = tableRangePayload(table, bounds);
+  if (target === null || !sameTableRangeTopology(target, payload)) {
+    return {
+      changed: false,
+      code: "invalid-result",
+      message: "The clipboard range does not match the selected table geometry.",
+      source: table.source,
+    };
+  }
+
+  const grid = ownedGrid(table);
+  const targetOwnerByPayload = new Map<string, string>();
+  for (let row = 0; row < payload.rows; row += 1) {
+    for (let column = 0; column < payload.columns; column += 1) {
+      const payloadOwner = payload.owners[row]![column]!;
+      const tableRow = bounds.minRow + row;
+      const tableColumn = bounds.minColumn + column;
+      const targetOwner = grid.owners[tableRow]?.[tableColumn];
+      if (targetOwner === undefined) {
+        return {
+          changed: false,
+          code: "cell-unavailable",
+          message: "The selected cell is unavailable.",
+          source: table.source,
+        };
+      }
+      const existing = targetOwnerByPayload.get(payloadOwner);
+      if (existing !== undefined && existing !== targetOwner) {
+        return {
+          changed: false,
+          code: "invalid-result",
+          message: "The clipboard range does not match the selected merge topology.",
+          source: table.source,
+        };
+      }
+      targetOwnerByPayload.set(payloadOwner, targetOwner);
+    }
+  }
+
+  let changed = false;
+  for (const [payloadOwner, targetOwner] of targetOwnerByPayload) {
+    const raw = payload.rawByOwner[payloadOwner];
+    if (raw === undefined) {
+      return {
+        changed: false,
+        code: "invalid-result",
+        message: "The clipboard range is incomplete.",
+        source: table.source,
+      };
+    }
+    if ((grid.contents.get(targetOwner) ?? "") !== raw) changed = true;
+    grid.contents.set(targetOwner, raw);
+  }
+  if (!changed) {
+    return {
+      changed: false,
+      code: "range-pasted",
+      message: "The selected cells already contain the clipboard values.",
+      source: table.source,
+    };
+  }
+  const result = resultFromOwnedGrid(
+    table,
+    grid,
+    "range-pasted",
+    "Clipboard range pasted.",
+    table.headerRowCount,
+    table.rowHeaderColumnCount,
+    table.alignments,
+  );
+  if (!result.changed) return result;
+  const reparsed = parseEditableTables(result.source).tables[0];
+  const roundTrip = reparsed === undefined ? null : tableRangePayload(reparsed, bounds);
+  if (roundTrip === null || !sameTableRangeTopology(roundTrip, payload)
+    || Object.keys(payload.rawByOwner).some((owner) => roundTrip.rawByOwner[owner] !== payload.rawByOwner[owner])) {
+    return {
+      changed: false,
+      code: "invalid-result",
+      message: "The clipboard range cannot be represented without changing its raw cell content.",
+      source: table.source,
+    };
+  }
+  return result;
 }
 
 /** Explicit user intent to remove the complete table, including non-empty visible cells. */

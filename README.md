@@ -37,7 +37,7 @@ Choose Follow theme, Grid, or Three-line table independently of table layout and
 - Copy tables as HTML, plain GFM, TSV, or CSV.
 - Optionally use the Structural Tables editor for ordinary GFM tables. Turning the option off restores Obsidian's native table UI without changing Markdown.
 - Convert a table to an Obsidian Base after reviewing the generated records and Property mapping. Moving or renaming those record notes does not break their Base membership.
-- Refuse edits that would lose non-empty or hidden source content, and show diagnostics for invalid structural syntax instead of silently rewriting it.
+- Refuse unintended writes that would discard unselected or hidden source content, while allowing explicit clear/delete actions on the visible selection. Invalid structural syntax stays visible with diagnostics instead of being silently rewritten.
 
 <!-- section: requirements-and-compatibility -->
 ## Requirements and compatibility
@@ -66,8 +66,8 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 2. Put `<` in a cell to merge it with the cell on its left, or `^` to merge it with the cell above.
 3. Put one adjacent `||` in the delimiter row to mark the columns on its left as row headers.
 4. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the rendered result. To edit raw Markdown again, right-click a rendered cell and choose **Edit table source**.
-5. In Live Preview, click a cell on desktop or double-tap it on touch screens to edit it. Enter saves, Escape cancels, Shift+Enter inserts a visual line break, and Tab moves to the next visible cell. While the in-place editor is active, Cmd/Ctrl+B and Cmd/Ctrl+I toggle Markdown bold or italic on the current draft selection without stripping the other emphasis style. Draft typing, composition input, paste, line breaks, and these B/I operations share draft-local undo/redo; the note source and its history are unchanged until you commit. Other formatting toolbar or command-palette actions are not redirected into the draft—use **Edit table source** for those.
-6. Use the **+** controls and row/column handles to add, select, move, align, merge, split, or change header roles. With a Structural Tables grid selection focused, unmodified Delete/Backspace clears the selected cell contents only; it does not remove rows, columns, headers, merges, or the table. Right-click to **Clear selected cells** or explicitly **Delete selected rows**, **Delete selected columns**, or **Delete table**. Clear and explicit removal are undoable.
+5. In Live Preview, click plain text to place the in-cell caret when the mapping is unambiguous; formatted or otherwise ambiguous content opens with the whole draft selected. Enter saves and moves to the same column on the next logical row (appending one row at the bottom), Escape cancels, Shift+Enter inserts a visual line break, and Tab moves to the next visible cell. While the in-place editor is active, Cmd/Ctrl+B and Cmd/Ctrl+I toggle Markdown bold or italic on the current draft selection without stripping the other emphasis style. Draft typing, composition input, paste, line breaks, and these B/I operations share draft-local undo/redo; the note source and its history are unchanged until you commit. Other formatting toolbar or command-palette actions are not redirected into the draft—use **Edit table source** for those.
+6. Use the **+** controls and row/column handles to add, select, move, align, merge, split, or change header roles. Shift+Arrow extends or shrinks the current logical grid range. With a Structural Tables grid selection focused, unmodified Delete/Backspace clears the selected cell contents only; it does not remove rows, columns, headers, merges, or the table. Right-click to **Clear selected cells** or explicitly **Delete selected rows**, **Delete selected columns**, or **Delete table**—non-empty selected rows, columns, or the table do not need to be cleared first. Clear and explicit removal are each undoable in one step.
 7. Paste a supported HTML table directly into the Markdown editor to import it. Use the command palette for formatting, copying, and Sheets Extended migration. Convert a table to Base from either the command palette or the table context menu.
 
 Reading view is display-only. In-place editing and table controls are available in Live Preview.
@@ -112,11 +112,17 @@ GFM allows body rows to contain fewer or more source cells than the header. Miss
 
 ### Pasting and copying
 
-With **Preserve pasted HTML table spans** enabled, a supported multi-column HTML table can be converted while keeping row and column spans and visual line breaks. HTML that cannot be converted safely is left to Obsidian, or uses the clipboard's complete plain-text form when that fallback is known to be safe.
+When pasting into the note's Markdown editor with **Preserve pasted HTML table spans** enabled, a supported multi-column HTML table can be converted while keeping row and column spans and visual line breaks. HTML that cannot be converted safely is left to Obsidian, or uses the clipboard's complete plain-text form when that fallback is known to be safe.
 
 For text with preserved spaces, tabs, line breaks or heading boundaries, the plugin uses the complete plain-text alternative. This keeps the text but may lose table layout or rich formatting. If no safe alternative is available, the paste is blocked and your current selection is kept.
 
 A body-only HTML table stays headerless instead of having its first row turned into a header. Real `thead`/`th` markup is used when the source provides it.
+
+With a grid range selected, Copy/Cut/Paste exchanges Structural Tables' own range data. Paste accepts only that data and requires the same number of rows and columns and the same arrangement of merged cells; it never repeats values across a larger range, adds rows or columns, or changes merges. Single cells, single columns, empty ranges, and complete merged cells are supported. Copy never changes the note; Cut clears only after the clipboard write succeeds and the source and selection are checked again.
+
+Range menu Copy/Cut needs platform clipboard-write support; menu Paste separately needs clipboard-read support. One may be available while the other is not. Plain text, ordinary HTML, or unrecognized range data cannot be pasted directly into a grid selection and never reaches the hidden Markdown source. To paste ordinary text, open a single cell for editing; to import an HTML table, paste in the note's Markdown editor. **Edit table source** also lets you work directly in Markdown.
+
+For other applications, range Copy also provides HTML and plain Markdown. Range HTML represents spans and shows the cell's Markdown as raw text. Plain Markdown uses the first copied row as a header and retains structural markers where representable; it does not guarantee the same merge layout in other applications, including vertical merges.
 
 Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.
 

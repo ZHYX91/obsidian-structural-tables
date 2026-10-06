@@ -1,10 +1,10 @@
-import type { Menu } from "obsidian";
+import type { Editor, Menu } from "obsidian";
 import { describe, expect, it } from "vitest";
 
 import type { Translate } from "../src/config/i18n";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { addBasePromotionMenuItem, addSelectionMenuItems, hasSelectionMenuItems, type TableOperation, type TableOperationIntent } from "../src/editor/table-menu";
-import { structuralTableSelectionFromBounds } from "../src/editor/table-selection";
+import { selectedStructuralTableCells, structuralTableSelectionFromBounds } from "../src/editor/table-selection";
 import { Menu as MockMenu } from "./mocks/obsidian";
 
 const t: Translate = (key) => key;
@@ -52,6 +52,56 @@ describe("table menus", () => {
     const menu = new MockMenu();
     addSelectionMenuItems(menu as unknown as Menu, t, selection, () => {});
     expect(menu.items.map((item) => item.title)).toEqual(["menu.mergeSelection"]);
+  });
+
+  it("offers Split instead of Merge for the complete closure of one merged owner", () => {
+    const table = parseStructuralTables("| H1 | H2 | H3 |\n| --- | --- | --- |\n| Keep | M | < |\n| Keep2 | ^ | < |").tables[0]!;
+    const selection = structuralTableSelectionFromBounds(table, { row: 1, column: 1 }, { row: 1, column: 1 })!;
+    expect(selection.cells).toHaveLength(4);
+    const menu = new MockMenu();
+    const operations: TableOperation[] = [];
+    addSelectionMenuItems(menu as unknown as Menu, t, selection, operation => { operations.push(operation); }, { fullEditor: false });
+    expect(hasSelectionMenuItems(selection, { fullEditor: false })).toBe(true);
+    expect(menu.items.map(item => item.title)).toEqual(["menu.splitCell"]);
+    menu.items[0]?.callback?.();
+    const result = operations[0]!(table);
+    expect(result).toMatchObject({ changed: true, code: "split" });
+    expect(parseEditableTables(result.source).tables[0]!.rows.slice(1).map(row => row.cells.map(cell => cell.content)))
+      .toEqual([["Keep", "M", ""], ["Keep2", "", ""]]);
+  });
+
+  it("offers guarded Merge instead of Split when the selection contains distinct owners", () => {
+    const table = parseStructuralTables("| H1 | H2 | H3 |\n| --- | --- | --- |\n| Keep | M | < |\n| Keep2 | ^ | < |").tables[0]!;
+    const selection = structuralTableSelectionFromBounds(table, { row: 1, column: 0 }, { row: 2, column: 2 })!;
+    const menu = new MockMenu();
+    const operations: TableOperation[] = [];
+    addSelectionMenuItems(menu as unknown as Menu, t, selection, operation => { operations.push(operation); }, { fullEditor: false });
+    expect(menu.items.map(item => item.title)).toEqual(["menu.mergeSelection"]);
+    menu.items[0]?.callback?.();
+    expect(operations[0]!(table)).toMatchObject({ changed: false, code: "content-would-be-lost", source: table.source });
+  });
+
+  it("resolves a legacy source selection containing only covered slots to its one owner", () => {
+    const source = "| H1 | H2 | H3 |\n| --- | --- | --- |\n| Keep | M | < |\n| Keep2 | ^ | < |";
+    const lines = source.split("\n");
+    const coveredLine = lines[3]!;
+    const editor = {
+      getLine: (line: number) => lines[line] ?? "",
+      getValue: () => source,
+      listSelections: () => [{
+        anchor: { line: 3, ch: coveredLine.indexOf("^") },
+        head: { line: 3, ch: coveredLine.indexOf("<") + 1 },
+      }],
+    } as unknown as Editor;
+    const selection = selectedStructuralTableCells(editor)!;
+    expect(selection.cells).toHaveLength(2);
+    expect(selection.cells.every(cell => cell.covered)).toBe(true);
+    const menu = new MockMenu();
+    const operations: TableOperation[] = [];
+    addSelectionMenuItems(menu as unknown as Menu, t, selection, operation => { operations.push(operation); }, { fullEditor: false });
+    expect(menu.items.map(item => item.title)).toEqual(["menu.splitCell"]);
+    menu.items[0]?.callback?.();
+    expect(operations[0]!(selection.table)).toMatchObject({ changed: true, code: "split" });
   });
 
   it("keeps guarded shared deletion while takeover menus expose explicit destructive intents", () => {

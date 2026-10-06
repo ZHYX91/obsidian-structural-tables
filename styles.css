@@ -351,18 +351,20 @@
   outline-offset: -2px;
 }
 
-.structural-tables-live-preview .structural-tables-table :is(th, td).is-selected {
-  background: var(--text-selection);
-  box-shadow: inset 0 0 0 1px var(--interactive-accent);
+.structural-tables-live-preview .structural-tables-table :is(th, td).is-selected:not(.is-editing) {
+  background: var(--table-selection, var(--background-modifier-hover));
+  box-shadow: inset 0 0 0 var(--table-selection-border-width, 1px)
+    var(--table-selection-border-color, var(--interactive-accent));
 }
 
-.structural-tables-live-preview[data-appearance="grid"] .structural-tables-table :is(th, td).is-selected,
-.structural-tables-live-preview[data-appearance="three-line"] .structural-tables-table :is(th, td).is-selected {
-  background: var(--text-selection) !important;
+.structural-tables-live-preview[data-appearance="grid"] .structural-tables-table :is(th, td).is-selected:not(.is-editing),
+.structural-tables-live-preview[data-appearance="three-line"] .structural-tables-table :is(th, td).is-selected:not(.is-editing) {
+  background: var(--table-selection, var(--background-modifier-hover)) !important;
 }
 
-.structural-tables-live-preview .structural-tables-table :is(th, td):focus-visible.is-selected {
-  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+.structural-tables-live-preview .structural-tables-table :is(th, td):focus-visible.is-selected:not(.is-editing) {
+  box-shadow: inset 0 0 0 max(2px, var(--table-selection-border-width, 1px))
+    var(--table-selection-border-color, var(--interactive-accent));
 }
 
 :is(.structural-tables-container, .structural-tables-live-preview)[data-density="comfortable"] {

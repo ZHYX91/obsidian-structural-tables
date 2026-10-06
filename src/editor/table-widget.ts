@@ -764,67 +764,151 @@ class StructuralTableInteraction {
     let contextMenuOpen = false;
     let lastRejectedDraft: string | null = null;
     type DraftSnapshot = { value: string; start: number; end: number };
-    const formatUndo: DraftSnapshot[] = [];
-    const formatRedo: DraftSnapshot[] = [];
+    type DraftHistoryGroup = "typing" | "composition" | "deletion" | "native" | "format" | "paste" | "break";
+    type DraftHistoryEntry = {
+      before: DraftSnapshot;
+      after: DraftSnapshot;
+      group: DraftHistoryGroup;
+    };
+    const draftUndo: DraftHistoryEntry[] = [];
+    const draftRedo: DraftHistoryEntry[] = [];
+    let lastHistorySnapshot: DraftSnapshot;
+    let pendingNativeInput: { before: DraftSnapshot; group: DraftHistoryGroup } | null = null;
     const draftSnapshot = (): DraftSnapshot => ({
       value: editor.value,
       start: editor.selectionStart,
       end: editor.selectionEnd,
     });
+    lastHistorySnapshot = draftSnapshot();
+    const sameDraftSnapshot = (left: DraftSnapshot, right: DraftSnapshot): boolean =>
+      left.value === right.value && left.start === right.start && left.end === right.end;
     const restoreDraftSnapshot = (snapshot: DraftSnapshot): void => {
       editor.value = snapshot.value;
       editor.setSelectionRange(snapshot.start, snapshot.end);
+      lastHistorySnapshot = snapshot;
+      pendingNativeInput = null;
       lastRejectedDraft = null;
       resizeEditor();
       editor.focus({ preventScroll: true });
     };
-    const clearDraftFormatHistory = (): void => {
-      formatUndo.length = 0;
-      formatRedo.length = 0;
+    const recordDraftHistory = (
+      before: DraftSnapshot,
+      after: DraftSnapshot,
+      group: DraftHistoryGroup,
+      merge: boolean,
+    ): void => {
+      if (sameDraftSnapshot(before, after)) {
+        lastHistorySnapshot = after;
+        return;
+      }
+      const previous = draftUndo[draftUndo.length - 1];
+      if (merge && previous?.group === group && sameDraftSnapshot(previous.after, before)) {
+        previous.after = after;
+      } else {
+        draftUndo.push({ before, after, group });
+      }
+      draftRedo.length = 0;
+      lastHistorySnapshot = after;
+    };
+    const applyDraftMutation = (group: DraftHistoryGroup, mutate: () => void): void => {
+      const before = draftSnapshot();
+      mutate();
+      recordDraftHistory(before, draftSnapshot(), group, false);
+      lastRejectedDraft = null;
+      resizeEditor();
+      editor.focus({ preventScroll: true });
+    };
+    const nativeHistoryGroup = (event: InputEvent): DraftHistoryGroup => {
+      if (composing || event.isComposing || event.inputType.includes("Composition")) return "composition";
+      if (event.inputType === "insertText") return "typing";
+      if (event.inputType === "deleteContentBackward" || event.inputType === "deleteContentForward") return "deletion";
+      return "native";
+    };
+    const isEscapedAt = (value: string, index: number): boolean => {
+      let backslashes = 0;
+      for (let cursor = index - 1; cursor >= 0 && value[cursor] === "\\"; cursor -= 1) backslashes += 1;
+      return backslashes % 2 === 1;
+    };
+    const starRunBefore = (value: string, index: number): { from: number; length: number } | null => {
+      let from = index;
+      while (from > 0 && value[from - 1] === "*") from -= 1;
+      const length = index - from;
+      return length >= 1 && length <= 3 && !isEscapedAt(value, from) ? { from, length } : null;
+    };
+    const starRunAfter = (value: string, index: number): { to: number; length: number } | null => {
+      let to = index;
+      while (to < value.length && value[to] === "*") to += 1;
+      const length = to - index;
+      return length >= 1 && length <= 3 && !isEscapedAt(value, index) ? { to, length } : null;
+    };
+    const selectedStarWrapper = (
+      value: string,
+      start: number,
+      end: number,
+    ): { content: string; length: number } | null => {
+      if (start >= end || value[start] !== "*" || value[end - 1] !== "*"
+        || value[start - 1] === "*" || value[end] === "*" || isEscapedAt(value, start)) return null;
+      let left = start;
+      while (left < end && value[left] === "*") left += 1;
+      let right = end;
+      while (right > start && value[right - 1] === "*") right -= 1;
+      const leftLength = left - start;
+      const rightLength = end - right;
+      if (leftLength !== rightLength || leftLength < 1 || leftLength > 3
+        || left >= right || isEscapedAt(value, right)) return null;
+      return { content: value.slice(left, right), length: leftLength };
+    };
+    const toggledStarRunLength = (current: number, target: 1 | 2): number => {
+      let italic = current === 1 || current === 3;
+      let bold = current === 2 || current === 3;
+      if (target === 1) italic = !italic;
+      else bold = !bold;
+      return (bold ? 2 : 0) + (italic ? 1 : 0);
     };
     this.releaseNavigationScope();
     const scope = new Scope(this.app.scope);
 
     const insertBreak = (start = editor.selectionStart, end = editor.selectionEnd): void => {
-      clearDraftFormatHistory();
-      editor.setRangeText("\n", start, end, "end");
-      resizeEditor();
-      editor.focus({ preventScroll: true });
+      applyDraftMutation("break", () => {
+        editor.setRangeText("\n", start, end, "end");
+      });
     };
     const toggleDraftInlineFormat = (marker: "*" | "**"): void => {
-      formatUndo.push(draftSnapshot());
-      formatRedo.length = 0;
-      const start = editor.selectionStart;
-      const end = editor.selectionEnd;
-      const value = editor.value;
-      const selected = value.slice(start, end);
-      const markerLength = marker.length;
-      if (start === end) {
-        editor.setRangeText(marker + marker, start, end, "end");
-        const caret = start + markerLength;
-        editor.setSelectionRange(caret, caret);
-      } else if (
-        start >= markerLength
-        && value.slice(start - markerLength, start) === marker
-        && value.slice(end, end + markerLength) === marker
-      ) {
-        editor.setRangeText(selected, start - markerLength, end + markerLength, "end");
-        editor.setSelectionRange(start - markerLength, end - markerLength);
-      } else if (
-        selected.length >= markerLength * 2
-        && selected.startsWith(marker)
-        && selected.endsWith(marker)
-      ) {
-        const inner = selected.slice(markerLength, -markerLength);
-        editor.setRangeText(inner, start, end, "end");
-        editor.setSelectionRange(start, start + inner.length);
-      } else {
+      const target = marker.length as 1 | 2;
+      applyDraftMutation("format", () => {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const value = editor.value;
+        const selected = value.slice(start, end);
+        if (start === end) {
+          editor.setRangeText(marker + marker, start, end, "end");
+          const caret = start + target;
+          editor.setSelectionRange(caret, caret);
+          return;
+        }
+
+        const selectedWrapper = selectedStarWrapper(value, start, end);
+        if (selectedWrapper !== null) {
+          const nextLength = toggledStarRunLength(selectedWrapper.length, target);
+          const stars = "*".repeat(nextLength);
+          editor.setRangeText(stars + selectedWrapper.content + stars, start, end, "end");
+          editor.setSelectionRange(start + nextLength, start + nextLength + selectedWrapper.content.length);
+          return;
+        }
+
+        const before = starRunBefore(value, start);
+        const after = starRunAfter(value, end);
+        if (before !== null && after !== null && before.length === after.length) {
+          const nextLength = toggledStarRunLength(before.length, target);
+          const stars = "*".repeat(nextLength);
+          editor.setRangeText(stars + selected + stars, before.from, after.to, "end");
+          editor.setSelectionRange(before.from + nextLength, before.from + nextLength + selected.length);
+          return;
+        }
+
         editor.setRangeText(marker + selected + marker, start, end, "end");
-        editor.setSelectionRange(start + markerLength, end + markerLength);
-      }
-      lastRejectedDraft = null;
-      resizeEditor();
-      editor.focus({ preventScroll: true });
+        editor.setSelectionRange(start + target, end + target);
+      });
     };
 
     const restore = (focus: boolean): void => {

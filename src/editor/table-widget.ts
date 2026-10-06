@@ -81,14 +81,20 @@ export function restoreTableHistoryFocus(view: EditorView,
     cancelPendingTableFocus(view);
     const state = view.state;
     const anchor = Math.min(target.from, state.doc.length);
-    queueMicrotask(() => {
+    const restoreNative = (): void => {
       if (view.state !== state || !view.dom.isConnected) return;
       view.dispatch({
         selection: { anchor },
-        effects: EditorView.scrollIntoView(anchor, { y: "nearest" }),
+        effects: [
+          ...(target.restorePresentation === true ? [structuralTableSourceFocus.of(true)] : []),
+          EditorView.scrollIntoView(anchor, { y: "nearest" }),
+        ],
       });
       view.focus();
-    });
+    };
+    const win = view.dom.ownerDocument.defaultView;
+    if (target.restorePresentation === true && win !== null) win.setTimeout(restoreNative, 0);
+    else queueMicrotask(restoreNative);
     return;
   }
   const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
@@ -99,14 +105,25 @@ export function restoreTableHistoryFocus(view: EditorView,
     from: target.from, source: target.after, sourcePath: target.sourcePath, coordinate: target.coordinate, edit: false,
   };
   pendingCellFocus.set(view, pending);
-  queueMicrotask(() => {
-    if (view.state !== state || !view.dom.isConnected || pendingCellFocus.get(view) !== pending) return;
+  const restoreOwned = (): void => {
+    if (view.state !== state || !view.dom.isConnected || pendingCellFocus.get(view) !== pending) {
+      if (pendingCellFocus.get(view) === pending) pendingCellFocus.delete(view);
+      return;
+    }
     if (!table.structural && !settings.takeOverOrdinaryTables) {
       focusNativeTable(view, table, target.coordinate);
       return;
     }
-    view.dispatch({ effects: EditorView.scrollIntoView(table.range.from, { y: "nearest" }) });
-  });
+    view.dispatch({
+      effects: [
+        ...(target.restorePresentation === true ? [structuralTableSourceFocus.of(false)] : []),
+        EditorView.scrollIntoView(table.range.from, { y: "nearest" }),
+      ],
+    });
+  };
+  const win = view.dom.ownerDocument.defaultView;
+  if (target.restorePresentation === true && win !== null) win.setTimeout(restoreOwned, 0);
+  else queueMicrotask(restoreOwned);
 }
 
 export function cancelPendingTableFocus(view: EditorView): void {

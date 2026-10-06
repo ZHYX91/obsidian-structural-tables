@@ -1898,7 +1898,7 @@ class StructuralTableInteraction {
       const left = Math.max(scrollRect.left, tableRect.left) - hostRect.left;
       const right = Math.min(scrollRect.right, tableRect.right) - hostRect.left;
       const inlineStart = rtl ? hostRect.width - right : left;
-      addRow.style.top = `${tableRect.bottom - hostRect.top}px`;
+      addRow.style.top = `${scrollRect.bottom - hostRect.top}px`;
       addRow.style.left = `${left}px`;
       addRow.style.width = `${Math.max(gutter, right - left)}px`;
       addColumn.style.top = `${tableRect.top - hostRect.top}px`;
@@ -1936,6 +1936,7 @@ class StructuralTableInteraction {
     if (typeof ResizeObserver !== "undefined") {
       this.resizeObserver = new ResizeObserver(positionHandles);
       this.resizeObserver.observe(rendered);
+      if (scroller !== null) this.resizeObserver.observe(scroller, { box: "border-box" });
     }
   }
 

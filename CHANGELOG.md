@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep the add-row control below horizontal scrollbars as the viewport resizes, with compact desktop control gutters and unchanged touch targets.
 - Improve owned-table editing with plain-text pointer caret placement, Enter/Arrow/Shift-range navigation, theme-aware selection styling, frozen menu selection context, and bounded exact-topology range copy/cut/paste.
 - Clear owned grid selections with Delete/Backspace while reserving row, column, and whole-table removal for explicit context-menu actions with host undo/redo.
 - Keep Cmd/Ctrl+B and Cmd/Ctrl+I inside active cell drafts, preserve nested bold/italic markers, and route typing, composition, paste, line breaks and formatting through draft-local undo/redo until explicit commit.

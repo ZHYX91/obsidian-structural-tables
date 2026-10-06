@@ -1392,9 +1392,33 @@ describe("StructuralTableEditorController", () => {
       dispatchPointerDown(cell, "mouse");
       cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
       const event = dispatchOwnedGridKey(cell, "Delete", false);
-      expect(event.defaultPrevented).toBe(false);
+      expect(event.defaultPrevented).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
       lastMenu?.hide();
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("does not clear from a detached owned grid or a keyboard event from another window", () => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      dispatchPointerDown(cell, "mouse");
+
+      parent.remove();
+      const detached = dispatchOwnedGridKey(cell, "Delete", false);
+      expect(detached.defaultPrevented).toBe(false);
+      expect(view.state.doc.toString()).toBe(source);
+
+      document.body.appendChild(parent);
+      cell.focus();
+      const foreign = new KeyboardEvent("keydown", { key: "Delete", bubbles: true, cancelable: true });
+      Object.defineProperty(foreign, "view", { value: {} as Window });
+      dispatchScopeCaptureThenDom(cell, foreign);
+      expect(foreign.defaultPrevented).toBe(false);
+      expect(view.state.doc.toString()).toBe(source);
     } finally {
       view.destroy();
     }

@@ -2,6 +2,7 @@ import type { Editor, EditorSelection } from "obsidian";
 import { describe, expect, it } from "vitest";
 
 import {
+  completeStructuralTableSelectionCoordinates,
   selectedStructuralTableCells,
   structuralTableSelectionFromBounds,
 } from "../src/editor/table-selection";
@@ -85,6 +86,15 @@ describe("selectedStructuralTableCells", () => {
       minColumn: 0,
       maxColumn: 1,
     });
+  });
+
+  it("expands one selected merged anchor to every logical owner coordinate for clear intents", () => {
+    const table = parseStructuralTables("| A | < | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |").tables[0]!;
+    const selection = structuralTableSelectionFromBounds(table, { row: 0, column: 0 }, { row: 0, column: 0 })!;
+    expect(completeStructuralTableSelectionCoordinates(selection)).toEqual([
+      { row: 0, column: 0 },
+      { row: 0, column: 1 },
+    ]);
   });
 
   it("expands a rendered-cell drag to include an existing merged cell in full", () => {

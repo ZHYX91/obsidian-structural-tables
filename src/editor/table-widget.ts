@@ -298,7 +298,7 @@ class StructuralTableInteraction {
   mount(view: EditorView): HTMLElement {
     this.component = new Component();
     this.component.load();
-    const host = view.dom.ownerDocument.adoptNode(createEl("div"));
+    const host = view.dom.ownerDocument.createElement("div");
     host.className = "structural-tables-live-preview";
     host.dataset.layout = this.settings.layout;
     host.dataset.appearance = this.settings.appearance;
@@ -1223,7 +1223,7 @@ class StructuralTableInteraction {
     this.selectionHead = this.selectionAnchor;
     this.updateSelection();
 
-    const editor = element.ownerDocument.adoptNode(createEl("textarea"));
+    const editor = element.ownerDocument.createElement("textarea");
     editor.className = "structural-tables-cell-editor";
     editor.cols = 1;
     editor.rows = 1;
@@ -1865,7 +1865,7 @@ class StructuralTableInteraction {
       });
     };
     const rowHandles = this.table.rows.map((_row, row) => {
-      const handle = host.ownerDocument.adoptNode(createEl("button"));
+      const handle = host.ownerDocument.createElement("button");
       handle.type = "button";
       handle.className = "structural-tables-row-handle";
       handle.dataset.structuralRowHandle = String(row);
@@ -1877,7 +1877,7 @@ class StructuralTableInteraction {
       return handle;
     });
     const columnHandles = this.table.alignments.map((_alignment, column) => {
-      const handle = host.ownerDocument.adoptNode(createEl("button"));
+      const handle = host.ownerDocument.createElement("button");
       handle.type = "button";
       handle.className = "structural-tables-column-handle";
       handle.dataset.structuralColumnHandle = String(column);
@@ -1936,8 +1936,9 @@ class StructuralTableInteraction {
     positionHandles();
     const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
     if (scroller !== null) this.component?.registerDomEvent(scroller, "scroll", positionHandles);
-    if (typeof ResizeObserver !== "undefined") {
-      this.resizeObserver = new ResizeObserver(positionHandles);
+    const OwnerResizeObserver = host.ownerDocument.defaultView?.ResizeObserver;
+    if (OwnerResizeObserver !== undefined) {
+      this.resizeObserver = new OwnerResizeObserver(positionHandles);
       this.resizeObserver.observe(rendered);
       if (scroller !== null) this.resizeObserver.observe(scroller, { box: "border-box" });
     }

@@ -1,6 +1,7 @@
 import { JSDOM, type DOMWindow } from "jsdom";
 import MarkdownIt from "markdown-it";
-import { type App, MarkdownRenderer, type MarkdownPostProcessorContext, MarkdownRenderChild, TFile } from "obsidian";
+import { App, editorInfoField, MarkdownRenderer, type MarkdownPostProcessorContext, MarkdownRenderChild, TFile } from "obsidian";
+import { EditorState, type TransactionSpec } from "@codemirror/state";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings";
@@ -10,7 +11,7 @@ import { StructuralTableReadingProcessor } from "../src/reading/table-postproces
 import { renderTableSignatures } from "../src/rendering/native-table-mapping";
 import { tableRenderingComplete } from "../src/rendering/table-renderer";
 import type { EditorView } from "@codemirror/view";
-import type { StructuralTableWidget } from "../src/editor/table-widget";
+import { cancelPendingTableFocus, StructuralTableWidget } from "../src/editor/table-widget";
 import { CalloutTables } from "../src/editor/callout-tables";
 import { calloutRanges } from "../src/core/source-lines";
 
@@ -37,6 +38,9 @@ function installHelpers(window: DOMWindow): void {
   };
   window.HTMLElement.prototype.createDiv = function(options?: { cls?: string }): HTMLDivElement {
     return this.createEl("div", options);
+  };
+  window.HTMLElement.prototype.setCssProps = function(props: Record<string, string>): void {
+    for (const [name, value] of Object.entries(props)) this.style.setProperty(name, value);
   };
 }
 
@@ -67,6 +71,127 @@ beforeEach(() => {
     const parsed = main.window.document.createElement("div");
     parsed.innerHTML = markdown.render(text);
     content.append(...parsed.childNodes);
+  });
+});
+
+describe("Live Preview DOM realms", () => {
+  const source = "Before\n\n| Name | Value |\n| --- || --- |\n| North | 10 |\n| ^ | 20 |\n\nAfter";
+
+  function mount(): { view: EditorView; widget: StructuralTableWidget; host: HTMLElement; writes: () => number } {
+    const dom = popout.window.document.body.appendChild(popout.window.document.createElement("div"));
+    let state = EditorState.create({ doc: source, extensions: [editorInfoField] });
+    let writes = 0;
+    const view = { dom, get state() { return state; },
+      dispatch: (spec: TransactionSpec) => {
+        const transaction = state.update(spec);
+        if (transaction.docChanged) writes += 1;
+        state = transaction.state;
+      }, focus: () => dom.focus(),
+    } as unknown as EditorView;
+    const widget = new StructuralTableWidget(new App(), parseEditableTables(source).tables[0]!, "Test.md", settings, () => settings);
+    const host = widget.toDOM(view);
+    dom.appendChild(host);
+    return { view, widget, host, writes: () => writes };
+  }
+
+  function destroy(mounted: ReturnType<typeof mount>): void {
+    cancelPendingTableFocus(mounted.view);
+    mounted.widget.destroy(mounted.host);
+  }
+
+  it("creates interactive hosts, cells and controls with independent owner constructors", async () => {
+    const mounted = mount();
+    try {
+      await tableRenderingComplete(mounted.host.querySelector("table")!);
+      for (const element of [mounted.host, ...mounted.host.querySelectorAll<HTMLElement>(
+        ".structural-tables-container, table, caption, thead, tbody, tr, th, td, button, .structural-tables-cell-content",
+      )]) expectPopoutElement(element);
+      expect(mounted.view.state.doc.toString()).toBe(source);
+    } finally { destroy(mounted); }
+  });
+
+  it.each(["row", "column"] as const)("clears an owner-window %s and its merge closure while refusing a different window's key event", (axis) => {
+    const mounted = mount();
+    try {
+      const handle = mounted.host.querySelector<HTMLElement>(`[data-structural-${axis}-handle='1']`)!;
+      handle.click();
+      handle.focus();
+      const foreign = new popout.window.KeyboardEvent("keydown", {
+        key: "Delete", bubbles: true, cancelable: true, view: main.window as unknown as Window,
+      });
+      handle.dispatchEvent(foreign);
+      expect(foreign.defaultPrevented).toBe(false);
+      expect(mounted.writes()).toBe(0);
+      const own = new popout.window.KeyboardEvent("keydown", {
+        key: "Delete", bubbles: true, cancelable: true, view: popout.window as unknown as Window,
+      });
+      handle.dispatchEvent(own);
+      expect(own.defaultPrevented).toBe(true);
+      expect(mounted.writes()).toBe(1);
+      const table = parseEditableTables(mounted.view.state.doc.toString()).tables[0]!;
+      expect(table.valid).toBe(true);
+      expect(table.rows).toHaveLength(3);
+      expect(table.columnCount).toBe(2);
+      expect(table.headerRowCount).toBe(1);
+      expect(table.rowHeaderColumnCount).toBe(1);
+      expect(table.rows[2]!.cells[0]!.marker).toBe("up");
+      expect(table.rows[1]!.cells[1]!.content).toBe("");
+      expect(table.rows[1]!.cells[0]!.content).toBe(axis === "row" ? "" : "North");
+      expect(table.rows[2]!.cells[1]!.content).toBe("");
+      expect(table.rows[0]!.cells[0]!.content).toBe("Name");
+      expect(table.rows[0]!.cells[1]!.content).toBe(axis === "row" ? "Value" : "");
+      expect(mounted.view.state.doc.toString().startsWith("Before\n\n")).toBe(true);
+      expect(mounted.view.state.doc.toString().endsWith("\n\nAfter")).toBe(true);
+    } finally { destroy(mounted); }
+  });
+
+  it("creates and focuses a cell draft in the owner window without editing source on Escape", () => {
+    const mounted = mount();
+    try {
+      const cell = mounted.host.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new popout.window.MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(editor).toBeInstanceOf(popout.window.HTMLTextAreaElement);
+      expect(editor).not.toBeInstanceOf(main.window.HTMLTextAreaElement);
+      expect(popout.window.document.activeElement).toBe(editor);
+      expect(editor.value).toBe("10");
+      editor.dispatchEvent(new popout.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      expect(cell.querySelector("textarea")).toBeNull();
+      expect(mounted.writes()).toBe(0);
+    } finally { destroy(mounted); }
+  });
+
+  it("positions a newly connected table from the owner observer and releases that observer", () => {
+    let callback: ResizeObserverCallback | undefined;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    const MainObserver = vi.fn();
+    vi.stubGlobal("ResizeObserver", MainObserver);
+    Object.defineProperty(popout.window, "ResizeObserver", { configurable: true, value: class {
+      constructor(next: ResizeObserverCallback) { callback = next; }
+      observe = observe;
+      disconnect = disconnect;
+    } });
+    const original = popout.window.HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(popout.window.HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function(this: HTMLElement) {
+      if (this.isConnected && this.classList.contains("structural-tables-live-preview")) return new popout.window.DOMRect(20, 10, 500, 300);
+      if (this.isConnected && this.classList.contains("structural-tables-table")) return new popout.window.DOMRect(70, 50, 200, 200);
+      return original.call(this);
+    });
+    const mounted = mount();
+    try {
+      expect(MainObserver).not.toHaveBeenCalled();
+      expect(callback).toBeTypeOf("function");
+      expect(observe.mock.calls.map(([element]) => element)).toEqual([
+        mounted.host.querySelector("table"), mounted.host.querySelector(".structural-tables-container"),
+      ]);
+      callback!([], {} as ResizeObserver);
+      const column = mounted.host.querySelector<HTMLElement>("[data-structural-column-handle='1']")!;
+      expect(column.style.left).toBe("200px");
+      expect(column.style.getPropertyValue("inset-block-start")).toBe("40px");
+      expect(mounted.view.state.doc.toString()).toBe(source);
+    } finally { destroy(mounted); }
+    expect(disconnect).toHaveBeenCalledOnce();
   });
 });
 

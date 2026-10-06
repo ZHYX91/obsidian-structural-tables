@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Translate } from "../src/config/i18n";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
-import { addBasePromotionMenuItem, addSelectionMenuItems, hasSelectionMenuItems, type TableOperation } from "../src/editor/table-menu";
+import { addBasePromotionMenuItem, addSelectionMenuItems, hasSelectionMenuItems, type TableOperation, type TableOperationIntent } from "../src/editor/table-menu";
 import { structuralTableSelectionFromBounds } from "../src/editor/table-selection";
 import { Menu as MockMenu } from "./mocks/obsidian";
 
@@ -70,10 +70,10 @@ describe("table menus", () => {
     expect(guardedMenu.items.map((item) => item.title)).not.toContain("menu.clearCells");
     expect(guardedMenu.items.map((item) => item.title)).not.toContain("menu.deleteTable");
     guardedMenu.items.find((item) => item.title === "menu.deleteRows")?.callback?.();
-    expect(guarded.at(-1)?.(table)).toMatchObject({ changed: false, code: "content-would-be-lost" });
+    expect(guarded[guarded.length - 1]?.(table)).toMatchObject({ changed: false, code: "content-would-be-lost" });
 
     const explicitMenu = new MockMenu();
-    const explicit: Array<{ operation: TableOperation; intent?: string }> = [];
+    const explicit: Array<{ operation: TableOperation; intent: TableOperationIntent | undefined }> = [];
     addSelectionMenuItems(
       explicitMenu as unknown as Menu,
       t,
@@ -89,15 +89,15 @@ describe("table menus", () => {
     ]));
 
     explicitMenu.items.find((item) => item.title === "menu.clearCells")?.callback?.();
-    expect(explicit.at(-1)?.intent).toBe("owned-grid");
-    expect(explicit.at(-1)?.operation(table)).toMatchObject({ changed: true, code: "cells-cleared" });
+    expect(explicit[explicit.length - 1]?.intent).toBe("owned-grid");
+    expect(explicit[explicit.length - 1]?.operation(table)).toMatchObject({ changed: true, code: "cells-cleared" });
 
     explicitMenu.items.find((item) => item.title === "menu.deleteRows")?.callback?.();
-    expect(explicit.at(-1)?.intent).toBe("owned-grid");
-    expect(explicit.at(-1)?.operation(table)).toMatchObject({ changed: true, code: "rows-deleted" });
+    expect(explicit[explicit.length - 1]?.intent).toBe("owned-grid");
+    expect(explicit[explicit.length - 1]?.operation(table)).toMatchObject({ changed: true, code: "rows-deleted" });
 
     explicitMenu.items.find((item) => item.title === "menu.deleteTable")?.callback?.();
-    expect(explicit.at(-1)?.operation(table)).toMatchObject({ changed: true, code: "table-deleted", source: "" });
+    expect(explicit[explicit.length - 1]?.operation(table)).toMatchObject({ changed: true, code: "table-deleted", source: "" });
   });
 
   it("can expose the full editor for an explicitly owned ordinary table", () => {

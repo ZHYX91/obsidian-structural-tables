@@ -177,7 +177,7 @@
 }
 
 /* Emphasize complete header regions, including the edges of spanning anchors. */
-:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="grid"] .structural-tables-table [data-structural-column-header-boundary="true"] {
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="grid"] .structural-tables-table [data-structural-header-end="true"] {
   border-block-end-width: 2px !important;
 }
 

@@ -61,14 +61,20 @@ describe("Grid header boundaries", () => {
     {
       name: "column headers with no body",
       source: "| Region | Results | < |\n| ^ | Q1 | Q2 |\n| --- | --- | --- |",
-      block: [],
+      block: ["0:0", "1:1", "1:2"],
       inline: [],
     },
     {
       name: "corner and column headers with no body",
       source: "| Key | Value |\n| --- || --- |",
-      block: [],
-      inline: [],
+      block: ["0:0", "0:1"],
+      inline: ["0:0"],
+    },
+    {
+      name: "declared headers with empty data cells",
+      source: "| Region | Site | Value |\n| --- | --- || --- |\n|  |  |  |",
+      block: ["0:0", "0:1", "0:2"],
+      inline: ["0:1", "1:1"],
     },
   ];
 

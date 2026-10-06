@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Give Grid tables slightly thicker single borders at semantic header/data boundaries, preserving merged cells and a uniform grid for tables without headers.
+- Give Grid tables slightly thicker single borders at semantic header boundaries, retaining declared column- and row-header boundaries before data rows are added and preserving merged cells and a uniform grid for tables without headers.
 - Keep the add-row control below horizontal scrollbars as the viewport resizes, with compact desktop control gutters and unchanged touch targets.
 - Improve owned-table editing with plain-text pointer caret placement, Enter/Arrow/Shift-range navigation, theme-aware selection styling, frozen menu selection context, and bounded exact-topology range copy/cut/paste.
 - Clear owned grid selections with Delete/Backspace while reserving row, column, and whole-table removal for explicit context-menu actions with host undo/redo.

@@ -763,15 +763,37 @@ class StructuralTableInteraction {
     let composing = false;
     let contextMenuOpen = false;
     let lastRejectedDraft: string | null = null;
+    type DraftSnapshot = { value: string; start: number; end: number };
+    const formatUndo: DraftSnapshot[] = [];
+    const formatRedo: DraftSnapshot[] = [];
+    const draftSnapshot = (): DraftSnapshot => ({
+      value: editor.value,
+      start: editor.selectionStart,
+      end: editor.selectionEnd,
+    });
+    const restoreDraftSnapshot = (snapshot: DraftSnapshot): void => {
+      editor.value = snapshot.value;
+      editor.setSelectionRange(snapshot.start, snapshot.end);
+      lastRejectedDraft = null;
+      resizeEditor();
+      editor.focus({ preventScroll: true });
+    };
+    const clearDraftFormatHistory = (): void => {
+      formatUndo.length = 0;
+      formatRedo.length = 0;
+    };
     this.releaseNavigationScope();
     const scope = new Scope(this.app.scope);
 
     const insertBreak = (start = editor.selectionStart, end = editor.selectionEnd): void => {
+      clearDraftFormatHistory();
       editor.setRangeText("\n", start, end, "end");
       resizeEditor();
       editor.focus({ preventScroll: true });
     };
     const toggleDraftInlineFormat = (marker: "*" | "**"): void => {
+      formatUndo.push(draftSnapshot());
+      formatRedo.length = 0;
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
       const value = editor.value;
@@ -916,6 +938,33 @@ class StructuralTableInteraction {
     };
     registerDraftFormat("b", "**");
     registerDraftFormat("i", "*");
+    const registerDraftHistory = (
+      modifiers: ("Mod" | "Ctrl" | "Shift")[],
+      key: "z" | "y",
+      redo: boolean,
+    ): void => {
+      scope.register(modifiers, key, (event) => {
+        if (settled || composing || event.isComposing || contextMenuOpen
+          || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return true;
+        const from = redo ? formatRedo : formatUndo;
+        const to = redo ? formatUndo : formatRedo;
+        const snapshot = from.pop();
+        if (snapshot === undefined) {
+          // Matching this child-scope binding keeps inherited main-editor
+          // history commands out of the draft, while leaving the textarea's
+          // native undo/redo default available.
+          return true;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        to.push(draftSnapshot());
+        restoreDraftSnapshot(snapshot);
+        return false;
+      });
+    };
+    registerDraftHistory(["Mod"], "z", false);
+    registerDraftHistory(["Mod", "Shift"], "z", true);
+    registerDraftHistory(["Ctrl"], "y", true);
     const activateCellScope = (): void => {
       claimCellEditorFocus(editor);
       if (this.cellScope === scope) return;
@@ -926,6 +975,7 @@ class StructuralTableInteraction {
     editor.addEventListener("focus", activateCellScope);
     editor.addEventListener("keydown", handleKey);
     editor.addEventListener("input", () => {
+      clearDraftFormatHistory();
       lastRejectedDraft = null;
       resizeEditor();
     });
@@ -956,6 +1006,7 @@ class StructuralTableInteraction {
       }
       if (result.kind === "text" && result.fallback) new Notice(t("notice.clipboardPlainFallback"));
       const pasted = result.kind === "empty" ? "" : result.text;
+      clearDraftFormatHistory();
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
       // A fragment may be inside an existing math/code/link span. Preserve it

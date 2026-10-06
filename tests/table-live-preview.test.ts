@@ -2610,6 +2610,199 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it("places a pointer-entered plain-text draft caret at the proven DOM UTF-16 offset", () => {
+    const source = "| H | V |\n| --- || --- |\n| A😀B | Keep |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const content = cell.querySelector<HTMLElement>(".structural-tables-cell-content")!;
+      content.replaceChildren(document.createTextNode("A😀B"));
+      const text = content.firstChild!;
+      Object.defineProperty(document, "caretPositionFromPoint", {
+        configurable: true,
+        value: () => ({ offsetNode: text, offset: 3 }),
+      });
+
+      dispatchPointerDown(cell, "mouse");
+      cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([3, 3]);
+      typeDraftText(editor, "X");
+      expect(editor.value).toBe("A😀XB");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      delete (document as Document & { caretPositionFromPoint?: unknown }).caretPositionFromPoint;
+      view.destroy();
+    }
+  });
+
+  it("falls back to select-all when rendered content is not a provable plain-text mapping", () => {
+    const source = "| H | V |\n| --- || --- |\n| **North** | Keep |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const content = cell.querySelector<HTMLElement>(".structural-tables-cell-content")!;
+      content.innerHTML = "<strong>North</strong>";
+      const text = content.querySelector("strong")!.firstChild!;
+      Object.defineProperty(document, "caretPositionFromPoint", {
+        configurable: true,
+        value: () => ({ offsetNode: text, offset: 2 }),
+      });
+
+      dispatchPointerDown(cell, "mouse");
+      cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(editor.value).toBe("**North**");
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([0, editor.value.length]);
+    } finally {
+      delete (document as Document & { caretPositionFromPoint?: unknown }).caretPositionFromPoint;
+      view.destroy();
+    }
+  });
+
+  it("commits Enter to the next logical row in the same column and selects that draft", async () => {
+    const source = "| H | V |\n| --- || --- |\n| A | one |\n| B | two |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      replaceDraftText(editor, "ONE");
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+      await vi.waitFor(() => expect(
+        parent.querySelector("[data-structural-row='2'][data-structural-column='1'] textarea"),
+      ).not.toBeNull());
+      const next = parent.querySelector<HTMLTextAreaElement>(
+        "[data-structural-row='2'][data-structural-column='1'] textarea",
+      )!;
+      expect(next.value).toBe("two");
+      expect([next.selectionStart, next.selectionEnd]).toEqual([0, 3]);
+      expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[1]!.content).toBe("ONE");
+    } finally { view.destroy(); }
+  });
+
+  it("commits terminal Enter plus append as one host history transaction", async () => {
+    const source = "| H | V |\n| --- || --- |\n| A | one |\n| B | two |";
+    let writes = 0;
+    const listener = EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; });
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(), listener]);
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      replaceDraftText(editor, "TWO");
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+
+      await vi.waitFor(() => expect(
+        parent.querySelector("[data-structural-row='3'][data-structural-column='1'] textarea"),
+      ).not.toBeNull());
+      expect(writes).toBe(1);
+      expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows).toHaveLength(4);
+      parent.querySelector<HTMLTextAreaElement>("textarea")!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("moves across horizontal draft boundaries but preserves internal caret and text selection", async () => {
+    const source = "| H1 | H2 |\n| --- || --- |\n| North | South |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const first = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      first.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      let editor = first.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.setSelectionRange(2, 2);
+      const internal = new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true });
+      editor.dispatchEvent(internal);
+      expect(internal.defaultPrevented).toBe(false);
+      expect(editor.isConnected).toBe(true);
+
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(
+        parent.querySelector("[data-structural-row='1'][data-structural-column='1'] textarea"),
+      ).not.toBeNull());
+      editor = parent.querySelector<HTMLTextAreaElement>("[data-structural-row='1'][data-structural-column='1'] textarea")!;
+      expect(editor.value).toBe("South");
+
+      editor.setSelectionRange(0, 2);
+      const selected = new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true });
+      editor.dispatchEvent(selected);
+      expect(selected.defaultPrevented).toBe(false);
+      expect(editor.isConnected).toBe(true);
+
+      editor.setSelectionRange(0, 0);
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(
+        parent.querySelector("[data-structural-row='1'][data-structural-column='0'] textarea"),
+      ).not.toBeNull());
+    } finally { view.destroy(); }
+  });
+
+  it("takes vertical draft arrows only when one visual line is geometrically provable", async () => {
+    const source = "| H | V |\n| --- || --- |\n| A | one |\n| B | two |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const first = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      first.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      let editor = first.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.setSelectionRange(1, 1);
+      const unknown = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true });
+      editor.dispatchEvent(unknown);
+      expect(unknown.defaultPrevented).toBe(false);
+
+      Object.defineProperty(editor, "clientHeight", { configurable: true, value: 20 });
+      Object.defineProperty(editor, "scrollHeight", { configurable: true, value: 20 });
+      editor.style.lineHeight = "20px";
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(
+        parent.querySelector("[data-structural-row='2'][data-structural-column='1'] textarea"),
+      ).not.toBeNull());
+      editor = parent.querySelector<HTMLTextAreaElement>("[data-structural-row='2'][data-structural-column='1'] textarea")!;
+      expect(editor.value).toBe("two");
+    } finally { view.destroy(); }
+  });
+
+  it("extends and shrinks logical Shift+Arrow ranges without replacing the original head with merge bounds", () => {
+    const source = "| H1 | H2 | H3 |\n| --- || --- | --- |\n| A | B | C |\n| D | E | F |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = (row: number, column: number) => parent.querySelector<HTMLElement>(
+        `[data-structural-row='${row}'][data-structural-column='${column}']`,
+      )!;
+      dispatchPointerDown(cell(1, 0), "mouse");
+      const active = cell(1, 0);
+      active.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", shiftKey: true, bubbles: true, cancelable: true }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(2);
+      cell(1, 1).dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", shiftKey: true, bubbles: true, cancelable: true }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      cell(2, 1).dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", shiftKey: true, bubbles: true, cancelable: true }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(2);
+    } finally { view.destroy(); }
+  });
+
+  it("expands through a merged owner and shrinks back from the logical Shift+Arrow head", () => {
+    const source = "| A | < | C |\n| --- | --- | --- |\n| D | E | F |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const right = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='2']")!;
+      dispatchPointerDown(right, "mouse");
+      right.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", shiftKey: true, bubbles: true, cancelable: true }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(2);
+      const merged = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+      merged.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", shiftKey: true, bubbles: true, cancelable: true }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(1);
+
+      const table = parent.querySelector<HTMLTableElement>(".structural-tables-table")!;
+      table.style.direction = "rtl";
+      dispatchPointerDown(merged, "mouse");
+      merged.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", shiftKey: true, bubbles: true, cancelable: true }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(2);
+    } finally { view.destroy(); }
+  });
+
   it.each([false, true])("does not steal focus when a cell editor loses focus (changed=%s)", async (changed) => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     try {

@@ -1248,12 +1248,21 @@ describe("StructuralTableEditorController", () => {
         expect(table.rows).toHaveLength(3);
         expect(table.columnCount).toBe(3);
         expect(table.rows[1]!.cells[1]!.content).toBe("");
+        await vi.waitFor(() => expect(
+          document.activeElement?.closest("[data-structural-row='1'][data-structural-column='1']"),
+        ).not.toBeNull());
       } else if (kind === "row") {
         expect(table.rows).toHaveLength(2);
         expect(table.rows[1]!.cells.map((cell) => cell.content)).toEqual(["B", "3", "4"]);
+        await vi.waitFor(() => expect(
+          (document.activeElement as HTMLElement | null)?.dataset.structuralRowHandle,
+        ).toBe("1"));
       } else {
         expect(table.columnCount).toBe(2);
         expect(table.rows[1]!.cells.map((cell) => cell.content)).toEqual(["A", "2"]);
+        await vi.waitFor(() => expect(
+          (document.activeElement as HTMLElement | null)?.dataset.structuralColumnHandle,
+        ).toBe("1"));
       }
       expect(undo(view)).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
@@ -1291,6 +1300,12 @@ describe("StructuralTableEditorController", () => {
       await Promise.resolve();
       expect(view.state.doc.toString()).toBe(source);
       expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(2);
+      await vi.waitFor(() => {
+        const restoredHosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+        expect(restoredHosts).toHaveLength(2);
+        expect(restoredHosts[0]!.contains(document.activeElement)).toBe(true);
+        expect(restoredHosts[1]!.contains(document.activeElement)).toBe(false);
+      });
 
       expect(redo(view)).toBe(true);
       await Promise.resolve();

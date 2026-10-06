@@ -138,7 +138,9 @@ describe("table appearance", () => {
       body {
         --table-header-background: rgb(230, 230, 230);
         --background-secondary: rgb(240, 240, 240);
-        --text-selection: rgb(120, 160, 220);
+        --table-selection: rgb(120, 160, 220);
+        --table-selection-border-color: rgb(20, 80, 180);
+        --table-selection-border-width: 1px;
         --interactive-accent: rgb(20, 80, 180);
         --text-normal: black;
       }
@@ -152,6 +154,27 @@ describe("table appearance", () => {
     </tr></tbody></table>`;
 
     expect(getComputedStyle(host.querySelector("th")!).backgroundColor).toBe("rgb(120, 160, 220)");
+  });
+
+  it.each(["grid", "three-line"])("does not apply range fill to an actively edited selected header in %s", (appearance) => {
+    document.head.appendChild(document.createElement("style")).textContent = `
+      body {
+        --table-header-background: rgb(230, 230, 230);
+        --table-selection: rgb(120, 160, 220);
+        --table-selection-border-color: rgb(20, 80, 180);
+        --text-normal: black;
+      }
+    `;
+    document.head.appendChild(document.createElement("style")).textContent = styles;
+    const host = document.body.appendChild(document.createElement("div"));
+    host.className = "structural-tables-live-preview markdown-rendered";
+    host.dataset.appearance = appearance;
+    host.innerHTML = `<table class="structural-tables-table"><thead><tr>
+      <th class="is-selected is-editing">North</th><th>Value</th>
+    </tr></thead></table>`;
+    const edited = getComputedStyle(host.querySelector("th")!);
+    expect(edited.backgroundColor).not.toBe("rgb(120, 160, 220)");
+    if (appearance === "grid") expect(edited.backgroundColor).toBe("rgb(230, 230, 230)");
   });
 
   it("leaves header fill and weight to the active theme in Follow theme mode", () => {

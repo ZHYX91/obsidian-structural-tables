@@ -531,12 +531,15 @@ describe("table operations", () => {
     expect(parsedCleared.sourcePrefix).toBe("  ");
 
     const removed = removeTable(table);
+    expect(removed).toMatchObject({ changed: true, code: "table-deleted", source: "" });
     expect(before + removed.source + after).toBe([
       "Before",
       "- Item",
+      "",
       "  continuation",
       "After",
     ].join(ending));
+    expect(before + removed.source + after).toBe(before + after);
   });
 
   it.each(["\n", "\r\n", "\r"])("preserves quote prefix and %j endings through clear and explicit removal", (ending) => {

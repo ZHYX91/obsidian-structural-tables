@@ -8,7 +8,11 @@ import {
   writeTableRangeToDataTransfer,
   writeTableRangeToNavigator,
 } from "../src/editor/table-range-clipboard";
-import { TABLE_RANGE_CLIPBOARD_MIME, type TableRangeClipboardPayloadV1 } from "../src/core/table-range-clipboard";
+import {
+  TABLE_RANGE_CLIPBOARD_MIME,
+  TABLE_RANGE_CLIPBOARD_WEB_MIME,
+  type TableRangeClipboardPayloadV1,
+} from "../src/core/table-range-clipboard";
 
 const payload: TableRangeClipboardPayloadV1 = {
   version: 1,
@@ -56,7 +60,7 @@ describe("owned range clipboard bridge", () => {
     expect(await writeTableRangeToNavigator(clipboard, payload)).toBe(true);
     expect(writes).toHaveLength(1);
     expect((writes[0]![0] as unknown as MockClipboardItem).types).toEqual(expect.arrayContaining([
-      TABLE_RANGE_CLIPBOARD_MIME, "text/plain", "text/html",
+      TABLE_RANGE_CLIPBOARD_WEB_MIME, "text/plain", "text/html",
     ]));
   });
 
@@ -71,7 +75,7 @@ describe("owned range clipboard bridge", () => {
     const blob = new Blob([JSON.stringify(payload)], { type: TABLE_RANGE_CLIPBOARD_MIME });
     const clipboard = {
       read: vi.fn(async () => [{
-        types: [TABLE_RANGE_CLIPBOARD_MIME],
+        types: [TABLE_RANGE_CLIPBOARD_WEB_MIME],
         getType: vi.fn(async () => blob),
       }]),
     } as unknown as Clipboard;

@@ -1,3 +1,4 @@
+import MarkdownIt from "markdown-it";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -555,6 +556,56 @@ describe("table operations", () => {
     expect(removed.changed).toBe(true);
     expect(removed.source.split(/\r\n|\r|\n/u).every((line) => line.startsWith("> |"))).toBe(true);
     expect(removed.source.includes(ending)).toBe(true);
+  });
+
+  it.each(["\n", "\r\n", "\r"])("keeps quoted containers continuous when removing all table rows with %j endings", (ending) => {
+    const markdown = new MarkdownIt();
+    for (const [prefix, opening, delimiter] of [
+      ["> ", "> [!note] Focus", "| --- || --- |"],
+      ["> > ", "> [!note] Outer\n> > [!note] Inner", "| --- || --- |"],
+      ["  > ", "- Item\n  > [!note] Focus", "| --- || --- |"],
+      ["> ", "> Quoted prose", "| --- | --- |"],
+    ] as const) {
+      const tableLines = ["| H | V |", delimiter, "| A | 1 |"].map((line) => prefix + line);
+      const note = [
+        "Before", opening.split("\n").join(ending), prefix + "Before tables.", prefix,
+        ...tableLines, prefix, prefix + "Between tables.", prefix, ...tableLines,
+        prefix, prefix + "After tables.", "", "End",
+      ].join(ending);
+      const [first, second] = parseEditableTables(note).tables;
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+      const before = note.slice(0, first!.range.from);
+      const after = note.slice(first!.range.to);
+      const quoteCount = (text: string) => markdown.parse(text, {})
+        .filter((token) => token.type === "blockquote_open").length;
+      for (const remove of [
+        () => removeTable(first!),
+        () => removeTableAxis(first!, "row", 0, first!.rows.length - 1),
+        () => removeTableAxis(first!, "column", 0, first!.columnCount - 1),
+      ]) {
+        const result = remove();
+        const removed = before + result.source + after;
+        expect(result).toMatchObject({ changed: true, code: "table-deleted" });
+        expect(quoteCount(removed)).toBe(quoteCount(note));
+        expect(result.source).toBe(prefix);
+        expect(removed.slice(0, before.length)).toBe(before);
+        expect(removed.slice(-after.length)).toBe(after);
+        const remaining = parseEditableTables(removed).tables;
+        expect(remaining).toHaveLength(1);
+        expect(remaining[0]!.source).toBe(second!.source);
+        expect(remaining[0]!.range.from).toBe(second!.range.from - first!.source.length + prefix.length);
+      }
+    }
+  });
+
+  it.each(["", "  "])("keeps non-quoted %j removal empty even when a cell contains a quote marker", (prefix) => {
+    const text = ["| H > quote | V |", "| --- || --- |", "| A | 1 |"]
+      .map((line) => prefix + line).join("\n");
+    const table = parseEditableTables(prefix === "" ? text : `- Item\n${text}\n  continuation`).tables[0]!;
+    expect(removeTable(table).source).toBe("");
+    expect(removeTableAxis(table, "row", 0, table.rows.length - 1).source).toBe("");
+    expect(removeTableAxis(table, "column", 0, table.columnCount - 1).source).toBe("");
   });
 
   it("deletes only when content is preserved, including moving a merged anchor", () => {

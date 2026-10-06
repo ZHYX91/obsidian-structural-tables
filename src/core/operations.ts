@@ -409,7 +409,10 @@ export function clearTableCells(
 export function removeTable(table: StructuralTable): OperationResult {
   const blocked = unavailable(table);
   if (blocked !== null) return blocked;
-  return { changed: true, code: "table-deleted", message: "Table deleted.", source: "" };
+  // The range excludes its final newline. Keep a quoted blank line so removing
+  // the table does not split the surrounding quote or Callout into two blocks.
+  const source = table.sourcePrefix.includes(">") ? table.sourcePrefix : "";
+  return { changed: true, code: "table-deleted", message: "Table deleted.", source };
 }
 
 /** Explicit user intent to remove visible rows or columns, allowing selected visible content to be discarded. */

@@ -29,14 +29,14 @@ describe("table history targets", () => {
     expect(latest!.effects.find((effect) => effect.is(tableHistoryTarget))?.value.after).toBe(updated);
   });
 
-  it("maps a whole-table removal target through an unrecorded prefix edit made after removal", () => {
+  it.each(["", "> "])("maps a whole-table removal target %j through an unrecorded prefix edit made after removal", (replacement) => {
     let state = EditorState.create({ doc: source, extensions: [history(), tableHistory] });
     const table = parseEditableTables(source).tables[0]!;
     state = state.update({
-      changes: { from: table.range.from, to: table.range.to, insert: "" },
+      changes: { from: table.range.from, to: table.range.to, insert: replacement },
       ...tableWriteHistory(
         table,
-        "",
+        replacement,
         "Test.md",
         { row: 1, column: 0 },
         { restorePresentation: true },
@@ -57,7 +57,7 @@ describe("table history targets", () => {
     expect(state.doc.toString()).toBe(`Prefix\n${source}`);
     expect(latest!.effects.find((effect) => effect.is(tableHistoryTarget))?.value).toMatchObject({
       from: table.range.from + 7,
-      before: "",
+      before: replacement,
       after: table.source,
       coordinate: { row: 1, column: 0 },
       restorePresentation: true,
@@ -68,7 +68,7 @@ describe("table history targets", () => {
     expect(latest!.effects.find((effect) => effect.is(tableHistoryTarget))?.value).toMatchObject({
       from: table.range.from + 7,
       before: table.source,
-      after: "",
+      after: replacement,
       restorePresentation: true,
     });
   });

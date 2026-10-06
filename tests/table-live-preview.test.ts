@@ -10,6 +10,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
+import { calloutRanges } from "../src/core/source-lines";
 import { recoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
 import {
@@ -73,8 +74,10 @@ class SourceCalloutWidget extends WidgetType {
     title.textContent = "Note";
     const content = element.appendChild(document.createElement("div"));
     content.className = "callout-content";
-    const table = nativeTableForSource(this.source, element.ownerDocument);
-    if (table !== null) content.appendChild(table);
+    for (const sourceTable of parseEditableTables(this.source).tables) {
+      const table = nativeTableForSource(sourceTable.source, element.ownerDocument);
+      if (table !== null) content.appendChild(table);
+    }
     return element;
   }
 }
@@ -948,6 +951,87 @@ describe("StructuralTableEditorController", () => {
           .find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
         expect(restored.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("1");
       }
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it.each(["CtrlY", "CtrlShiftZ"] as const)("keeps one Callout intact through first-table removal, Undo/F2 and %s Redo", async (shortcut) => {
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div");
+      element.className = options.cls;
+      return element;
+    });
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const container = args[2] as HTMLElement;
+      if (container.className !== "structural-tables-container") return;
+      const table = nativeTableForSource(args[1] as string, container.ownerDocument);
+      if (table !== null) container.replaceChildren(table);
+    });
+    const tableText = "> | Region | Value |\n> | --- | --- |\n> | West | 10 |\n> | ^ | 20 |";
+    const source = `Before\n\n> [!note] Focus\n> Before tables.\n>\n${tableText}\n>\n> Between tables.\n>\n${tableText}\n>\n> After tables.\n\nEnd`;
+    const nativeFor = (text: string) => Decoration.set(calloutRanges(text).map((range) =>
+      Decoration.replace({ widget: new SourceCalloutWidget(text.slice(range.from, range.to)), block: true })
+        .range(range.from, range.to)));
+    const native = StateField.define({
+      create: (state) => nativeFor(state.doc.toString()),
+      update: (value, transaction) => transaction.docChanged ? nativeFor(transaction.newDoc.toString()) : value,
+      provide: (field) => EditorView.decorations.from(field),
+    });
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [native, history(), keymap.of(historyKeymap)]);
+    Object.assign(view.state.field(editorInfoField).editor!, { undo: () => undo(view), redo: () => redo(view) });
+    try {
+      await vi.waitFor(() => expect(parent.querySelectorAll(".callout .structural-tables-live-preview")).toHaveLength(2));
+      const [first, second] = parseEditableTables(source).tables;
+      const removed = source.slice(0, first!.range.from) + "> " + source.slice(first!.range.to);
+      const firstCell = parent.querySelector<HTMLElement>(".callout [data-structural-row='0'][data-structural-column='0']")!;
+      firstCell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Delete table")?.callback?.();
+      await vi.waitFor(() => expect(view.state.doc.toString()).toBe(removed));
+      expect(calloutRanges(removed)).toHaveLength(1);
+      expect(calloutRanges(removed)[0]!.to).toBe(removed.indexOf("\n\nEnd"));
+      await vi.waitFor(() => expect(parent.querySelectorAll(".callout .structural-tables-live-preview")).toHaveLength(1));
+      await vi.waitFor(() => expect(view.hasFocus).toBe(true));
+
+      dispatchScopeCaptureThenDom(view.contentDOM, new KeyboardEvent("keydown", {
+        key: "z", ctrlKey: true, bubbles: true, cancelable: true,
+      }));
+      await vi.waitFor(() => expect(view.state.doc.toString()).toBe(source));
+      await vi.waitFor(() => expect(parent.querySelectorAll(".callout .structural-tables-live-preview")).toHaveLength(2));
+      const restoredHosts = parent.querySelectorAll<HTMLElement>(".callout .structural-tables-live-preview");
+      const restored = restoredHosts[0]!.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
+      await vi.waitFor(() => expect(document.activeElement).toBe(restored));
+      dispatchScopeCaptureThenDom(restored, new KeyboardEvent("keydown", {
+        key: "F2", bubbles: true, cancelable: true,
+      }));
+      const draft = restored.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(draft?.value).toBe("Region");
+      expect(restoredHosts[1]!.querySelector("textarea")).toBeNull();
+      dispatchScopeCaptureThenDom(draft, new KeyboardEvent("keydown", {
+        key: "Escape", bubbles: true, cancelable: true,
+      }));
+      await Promise.resolve();
+      dispatchScopeCaptureThenDom(document.activeElement as HTMLElement, new KeyboardEvent("keydown", {
+        key: shortcut === "CtrlY" ? "y" : "z", ctrlKey: true, shiftKey: shortcut === "CtrlShiftZ",
+        bubbles: true, cancelable: true,
+      }));
+      await vi.waitFor(() => expect(view.state.doc.toString()).toBe(removed));
+      await vi.waitFor(() => expect(parent.querySelectorAll(".callout .structural-tables-live-preview")).toHaveLength(1));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      const remaining = parseEditableTables(view.state.doc.toString()).tables;
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]!.source).toBe(second!.source);
+      expect(calloutRanges(view.state.doc.toString())[0]!.to).toBe(removed.indexOf("\n\nEnd"));
+      expect(view.hasFocus).toBe(true);
+      // The host block widget may place native focus at a Callout boundary.
+      expect(view.state.selection.main.anchor).toBeGreaterThanOrEqual(first!.range.from);
+      expect(view.state.selection.main.anchor).toBeLessThanOrEqual(removed.indexOf("\n\nEnd") + 1);
+      expect(parent.querySelector(".structural-tables-live-preview")!.contains(document.activeElement)).toBe(false);
+      dispatchScopeCaptureThenDom(document.activeElement as HTMLElement, new KeyboardEvent("keydown", {
+        key: "F2", bubbles: true, cancelable: true,
+      }));
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(view.state.doc.toString()).toBe(removed);
     } finally {
       view.destroy();
     }

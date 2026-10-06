@@ -13,6 +13,7 @@ import { appendTableRow, clearTableCells, editCellContent, editCellAndTransform,
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
+import { sourcePrefix } from "../core/source-lines";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import { renderTableClipboard } from "../rendering/table-clipboard";
 import { cellClipboardText, copyHtml } from "./table-interchange";
@@ -113,9 +114,12 @@ export function restoreTableHistoryFocus(view: EditorView,
   target: TableHistoryTarget,
   settings: StructuralTablesSettings): void {
   if (view.state.field(editorInfoField, false)?.file?.path !== target.sourcePath) return;
-  if (target.after === "") {
+  const quotedRemoval = target.restorePresentation === true && target.after.includes(">")
+    && sourcePrefix(target.after) === target.after
+    && view.state.doc.sliceString(target.from, target.from + target.after.length) === target.after;
+  if (target.after === "" || quotedRemoval) {
     requestNativeFocus(view, {
-      from: target.from, source: "", sourcePath: target.sourcePath, coordinate: target.coordinate, edit: false,
+      from: target.from, source: target.after, sourcePath: target.sourcePath, coordinate: target.coordinate, edit: false,
     });
     return;
   }

@@ -4,7 +4,7 @@
 - Treat `src/core` as host-independent pure logic; it must not import Obsidian.
 - Structural syntax changes require positive, negative, and false-positive fixtures.
 - Reading View and Live Preview must never mutate Markdown.
-- Editing commands must refuse operations that could discard cell content or create an invalid table.
+- Editing commands must refuse invalid tables and unintended loss of unselected or hidden content. Explicit user-authorized clear/remove actions may discard the selected visible content; existing guarded delete/merge APIs keep their loss-prevention contract.
 - A green `npm run check` is not real Obsidian runtime acceptance; use `docs/ACCEPTANCE.md`.
 - Use Conventional Commit subjects and normal Git identity; do not add agent attribution.
 

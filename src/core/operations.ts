@@ -479,7 +479,7 @@ export function pasteTableRangeRaw(
       source: table.source,
     };
   }
-  return resultFromOwnedGrid(
+  const result = resultFromOwnedGrid(
     table,
     grid,
     "range-pasted",
@@ -488,6 +488,19 @@ export function pasteTableRangeRaw(
     table.rowHeaderColumnCount,
     table.alignments,
   );
+  if (!result.changed) return result;
+  const reparsed = parseEditableTables(result.source).tables[0];
+  const roundTrip = reparsed === undefined ? null : tableRangePayload(reparsed, bounds);
+  if (roundTrip === null || !sameTableRangeTopology(roundTrip, payload)
+    || Object.keys(payload.rawByOwner).some((owner) => roundTrip.rawByOwner[owner] !== payload.rawByOwner[owner])) {
+    return {
+      changed: false,
+      code: "invalid-result",
+      message: "The clipboard range cannot be represented without changing its raw cell content.",
+      source: table.source,
+    };
+  }
+  return result;
 }
 
 /** Explicit user intent to remove the complete table, including non-empty visible cells. */

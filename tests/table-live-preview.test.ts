@@ -854,6 +854,16 @@ describe("StructuralTableEditorController", () => {
       expect(undo(view)).toBe(true);
       await vi.waitFor(() => expect(view.state.doc.toString()).toBe(source));
       await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      if (kind === "table") {
+        const restored = parent.querySelector<HTMLElement>(
+          ".callout [data-structural-row='1'][data-structural-column='1']",
+        )!;
+        await vi.waitFor(() => expect(document.activeElement).toBe(restored));
+        const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
+        expect(activeScopes[activeScopes.length - 1]!.handlers
+          .find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
+        expect(restored.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("1");
+      }
     } finally {
       view.destroy();
     }
@@ -1301,22 +1311,90 @@ describe("StructuralTableEditorController", () => {
       expect(view.state.doc.toString()).toBe(source);
       const restoredTables = parseEditableTables(view.state.doc.toString()).tables;
       expect(restoredTables).toHaveLength(2);
-      await vi.waitFor(() => {
-        expect(view.hasFocus).toBe(true);
-        const selection = view.state.selection.main;
-        expect(selection.anchor).toBeGreaterThanOrEqual(restoredTables[0]!.range.from);
-        expect(selection.anchor).toBeLessThan(restoredTables[0]!.range.to);
-        expect(selection.anchor).toBeLessThan(restoredTables[1]!.range.from);
-        // Source ownership keeps the restored target raw; the later identical
-        // table remains the only presentation widget.
-        expect(parent.querySelectorAll(".structural-tables-live-preview")).toHaveLength(1);
-      });
+      await vi.waitFor(() => expect(parent.querySelectorAll(".structural-tables-live-preview")).toHaveLength(2));
+      const restoredHosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+      const restoredFirst = restoredHosts[0]!;
+      const restoredSecond = restoredHosts[1]!;
+      const restoredCell = restoredFirst.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='0']",
+      )!;
+      await vi.waitFor(() => expect(document.activeElement).toBe(restoredCell));
+      expect(restoredSecond.contains(document.activeElement)).toBe(false);
+
+      const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
+      expect(activeScopes[activeScopes.length - 1]!.handlers
+        .find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
+      expect(f2.defaultPrevented).toBe(true);
+      expect(restoredFirst.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("A");
+      expect(restoredSecond.querySelector("textarea")).toBeNull();
+
+      const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+      restoredFirst.querySelector<HTMLTextAreaElement>("textarea")!.dispatchEvent(escape);
+      expect(restoredFirst.querySelector("textarea")).toBeNull();
 
       expect(redo(view)).toBe(true);
       await Promise.resolve();
       expect(view.state.doc.toString()).toBe(expectedRemoved);
       expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(1);
       expect(view.hasFocus).toBe(true);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("restores an ordinary table as owned after Undo while takeover remains enabled", async () => {
+    const source = "Before\n\n| H | V |\n| --- | --- |\n| A | 1 |\n\nEnd";
+    const { parent, view } = mountEditor(
+      source,
+      { anchor: source.length },
+      [history()],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Delete table")?.callback?.();
+      await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(0));
+
+      expect(undo(view)).toBe(true);
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
+      const restored = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      await vi.waitFor(() => expect(document.activeElement).toBe(restored));
+
+      const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
+      expect(activeScopes[activeScopes.length - 1]!.handlers
+        .find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
+      expect(parent.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("A");
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("falls back to native source focus when ordinary takeover is disabled before Undo", async () => {
+    const source = "Before\n\n| H | V |\n| --- | --- |\n| A | 1 |\n\nEnd";
+    const { parent, view, updateSettings } = mountEditor(
+      source,
+      { anchor: source.length },
+      [history()],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Delete table")?.callback?.();
+      await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(0));
+
+      updateSettings({ takeOverOrdinaryTables: false });
+      expect(undo(view)).toBe(true);
+      await Promise.resolve();
+
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+      expect(view.hasFocus).toBe(true);
+      expect(view.state.selection.main.anchor).toBeGreaterThanOrEqual(table.range.from);
+      expect(view.state.selection.main.anchor).toBeLessThan(table.range.to);
     } finally {
       view.destroy();
     }

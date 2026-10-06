@@ -456,7 +456,7 @@ describe("table operations", () => {
 
     const column = removeTableAxis(table, "column", 1, 1);
     expect(column).toMatchObject({ changed: true, code: "columns-deleted" });
-    expect(parseStructuralTables(column.source).tables[0]!.rows.map((item) => item.cells[0]!.content))
+    expect(parseEditableTables(column.source).tables[0]!.rows.map((item) => item.cells[0]!.content))
       .toEqual(["H", "A", "B"]);
 
     expect(removeTable(table)).toEqual({

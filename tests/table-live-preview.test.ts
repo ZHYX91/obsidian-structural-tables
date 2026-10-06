@@ -279,6 +279,49 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it.each(["above", "below"] as const)("keeps column controls inside the table beside an external %s block caption", (placement) => {
+    const source = "Before\n\nTable: Q\n\n| Region | Value |\n| --- | --- |\n| North | 10 |\n| ^ | 20 |\n\nAfter";
+    const table = parseEditableTables(source).tables[0]!;
+    class ExternalCaption extends WidgetType {
+      override toDOM(): HTMLElement {
+        const element = document.createElement("span");
+        element.className = "external-caption";
+        element.textContent = "Table 1: Q";
+        return element;
+      }
+    }
+    const captions = StateField.define({
+      create: () => Decoration.set([
+        Decoration.widget({ widget: new ExternalCaption(), block: true, side: placement === "above" ? -10_000 : 10_000 })
+          .range(placement === "above" ? table.range.from : table.range.to),
+      ]),
+      update: (value) => value,
+      provide: (field) => EditorView.decorations.from(field),
+    });
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("structural-tables-live-preview")) return new DOMRect(0, 80, 300, 200);
+      if (this.classList.contains("structural-tables-table")) return new DOMRect(0, 80, 200, 180);
+      if (this.classList.contains("external-caption")) return new DOMRect(0, placement === "above" ? 44 : 264, 100, 32);
+      return originalRect.call(this);
+    });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [captions]);
+    try {
+      const caption = parent.querySelector<HTMLElement>(".external-caption")!;
+      const host = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;
+      const rendered = host.querySelector<HTMLTableElement>("table")!;
+      expect(caption.closest(".structural-tables-live-preview")).toBeNull();
+      expect(rendered.caption?.getAttribute("aria-hidden")).toBe("true");
+      expect(rendered.caption?.textContent).toBe("");
+      expect(rendered.rows.length).toBe(table.rows.length);
+      const handle = host.querySelector<HTMLElement>(".structural-tables-column-handle")!;
+      const top = host.getBoundingClientRect().top + Number.parseFloat(handle.style.getPropertyValue("inset-block-start"));
+      expect(top).toBe(rendered.getBoundingClientRect().top);
+      if (placement === "above") expect(top).toBeGreaterThan(caption.getBoundingClientRect().bottom);
+      else expect(top + 20).toBeLessThan(caption.getBoundingClientRect().top);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
   it.each([false, true])("preserves raw source selection across external focus (range=%s)", async (range) => {
     const source = "Before\n\n| Region | Sales | < |\n| --- | --- | --- |\n| North | 10 | < |\n| ^ | 8 | 11 |\n\nEnd";
     const anchor = source.indexOf("North");
@@ -3841,7 +3884,7 @@ describe("StructuralTableEditorController", () => {
       const row = parent.querySelector<HTMLElement>(".structural-tables-row-handle")!;
       const column = parent.querySelector<HTMLElement>(".structural-tables-column-handle")!;
       expect(row.style.getPropertyValue("inset-inline-start")).toBe("calc(150px - var(--structural-table-handle-gutter))");
-      expect(column.style.getPropertyValue("inset-block-start")).toBe("calc(40px - var(--structural-table-handle-gutter))");
+      expect(column.style.getPropertyValue("inset-block-start")).toBe("40px");
       expect(column.style.left).toBe("170px");
       view.destroy();
     } finally {

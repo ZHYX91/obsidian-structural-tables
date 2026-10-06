@@ -208,27 +208,28 @@ describe("table appearance", () => {
 });
 
 describe("explicit table layouts", () => {
-  it.each([0, 5])("reserves column-handle space after preceding content (%i touch points)", (touchPoints) => {
+  it.each([0, 5])("reserves column-handle space inside the table box (%i touch points)", (touchPoints) => {
     vi.spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(touchPoints);
     document.head.appendChild(document.createElement("style")).textContent = styles;
-    document.body.innerHTML = `<div class="structural-tables-live-preview">
-      <div class="structural-tables-container"><p class="caption">Table caption</p>
-        <table class="structural-tables-table"><tbody><tr><td>Value</td></tr></tbody></table>
+    document.body.innerHTML = `<span class="external-caption">Table caption</span><div class="structural-tables-live-preview">
+      <div class="structural-tables-container">
+        <table class="structural-tables-table"><caption class="structural-tables-control-gutter" aria-hidden="true"></caption>
+          <tbody><tr><td>Value</td></tr></tbody></table>
       </div>
       <button class="structural-tables-column-handle"></button>
     </div><div class="structural-tables-container"></div>`;
     const host = getComputedStyle(document.querySelector(".structural-tables-live-preview")!);
     const handle = getComputedStyle(document.querySelector("button")!);
-    const table = getComputedStyle(document.querySelector("table")!);
-    const gutter = document.body.appendChild(document.createElement("div"));
-    gutter.style.height = table.getPropertyValue("margin-block-start");
-    expect(Number.parseFloat(getComputedStyle(gutter).height)).toBeGreaterThanOrEqual(Number.parseFloat(handle.height));
+    const gutter = getComputedStyle(document.querySelector("caption")!);
+    expect(Number.parseFloat(gutter.height)).toBeGreaterThanOrEqual(Number.parseFloat(handle.height));
+    expect(Number.parseFloat(handle.getPropertyValue("inset-block-start")) || 0).toBe(0);
+    expect(Number.parseFloat(getComputedStyle(document.querySelector("table")!).getPropertyValue("margin-block-start")) || 0).toBe(0);
     expect(Number.parseFloat(host.getPropertyValue("padding-block-start")) || 0).toBe(0);
     expect(Number.parseFloat(getComputedStyle(document.querySelector(".structural-tables-container")!)
       .getPropertyValue("padding-block-start")) || 0).toBe(0);
   });
 
-  it("preserves compact uncaptioned desktop tables and does not add caption gutters to native or reading tables", () => {
+  it("does not add external margins or caption gutters to native or reading tables", () => {
     document.head.appendChild(document.createElement("style")).textContent = styles;
     document.body.innerHTML = `<div class="structural-tables-live-preview"><div class="structural-tables-container">
       <table class="structural-tables-table uncaptioned"></table></div></div>

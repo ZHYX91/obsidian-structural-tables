@@ -308,6 +308,9 @@ class StructuralTableInteraction {
     host.dataset.structuralSourceTableIndex = String(this.table.sourceTableIndex);
     this.host = host;
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
+    const gutter = rendered.createCaption();
+    gutter.className = "structural-tables-control-gutter";
+    gutter.setAttribute("aria-hidden", "true");
     this.installInteraction(view, host, rendered);
     host.addEventListener(CLEAR_SELECTION_EVENT, () => this.clearSelection());
     host.addEventListener("focusin", () => host.classList.add("is-add-controls-active"));
@@ -1922,7 +1925,7 @@ class StructuralTableInteraction {
         handle.style.left = `${visibleCenter - hostRect.left}px`;
         handle.style.setProperty(
           "inset-block-start",
-          `calc(${tableRect.top - hostRect.top}px - var(--structural-table-handle-gutter))`,
+          `${tableRect.top - hostRect.top}px`,
         );
       });
       const entry = columnHandles.find((handle) => !handle.hidden && handle.tabIndex === 0)

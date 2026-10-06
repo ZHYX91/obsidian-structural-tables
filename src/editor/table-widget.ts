@@ -120,10 +120,19 @@ export function restoreTableHistoryFocus(view: EditorView,
       focusNativeTable(view, table, target.coordinate);
       return;
     }
+    const sourceOffset = target.restorePresentation === true
+      ? tableCellSourceOffset(view.state.doc.toString(), table, target.coordinate)
+      : null;
     view.dispatch({
+      ...(sourceOffset === null ? {} : { selection: { anchor: sourceOffset } }),
       effects: [
-        ...(target.restorePresentation === true ? [structuralTableSourceFocus.of(false)] : []),
-        EditorView.scrollIntoView(table.range.from, { y: "nearest" }),
+        ...(target.restorePresentation === true
+          ? [
+            structuralTableSourceFocus.of(false),
+            structuralTableLogicalCursorSync.of(undefined),
+          ]
+          : []),
+        EditorView.scrollIntoView(sourceOffset ?? table.range.from, { y: "nearest" }),
       ],
     });
   };

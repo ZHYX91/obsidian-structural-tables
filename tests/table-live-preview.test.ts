@@ -952,18 +952,18 @@ describe("StructuralTableEditorController", () => {
   });
 
   it.each([
-    ["Ctrl+B", "b", "**", true, false],
-    ["Meta+B", "b", "**", false, true],
-    ["Ctrl+I", "i", "*", true, false],
-    ["Meta+I", "i", "*", false, true],
-  ] as const)("owns %s before inherited editor commands and formats only the active draft",
-    (_label, key, marker, ctrlKey, metaKey) => {
+    ["ctrl", "b", "**"],
+    ["meta", "b", "**"],
+    ["ctrl", "i", "*"],
+    ["meta", "i", "*"],
+  ] as const)("owns %s Mod+%s in Scope capture before textarea bubbling",
+    (platform, key, marker) => {
       const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
       const { app, parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
       const saved = source.indexOf("West");
       const inherited = vi.fn((event: KeyboardEvent) => {
         event.preventDefault();
-        view.dispatch({ changes: { from: saved, to: saved + 4, insert: `**West**` } });
+        view.dispatch({ changes: { from: saved, to: saved + 4, insert: "**West**" } });
         return false;
       });
       app.scope.register(["Mod"], key, inherited);
@@ -973,15 +973,15 @@ describe("StructuralTableEditorController", () => {
         )!;
         cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
         const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
-        editor.value = "West draft";
+        replaceDraftText(editor, "West draft");
         editor.select();
+        const bubbled = vi.fn();
+        editor.addEventListener("keydown", bubbled);
 
-        const event = new KeyboardEvent("keydown", {
-          key, ctrlKey, metaKey, bubbles: true, cancelable: true,
-        });
-        expect(dispatchScopeKey(event)).toBe(true);
+        const event = dispatchDraftShortcut(editor, key, platform);
 
         expect(inherited).not.toHaveBeenCalled();
+        expect(bubbled).not.toHaveBeenCalled();
         expect(event.defaultPrevented).toBe(true);
         expect(editor.isConnected).toBe(true);
         expect(document.activeElement).toBe(editor);
@@ -994,51 +994,270 @@ describe("StructuralTableEditorController", () => {
       }
     });
 
-  it("keeps draft formatting undo/redo ahead of inherited main-editor history", () => {
+  it("matches Mod to one configured platform modifier instead of either modifier", () => {
     const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
-    const { app, parent, view } = mountEditor(source, { anchor: 0 });
-    const inheritedUndo = vi.fn(() => false);
-    const inheritedRedo = vi.fn(() => false);
-    app.scope.register(["Mod"], "z", inheritedUndo);
-    app.scope.register(["Mod", "Shift"], "z", inheritedRedo);
+    const { parent, view } = mountEditor(source, { anchor: 0 });
     try {
       const cell = parent.querySelector<HTMLElement>(
         "[data-structural-row='1'][data-structural-column='1']",
       )!;
       cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
       const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
-      editor.value = "West draft";
       editor.select();
-      expect(dispatchScopeKey(new KeyboardEvent("keydown", {
-        key: "b", ctrlKey: true, cancelable: true,
-      }))).toBe(true);
-      expect(editor.value).toBe("**West draft**");
-
-      const undoFormat = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true });
-      expect(dispatchScopeKey(undoFormat)).toBe(true);
-      expect(undoFormat.defaultPrevented).toBe(true);
-      expect(inheritedUndo).not.toHaveBeenCalled();
-      expect(editor.value).toBe("West draft");
-      expect(editor.selectionStart).toBe(0);
-      expect(editor.selectionEnd).toBe("West draft".length);
-      expect(view.state.doc.toString()).toBe(source);
-
-      const redoFormat = new KeyboardEvent("keydown", {
-        key: "z", ctrlKey: true, shiftKey: true, cancelable: true,
+      setMockModKey("meta");
+      const ctrl = new KeyboardEvent("keydown", {
+        key: "b", ctrlKey: true, bubbles: true, cancelable: true,
       });
-      expect(dispatchScopeKey(redoFormat)).toBe(true);
-      expect(redoFormat.defaultPrevented).toBe(true);
-      expect(inheritedRedo).not.toHaveBeenCalled();
+      expect(dispatchScopeCaptureThenDom(editor, ctrl)).toBe(false);
+      expect(ctrl.defaultPrevented).toBe(false);
+      expect(editor.value).toBe("West");
+
+      const meta = dispatchDraftShortcut(editor, "b", "meta");
+      expect(meta.defaultPrevented).toBe(true);
+      expect(editor.value).toBe("**West**");
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it.each([
+    {
+      name: "italic inside bold",
+      value: "**West**", start: 2, end: 6, key: "i", expected: "***West***", selection: [3, 7],
+    },
+    {
+      name: "italic over whole bold value",
+      value: "**West**", start: 0, end: 8, key: "i", expected: "***West***", selection: [3, 7],
+    },
+    {
+      name: "bold off inside bold+italic",
+      value: "***West***", start: 3, end: 7, key: "b", expected: "*West*", selection: [1, 5],
+    },
+    {
+      name: "italic off inside bold+italic",
+      value: "***West***", start: 3, end: 7, key: "i", expected: "**West**", selection: [2, 6],
+    },
+    {
+      name: "partial selection",
+      value: "West coast", start: 0, end: 4, key: "i", expected: "*West* coast", selection: [1, 5],
+    },
+    {
+      name: "literal star inside selection",
+      value: "4 * 5 = 20", start: 0, end: 10, key: "b", expected: "**4 * 5 = 20**", selection: [2, 12],
+    },
+  ] as const)("preserves other Markdown emphasis while toggling $name", ({ value, start, end, key, expected, selection }) => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = value;
+      editor.setSelectionRange(start, end);
+
+      dispatchDraftShortcut(editor, key);
+
+      expect(editor.value).toBe(expected);
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual(selection);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("toggles the same format repeatedly without removing the other format", () => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select();
+
+      dispatchDraftShortcut(editor, "b");
+      expect(editor.value).toBe("**West**");
+      dispatchDraftShortcut(editor, "b");
+      expect(editor.value).toBe("West");
+      dispatchDraftShortcut(editor, "i");
+      expect(editor.value).toBe("*West*");
+      dispatchDraftShortcut(editor, "b");
+      expect(editor.value).toBe("***West***");
+      dispatchDraftShortcut(editor, "b");
+      expect(editor.value).toBe("*West*");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("does not interpret escaped stars as an existing emphasis wrapper", () => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = String.raw`\*West\*`;
+      editor.setSelectionRange(2, 6);
+
+      dispatchDraftShortcut(editor, "b");
+
+      expect(editor.value.slice(0, 2)).toBe(String.raw`\*`);
+      expect(editor.value.slice(-2)).toBe(String.raw`\*`);
+      expect(editor.value.slice(2, -2)).toBe("**West**");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("inserts an empty marker pair at a collapsed draft selection", () => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.setSelectionRange(4, 4);
+
+      dispatchDraftShortcut(editor, "i");
+
+      expect(editor.value).toBe("West**");
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([5, 5]);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("undoes typing then draft formatting in reverse order without touching main-editor history", () => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { app, parent, view } = mountEditor(source, { anchor: 0 });
+    const inheritedUndo = vi.fn(() => false);
+    app.scope.register(["Mod"], "z", inheritedUndo);
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      replaceDraftText(editor, "West draft");
+      editor.select();
+      dispatchDraftShortcut(editor, "b");
       expect(editor.value).toBe("**West draft**");
 
-      expect(dispatchScopeKey(new KeyboardEvent("keydown", {
-        key: "z", ctrlKey: true, cancelable: true,
-      }))).toBe(true);
-      const nativeUndo = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true });
-      expect(dispatchScopeKey(nativeUndo)).toBe(true);
-      expect(nativeUndo.defaultPrevented).toBe(false);
-      expect(inheritedUndo).not.toHaveBeenCalled();
+      dispatchDraftShortcut(editor, "z");
       expect(editor.value).toBe("West draft");
+      dispatchDraftShortcut(editor, "z");
+      expect(editor.value).toBe("West");
+
+      expect(inheritedUndo).not.toHaveBeenCalled();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("undoes typing -> format -> continued typing as three draft transactions", () => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { app, parent, view } = mountEditor(source, { anchor: 0 });
+    const inheritedUndo = vi.fn(() => false);
+    app.scope.register(["Mod"], "z", inheritedUndo);
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      replaceDraftText(editor, "West draft");
+      editor.select();
+      dispatchDraftShortcut(editor, "b");
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+      typeDraftText(editor, "!");
+      expect(editor.value).toBe("**West draft**!");
+
+      dispatchDraftShortcut(editor, "z");
+      expect(editor.value).toBe("**West draft**");
+      dispatchDraftShortcut(editor, "z");
+      expect(editor.value).toBe("West draft");
+      dispatchDraftShortcut(editor, "z");
+      expect(editor.value).toBe("West");
+
+      expect(inheritedUndo).not.toHaveBeenCalled();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("keeps paste and Shift+Enter in the same explicit draft history", () => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+      editor.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Enter", shiftKey: true, bubbles: true, cancelable: true,
+      }));
+      expect(editor.value).toBe("West\n");
+
+      const paste = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, "clipboardData", {
+        value: { getData: (type: string) => type === "text/plain" ? "next" : "" },
+      });
+      editor.dispatchEvent(paste);
+      expect(editor.value).toBe("West\nnext");
+
+      dispatchDraftShortcut(editor, "z");
+      expect(editor.value).toBe("West\n");
+      dispatchDraftShortcut(editor, "z");
+      expect(editor.value).toBe("West");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("records one composition input transaction and keeps formatting commands out of it", () => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { app, parent, view } = mountEditor(source, { anchor: 0 });
+    const inherited = vi.fn(() => false);
+    app.scope.register(["Mod"], "b", inherited);
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select();
+      editor.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "中" }));
+      const before = draftInputEvent("beforeinput", "insertCompositionText", "中", true);
+      expect(editor.dispatchEvent(before)).toBe(true);
+      editor.setRangeText("中", editor.selectionStart, editor.selectionEnd, "end");
+      editor.dispatchEvent(draftInputEvent("input", "insertCompositionText", "中", true));
+
+      const format = modEvent("b");
+      Object.defineProperty(format, "isComposing", { value: true });
+      dispatchScopeCaptureThenDom(editor, format);
+      expect(format.defaultPrevented).toBe(true);
+      expect(inherited).not.toHaveBeenCalled();
+      expect(editor.value).toBe("中");
+
+      editor.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "中" }));
+      dispatchDraftShortcut(editor, "z");
+      expect(editor.value).toBe("West");
       expect(view.state.doc.toString()).toBe(source);
     } finally {
       view.destroy();
@@ -1054,11 +1273,9 @@ describe("StructuralTableEditorController", () => {
       )!;
       cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
       const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
-      editor.value = "West draft";
+      replaceDraftText(editor, "West draft");
       editor.select();
-      expect(dispatchScopeKey(new KeyboardEvent("keydown", {
-        key: "b", ctrlKey: true, cancelable: true,
-      }))).toBe(true);
+      dispatchDraftShortcut(editor, "b");
       expect(view.state.doc.toString()).toBe(source);
 
       editor.dispatchEvent(new KeyboardEvent("keydown", {
@@ -1074,35 +1291,6 @@ describe("StructuralTableEditorController", () => {
     }
   });
 
-  it("keeps Mod+B inside the draft during composition without invoking the parent command", () => {
-    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
-    const { app, parent, view } = mountEditor(source, { anchor: 0 });
-    const inherited = vi.fn(() => false);
-    app.scope.register(["Mod"], "b", inherited);
-    try {
-      const cell = parent.querySelector<HTMLElement>(
-        "[data-structural-row='1'][data-structural-column='1']",
-      )!;
-      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
-      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
-      editor.value = "West draft";
-      editor.select();
-      editor.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true, data: "W" }));
-
-      const event = new KeyboardEvent("keydown", { key: "b", ctrlKey: true, cancelable: true });
-      Object.defineProperty(event, "isComposing", { value: true });
-      expect(dispatchScopeKey(event)).toBe(true);
-
-      expect(event.defaultPrevented).toBe(true);
-      expect(inherited).not.toHaveBeenCalled();
-      expect(editor.value).toBe("West draft");
-      expect(editor.isConnected).toBe(true);
-      expect(view.state.doc.toString()).toBe(source);
-    } finally {
-      view.destroy();
-    }
-  });
-
   it("retains a formatted draft when a real external source change invalidates its widget", async () => {
     const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
     const { app, parent, view } = mountEditor(source, { anchor: 0 });
@@ -1112,11 +1300,9 @@ describe("StructuralTableEditorController", () => {
       )!;
       cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
       const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
-      editor.value = "West draft";
+      replaceDraftText(editor, "West draft");
       editor.select();
-      expect(dispatchScopeKey(new KeyboardEvent("keydown", {
-        key: "b", ctrlKey: true, cancelable: true,
-      }))).toBe(true);
+      dispatchDraftShortcut(editor, "b");
 
       const saved = source.indexOf("West");
       view.dispatch({ changes: { from: saved, to: saved + 4, insert: "External" } });

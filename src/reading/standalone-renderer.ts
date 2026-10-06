@@ -10,7 +10,7 @@ class RenderSession extends MarkdownRenderChild {
   override onunload(): void { this.active = false; }
 }
 
-const boundary = ".internal-embed, .markdown-embed, .cm-editor, pre, .structural-tables-container";
+const boundary = ".internal-embed:not(.image-embed), .markdown-embed, .cm-editor, pre, .structural-tables-container";
 
 function signature(element: HTMLElement): string {
   return element.tagName + contentSignature(element);

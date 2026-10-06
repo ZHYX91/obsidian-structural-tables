@@ -7,6 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { parseEditableTables } from "../src/core/parser";
 import { StructuralTableReadingProcessor } from "../src/reading/table-postprocessor";
+import { ReadingBlockMapper } from "../src/reading/block-mapping";
 
 // Markdown-it supplies native-like block boundaries. This is not a real Obsidian
 // host test: postprocessor section metadata and render-child ownership are mocked.
@@ -139,6 +140,68 @@ describe("Reading View source/block boundaries", () => {
     expect(view.root.querySelectorAll(".structural-tables-table")).toHaveLength(1);
     expect(images).toHaveLength(2);
     expect(images.every((image) => view.root.contains(image))).toBe(true);
+  });
+
+  it.each([false, true])("renders a complete raw table with an inline image (host embed: %s)", async (embedded) => {
+    const source = rowHeader.replace("North", "![North](north.png)");
+    const native = (text: string): string => embedded ? markdown.render(text).replace(
+      /(<img[^>]*>)/gu, '<span class="internal-embed image-embed">$1</span>',
+    ) : markdown.render(text);
+    vi.mocked(MarkdownRenderer.render).mockImplementation(async (_app, text, target) => { target.innerHTML = native(text); });
+    const view = readingView(source);
+    for (const { element } of view.sections) element.innerHTML = native(source);
+    const mapper = new ReadingBlockMapper({} as App, () => DEFAULT_SETTINGS);
+    for (const { element, context } of view.sections) mapper.process(element, context, context.getSectionInfo(element)!, parseEditableTables(source).tables);
+    await settled();
+    expect(view.root.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+    expect(view.root.querySelector("tbody th img")?.getAttribute("src")).toBe("north.png");
+    expect(view.state.source).toBe(source);
+  });
+
+  it("refuses a complete raw table with an image from a different destination", async () => {
+    const source = rowHeader.replace("North", "![North](north.png)");
+    const view = readingView(source);
+    view.root.querySelector("img")!.setAttribute("src", "south.png");
+    const before = view.root.innerHTML;
+    const mapper = new ReadingBlockMapper({} as App, () => DEFAULT_SETTINGS);
+    for (const { element, context } of view.sections) mapper.process(element, context, context.getSectionInfo(element)!, parseEditableTables(source).tables);
+    await settled();
+    expect(view.root.innerHTML).toBe(before);
+  });
+
+  it.each(["image", "wrong-image", "note"])("handles a pending native embed resolving to %s during comparison", async (kind) => {
+    const source = rowHeader.replace("North", "![North](north.png)");
+    const loaded = markdown.render(source).replace(/(<img[^>]*>)/gu,
+      '<span src="north.png" class="internal-embed media-embed image-embed is-loaded">$1</span>');
+    const view = readingView(source);
+    const section = view.sections[0]!;
+    const pending = document.createElement("span");
+    pending.className = "internal-embed";
+    pending.setAttribute("src", "north.png");
+    pending.textContent = "north.png";
+    view.root.querySelector("img")!.replaceWith(pending);
+    vi.mocked(MarkdownRenderer.render).mockImplementation(async (_app, text, target) => {
+      target.innerHTML = text === source ? loaded : markdown.render(text);
+      if (text === source) {
+        pending.className = kind === "note" ? "internal-embed markdown-embed" : "internal-embed media-embed image-embed is-loaded";
+        pending.replaceChildren(target.querySelector("img")!.cloneNode(true));
+        if (kind === "wrong-image") pending.querySelector("img")!.setAttribute("src", "south.png");
+      }
+    });
+    new ReadingBlockMapper({} as App, () => DEFAULT_SETTINGS).process(section.element, section.context,
+      section.context.getSectionInfo(section.element)!, parseEditableTables(source).tables);
+    await settled();
+    expect(view.root.querySelectorAll(".structural-tables-table")).toHaveLength(kind === "image" ? 1 : 0);
+    if (kind === "image") expect(view.root.querySelector("tbody th img")?.getAttribute("src")).toBe("north.png");
+    else expect(view.root.querySelector(".internal-embed")).not.toBeNull();
+  });
+
+  it("does not split a shared paragraph across an inline image in table content", async () => {
+    const view = readingView(`Before\n${rowHeader.replace("North", "![North](north.png)")}\nAfter`);
+    const before = view.root.innerHTML;
+    view.process();
+    await settled();
+    expect(view.root.innerHTML).toBe(before);
   });
 
   it("preserves a multiheader's preceding prose and ordinary neighbour", async () => {

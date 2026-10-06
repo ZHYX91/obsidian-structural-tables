@@ -128,6 +128,32 @@ describe("standalone Markdown rendering", () => {
     expect(h.container.innerHTML).toBe(original);
   });
 
+  it("awaits structural cells containing a native inline image embed", async () => {
+    const source = "| Name | Value |\n| --- || --- |\n| ![North](north.png) | 10 |";
+    const h = harness(source);
+    const native = (text: string): string => markdown.render(text).replace(
+      /(<img[^>]*>)/gu, '<span class="internal-embed image-embed">$1</span>',
+    );
+    h.container.innerHTML = native(source);
+    h.render.mockImplementation(async (_app, text, target) => { target.innerHTML = native(text); });
+    await h.run();
+    expect(h.container.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+    expect(h.container.querySelector("tbody th img")?.getAttribute("src")).toBe("north.png");
+  });
+
+  it("preserves image destination and note-embed boundaries in standalone matching", async () => {
+    const source = merged.replace("North", "![North](north.png)");
+    for (const kind of ["destination", "note-embed"] as const) {
+      const h = harness(source);
+      if (kind === "destination") h.container.querySelector("img")!.setAttribute("src", "south.png");
+      else h.container.innerHTML = `<div class="internal-embed">${h.container.innerHTML}</div>`;
+      const before = h.container.innerHTML;
+      await h.run();
+      expect(h.container.innerHTML).toBe(before);
+      vi.restoreAllMocks();
+    }
+  });
+
   it.each(["\\<", "`<`", "&#60;", "**<**"])("leaves literal marker %s unchanged", async (literal) => {
     const source = "| A | B |\n| --- | --- |\n| X | " + literal + " |";
     const h = harness(source);

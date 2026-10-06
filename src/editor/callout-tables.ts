@@ -74,8 +74,11 @@ export class CalloutTables {
       && root.closest(".cm-editor, .internal-embed, .markdown-embed") === this.view.dom;
     if (owned(enclosing)) return enclosing;
     const boundary = node.nodeType === Node.ELEMENT_NODE ? node.childNodes[offset] : undefined;
-    if (!(boundary instanceof this.view.dom.ownerDocument.defaultView!.HTMLElement)) return undefined;
-    const root = boundary.matches(".callout") ? boundary : boundary.querySelector<HTMLElement>(".callout");
+    // Native widgets can be adopted into a popout without changing their
+    // creation-window prototypes. Ownership below matters, not instanceof.
+    if (boundary?.nodeType !== Node.ELEMENT_NODE) return undefined;
+    const elementBoundary = boundary as HTMLElement;
+    const root = elementBoundary.matches(".callout") ? elementBoundary : elementBoundary.querySelector<HTMLElement>(".callout");
     return owned(root) ? root : undefined;
   }
 

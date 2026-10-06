@@ -279,9 +279,16 @@ class StructuralTableInteraction {
           this.focusRestoredHistoryCell(view, pending.coordinate);
         } else this.focusCellAfterUpdate(view, pending.coordinate);
       };
-      const win = host.ownerDocument.defaultView;
-      if (pending.deferFocus === true && win !== null) win.setTimeout(focus, 0);
-      else focus();
+      if (pending.deferFocus === true) {
+        view.requestMeasure({
+          write: () => {
+            if (!host.isConnected || pendingCellFocus.get(view) !== pending) return;
+            const win = host.ownerDocument.defaultView;
+            if (win !== null) win.setTimeout(focus, 0);
+            else queueMicrotask(focus);
+          },
+        });
+      } else focus();
     };
     queueMicrotask(consumePendingFocus);
     return host;

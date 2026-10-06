@@ -771,6 +771,39 @@ class StructuralTableInteraction {
       resizeEditor();
       editor.focus({ preventScroll: true });
     };
+    const toggleDraftInlineFormat = (marker: "*" | "**"): void => {
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      const value = editor.value;
+      const selected = value.slice(start, end);
+      const markerLength = marker.length;
+      if (start === end) {
+        editor.setRangeText(marker + marker, start, end, "end");
+        const caret = start + markerLength;
+        editor.setSelectionRange(caret, caret);
+      } else if (
+        start >= markerLength
+        && value.slice(start - markerLength, start) === marker
+        && value.slice(end, end + markerLength) === marker
+      ) {
+        editor.setRangeText(selected, start - markerLength, end + markerLength, "end");
+        editor.setSelectionRange(start - markerLength, end - markerLength);
+      } else if (
+        selected.length >= markerLength * 2
+        && selected.startsWith(marker)
+        && selected.endsWith(marker)
+      ) {
+        const inner = selected.slice(markerLength, -markerLength);
+        editor.setRangeText(inner, start, end, "end");
+        editor.setSelectionRange(start, start + inner.length);
+      } else {
+        editor.setRangeText(marker + selected + marker, start, end, "end");
+        editor.setSelectionRange(start + markerLength, end + markerLength);
+      }
+      lastRejectedDraft = null;
+      resizeEditor();
+      editor.focus({ preventScroll: true });
+    };
 
     const restore = (focus: boolean): void => {
       element.classList.remove("is-editing");
@@ -863,13 +896,26 @@ class StructuralTableInteraction {
         } else finish(true, next);
       }
     };
-    // Obsidian handles Escape in its app scope before DOM bubbling. Own that
-    // shortcut only while this textarea is active, so it cannot focus raw source.
+    // Obsidian handles app Scope shortcuts before textarea bubbling. Own only
+    // the draft-local shortcuts here so parent editor commands cannot rewrite
+    // the saved cell while this textarea has editing ownership.
     scope.register([], "Escape", (event) => {
       if (composing || event.isComposing || contextMenuOpen) return;
       handleKey(event);
       return false;
     });
+    const registerDraftFormat = (key: "b" | "i", marker: "*" | "**"): void => {
+      scope.register(["Mod"], key, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (settled || composing || event.isComposing || contextMenuOpen
+          || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return false;
+        toggleDraftInlineFormat(marker);
+        return false;
+      });
+    };
+    registerDraftFormat("b", "**");
+    registerDraftFormat("i", "*");
     const activateCellScope = (): void => {
       claimCellEditorFocus(editor);
       if (this.cellScope === scope) return;

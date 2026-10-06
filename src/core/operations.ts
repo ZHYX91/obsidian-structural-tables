@@ -38,6 +38,7 @@ export type OperationCode =
   | "merged"
   | "no-adjacent-cell"
   | "not-merged"
+  | "range-pasted"
   | "row-header-count-invalid"
   | "row-headers-set"
   | "row-inserted"

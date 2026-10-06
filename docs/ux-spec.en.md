@@ -59,7 +59,7 @@ Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TS
 <!-- section: interchange -->
 ## Paste and interchange
 
-When Preserve pasted HTML table spans is enabled, a verifiable multi-column table is converted structurally.
+In the note editor's HTML-import route, a verifiable multi-column table is converted structurally when Preserve pasted HTML table spans is enabled.
 
 A single otherwise-safe table that is either completely empty or contains only text semantics the importer cannot preserve faithfully (`pre`, `sup`, or `sub`) uses the complete non-empty plain-text clipboard alternative verbatim when available; no TSV, Markdown, or TeX equivalence is inferred. If that known-lossy payload has no plain-text alternative, the paste is blocked and the current selection is kept.
 
@@ -71,7 +71,11 @@ A thead or consecutive th rows become column headers, consecutive leftmost th co
 
 Cell content is imported as plain text, with HTML break and block boundaries normalized to canonical `<br>` visual breaks.
 
-A selected owned-grid range has a separate bounded clipboard contract: Copy emits a normalized owner topology plus plain GFM and HTML without writing source; Cut clears only after clipboard write success and exact source/path/range/selection/session revalidation; Paste requires exact dimensions and owner topology and replaces only selected owner raw tokens in one validated table write. Single cells, single columns, all-empty ranges, and complete horizontal/vertical/2D merges are supported. Unsupported or stale grid payloads are consumed with no source write rather than falling through to the hidden CodeMirror caret.
+A selected owned-grid range has a separate bounded clipboard contract. Copy emits the plugin's normalized owner topology and raw tokens without writing source. Cut clears only after clipboard write success and exact source/path/range/selection/session revalidation. Paste accepts only this plugin's range payload, requires exact dimensions and owner topology, and replaces only selected owner raw tokens in one validated table write. Single cells, single columns, all-empty ranges, and complete horizontal/vertical/2D merges are supported. Plain text, HTML, unsupported range data, and stale sessions produce no source write and never fall through to the hidden CodeMirror caret.
+
+Menu Copy/Cut and menu Paste check platform clipboard-write and clipboard-read support independently; support for one does not imply support for the other. To paste ordinary text, enter a single cell's editor. To import an HTML table, use the note editor; **Edit table source** provides direct Markdown editing.
+
+Range Copy also exposes portable HTML and plain Markdown. Range HTML escapes each owner's raw Markdown as text and represents spans; it does not render that Markdown as rich content. Plain Markdown makes the first copied row a header and retains structural markers where representable. It does not promise equivalent merge topology in external GFM, especially for vertical merges.
 
 Plain GFM, TSV, and CSV whole-table output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, scope, and break elements.
 

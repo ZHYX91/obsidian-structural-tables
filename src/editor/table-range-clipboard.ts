@@ -1,5 +1,3 @@
-import { activeWindow } from "obsidian";
-
 import {
   parseTableRangePayload,
   tableRangeHtml,
@@ -52,24 +50,27 @@ export function readTableRangeFromDataTransfer(
 }
 
 type ClipboardItemConstructor = new (items: Record<string, Blob>) => ClipboardItem;
-
-function clipboardItemConstructor(): ClipboardItemConstructor | null {
-  const value = (activeWindow as Window & { ClipboardItem?: ClipboardItemConstructor }).ClipboardItem;
-  return typeof value === "function" ? value : null;
-}
+type ClipboardOwnerWindow = Window & {
+  ClipboardItem?: ClipboardItemConstructor;
+  Blob?: typeof Blob;
+};
 
 export async function writeTableRangeToNavigator(
   clipboard: Clipboard | undefined,
   payload: TableRangeClipboardPayloadV1,
+  ownerWindow: Window | null | undefined = window,
 ): Promise<boolean> {
-  const ClipboardItemCtor = clipboardItemConstructor();
-  if (clipboard === undefined || typeof clipboard.write !== "function" || ClipboardItemCtor === null) return false;
+  const owner = ownerWindow as ClipboardOwnerWindow | null | undefined;
+  const ClipboardItemCtor = owner?.ClipboardItem;
+  const BlobCtor = owner?.Blob;
+  if (clipboard === undefined || typeof clipboard.write !== "function"
+    || typeof ClipboardItemCtor !== "function" || typeof BlobCtor !== "function") return false;
   const representations = tableRangeClipboardRepresentations(payload);
   try {
     const item = new ClipboardItemCtor({
-      [TABLE_RANGE_CLIPBOARD_WEB_MIME]: new Blob([representations.structured], { type: TABLE_RANGE_CLIPBOARD_MIME }),
-      "text/plain": new Blob([representations.plain], { type: "text/plain" }),
-      "text/html": new Blob([representations.html], { type: "text/html" }),
+      [TABLE_RANGE_CLIPBOARD_WEB_MIME]: new BlobCtor([representations.structured], { type: TABLE_RANGE_CLIPBOARD_MIME }),
+      "text/plain": new BlobCtor([representations.plain], { type: "text/plain" }),
+      "text/html": new BlobCtor([representations.html], { type: "text/html" }),
     });
     await clipboard.write([item]);
     return true;

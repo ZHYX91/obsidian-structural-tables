@@ -149,7 +149,8 @@ function escapeHtml(value: string): string {
 
 /**
  * Synchronous HTML contract for clipboard events. Markdown raw tokens are
- * escaped as text; geometry is represented with rowspan/colspan.
+ * escaped as text; geometry is represented with rowspan/colspan. All copied
+ * rows share one row group so a rowspan from the first copied row stays valid.
  */
 export function tableRangeHtml(payload: TableRangeClipboardPayloadV1): string {
   const seen = new Set<string>();
@@ -170,7 +171,5 @@ export function tableRangeHtml(payload: TableRangeClipboardPayloadV1): string {
     }
     rows.push(`<tr>${cells.join("")}</tr>`);
   }
-  const head = rows[0] ?? "<tr></tr>";
-  const body = rows.slice(1).join("");
-  return `<table><thead>${head}</thead>${body === "" ? "" : `<tbody>${body}</tbody>`}</table>`;
+  return `<table><tbody>${rows.join("")}</tbody></table>`;
 }

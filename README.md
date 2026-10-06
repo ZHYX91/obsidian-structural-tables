@@ -112,13 +112,17 @@ GFM allows body rows to contain fewer or more source cells than the header. Miss
 
 ### Pasting and copying
 
-With **Preserve pasted HTML table spans** enabled, a supported multi-column HTML table can be converted while keeping row and column spans and visual line breaks. HTML that cannot be converted safely is left to Obsidian, or uses the clipboard's complete plain-text form when that fallback is known to be safe.
+When pasting into the note's Markdown editor with **Preserve pasted HTML table spans** enabled, a supported multi-column HTML table can be converted while keeping row and column spans and visual line breaks. HTML that cannot be converted safely is left to Obsidian, or uses the clipboard's complete plain-text form when that fallback is known to be safe.
 
 For text with preserved spaces, tabs, line breaks or heading boundaries, the plugin uses the complete plain-text alternative. This keeps the text but may lose table layout or rich formatting. If no safe alternative is available, the paste is blocked and your current selection is kept.
 
 A body-only HTML table stays headerless instead of having its first row turned into a header. Real `thead`/`th` markup is used when the source provides it.
 
-With a grid range selected, ordinary Copy/Cut/Paste uses a bounded Structural Tables range payload. Copy never changes the note; Cut clears only after the clipboard write succeeds; Paste requires the same range size and merge-owner topology and never broadcasts, appends, or reshapes the target. A copied range also exposes plain GFM and HTML for other applications; its first copied row is the external GFM header. Single cells, single columns, empty ranges, and complete merged owners are supported. Unsupported clipboard data is refused without falling through to hidden Markdown source.
+With a grid range selected, Copy/Cut/Paste exchanges Structural Tables' own range data. Paste accepts only that data and requires the same number of rows and columns and the same arrangement of merged cells; it never repeats values across a larger range, adds rows or columns, or changes merges. Single cells, single columns, empty ranges, and complete merged cells are supported. Copy never changes the note; Cut clears only after the clipboard write succeeds and the source and selection are checked again.
+
+Range menu Copy/Cut needs platform clipboard-write support; menu Paste separately needs clipboard-read support. One may be available while the other is not. Plain text, HTML, or unrecognized range data cannot be pasted directly into a grid selection and never reaches the hidden Markdown source. To paste ordinary text, open a single cell for editing; to import an HTML table, paste in the note's Markdown editor. **Edit table source** also lets you work directly in Markdown.
+
+For other applications, range Copy also provides HTML and plain Markdown. Range HTML represents spans and shows the cell's Markdown as raw text. Plain Markdown uses the first copied row as a header and retains structural markers where representable; it does not guarantee the same merge layout in other applications, including vertical merges.
 
 Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.
 

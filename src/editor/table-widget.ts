@@ -6,7 +6,7 @@ import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor } fro
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
-import { adjacentTableCell, tableCellInDirection, type TableGridDirection } from "../core/table-navigation";
+import { adjacentTableCell, tableCellInDirection, tableCoordinateInDirection, type TableGridDirection } from "../core/table-navigation";
 import { mathPipeSuggestions } from "../core/table-cell-syntax";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
 import {
@@ -47,7 +47,6 @@ import {
 import {
   completeStructuralTableSelectionCoordinates,
   structuralTableSelectionFromBounds,
-  structuralTableSelectionFromCoordinates,
   type StructuralTableSelection,
   type TableCellCoordinate,
 } from "./table-selection";
@@ -272,6 +271,7 @@ class StructuralTableInteraction {
   private touchAxisAnchor: { axis: TableAxis; index: number } | null = null;
   private axisDrag: TableAxisDrag | null = null;
   private selectionMenuOpen = false;
+  private selectionMenuSession: FrozenGridSelection | null = null;
   private selectionEpoch = 0;
 
   constructor(
@@ -286,9 +286,12 @@ class StructuralTableInteraction {
   rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
     if (this.table.source !== table.source || this.sourcePath !== sourcePath
       || !samePresentation(this.settings, settings)) return false;
+    const sameSourceIdentity = this.table.range.from === table.range.from
+      && this.table.range.to === table.range.to
+      && this.table.sourceTableIndex === table.sourceTableIndex;
     this.table = table;
     if (this.host !== null) this.host.dataset.structuralSourceTableIndex = String(table.sourceTableIndex);
-    this.updateSelection();
+    this.updateSelection(!sameSourceIdentity);
     return true;
   }
 
@@ -310,7 +313,11 @@ class StructuralTableInteraction {
     host.addEventListener("focusin", () => host.classList.add("is-add-controls-active"));
     this.component.registerDomEvent(host.ownerDocument, "pointerdown", (event) => {
       const target = event.target;
-      if (target instanceof host.ownerDocument.defaultView!.Node && !host.contains(target)) this.clearSelection();
+      if (target instanceof host.ownerDocument.defaultView!.Node && !host.contains(target)) {
+        // A DOM menu item is outside the table too. Its public onClick may
+        // consume this session before onHide settles; a dismissed menu cannot.
+        this.clearSelection(!this.selectionMenuOpen);
+      }
     }, { capture: true });
     host.addEventListener("focusout", (event) => {
       const next = event.relatedTarget;
@@ -362,6 +369,8 @@ class StructuralTableInteraction {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.positionHandles = null;
+    this.selectionMenuOpen = false;
+    this.selectionMenuSession = null;
     this.host = null;
     this.renderedTable = null;
     this.clickEditCandidate = null;
@@ -658,11 +667,10 @@ class StructuralTableInteraction {
       event.preventDefault();
       event.stopPropagation();
       const logicalHead = this.selectionHead ?? coordinate;
-      const target = tableCellInDirection(this.table, logicalHead, direction);
+      const target = tableCoordinateInDirection(this.table, logicalHead, direction);
       if (target === null) return true;
       if (this.selectionAnchor === null) this.selectionAnchor = coordinate;
       this.selectionHead = target;
-      this.selectionEpoch += 1;
       this.updateSelection();
       const element = this.cellElement(target);
       if (element !== null) {
@@ -800,14 +808,12 @@ class StructuralTableInteraction {
     );
   }
 
-  private updateSelection(): void {
-    this.selectionEpoch += 1;
+  private updateSelection(invalidateSession = true): void {
+    if (invalidateSession) this.selectionEpoch += 1;
     const anchor = this.selectionAnchor;
     const head = this.selectionHead;
     if (anchor === null || head === null || this.renderedTable === null) return;
-    this.selection = anchor.row === head.row && anchor.column === head.column
-      ? structuralTableSelectionFromCoordinates(this.table, [anchor])
-      : structuralTableSelectionFromBounds(this.table, anchor, head);
+    this.selection = structuralTableSelectionFromBounds(this.table, anchor, head);
     const selectedAnchors = new Set(this.selection?.cells.map((cell) => `${cell.anchorRow}:${cell.anchorColumn}`) ?? []);
     this.host?.classList.toggle("is-add-controls-active", selectedAnchors.size > 0);
     for (const element of this.renderedTable.querySelectorAll<HTMLElement>("[data-structural-row][data-structural-column]")) {
@@ -987,7 +993,7 @@ class StructuralTableInteraction {
   ): Promise<void> {
     const t = createTranslator(this.getSettings().language);
     const clipboard = frozen.host.ownerDocument.defaultView?.navigator.clipboard;
-    if (!await writeTableRangeToNavigator(clipboard, frozen.payload)) {
+    if (!await writeTableRangeToNavigator(clipboard, frozen.payload, frozen.host.ownerDocument.defaultView)) {
       new Notice(t("notice.rangeClipboardWriteFailed"));
       return;
     }
@@ -1066,41 +1072,63 @@ class StructuralTableInteraction {
     if (frozen === null) return;
     const selection = frozen.selection;
     const menu = Menu.forEvent(event);
+    this.selectionMenuSession = frozen;
     this.selectionMenuOpen = true;
-    menu.onHide(() => { this.selectionMenuOpen = false; });
+    menu.onHide(() => {
+      if (this.selectionMenuSession !== frozen) return;
+      this.selectionMenuOpen = false;
+      queueMicrotask(() => {
+        if (this.selectionMenuSession !== frozen) return;
+        this.selectionMenuSession = null;
+        this.clearSelection();
+      });
+    });
     const t = createTranslator(this.getSettings().language);
+    const activate = (action: () => void): void => {
+      if (this.selectionMenuSession !== frozen) {
+        new Notice(t("notice.staleTable"));
+        return;
+      }
+      this.selectionMenuSession = null;
+      this.selectionMenuOpen = false;
+      if (this.currentTableForFrozenSelection(view, frozen) === null) {
+        new Notice(t("notice.staleTable"));
+        return;
+      }
+      action();
+    };
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
     menu.addItem((item) => item
       .setSection("structural-tables-source")
       .setTitle(t("menu.editSource"))
       .setIcon("file-pen-line")
-      .onClick(() => this.focusTableSource(view, sourceCoordinate)));
+      .onClick(() => activate(() => this.focusTableSource(view, sourceCoordinate))));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("copy")
       .setTitle(t("menu.copySelection"))
-      .onClick(() => { void this.copyFrozenSelection(view, frozen, false); }));
+      .onClick(() => activate(() => { void this.copyFrozenSelection(view, frozen, false); })));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("scissors")
       .setTitle(t("menu.cutSelection"))
-      .onClick(() => { void this.copyFrozenSelection(view, frozen, true); }));
+      .onClick(() => activate(() => { void this.copyFrozenSelection(view, frozen, true); })));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("clipboard-paste")
       .setTitle(t("menu.pasteSelection"))
-      .onClick(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); }));
-    menu.addItem((item) => item.setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => {
+      .onClick(() => activate(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); })));
+    menu.addItem((item) => item.setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }
       void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance)
         .then(({ html, text }) => copyHtml(html, text))
         .then(() => { new Notice(t("notice.copied").replace("{format}", "HTML")); })
         .catch(() => { new Notice(t("notice.clipboardFailed")); });
-    }));
+    })));
     if (this.promote !== undefined && info?.editor !== undefined) {
-      addBasePromotionMenuItem(menu, t, this.table, () => this.promote?.(info.editor!, () => view.dom.isConnected ? view.state.field(editorInfoField, false) ?? null : null, this.table));
+      addBasePromotionMenuItem(menu, t, this.table, () => activate(() => this.promote?.(info.editor!, () => view.dom.isConnected ? view.state.field(editorInfoField, false) ?? null : null, this.table)));
     }
     const menuOptions = { fullEditor: true, explicitRemoval: true } as const;
     if (!hasSelectionMenuItems(selection, menuOptions)) return;
@@ -1108,14 +1136,14 @@ class StructuralTableInteraction {
       menu,
       t,
       selection,
-      (operation, intent) => this.applyMenuOperation(
+      (operation, intent) => activate(() => this.applyMenuOperation(
         view,
         operation,
         undefined,
         intent === "owned-grid" ? frozen.axisSelection : undefined,
         intent,
         frozen,
-      ),
+      )),
       menuOptions,
     );
   }
@@ -1489,6 +1517,16 @@ class StructuralTableInteraction {
     this.finishActiveOperation = (operation, next) => {
       if (!composing) finish(true, next, true, operation);
     };
+    const commitToNextRow = (): void => {
+      const next = tableCellInDirection(this.table, anchor, "down");
+      if (next !== null) finish(true, next);
+      else finish(
+        true,
+        { row: this.table.rows.length, column: Math.min(anchor.anchorColumn, this.table.columnCount - 1) },
+        true,
+        appendTableRow,
+      );
+    };
 
     const stableSingleVisualLine = (): boolean => {
       if (editor.value.includes("\n")) return false;
@@ -1549,17 +1587,7 @@ class StructuralTableInteraction {
       } else if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
-        const next = tableCellInDirection(this.table, anchor, "down");
-        if (next !== null) {
-          finish(true, next);
-        } else {
-          finish(
-            true,
-            { row: this.table.rows.length, column: Math.min(anchor.anchorColumn, this.table.columnCount - 1) },
-            true,
-            appendTableRow,
-          );
-        }
+        commitToNextRow();
       } else if (event.key === "Tab") {
         event.preventDefault();
         event.stopPropagation();
@@ -1642,7 +1670,7 @@ class StructuralTableInteraction {
     });
     editor.addEventListener("beforeinput", (event) => {
       // Soft keyboards can insert a line break before sending a useful keydown.
-      // Commit the draft before that insertion replaces the selected cell text.
+      // Use the same validated commit/navigation transaction as physical Enter.
       event.stopPropagation();
       if (event.defaultPrevented) return;
       // Gboard may replace the selection with an empty insertText before Enter.
@@ -1656,7 +1684,7 @@ class StructuralTableInteraction {
       if (!composing && !event.isComposing
         && (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph")) {
         event.preventDefault();
-        finish(true);
+        commitToNextRow();
         return;
       }
       pendingNativeInput = { before: draftSnapshot(), group: nativeHistoryGroup(event) };
@@ -1955,7 +1983,6 @@ class StructuralTableInteraction {
   }
 
   private selectBounds(first: TableCellCoordinate, last: TableCellCoordinate): void {
-    this.selectionEpoch += 1;
     this.axisSelection = null;
     this.touchAxisAnchor = null;
     this.touchRangeAnchor = null;

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { JSDOM } from "jsdom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -62,6 +63,69 @@ describe("owned range clipboard bridge", () => {
     expect((writes[0]![0] as unknown as MockClipboardItem).types).toEqual(expect.arrayContaining([
       TABLE_RANGE_CLIPBOARD_WEB_MIME, "text/plain", "text/html",
     ]));
+  });
+
+  it.each(["main", "popout"] as const)("uses the explicit %s window's ClipboardItem and Blob constructors", async (target) => {
+    const main = new JSDOM(undefined, { runScripts: "outside-only" });
+    const popout = new JSDOM(undefined, { runScripts: "outside-only" });
+    const owner = target === "main" ? main.window : popout.window;
+    const other = target === "main" ? popout.window : main.window;
+    const wrongConstructor = vi.fn(() => { throw new Error("Wrong clipboard realm"); });
+    class OwnerClipboardItem {
+      readonly types: string[];
+      constructor(readonly data: Record<string, Blob>) { this.types = Object.keys(data); }
+    }
+    Object.defineProperty(owner, "ClipboardItem", { configurable: true, value: OwnerClipboardItem });
+    Object.defineProperty(other, "ClipboardItem", { configurable: true, value: wrongConstructor });
+    vi.stubGlobal("ClipboardItem", wrongConstructor);
+    const writes: ClipboardItem[][] = [];
+    const clipboard = {
+      write: vi.fn(async (items: ClipboardItem[]) => { writes.push(items); }),
+    } as unknown as Clipboard;
+    try {
+      expect(owner.Array).not.toBe(other.Array);
+      expect(owner.Blob).not.toBe(other.Blob);
+      expect(await writeTableRangeToNavigator(clipboard, payload, owner as unknown as Window)).toBe(true);
+      expect(writes).toHaveLength(1);
+      const item = writes[0]![0] as unknown as OwnerClipboardItem;
+      expect(item).toBeInstanceOf(OwnerClipboardItem);
+      expect(item.types).toEqual([TABLE_RANGE_CLIPBOARD_WEB_MIME, "text/plain", "text/html"]);
+      for (const blob of Object.values(item.data)) {
+        expect(blob).toBeInstanceOf(owner.Blob);
+        expect(blob).not.toBeInstanceOf(other.Blob);
+        expect(blob).not.toBeInstanceOf(window.Blob);
+      }
+      expect(item.data[TABLE_RANGE_CLIPBOARD_WEB_MIME]!.type).toBe(TABLE_RANGE_CLIPBOARD_MIME);
+      expect(wrongConstructor).not.toHaveBeenCalled();
+    } finally {
+      main.window.close();
+      popout.window.close();
+    }
+  });
+
+  it.each(["ClipboardItem", "Blob"] as const)("refuses a window missing %s instead of falling back to global constructors", async (missing) => {
+    const realm = new JSDOM(undefined, { runScripts: "outside-only" });
+    const globalConstructor = vi.fn();
+    vi.stubGlobal("ClipboardItem", globalConstructor);
+    Object.defineProperty(realm.window, "ClipboardItem", { configurable: true, value: globalConstructor });
+    Object.defineProperty(realm.window, missing, { configurable: true, value: undefined });
+    const write = vi.fn();
+    try {
+      expect(await writeTableRangeToNavigator(
+        { write } as unknown as Clipboard, payload, realm.window as unknown as Window,
+      )).toBe(false);
+      expect(write).not.toHaveBeenCalled();
+      expect(globalConstructor).not.toHaveBeenCalled();
+    } finally { realm.window.close(); }
+  });
+
+  it("refuses a null owner window without using global constructors", async () => {
+    const constructor = vi.fn();
+    vi.stubGlobal("ClipboardItem", constructor);
+    const write = vi.fn();
+    expect(await writeTableRangeToNavigator({ write } as unknown as Clipboard, payload, null)).toBe(false);
+    expect(write).not.toHaveBeenCalled();
+    expect(constructor).not.toHaveBeenCalled();
   });
 
   it("keeps navigator read and write capability detection independent", async () => {

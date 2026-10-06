@@ -18,7 +18,7 @@ import {
   splitCell,
   type OperationResult,
 } from "../core/operations";
-import type { StructuralTable } from "../core/model";
+import type { StructuralCell, StructuralTable } from "../core/model";
 import { completeStructuralTableSelectionCoordinates, type StructuralTableSelection } from "./table-selection";
 
 export type TableOperation = (table: StructuralTable) => OperationResult;
@@ -58,14 +58,19 @@ function selectionMenuState(
   options: SelectionMenuOptions = {},
 ): SelectionMenuState {
   const { table } = selection;
-  const cell = selection.cells.length === 1 ? selection.cells[0] : undefined;
-  const anchor = cell === undefined ? undefined : table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
+  const anchors = new Map<string, StructuralCell>();
+  for (const selected of selection.cells) {
+    const cell = table.rows[selected.row]?.cells[selected.column];
+    const anchor = cell === undefined ? undefined : table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
+    if (anchor !== undefined) anchors.set(`${anchor.row}:${anchor.column}`, anchor);
+  }
+  const anchor = anchors.size === 1 ? anchors.values().next().value : undefined;
   const selectsWholeRows = selection.minColumn === 0
     && selection.maxColumn === table.columnCount - 1;
   const selectsWholeColumns = selection.minRow === 0
     && selection.maxRow === table.rows.length - 1;
   return {
-    canMerge: selection.cells.length > 1,
+    canMerge: anchors.size > 1,
     canRemoveHeaderRows: selectsWholeRows && table.headerRowCount > 0
       && selection.minRow === 0 && selection.maxRow === table.headerRowCount - 1,
     canRemoveRowHeaders: selectsWholeColumns && table.rowHeaderColumnCount > 0,

@@ -54,7 +54,9 @@ Callout 写入通过可逆效果将焦点目标保存在 CodeMirror 自身的历
 <!-- section: interchange -->
 ## 互操作
 
-纯核心投影把有效结构表格展开为稳定的列路径和二维数据。GFM、TSV、CSV 与后续记录迁移共用该投影；语义 HTML 直接使用验证后的 rowspan、colspan、角色、scope 和真正的换行元素。整篇笔记的剪贴板接线只负责把 HTML DOM 归一化成单元格、跨度、th/td 角色和规范 `<br>` 视觉换行，再交给纯核心生成并重新解析结构 Markdown。接管网格范围使用另一套规范化 v1 载荷：只含相对 canonical owner ID 和 raw owner token；粘贴要求尺寸与 owner 拓扑一致，一次构造完整候选并重新解析，不会回退到隐藏源码。Sheets Extended 迁移只接受唯一、非边缘且整列严格为 `-` 的伪分隔列。
+纯核心投影把有效结构表格展开为稳定的列路径和二维数据。GFM、TSV、CSV 与后续记录迁移共用该投影；语义 HTML 直接使用验证后的 rowspan、colspan、角色、scope 和真正的换行元素。整篇笔记的 HTML 导入接线把 HTML DOM 归一化成单元格、跨度、th/td 角色和规范 `<br>` 视觉换行，再交给纯核心生成并重新解析结构 Markdown。Sheets Extended 迁移只接受唯一、非边缘且整列严格为 `-` 的伪分隔列。
+
+接管网格范围使用独立的规范化 v1 载荷，只含相对 canonical owner ID 和 raw owner token。粘贴只接受尺寸与 owner 拓扑一致的这种载荷，构造并验证一份完整候选，再通过一次源码事务提交。菜单的剪贴板写入和读取分别检查平台能力。无法识别的载荷、普通文字和 HTML 不会从接管网格选区回退到隐藏源码。范围 HTML 用转义后的原始文字表示内容并携带跨度；普通 Markdown 将第一条复制行作为表头，并在可表示时保留结构标记，不保证外部 GFM 仍能保留合并拓扑。
 
 <!-- section: base-promotion -->
 ## Base 提升

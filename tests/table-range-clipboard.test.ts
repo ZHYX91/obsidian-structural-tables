@@ -20,25 +20,24 @@ describe("table range clipboard payload", () => {
     ].join("\n");
     const table = parseStructuralTables(source).tables[0]!;
     const payload = tableRangePayload(table, {
-      minRow: 0, maxRow: 3, minColumn: 0, maxColumn: 2,
+      minRow: 0, maxRow: 2, minColumn: 0, maxColumn: 2,
     })!;
 
     expect(payload).toMatchObject({
       version: 1,
-      rows: 4,
+      rows: 3,
       columns: 3,
       owners: [
         ["o0", "o0", "o1"],
-        ["o2", "o3", "o4"],
-        ["o5", "o5", "o6"],
-        ["o5", "o5", "o7"],
+        ["o2", "o2", "o3"],
+        ["o2", "o2", "o4"],
       ],
     });
     expect(payload.rawByOwner).toMatchObject({
       o0: "Group",
-      o5: "**North**",
-      o6: String.raw`[[Target\|Alias]]`,
-      o7: "`a\\|b`<br>$x$",
+      o2: "**North**",
+      o3: String.raw`[[Target\|Alias]]`,
+      o4: "`a\\|b`<br>$x$",
     });
     expect(parseTableRangePayload(JSON.stringify(payload))).toEqual(payload);
   });
@@ -68,10 +67,18 @@ describe("table range clipboard payload", () => {
   });
 
   it("renders synchronous HTML geometry without interpreting raw Markdown", () => {
-    const table = parseStructuralTables("| **A** | < |\n| --- | --- |\n| ^ | < |").tables[0]!;
+    const table = parseStructuralTables("| --- | --- |\n| **A** | < |\n| ^ | < |").tables[0]!;
     const payload = tableRangePayload(table, { minRow: 0, maxRow: 1, minColumn: 0, maxColumn: 1 })!;
     expect(tableRangeHtml(payload)).toBe(
-      '<table><thead><tr><th rowspan="2" colspan="2">**A**</th></tr></thead><tbody><tr></tr></tbody></table>',
+      '<table><tbody><tr><th rowspan="2" colspan="2">**A**</th></tr><tr></tr></tbody></table>',
+    );
+  });
+
+  it("keeps a copied body rowspan and both adjacent cells in one HTML row group", () => {
+    const table = parseStructuralTables("| H1 | H2 |\n| --- | --- |\n| North | First |\n| ^ | Second |").tables[0]!;
+    const payload = tableRangePayload(table, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 })!;
+    expect(tableRangeHtml(payload)).toBe(
+      '<table><tbody><tr><th rowspan="2">North</th><th>First</th></tr><tr><td>Second</td></tr></tbody></table>',
     );
   });
 
@@ -116,6 +123,72 @@ describe("table range clipboard payload", () => {
     expect(parseTableRangePayload(JSON.stringify(payload))).toEqual(payload);
   });
 
+  it.each([
+    {
+      name: "1x1",
+      source: "| --- |\n| **new** |",
+      target: "| --- |\n| old |",
+      bounds: { minRow: 0, maxRow: 0, minColumn: 0, maxColumn: 0 },
+    },
+    {
+      name: "Nx1",
+      source: "| --- |\n| [[N\\|Alias]] |\n| `x\\|y` |\n| $z$<br>next |",
+      target: "| --- |\n| one |\n| two |\n| three |",
+      bounds: { minRow: 0, maxRow: 2, minColumn: 0, maxColumn: 0 },
+    },
+    {
+      name: "all-empty rectangle",
+      source: "| --- | --- |\n|  |  |\n|  |  |",
+      target: "| --- | --- |\n| one | two |\n| three | four |",
+      bounds: { minRow: 0, maxRow: 1, minColumn: 0, maxColumn: 1 },
+    },
+  ])("pastes changed raw owners for $name", ({ source, target, bounds }) => {
+    const sourceTable = parseEditableTables(source).tables[0]!;
+    const targetTable = parseEditableTables(target).tables[0]!;
+    const payload = tableRangePayload(sourceTable, bounds)!;
+    const result = pasteTableRangeRaw(targetTable, bounds, payload);
+    expect(result).toMatchObject({ changed: true, code: "range-pasted" });
+    const pasted = parseEditableTables(result.source).tables[0]!;
+    expect(pasted).toMatchObject({ valid: true, headerRowCount: targetTable.headerRowCount, columnCount: targetTable.columnCount });
+    expect(pasted.rows).toHaveLength(targetTable.rows.length);
+    expect(tableRangePayload(pasted, bounds)).toEqual(payload);
+  });
+
+  it("preserves target roles, alignment, topology and unselected raw when the source roles differ", () => {
+    const source = parseStructuralTables([
+      "| --- | --- | --- |",
+      "| **North** | [[N\\|Alias]] | source-only |",
+      "| ^ | `x\\|y`<br>$z$ | source-other |",
+    ].join("\n")).tables[0]!;
+    const target = parseStructuralTables([
+      "| **Region** | `Metric` | [[Keep\\|Heading]] |",
+      "| ---: || :--- | :---: |",
+      "| old | q | **UNSELECTED**<br>tail |",
+      "| ^ | r | [[Keep\\|Alias]] |",
+    ].join("\n")).tables[0]!;
+    const sourceBounds = { minRow: 0, maxRow: 1, minColumn: 0, maxColumn: 1 };
+    const targetBounds = { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 };
+    const payload = tableRangePayload(source, sourceBounds)!;
+    expect(source).toMatchObject({ valid: true, headerRowCount: 0, rowHeaderColumnCount: 0 });
+    expect(target).toMatchObject({ valid: true, headerRowCount: 1, rowHeaderColumnCount: 1 });
+    expect(sameTableRangeTopology(payload, tableRangePayload(target, targetBounds)!)).toBe(true);
+
+    const result = pasteTableRangeRaw(target, targetBounds, payload);
+    expect(result).toMatchObject({ changed: true, code: "range-pasted" });
+    const pasted = parseStructuralTables(result.source).tables[0]!;
+    expect(tableRangePayload(pasted, targetBounds)).toEqual(payload);
+    expect(pasted.headerRowCount).toBe(target.headerRowCount);
+    expect(pasted.rowHeaderColumnCount).toBe(target.rowHeaderColumnCount);
+    expect(pasted.alignments).toEqual(["right", "left", "center"]);
+    const geometry = (table: typeof target) => table.rows.map(row => row.cells.map(cell => ({
+      role: cell.role, anchorRow: cell.anchorRow, anchorColumn: cell.anchorColumn,
+      rowSpan: cell.rowSpan, columnSpan: cell.columnSpan, covered: cell.covered,
+    })));
+    expect(geometry(pasted)).toEqual(geometry(target));
+    expect(pasted.rows[0]!.cells.map(cell => cell.raw.trim())).toEqual(target.rows[0]!.cells.map(cell => cell.raw.trim()));
+    expect(pasted.rows.map(row => row.cells[2]!.raw.trim())).toEqual(target.rows.map(row => row.cells[2]!.raw.trim()));
+  });
+
   it("pastes raw content only when size and owner topology exactly match", () => {
     const source = [
       "| H | V | W |",
@@ -147,7 +220,7 @@ describe("table range clipboard payload", () => {
   });
 
   it("refuses size, topology, hidden-overflow, and unsafe raw mismatches without partial writes", () => {
-    const target = parseStructuralTables("| H | V |\n| --- | --- |\n| A | B |\n| C | D |").tables[0]!;
+    const target = parseEditableTables("| H | V |\n| --- | --- |\n| A | B |\n| C | D |").tables[0]!;
     const source = parseStructuralTables("| X | < |\n| --- | --- |\n| Y | Z |").tables[0]!;
     const payload = tableRangePayload(source, { minRow: 0, maxRow: 1, minColumn: 0, maxColumn: 1 })!;
     expect(pasteTableRangeRaw(target, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 }, payload))

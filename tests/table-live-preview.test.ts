@@ -15,7 +15,6 @@ import { StructuralTableEditorController } from "../src/editor/table-live-previe
 import {
   activeScopes,
   dispatchScopeCaptureThenDom,
-  dispatchScopeKey,
   lastMenu,
   notices,
   resetMockModKey,

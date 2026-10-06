@@ -774,6 +774,7 @@ class StructuralTableInteraction {
     const draftRedo: DraftHistoryEntry[] = [];
     let lastHistorySnapshot: DraftSnapshot;
     let pendingNativeInput: { before: DraftSnapshot; group: DraftHistoryGroup } | null = null;
+    let allowNativeHistoryMerge = true;
     const draftSnapshot = (): DraftSnapshot => ({
       value: editor.value,
       start: editor.selectionStart,
@@ -1054,6 +1055,9 @@ class StructuralTableInteraction {
         if (entry !== undefined) {
           to.push(entry);
           restoreDraftSnapshot(redo ? entry.after : entry.before);
+          // Typing after history navigation starts a new branch. Do not merge
+          // it back into a typing transaction that predates the undo/redo.
+          allowNativeHistoryMerge = false;
         }
         return false;
       });
@@ -1079,9 +1083,10 @@ class StructuralTableInteraction {
       recordDraftHistory(
         pending?.before ?? lastHistorySnapshot,
         after,
-        group,
-        group === "typing" || group === "composition",
+        (pending?.group ?? nativeHistoryGroup(inputEvent)),
+        allowNativeHistoryMerge && (group === "typing" || group === "composition"),
       );
+      allowNativeHistoryMerge = true;
       lastRejectedDraft = null;
       resizeEditor();
     });

@@ -853,7 +853,7 @@ describe("StructuralTableEditorController", () => {
 
       expect(undo(view)).toBe(true);
       await vi.waitFor(() => expect(view.state.doc.toString()).toBe(source));
-      expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull();
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
     } finally {
       view.destroy();
     }
@@ -928,7 +928,7 @@ describe("StructuralTableEditorController", () => {
 
       expect(undo(view)).toBe(true);
       await vi.waitFor(() => expect(view.state.doc.toString()).toBe(source));
-      expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull();
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
     } finally {
       view.destroy();
     }

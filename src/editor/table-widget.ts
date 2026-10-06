@@ -1056,7 +1056,7 @@ class StructuralTableInteraction {
     editor.addEventListener("focus", activateCellScope);
     editor.addEventListener("keydown", handleKey);
     editor.addEventListener("input", (event) => {
-      const inputEvent = event as InputEvent;
+      const inputEvent = event;
       const after = draftSnapshot();
       const pending = pendingNativeInput;
       pendingNativeInput = null;

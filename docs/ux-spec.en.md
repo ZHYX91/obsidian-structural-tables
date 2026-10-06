@@ -15,7 +15,7 @@ translation_of: ux-spec.zh-CN.md
 <!-- section: principles -->
 ## Principles
 
-Source remains visible and recoverable; rendering interprets but never rewrites; an operation that could lose content is refused.
+Source remains visible and recoverable; rendering interprets but never rewrites; unintended loss of unselected or hidden content is refused. Explicit clear/remove actions may discard the selected visible content, while guarded legacy operations keep their loss-prevention contract.
 
 <!-- section: live-preview -->
 ## Live Preview
@@ -24,14 +24,15 @@ A valid structural table is presented by a semantic block widget while its Markd
 
 ### Cell editing
 
-- Desktop click, touch double-tap, or Enter/F2 opens the editor.
-- The editor overlays the existing cell without changing column width or adding a second visible input border.
-- Enter commits, Escape cancels, and Shift+Enter inserts a draft line break.
-- Tab/Shift+Tab follows visible cells in source order and skips covered merge slots.
+- Desktop click, touch double-tap, or Enter/F2 opens the editor. A provably plain-text desktop click places the textarea caret at the clicked UTF-16 offset; formatted or ambiguous content, keyboard entry, and touch entry select the draft instead of guessing a Markdown offset.
+- The editor overlays the existing cell without changing column width or adding a second visible input border. Its editing surface does not inherit the grid-range selection fill, so theme header/zebra/background and borders remain visible around the caret.
+- Enter commits and opens the same logical column on the next row; at the last row the edit and appended row are one host transaction. Escape cancels, and Shift+Enter inserts a draft line break.
+- Tab/Shift+Tab follows visible cells in source order and skips covered merge slots. At a collapsed horizontal text boundary, Left/Right may move to the adjacent visible cell; internal text arrows and text selections remain native. Up/Down moves between rows only when textarea geometry proves a stable single visual line; otherwise it stays native.
 - While the textarea owns editing focus, Cmd/Ctrl+B and Cmd/Ctrl+I toggle bold/italic only on its current draft selection and preserve the other emphasis style. Typing, composition input, paste, draft line breaks, and these format operations participate in one draft-local undo/redo history; inherited main-editor history and formatting commands must not touch saved source before commit. Other formatting commands remain source-oriented and require **Edit table source**.
 - A rejected commit keeps the complete draft, does not navigate, and does not append a row.
 - Outside the textarea, unmodified Delete/Backspace clears the complete visible owner set represented by the current grid selection. Clearing never removes rows, columns, header roles, alignments, merge topology, or the table itself; an already-empty selection is a no-op.
 - The owned grid context menu offers the same clear intent plus explicit Delete selected rows, Delete selected columns, and Delete table actions. Explicit removal may discard the selected visible content without a pre-clear step, remains one undoable host transaction, and removes the whole table when all rows or all columns are explicitly selected.
+- Shift+Arrow extends or shrinks a grid range from its original logical anchor/head and reuses merge-owner closure; it never replaces the logical head with expanded bounds. Textarea selection shortcuts remain text-local.
 - Ordinary GFM retains Obsidian's native Delete behavior while takeover is disabled. When takeover is enabled, the same clear/removal policy applies; hidden GFM overflow remains read-only until its extra source cells are handled in Markdown.
 - IME composition must not be committed early or have its keys intercepted.
 
@@ -70,7 +71,9 @@ A thead or consecutive th rows become column headers, consecutive leftmost th co
 
 Cell content is imported as plain text, with HTML break and block boundaries normalized to canonical `<br>` visual breaks.
 
-Plain GFM, TSV, and CSV output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, scope, and break elements.
+A selected owned-grid range has a separate bounded clipboard contract: Copy emits a normalized owner topology plus plain GFM and HTML without writing source; Cut clears only after clipboard write success and exact source/path/range/selection/session revalidation; Paste requires exact dimensions and owner topology and replaces only selected owner raw tokens in one validated table write. Single cells, single columns, all-empty ranges, and complete horizontal/vertical/2D merges are supported. Unsupported or stale grid payloads are consumed with no source write rather than falling through to the hidden CodeMirror caret.
+
+Plain GFM, TSV, and CSV whole-table output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, scope, and break elements.
 
 HTML conversion accepts one complete supported table only. Mixed prose, multiple tables, captions, math, images, attachments, and links that cannot be preserved are left to native note paste. In a cell editor, unsupported HTML uses the complete plain-text alternative with a notice; if none exists, the current edit remains intact. A verified empty cell can still clear the selected text. HTML copy falls back to original Markdown/LaTeX for math, images, attachments, and internal or relative links, preserving references without embedding arbitrary HTML.
 

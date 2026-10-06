@@ -82,6 +82,40 @@ describe("table range clipboard payload", () => {
     expect(parseTableRangePayload('{"version":1,"rows":1,"columns":2,"owners":[["o0"]],"rawByOwner":{"o0":"x"}}')).toBeNull();
   });
 
+  it.each([
+    {
+      name: "ordinary rectangle",
+      source: "| H1 | H2 |\n| --- | --- |\n| **A** | [[N\\|A]] |\n| `x\\|y` | $z$<br>next |",
+      bounds: { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 },
+    },
+    {
+      name: "headerless range",
+      source: "| --- | --- |\n| **A** | B |\n| C | [[N\\|A]] |",
+      bounds: { minRow: 0, maxRow: 1, minColumn: 0, maxColumn: 1 },
+    },
+    {
+      name: "multi-header range",
+      source: "| Group | < |\n| H1 | H2 |\n| --- | --- |\n| A | B |",
+      bounds: { minRow: 0, maxRow: 1, minColumn: 0, maxColumn: 1 },
+    },
+    {
+      name: "horizontal merge",
+      source: "| A | < | C |\n| --- | --- | --- |\n| D | E | F |",
+      bounds: { minRow: 0, maxRow: 0, minColumn: 0, maxColumn: 1 },
+    },
+    {
+      name: "vertical merge",
+      source: "| A | B |\n| --- | --- |\n| C | D |\n| ^ | E |",
+      bounds: { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 0 },
+    },
+  ])("round-trips exact raw owners for $name", ({ source, bounds }) => {
+    const table = parseEditableTables(source).tables[0]!;
+    const payload = tableRangePayload(table, bounds)!;
+    const result = pasteTableRangeRaw(table, bounds, payload);
+    expect(result).toMatchObject({ changed: false, code: "range-pasted", source: table.source });
+    expect(parseTableRangePayload(JSON.stringify(payload))).toEqual(payload);
+  });
+
   it("pastes raw content only when size and owner topology exactly match", () => {
     const source = [
       "| H | V | W |",

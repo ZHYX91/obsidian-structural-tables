@@ -819,9 +819,10 @@ class StructuralTableInteraction {
       editor.focus({ preventScroll: true });
     };
     const nativeHistoryGroup = (event: InputEvent): DraftHistoryGroup => {
-      if (composing || event.isComposing || event.inputType.includes("Composition")) return "composition";
-      if (event.inputType === "insertText") return "typing";
-      if (event.inputType === "deleteContentBackward" || event.inputType === "deleteContentForward") return "deletion";
+      const inputType = event.inputType ?? "";
+      if (composing || event.isComposing || inputType.includes("Composition")) return "composition";
+      if (inputType === "insertText") return "typing";
+      if (inputType === "deleteContentBackward" || inputType === "deleteContentForward") return "deletion";
       return "native";
     };
     const isEscapedAt = (value: string, index: number): boolean => {

@@ -311,7 +311,7 @@ class StructuralTableInteraction {
     host.addEventListener("focusout", (event) => {
       const next = event.relatedTarget;
       if (next === null || !(next instanceof host.ownerDocument.defaultView!.Node) || !host.contains(next)) {
-        this.clearSelection();
+        this.clearSelection(!this.selectionMenuOpen);
       }
     });
     queueMicrotask(() => {
@@ -797,7 +797,8 @@ class StructuralTableInteraction {
     }
   }
 
-  private clearSelection(): void {
+  private clearSelection(invalidateSession = true): void {
+    if (invalidateSession) this.selectionEpoch += 1;
     this.host?.classList.remove("is-add-controls-active");
     this.axisSelection = null;
     this.touchAxisAnchor = null;

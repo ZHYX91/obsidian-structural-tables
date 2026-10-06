@@ -406,6 +406,9 @@ class StructuralTableInteraction {
     rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event));
     rendered.addEventListener("pointermove", (event) => this.revealHandlesForPointer(event));
     rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
+    rendered.addEventListener("copy", (event) => { this.handleRangeCopyCut(event, view, false); });
+    rendered.addEventListener("cut", (event) => { this.handleRangeCopyCut(event, view, true); });
+    rendered.addEventListener("paste", (event) => { this.handleRangePaste(event, view); });
     rendered.addEventListener("contextmenu", (event) => this.openContextMenu(event, view));
     rendered.addEventListener("dblclick", (event) => {
       if (event.target !== null && "closest" in event.target

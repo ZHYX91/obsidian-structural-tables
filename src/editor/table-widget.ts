@@ -24,6 +24,7 @@ import {
   type TableOperationIntent,
 } from "./table-menu";
 import {
+  completeStructuralTableSelectionCoordinates,
   structuralTableSelectionFromBounds,
   structuralTableSelectionFromCoordinates,
   type StructuralTableSelection,
@@ -44,6 +45,7 @@ interface PendingCellFocus {
   coordinate: TableCellCoordinate;
   edit: boolean;
   axisSelection?: AxisSelection;
+  selectionBounds?: { first: TableCellCoordinate; last: TableCellCoordinate };
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
 const activeCellEditors = new WeakMap<Document, HTMLTextAreaElement>();
@@ -244,8 +246,10 @@ class StructuralTableInteraction {
       else if (pending.edit) {
         this.beginCellEdit(view, pending.coordinate);
         this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-      }
-      else this.focusCellAfterUpdate(view, pending.coordinate);
+      } else if (pending.selectionBounds !== undefined) {
+        this.selectBounds(pending.selectionBounds.first, pending.selectionBounds.last);
+        this.cellElement(pending.coordinate)?.focus({ preventScroll: true });
+      } else this.focusCellAfterUpdate(view, pending.coordinate);
     });
     return host;
   }
@@ -335,6 +339,76 @@ class StructuralTableInteraction {
   private readonly endPointerSelection = (): void => {
     this.dragging = false;
   };
+
+  private registerGridClearScope(scope: Scope, view: EditorView): void {
+    const handler = (event: KeyboardEvent): boolean | void => {
+      if (this.handleGridClear(event, view)) return false;
+    };
+    scope.register([], "Delete", handler);
+    scope.register([], "Backspace", handler);
+  }
+
+  private activateAxisClearScope(
+    view: EditorView,
+    handle: HTMLElement,
+    axis: TableAxis,
+    index: number,
+  ): void {
+    const selection = this.axisSelection;
+    if (selection?.axis !== axis || index < selection.start || index > selection.end
+      || handle.ownerDocument.activeElement !== handle) return;
+    this.releaseNavigationScope();
+    const scope = new Scope(this.app.scope);
+    this.registerGridClearScope(scope, view);
+    this.navigationScope = scope;
+    this.app.keymap.pushScope(scope);
+  }
+
+  private handleGridClear(event: KeyboardEvent, view: EditorView): boolean {
+    if (event.defaultPrevented || event.isComposing || this.selectionMenuOpen
+      || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
+      || (event.key !== "Delete" && event.key !== "Backspace")
+      || this.host === null) return false;
+    const active = this.host.ownerDocument.activeElement;
+    if (!(active instanceof this.host.ownerDocument.defaultView!.HTMLElement)
+      || !this.host.contains(active)
+      || active.matches("textarea, input")) return false;
+
+    const cell = this.cellForTarget(active);
+    let ownsSelection = false;
+    if (cell !== null && active === cell) {
+      const coordinate = this.coordinateFor(cell);
+      if (coordinate === null) return false;
+      if (this.selection === null || !this.isCellSelected(coordinate)) {
+        this.selectBounds(coordinate, coordinate);
+      }
+      ownsSelection = true;
+    } else {
+      const rowHandle = active.closest<HTMLElement>("[data-structural-row-handle]");
+      const columnHandle = active.closest<HTMLElement>("[data-structural-column-handle]");
+      const selection = this.axisSelection;
+      if (rowHandle === active && selection?.axis === "row") {
+        const index = Number(rowHandle.dataset.structuralRowHandle);
+        ownsSelection = Number.isInteger(index) && index >= selection.start && index <= selection.end;
+      } else if (columnHandle === active && selection?.axis === "column") {
+        const index = Number(columnHandle.dataset.structuralColumnHandle);
+        ownsSelection = Number.isInteger(index) && index >= selection.start && index <= selection.end;
+      }
+    }
+    if (!ownsSelection || this.selection === null) return false;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const coordinates = completeStructuralTableSelectionCoordinates(this.selection);
+    this.applyMenuOperation(
+      view,
+      (current) => clearTableCells(current, coordinates),
+      undefined,
+      this.axisSelection ?? undefined,
+      "owned-grid",
+    );
+    return true;
+  }
 
   private handleHistory(event: KeyboardEvent, view: EditorView,
     coordinate = this.coordinateFor(event.target)): boolean {

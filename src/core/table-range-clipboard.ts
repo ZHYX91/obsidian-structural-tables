@@ -143,8 +143,8 @@ export function tableRangePlainText(payload: TableRangeClipboardPayloadV1): stri
 }
 
 function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  return value.replace(/&/gu, "&amp;").replace(/</gu, "&lt;")
+    .replace(/>/gu, "&gt;").replace(/"/gu, "&quot;");
 }
 
 /**

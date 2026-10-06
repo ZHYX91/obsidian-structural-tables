@@ -283,6 +283,8 @@ class StructuralTableInteraction {
         } else if (pending.selectionBounds !== undefined) {
           this.selectBounds(pending.selectionBounds.first, pending.selectionBounds.last);
           this.cellElement(pending.coordinate)?.focus({ preventScroll: true });
+        } else if (pending.deferFocus === true) {
+          this.focusRestoredHistoryCell(view, pending.coordinate);
         } else this.focusCellAfterUpdate(view, pending.coordinate);
       };
       if (pending.deferFocus === true) {
@@ -1392,6 +1394,22 @@ class StructuralTableInteraction {
     const interaction = this.interactionAfterUpdate(view);
     interaction?.beginCellEdit(view, coordinate);
     interaction?.cellElement(coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }
+
+  private focusRestoredHistoryCell(view: EditorView, coordinate: TableCellCoordinate): void {
+    if (!view.dom.isConnected) return;
+    const active = view.dom.ownerDocument.activeElement;
+    if (active instanceof view.dom.ownerDocument.defaultView!.HTMLElement
+      && view.contentDOM.contains(active)) {
+      active.blur();
+    }
+    const focus = (): void => {
+      if (!view.dom.isConnected) return;
+      this.focusCellAfterUpdate(view, coordinate);
+    };
+    const win = view.dom.ownerDocument.defaultView;
+    if (win !== null) win.setTimeout(focus, 0);
+    else queueMicrotask(focus);
   }
 
   private focusCellAfterUpdate(view: EditorView, coordinate: TableCellCoordinate): void {

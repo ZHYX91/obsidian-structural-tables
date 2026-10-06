@@ -504,6 +504,43 @@ describe("table operations", () => {
     expect(next.rows[0]!.cells.map((cell) => cell.content)).toEqual(["H1", "H2"]);
   });
 
+  it("changes only the parsed table range inside a list continuation", () => {
+    const ending = "\r\n";
+    const note = [
+      "Before",
+      "- Item",
+      "  | H | V |",
+      "  | --- || --- |",
+      "  | A | 1 |",
+      "  continuation",
+      "After",
+    ].join(ending);
+    const table = parseEditableTables(note).tables[0]!;
+    const before = note.slice(0, table.range.from);
+    const after = note.slice(table.range.to);
+
+    const cleared = clearTableCells(table, [{ row: 1, column: 1 }]);
+    expect(cleared.changed).toBe(true);
+    expect(cleared.source.split(ending).every((line) => line.startsWith("  |"))).toBe(true);
+    expect(before + cleared.source + after).toBe([
+      "Before",
+      "- Item",
+      "  | H | V |",
+      "  | --- || --- |",
+      "  | A |  |",
+      "  continuation",
+      "After",
+    ].join(ending));
+
+    const removed = removeTable(table);
+    expect(before + removed.source + after).toBe([
+      "Before",
+      "- Item",
+      "  continuation",
+      "After",
+    ].join(ending));
+  });
+
   it.each(["\n", "\r\n", "\r"])("preserves quote prefix and %j endings through clear and explicit removal", (ending) => {
     const source = ["> | H | V |", "> | --- || :---: |", "> | A | 1 |", "> | B | 2 |"].join(ending);
     const table = parseStructuralTables(source).tables[0]!;

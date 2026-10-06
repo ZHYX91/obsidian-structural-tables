@@ -726,7 +726,10 @@ class StructuralTableInteraction {
       return;
     }
     if (!event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      this.clickEditCandidate = coordinate;
+      this.clickEditCandidate = {
+        coordinate,
+        caretOffset: this.plainTextCaretOffset(event, coordinate),
+      };
     }
     event.preventDefault();
     event.stopPropagation();
@@ -780,10 +783,15 @@ class StructuralTableInteraction {
     if (candidate === null || (event.target !== null && "closest" in event.target
       && (event.target as Element).closest("textarea, input, a, button") !== null)) return;
     const coordinate = this.coordinateFor(event.target);
-    if (coordinate === null || coordinate.row !== candidate.row || coordinate.column !== candidate.column) return;
+    if (coordinate === null
+      || coordinate.row !== candidate.coordinate.row || coordinate.column !== candidate.coordinate.column) return;
     event.preventDefault();
     event.stopPropagation();
-    this.beginCellEdit(view, coordinate);
+    this.beginCellEdit(
+      view,
+      coordinate,
+      candidate.caretOffset === null ? "select-all" : { caretOffset: candidate.caretOffset },
+    );
   }
 
   private updateSelection(): void {

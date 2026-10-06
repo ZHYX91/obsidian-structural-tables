@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   alignTableColumns,
   appendTableRow,
+  clearTableCells,
   editCellAndAppendRow,
   cellColumnAt,
   deleteTableColumns,
@@ -16,6 +17,8 @@ import {
   moveTableRows,
   normalizeTableCellInput,
   reorderTableAxis,
+  removeTable,
+  removeTableAxis,
   setHeaderRowCount,
   setRowHeaderColumnCount,
   splitCell,
@@ -35,6 +38,10 @@ describe("table operations", () => {
     ["insert column", (table) => insertTableColumn(table, 0, "after")],
     ["delete row", (table) => deleteTableRows(table, 2, 2)],
     ["delete column", (table) => deleteTableColumns(table, 1, 1)],
+    ["clear cell", (table) => clearTableCells(table, [{ row: 1, column: 0 }])],
+    ["explicit remove row", (table) => removeTableAxis(table, "row", 1, 1)],
+    ["explicit remove column", (table) => removeTableAxis(table, "column", 0, 0)],
+    ["explicit remove table", removeTable],
     ["reorder rows", (table) => reorderTableAxis(table, "row", 1, 1, 3)],
     ["move rows", (table) => moveTableRows(table, 1, 1, "forward")],
     ["move columns", (table) => moveTableColumns(table, 0, 0, "forward")],
@@ -336,6 +343,180 @@ describe("table operations", () => {
     expect(columnResult).toMatchObject({ changed: true, code: "column-inserted" });
     expect(columnTable.rows[0]?.cells[0]?.columnSpan).toBe(3);
     expect(columnTable.columnCount).toBe(4);
+  });
+
+  it("clears selected owner content without changing roles, alignment, or merge topology", () => {
+    const text = [
+      "| Group | Amount | < |",
+      "| --- || :---: | ---: |",
+      "| North | 10 | 20 |",
+      "| South | 30 | 40 |",
+    ].join("\n");
+    const table = parseStructuralTables(text).tables[0]!;
+
+    const mergedHeader = clearTableCells(table, [
+      { row: 0, column: 1 },
+      { row: 0, column: 2 },
+    ]);
+    expect(mergedHeader).toMatchObject({ changed: true, code: "cells-cleared" });
+    const merged = parseStructuralTables(mergedHeader.source).tables[0]!;
+    expect(merged.headerRowCount).toBe(1);
+    expect(merged.rowHeaderColumnCount).toBe(1);
+    expect(merged.alignments).toEqual(["default", "center", "right"]);
+    expect(merged.rows[0]!.cells[0]!.content).toBe("Group");
+    expect(merged.rows[0]!.cells[1]).toMatchObject({ content: "", columnSpan: 2, covered: false });
+    expect(merged.rows[0]!.cells[2]).toMatchObject({ marker: "left", covered: true });
+
+    const partial = clearTableCells(table, [
+      { row: 1, column: 1 },
+      { row: 1, column: 2 },
+    ]);
+    expect(parseStructuralTables(partial.source).tables[0]!.rows[1]!.cells.map((cell) => cell.content))
+      .toEqual(["North", "", ""]);
+
+    const fullRow = clearTableCells(table, [
+      { row: 2, column: 0 }, { row: 2, column: 1 }, { row: 2, column: 2 },
+    ]);
+    expect(parseStructuralTables(fullRow.source).tables[0]!.rows[2]!.cells.every((cell) => cell.content === "")).toBe(true);
+
+    const fullColumn = clearTableCells(table, [
+      { row: 1, column: 2 }, { row: 2, column: 2 },
+    ]);
+    const column = parseStructuralTables(fullColumn.source).tables[0]!;
+    expect(column.rows[0]!.cells[1]!.content).toBe("Amount");
+    expect(column.rows[1]!.cells[2]!.content).toBe("");
+    expect(column.rows[2]!.cells[2]!.content).toBe("");
+
+    const allCoordinates = table.rows.flatMap((row) => row.cells.map((cell) => ({ row: cell.row, column: cell.column })));
+    const all = clearTableCells(table, allCoordinates);
+    const emptied = parseStructuralTables(all.source).tables[0]!;
+    expect(emptied.rows.every((row) => row.cells.filter((cell) => !cell.covered).every((cell) => cell.content === ""))).toBe(true);
+    expect(emptied.rows[0]!.cells[2]!.marker).toBe("left");
+    expect(emptied.headerRowCount).toBe(1);
+    expect(emptied.rowHeaderColumnCount).toBe(1);
+  });
+
+  it("refuses duplicate or partial merged-owner clear coordinates and treats empty owners as a byte-stable noop", () => {
+    const merged = parseStructuralTables("| A | < |\n| --- | --- |\n|  |  |").tables[0]!;
+    expect(clearTableCells(merged, [{ row: 0, column: 0 }])).toMatchObject({
+      changed: false,
+      code: "invalid-result",
+      source: merged.source,
+    });
+    expect(clearTableCells(merged, [
+      { row: 0, column: 0 }, { row: 0, column: 1 }, { row: 0, column: 1 },
+    ])).toMatchObject({
+      changed: false,
+      code: "invalid-result",
+      source: merged.source,
+    });
+
+    const empty = parseEditableTables("| A | B |\n| --- | --- |\n|  |  |").tables[0]!;
+    const result = clearTableCells(empty, [{ row: 1, column: 0 }, { row: 1, column: 1 }]);
+    expect(result).toEqual({
+      changed: false,
+      code: "cells-cleared",
+      message: "The selected cells are already empty.",
+      source: empty.source,
+    });
+  });
+
+  it("allows ragged visible GFM clear but keeps hidden overflow blocked", () => {
+    const ragged = parseEditableTables("| A | B |\n| --- | --- |\n| 1 |").tables[0]!;
+    const cleared = clearTableCells(ragged, [{ row: 1, column: 0 }]);
+    expect(cleared).toMatchObject({ changed: true, code: "cells-cleared" });
+    expect(parseEditableTables(cleared.source).tables[0]!.rows[1]!.cells.map((cell) => cell.content))
+      .toEqual(["", ""]);
+
+    const overflowSource = "| A | B |\n| --- | --- |\n| 1 | 2 | KEEP |";
+    const overflow = parseEditableTables(overflowSource).tables[0]!;
+    for (const operation of [
+      () => clearTableCells(overflow, [{ row: 1, column: 0 }]),
+      () => removeTableAxis(overflow, "row", 1, 1),
+      () => removeTableAxis(overflow, "column", 0, 0),
+      () => removeTable(overflow),
+    ]) {
+      expect(operation()).toMatchObject({
+        changed: false,
+        code: "gfm-overflow-readonly",
+        source: overflowSource,
+      });
+    }
+  });
+
+  it("keeps guarded delete APIs lossy-safe while explicit removal may discard selected visible content", () => {
+    const table = parseStructuralTables("| H | V |\n| --- || --- |\n| A | 1 |\n| B | 2 |").tables[0]!;
+    expect(deleteTableRows(table, 2, 2)).toMatchObject({ changed: false, code: "content-would-be-lost" });
+    expect(deleteTableColumns(table, 1, 1)).toMatchObject({ changed: false, code: "content-would-be-lost" });
+
+    const row = removeTableAxis(table, "row", 2, 2);
+    expect(row).toMatchObject({ changed: true, code: "rows-deleted" });
+    expect(parseStructuralTables(row.source).tables[0]!.rows.map((item) => item.cells.map((cell) => cell.content)))
+      .toEqual([["H", "V"], ["A", "1"]]);
+
+    const column = removeTableAxis(table, "column", 1, 1);
+    expect(column).toMatchObject({ changed: true, code: "columns-deleted" });
+    expect(parseStructuralTables(column.source).tables[0]!.rows.map((item) => item.cells[0]!.content))
+      .toEqual(["H", "A", "B"]);
+
+    expect(removeTable(table)).toEqual({
+      changed: true,
+      code: "table-deleted",
+      message: "Table deleted.",
+      source: "",
+    });
+    expect(removeTableAxis(table, "row", 0, table.rows.length - 1).code).toBe("table-deleted");
+    expect(removeTableAxis(table, "column", 0, table.columnCount - 1).code).toBe("table-deleted");
+  });
+
+  it("preserves surviving merged-owner content when explicit axis removal trims its span", () => {
+    const vertical = parseStructuralTables("| H | V |\n| --- | --- |\n| A | 1 |\n| ^ | 2 |\n| B | 3 |").tables[0]!;
+    const rows = removeTableAxis(vertical, "row", 2, 2);
+    const rowTable = parseEditableTables(rows.source).tables[0]!;
+    expect(rows.changed).toBe(true);
+    expect(rowTable.rows[1]!.cells[0]!.content).toBe("A");
+    expect(rowTable.rows[1]!.cells[0]!.rowSpan).toBe(1);
+
+    const horizontal = parseStructuralTables("| H | V | W |\n| --- | --- | --- |\n| A | < | 3 |\n| B | 2 | 4 |").tables[0]!;
+    const columns = removeTableAxis(horizontal, "column", 1, 1);
+    const columnTable = parseEditableTables(columns.source).tables[0]!;
+    expect(columns.changed).toBe(true);
+    expect(columnTable.rows[1]!.cells[0]!.content).toBe("A");
+    expect(columnTable.rows[1]!.cells[0]!.columnSpan).toBe(1);
+  });
+
+  it("remaps header roles narrowly for explicit row removal", () => {
+    const ordinary = parseEditableTables("| H1 | H2 |\n| --- | --- |\n| A | 1 |\n| B | 2 |").tables[0]!;
+    expect(ordinary.structural).toBe(false);
+    const removedHeader = removeTableAxis(ordinary, "row", 0, 0);
+    const promoted = parseEditableTables(removedHeader.source).tables[0]!;
+    expect(promoted).toMatchObject({ structural: false, headerRowCount: 1 });
+    expect(promoted.rows[0]!.cells.map((cell) => cell.content)).toEqual(["A", "1"]);
+
+    const headerless = parseStructuralTables("| --- | --- |\n| A | 1 |\n| B | 2 |").tables[0]!;
+    const headerlessRemoved = removeTableAxis(headerless, "row", 1, 1);
+    expect(parseStructuralTables(headerlessRemoved.source).tables[0]!.headerRowCount).toBe(0);
+
+    const multi = parseStructuralTables("| Top | < |\n| H1 | H2 |\n| --- | --- |\n| A | 1 |").tables[0]!;
+    const oneHeader = removeTableAxis(multi, "row", 0, 0);
+    const next = parseEditableTables(oneHeader.source).tables[0]!;
+    expect(next.headerRowCount).toBe(1);
+    expect(next.rows[0]!.cells.map((cell) => cell.content)).toEqual(["H1", "H2"]);
+  });
+
+  it.each(["\n", "\r\n", "\r"])("preserves quote prefix and %j endings through clear and explicit removal", (ending) => {
+    const source = ["> | H | V |", "> | --- || :---: |", "> | A | 1 |", "> | B | 2 |"].join(ending);
+    const table = parseStructuralTables(source).tables[0]!;
+    const cleared = clearTableCells(table, [{ row: 1, column: 1 }]);
+    expect(cleared.changed).toBe(true);
+    expect(cleared.source.split(/\r\n|\r|\n/u).every((line) => line.startsWith("> |"))).toBe(true);
+    expect(cleared.source.includes(ending)).toBe(true);
+    expect(parseStructuralTables(cleared.source).tables[0]!.alignments).toEqual(["default", "center"]);
+
+    const removed = removeTableAxis(table, "row", 2, 2);
+    expect(removed.changed).toBe(true);
+    expect(removed.source.split(/\r\n|\r|\n/u).every((line) => line.startsWith("> |"))).toBe(true);
+    expect(removed.source.includes(ending)).toBe(true);
   });
 
   it("deletes only when content is preserved, including moving a merged anchor", () => {

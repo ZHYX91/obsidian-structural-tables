@@ -896,6 +896,122 @@ class StructuralTableInteraction {
     return reparseUnchangedTable(view.state.doc.toString(), frozen.selection.table);
   }
 
+  private frozenBounds(frozen: FrozenGridSelection) {
+    return {
+      minRow: frozen.selection.minRow,
+      maxRow: frozen.selection.maxRow,
+      minColumn: frozen.selection.minColumn,
+      maxColumn: frozen.selection.maxColumn,
+    };
+  }
+
+  private clearFrozenSelection(view: EditorView, frozen: FrozenGridSelection): boolean {
+    if (this.currentTableForFrozenSelection(view, frozen) === null) return false;
+    const coordinates = completeStructuralTableSelectionCoordinates(frozen.selection);
+    this.applyMenuOperation(
+      view,
+      (current) => clearTableCells(current, coordinates),
+      undefined,
+      frozen.axisSelection,
+      "owned-grid",
+      frozen,
+    );
+    return true;
+  }
+
+  private pasteFrozenSelection(
+    view: EditorView,
+    frozen: FrozenGridSelection,
+    payload: TableRangeClipboardPayloadV1,
+  ): boolean {
+    const current = this.currentTableForFrozenSelection(view, frozen);
+    if (current === null) return false;
+    const target = tableRangePayload(current, this.frozenBounds(frozen));
+    if (target === null || !sameTableRangeTopology(target, payload)) {
+      new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardUnsupported"));
+      return true;
+    }
+    this.applyMenuOperation(
+      view,
+      (table) => pasteTableRangeRaw(table, this.frozenBounds(frozen), payload),
+      undefined,
+      frozen.axisSelection,
+      "owned-grid",
+      frozen,
+    );
+    return true;
+  }
+
+  private handleRangeCopyCut(
+    event: ClipboardEvent,
+    view: EditorView,
+    cut: boolean,
+  ): boolean {
+    if (event.target !== null && "closest" in event.target
+      && (event.target as Element).closest("textarea, input") !== null) return false;
+    const frozen = this.freezeGridSelection();
+    if (frozen === null || event.clipboardData === null) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!writeTableRangeToDataTransfer(event.clipboardData, frozen.payload)) {
+      new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardWriteFailed"));
+      return true;
+    }
+    if (cut && !this.clearFrozenSelection(view, frozen)) {
+      new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
+    }
+    return true;
+  }
+
+  private handleRangePaste(event: ClipboardEvent, view: EditorView): boolean {
+    if (event.target !== null && "closest" in event.target
+      && (event.target as Element).closest("textarea, input") !== null) return false;
+    const frozen = this.freezeGridSelection();
+    if (frozen === null) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    const payload = event.clipboardData === null ? null : readTableRangeFromDataTransfer(event.clipboardData);
+    if (payload === null) {
+      new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardUnsupported"));
+      return true;
+    }
+    if (!this.pasteFrozenSelection(view, frozen, payload)) {
+      new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
+    }
+    return true;
+  }
+
+  private async copyFrozenSelection(
+    view: EditorView,
+    frozen: FrozenGridSelection,
+    cut: boolean,
+  ): Promise<void> {
+    const t = createTranslator(this.getSettings().language);
+    const clipboard = frozen.host.ownerDocument.defaultView?.navigator.clipboard;
+    if (!await writeTableRangeToNavigator(clipboard, frozen.payload)) {
+      new Notice(t("notice.rangeClipboardWriteFailed"));
+      return;
+    }
+    if (cut && !this.clearFrozenSelection(view, frozen)) new Notice(t("notice.staleTable"));
+  }
+
+  private async pasteFrozenSelectionFromNavigator(
+    view: EditorView,
+    frozen: FrozenGridSelection,
+  ): Promise<void> {
+    const t = createTranslator(this.getSettings().language);
+    const result = await readTableRangeFromNavigator(frozen.host.ownerDocument.defaultView?.navigator.clipboard);
+    if (result.kind === "unsupported") {
+      new Notice(t("notice.rangeClipboardReadFailed"));
+      return;
+    }
+    if (result.kind === "failed") {
+      new Notice(t("notice.rangeClipboardUnsupported"));
+      return;
+    }
+    if (!this.pasteFrozenSelection(view, frozen, result.payload)) new Notice(t("notice.staleTable"));
+  }
+
   private revealHandlesForPointer(event: PointerEvent): void {
     if (event.pointerType === "touch" || this.host === null) return;
     const coordinate = this.coordinateFor(event.target);

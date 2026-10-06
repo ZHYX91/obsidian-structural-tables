@@ -281,6 +281,7 @@ class StructuralTableInteraction {
       };
       if (pending.deferFocus === true) {
         view.requestMeasure({
+          read: () => null,
           write: () => {
             if (!host.isConnected || pendingCellFocus.get(view) !== pending) return;
             const win = host.ownerDocument.defaultView;

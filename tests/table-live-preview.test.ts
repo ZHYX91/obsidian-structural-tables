@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/s
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
 import { calloutRanges } from "../src/core/source-lines";
-import { TABLE_RANGE_CLIPBOARD_MIME } from "../src/core/table-range-clipboard";
+import { TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_HTML_ATTRIBUTE } from "../src/core/table-range-clipboard";
 import { recoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
 import { StructuralTableWidget } from "../src/editor/table-widget";
@@ -2901,7 +2901,7 @@ describe("StructuralTableEditorController", () => {
       expect(transfer.getData(TABLE_RANGE_CLIPBOARD_MIME)).not.toBe("");
       expect(transfer.getData("text/plain")).toContain("| A | **B** |");
       expect(transfer.getData("text/plain")).toContain(String.raw`[[N\|A]]`);
-      expect(transfer.getData("text/html")).toContain("<table>");
+      expect(transfer.getData("text/html")).toContain(`<table ${TABLE_RANGE_HTML_ATTRIBUTE}=`);
     } finally { view.destroy(); }
   });
 
@@ -2945,7 +2945,7 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
-  it("pastes an exact-topology owned range into only the selected target owners", async () => {
+  it.each(["custom", "owned-html"])("pastes an exact-topology owned range using %s into only selected target owners", async (format) => {
     const source = "| H1 | H2 |\n| --- || --- |\n| **A** | [[N\\|A]] |\n| C | D |";
     const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
     try {
@@ -2953,8 +2953,13 @@ describe("StructuralTableEditorController", () => {
       const sourceLast = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
       dispatchPointerDown(sourceFirst, "mouse");
       sourceLast.dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
-      const transfer = new DataTransfer();
+      let transfer = new DataTransfer();
       sourceFirst.dispatchEvent(gridClipboardEvent("copy", transfer));
+      if (format === "owned-html") {
+        const html = transfer.getData("text/html");
+        transfer = new DataTransfer();
+        transfer.setData("text/html", html);
+      }
 
       const targetFirst = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='0']")!;
       const targetLast = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
@@ -2973,6 +2978,68 @@ describe("StructuralTableEditorController", () => {
       expect(undo(view)).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
+  });
+
+  it.each(["keyboard", "menu"])("recovers merged raw owners from owned HTML for %s paste in one transaction", async (route) => {
+    const tableSource = "| H1 | H2 |\n| --- || --- |\n| **A** | [[N\\|A]] |\n| ^ | `a\\|b` |\n| Old | Q |\n| ^ | R |";
+    const source = `Before\n\n${tableSource}\n\nAfter`;
+    let writes = 0;
+    const listener = EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; });
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(), listener]);
+    try {
+      const cell = (row: number, column: number) => parent.querySelector<HTMLElement>(
+        `[data-structural-row='${row}'][data-structural-column='${column}']`,
+      )!;
+      dispatchPointerDown(cell(1, 0), "mouse");
+      cell(2, 1).dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      const copied = new DataTransfer();
+      cell(1, 0).dispatchEvent(gridClipboardEvent("copy", copied));
+      const transfer = new DataTransfer();
+      transfer.setData("text/html", copied.getData("text/html"));
+      expect(transfer.getData("text/html")).toContain(TABLE_RANGE_HTML_ATTRIBUTE);
+      dispatchPointerDown(cell(3, 0), "mouse");
+      cell(4, 1).dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      if (route === "keyboard") {
+        cell(3, 0).dispatchEvent(gridClipboardEvent("paste", transfer));
+      } else {
+        Object.defineProperty(window.navigator, "clipboard", {
+          configurable: true,
+          value: {
+            read: vi.fn(async () => [{
+              types: ["text/html"],
+              getType: async () => new Blob([transfer.getData("text/html")], { type: "text/html" }),
+            }]),
+          },
+        });
+        cell(3, 0).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+        clickCurrentMenuItem("Paste into selected cells", true);
+      }
+      await vi.waitFor(() => expect(writes).toBe(1));
+      const pastedSource = view.state.doc.toString();
+      const original = parseEditableTables(source).tables[0]!;
+      const pasted = parseEditableTables(pastedSource).tables[0]!;
+      expect(pasted.rows[3]!.cells[0]!.raw.trim()).toBe("**A**");
+      expect(pasted.rows[3]!.cells[1]!.raw.trim()).toBe(String.raw`[[N\|A]]`);
+      expect(pasted.rows[4]!.cells[1]!.raw.trim()).toBe("`a\\|b`");
+      expect(pasted.rows[4]!.cells[0]!.marker).toBe("up");
+      expect(pasted.headerRowCount).toBe(original.headerRowCount);
+      expect(pasted.rowHeaderColumnCount).toBe(original.rowHeaderColumnCount);
+      expect(pasted.alignments).toEqual(original.alignments);
+      const unselectedRows = (table: StructuralTable) => table.rows.slice(0, 3).map((row) => ({
+        ...row, cells: row.cells.map((cell) => ({ ...cell, raw: cell.raw.trim() })),
+      }));
+      expect(unselectedRows(pasted)).toEqual(unselectedRows(original));
+      expect(pastedSource.startsWith("Before\n\n")).toBe(true);
+      expect(pastedSource.endsWith("\n\nAfter")).toBe(true);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(pastedSource);
+    } finally {
+      Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined });
+      view.destroy();
+    }
   });
 
   it("consumes unsupported grid paste without falling through to hidden source", () => {

@@ -975,7 +975,8 @@ class StructuralTableInteraction {
     if (frozen === null) return false;
     event.preventDefault();
     event.stopPropagation();
-    const payload = event.clipboardData === null ? null : readTableRangeFromDataTransfer(event.clipboardData);
+    const payload = event.clipboardData === null ? null
+      : readTableRangeFromDataTransfer(event.clipboardData, frozen.host.ownerDocument);
     if (payload === null) {
       new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardUnsupported"));
       return true;
@@ -1005,7 +1006,10 @@ class StructuralTableInteraction {
     frozen: FrozenGridSelection,
   ): Promise<void> {
     const t = createTranslator(this.getSettings().language);
-    const result = await readTableRangeFromNavigator(frozen.host.ownerDocument.defaultView?.navigator.clipboard);
+    const result = await readTableRangeFromNavigator(
+      frozen.host.ownerDocument.defaultView?.navigator.clipboard,
+      frozen.host.ownerDocument,
+    );
     if (result.kind === "unsupported") {
       new Notice(t("notice.rangeClipboardReadFailed"));
       return;

@@ -2,6 +2,7 @@ import type { StructuralTable } from "./model";
 
 export const TABLE_RANGE_CLIPBOARD_MIME = "application/x-structural-tables-range+json";
 export const TABLE_RANGE_CLIPBOARD_WEB_MIME = `web ${TABLE_RANGE_CLIPBOARD_MIME}`;
+export const TABLE_RANGE_HTML_ATTRIBUTE = "data-structural-tables-range";
 
 export interface TableRangeClipboardPayloadV1 {
   version: 1;
@@ -148,7 +149,9 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Synchronous HTML contract for clipboard events. Markdown raw tokens are
+ * Shared HTML contract for clipboard events and the Async Clipboard API.
+ * The owned attribute carries only the selected range, allowing strict recovery
+ * when a host does not expose custom formats across those two APIs. Raw tokens are
  * escaped as text; geometry is represented with rowspan/colspan. All copied
  * rows share one row group so a rowspan from the first copied row stays valid.
  */
@@ -171,5 +174,5 @@ export function tableRangeHtml(payload: TableRangeClipboardPayloadV1): string {
     }
     rows.push(`<tr>${cells.join("")}</tr>`);
   }
-  return `<table><tbody>${rows.join("")}</tbody></table>`;
+  return `<table ${TABLE_RANGE_HTML_ATTRIBUTE}="${escapeHtml(JSON.stringify(payload))}"><tbody>${rows.join("")}</tbody></table>`;
 }

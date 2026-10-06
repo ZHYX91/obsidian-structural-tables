@@ -4,6 +4,7 @@ import {
   tableRangePlainText,
   TABLE_RANGE_CLIPBOARD_MIME,
   TABLE_RANGE_CLIPBOARD_WEB_MIME,
+  TABLE_RANGE_HTML_ATTRIBUTE,
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
 
@@ -40,13 +41,31 @@ export function writeTableRangeToDataTransfer(
 
 export function readTableRangeFromDataTransfer(
   transfer: DataTransfer,
+  ownerDocument: Document = document,
 ): TableRangeClipboardPayloadV1 | null {
   try {
-    const source = transfer.getData(TABLE_RANGE_CLIPBOARD_MIME);
-    return source === "" ? null : parseTableRangePayload(source);
+    for (const type of [TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_CLIPBOARD_WEB_MIME]) {
+      const source = transfer.getData(type);
+      if (source !== "") return parseTableRangePayload(source);
+      if (transfer.types.includes(type)) return null;
+    }
+    return readOwnedTableRangeHtml(transfer.getData("text/html"), ownerDocument);
   } catch {
     return null;
   }
+}
+
+function readOwnedTableRangeHtml(
+  html: string,
+  ownerDocument: Document,
+): TableRangeClipboardPayloadV1 | null {
+  const Parser = ownerDocument.defaultView?.DOMParser;
+  if (typeof Parser !== "function") return null;
+  const parsed = new Parser().parseFromString(html, "text/html");
+  const carriers = parsed.querySelectorAll<HTMLTableElement>(`table[${TABLE_RANGE_HTML_ATTRIBUTE}]`);
+  if (carriers.length !== 1) return null;
+  const source = carriers[0]!.getAttribute(TABLE_RANGE_HTML_ATTRIBUTE);
+  return source === null ? null : parseTableRangePayload(source);
 }
 
 type ClipboardItemConstructor = new (items: Record<string, Blob>) => ClipboardItem;
@@ -86,6 +105,7 @@ export type NavigatorRangeRead =
 
 export async function readTableRangeFromNavigator(
   clipboard: Clipboard | undefined,
+  ownerDocument: Document = document,
 ): Promise<NavigatorRangeRead> {
   if (clipboard === undefined || typeof clipboard.read !== "function") return { kind: "unsupported" };
   try {
@@ -99,7 +119,11 @@ export async function readTableRangeFromNavigator(
       const payload = parseTableRangePayload(await blob.text());
       return payload === null ? { kind: "failed" } : { kind: "payload", payload };
     }
-    return { kind: "failed" };
+    const htmlItems = items.filter((item) => item.types.includes("text/html"));
+    if (htmlItems.length !== 1) return { kind: "failed" };
+    const html = await htmlItems[0]!.getType("text/html");
+    const payload = readOwnedTableRangeHtml(await html.text(), ownerDocument);
+    return payload === null ? { kind: "failed" } : { kind: "payload", payload };
   } catch {
     return { kind: "failed" };
   }

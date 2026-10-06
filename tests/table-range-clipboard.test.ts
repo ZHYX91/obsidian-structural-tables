@@ -1,3 +1,4 @@
+import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 
 import { pasteTableRangeRaw } from "../src/core/operations";
@@ -8,6 +9,7 @@ import {
   tableRangeHtml,
   tableRangePayload,
   tableRangePlainText,
+  TABLE_RANGE_HTML_ATTRIBUTE,
 } from "../src/core/table-range-clipboard";
 
 describe("table range clipboard payload", () => {
@@ -69,17 +71,48 @@ describe("table range clipboard payload", () => {
   it("renders synchronous HTML geometry without interpreting raw Markdown", () => {
     const table = parseStructuralTables("| --- | --- |\n| **A** | < |\n| ^ | < |").tables[0]!;
     const payload = tableRangePayload(table, { minRow: 0, maxRow: 1, minColumn: 0, maxColumn: 1 })!;
-    expect(tableRangeHtml(payload)).toBe(
-      '<table><tbody><tr><th rowspan="2" colspan="2">**A**</th></tr><tr></tr></tbody></table>',
+    const dom = new JSDOM(tableRangeHtml(payload));
+    const tableElement = dom.window.document.querySelector("table")!;
+    expect(tableElement.innerHTML).toBe(
+      '<tbody><tr><th rowspan="2" colspan="2">**A**</th></tr><tr></tr></tbody>',
     );
+    expect(parseTableRangePayload(tableElement.getAttribute(TABLE_RANGE_HTML_ATTRIBUTE)!)).toEqual(payload);
+    dom.window.close();
   });
 
   it("keeps a copied body rowspan and both adjacent cells in one HTML row group", () => {
     const table = parseStructuralTables("| H1 | H2 |\n| --- | --- |\n| North | First |\n| ^ | Second |").tables[0]!;
     const payload = tableRangePayload(table, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 })!;
-    expect(tableRangeHtml(payload)).toBe(
-      '<table><tbody><tr><th rowspan="2">North</th><th>First</th></tr><tr><td>Second</td></tr></tbody></table>',
+    const dom = new JSDOM(tableRangeHtml(payload));
+    const tableElement = dom.window.document.querySelector("table")!;
+    expect(tableElement.innerHTML).toBe(
+      '<tbody><tr><th rowspan="2">North</th><th>First</th></tr><tr><td>Second</td></tr></tbody>',
     );
+    expect(tableElement.tBodies).toHaveLength(1);
+    expect(tableElement.tHead).toBeNull();
+    dom.window.close();
+  });
+
+  it("carries only selected raw owners and escapes attribute-breaking text without creating HTML", () => {
+    const source = [
+      '| Heading | KEEP-UNSELECTED |',
+      '| --- | --- |',
+      '| 中文😀 & "quoted" <img src=x onerror="boom"> `a\\|b` [[N\\|Alias]] | KEEP-PRIVATE |',
+    ].join("\n");
+    const table = parseEditableTables(source).tables[0]!;
+    const payload = tableRangePayload(table, { minRow: 1, maxRow: 1, minColumn: 0, maxColumn: 0 })!;
+    const html = tableRangeHtml(payload);
+    const dom = new JSDOM(html);
+    const tableElement = dom.window.document.querySelector("table")!;
+    const carried = parseTableRangePayload(tableElement.getAttribute(TABLE_RANGE_HTML_ATTRIBUTE)!);
+    expect(carried).toEqual(payload);
+    expect(tableElement.textContent).toBe(table.rows[1]!.cells[0]!.raw.trim());
+    expect(dom.window.document.querySelectorAll("img, script")).toHaveLength(0);
+    expect(html).not.toContain("KEEP-UNSELECTED");
+    expect(html).not.toContain("KEEP-PRIVATE");
+    expect(carried).not.toHaveProperty("source");
+    expect(carried).not.toHaveProperty("path");
+    dom.window.close();
   });
 
   it("rejects partial merged owners and malformed/noncanonical payloads", () => {

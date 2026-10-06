@@ -3,6 +3,7 @@ import type { Menu } from "obsidian";
 import { type Translate, withCount } from "../config/i18n";
 import {
   alignTableColumns,
+  clearTableCells,
   deleteTableColumns,
   deleteTableRows,
   insertTableColumn,
@@ -10,6 +11,8 @@ import {
   mergeCellRange,
   moveTableColumns,
   moveTableRows,
+  removeTable,
+  removeTableAxis,
   setHeaderRowCount,
   setRowHeaderColumnCount,
   splitCell,
@@ -19,7 +22,8 @@ import type { StructuralTable } from "../core/model";
 import type { StructuralTableSelection } from "./table-selection";
 
 export type TableOperation = (table: StructuralTable) => OperationResult;
-export type TableOperationApplier = (operation: TableOperation) => void;
+export type TableOperationIntent = "standard" | "owned-grid";
+export type TableOperationApplier = (operation: TableOperation, intent?: TableOperationIntent) => void;
 
 export function addBasePromotionMenuItem(
   menu: Menu,
@@ -46,6 +50,7 @@ interface SelectionMenuState {
 
 export interface SelectionMenuOptions {
   fullEditor?: boolean;
+  explicitRemoval?: boolean;
 }
 
 function selectionMenuState(
@@ -94,6 +99,14 @@ export function addSelectionMenuItems(
 ): void {
   const state = selectionMenuState(selection, options);
   if (state.fullEditor) {
+    if (options.explicitRemoval === true) {
+      const coordinates = selection.cells.map(({ row, column }) => ({ row, column }));
+      menu.addItem((item) => item
+        .setSection("structural-tables-clear")
+        .setIcon("eraser")
+        .setTitle(t("menu.clearCells"))
+        .onClick(() => apply((current) => clearTableCells(current, coordinates), "owned-grid")));
+    }
     menu.addItem((item) => item
       .setSection("structural-tables-row")
       .setIcon("arrow-up-to-line")
@@ -119,7 +132,9 @@ export function addSelectionMenuItems(
       .setIcon("trash-2")
       .setTitle(t("menu.deleteRows"))
       .setWarning(true)
-      .onClick(() => apply((current) => deleteTableRows(current, selection.minRow, selection.maxRow))));
+      .onClick(() => options.explicitRemoval === true
+        ? apply((current) => removeTableAxis(current, "row", selection.minRow, selection.maxRow), "owned-grid")
+        : apply((current) => deleteTableRows(current, selection.minRow, selection.maxRow))));
 
     menu.addItem((item) => item
       .setSection("structural-tables-column")
@@ -146,7 +161,9 @@ export function addSelectionMenuItems(
       .setIcon("trash-2")
       .setTitle(t("menu.deleteColumns"))
       .setWarning(true)
-      .onClick(() => apply((current) => deleteTableColumns(current, selection.minColumn, selection.maxColumn))));
+      .onClick(() => options.explicitRemoval === true
+        ? apply((current) => removeTableAxis(current, "column", selection.minColumn, selection.maxColumn), "owned-grid")
+        : apply((current) => deleteTableColumns(current, selection.minColumn, selection.maxColumn))));
 
     const alignments = [
       ["default", "menu.alignDefault", "align-horizontal-space-around"],
@@ -165,6 +182,14 @@ export function addSelectionMenuItems(
           selection.maxColumn,
           alignment,
         ))));
+    }
+    if (options.explicitRemoval === true) {
+      menu.addItem((item) => item
+        .setSection("structural-tables-danger")
+        .setIcon("trash")
+        .setTitle(t("menu.deleteTable"))
+        .setWarning(true)
+        .onClick(() => apply(removeTable, "owned-grid")));
     }
   }
   if (state.canMerge) {

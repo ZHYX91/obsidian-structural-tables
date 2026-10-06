@@ -1185,7 +1185,7 @@ describe("StructuralTableEditorController", () => {
       expect(event.defaultPrevented).toBe(true);
       expect(parentDelete).not.toHaveBeenCalled();
       expect(view.state.doc.toString()).toBe(source);
-      expect(notices.at(-1)).toContain("extra source cells");
+      expect(notices[notices.length - 1]).toContain("extra source cells");
 
       cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
       lastMenu?.items.find((item) => item.title === "Clear selected cells")?.callback?.();
@@ -1212,7 +1212,7 @@ describe("StructuralTableEditorController", () => {
 
       expect(view.state.doc.toString()).toBe(externallyChanged);
       expect(view.state.doc.toString()).toContain("External");
-      expect(notices.at(-1)).toContain("changed");
+      expect(notices[notices.length - 1]).toContain("changed");
     } finally {
       view.destroy();
     }

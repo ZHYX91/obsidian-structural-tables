@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Keep full touch row handles inside the visible text column and reserve column-handle space after table captions, including tables inside Callouts.
+- Keep full touch row handles inside the visible text column and place column controls in their own table-top space, clear of external captions on desktop and touch screens, including tables inside Callouts.
 - Acquire native Callout tables adopted into separate editor windows, and render complete source-verified table blocks containing inline images while retaining note-embed and partial-paragraph protections.
 - Follow the theme's top outer border for tables without column headers, including row-header-only and merged tables.
 - Give Grid tables slightly thicker single borders at semantic header boundaries, retaining declared column- and row-header boundaries before data rows are added and preserving merged cells and a uniform grid for tables without headers.

@@ -225,6 +225,15 @@ function dispatchDraftShortcut(
   return event;
 }
 
+function gridClipboardEvent(
+  type: "copy" | "cut" | "paste",
+  transfer: DataTransfer,
+): ClipboardEvent {
+  const event = new Event(type, { bubbles: true, cancelable: true }) as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", { value: transfer });
+  return event;
+}
+
 function dispatchOwnedGridKey(
   target: HTMLElement,
   key: "Delete" | "Backspace",

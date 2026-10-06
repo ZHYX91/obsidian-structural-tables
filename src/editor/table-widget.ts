@@ -1080,6 +1080,21 @@ class StructuralTableInteraction {
       .setTitle(t("menu.editSource"))
       .setIcon("file-pen-line")
       .onClick(() => this.focusTableSource(view, sourceCoordinate)));
+    menu.addItem((item) => item
+      .setSection("structural-tables-clipboard")
+      .setIcon("copy")
+      .setTitle(t("menu.copySelection"))
+      .onClick(() => { void this.copyFrozenSelection(view, frozen, false); }));
+    menu.addItem((item) => item
+      .setSection("structural-tables-clipboard")
+      .setIcon("scissors")
+      .setTitle(t("menu.cutSelection"))
+      .onClick(() => { void this.copyFrozenSelection(view, frozen, true); }));
+    menu.addItem((item) => item
+      .setSection("structural-tables-clipboard")
+      .setIcon("clipboard-paste")
+      .setTitle(t("menu.pasteSelection"))
+      .onClick(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); }));
     menu.addItem((item) => item.setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }

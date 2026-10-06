@@ -29,6 +29,42 @@ describe("table history targets", () => {
     expect(latest!.effects.find((effect) => effect.is(tableHistoryTarget))?.value.after).toBe(updated);
   });
 
+  it("maps a whole-table removal target through an unrecorded prefix edit made after removal", () => {
+    let state = EditorState.create({ doc: source, extensions: [history(), tableHistory] });
+    const table = parseEditableTables(source).tables[0]!;
+    state = state.update({
+      changes: { from: table.range.from, to: table.range.to, insert: "" },
+      ...tableWriteHistory(table, "", "Test.md", { row: 1, column: 0 }),
+    }).state;
+    state = state.update({
+      changes: { from: 0, insert: "Prefix\n" },
+      annotations: Transaction.addToHistory.of(false),
+    }).state;
+
+    let latest: EditorTransaction | undefined;
+    const dispatch = (transaction: EditorTransaction): void => {
+      latest = transaction;
+      state = transaction.state;
+    };
+
+    expect(undo({ state, dispatch })).toBe(true);
+    expect(state.doc.toString()).toBe(`Prefix\n${source}`);
+    expect(latest!.effects.find((effect) => effect.is(tableHistoryTarget))?.value).toMatchObject({
+      from: table.range.from + 7,
+      before: "",
+      after: table.source,
+      coordinate: { row: 1, column: 0 },
+    });
+
+    expect(redo({ state, dispatch })).toBe(true);
+    expect(parseEditableTables(state.doc.toString()).tables).toHaveLength(0);
+    expect(latest!.effects.find((effect) => effect.is(tableHistoryTarget))?.value).toMatchObject({
+      from: table.range.from + 7,
+      before: table.source,
+      after: "",
+    });
+  });
+
   it("keeps unrelated prose undo separate from the table focus target", () => {
     let state = EditorState.create({ doc: source, extensions: [history(), tableHistory] });
     const table = parseEditableTables(source).tables[0]!;

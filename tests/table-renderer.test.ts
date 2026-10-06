@@ -64,6 +64,12 @@ describe("Grid header boundaries", () => {
       block: [],
       inline: [],
     },
+    {
+      name: "corner and column headers with no body",
+      source: "| Key | Value |\n| --- || --- |",
+      block: [],
+      inline: [],
+    },
   ];
 
   it.each(cases)("emphasizes only the complete semantic boundaries: $name", async ({ source, block, inline }) => {

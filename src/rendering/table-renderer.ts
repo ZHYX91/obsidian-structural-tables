@@ -77,7 +77,8 @@ export function renderStructuralTable(
           element.dataset.structuralColumnHeaderBoundary = "true";
         }
       }
-      if (table.rowHeaderColumnCount > 0 && cell.column + cell.columnSpan === table.rowHeaderColumnCount) {
+      if (table.headerRowCount < table.rows.length && table.rowHeaderColumnCount > 0
+        && cell.column + cell.columnSpan === table.rowHeaderColumnCount) {
         element.dataset.structuralRowHeaderBoundary = "true";
       }
       if (cell.rowSpan > 1) element.rowSpan = cell.rowSpan;

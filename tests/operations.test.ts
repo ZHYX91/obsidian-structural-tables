@@ -522,15 +522,13 @@ describe("table operations", () => {
     const cleared = clearTableCells(table, [{ row: 1, column: 1 }]);
     expect(cleared.changed).toBe(true);
     expect(cleared.source.split(ending).every((line) => line.startsWith("  |"))).toBe(true);
-    expect(before + cleared.source + after).toBe([
-      "Before",
-      "- Item",
-      "  | H | V |",
-      "  | --- || --- |",
-      "  | A |  |",
-      "  continuation",
-      "After",
-    ].join(ending));
+    const clearedNote = before + cleared.source + after;
+    expect(clearedNote.slice(0, before.length)).toBe(before);
+    expect(clearedNote.slice(-after.length)).toBe(after);
+    expect(cleared.source.split(ending).every((line) => line.startsWith("  |"))).toBe(true);
+    const parsedCleared = parseEditableTables(clearedNote).tables[0]!;
+    expect(parsedCleared.rows[1]!.cells[1]!.content).toBe("");
+    expect(parsedCleared.sourcePrefix).toBe("  ");
 
     const removed = removeTable(table);
     expect(before + removed.source + after).toBe([

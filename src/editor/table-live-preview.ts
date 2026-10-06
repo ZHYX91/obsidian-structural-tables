@@ -60,6 +60,7 @@ export class StructuralTableEditorController {
       tables: readonly StructuralTable[] | null,
       callouts: readonly { from: number; to: number }[],
       sourceFocused: boolean,
+      restoredTarget?: { from: number; source: string; sourcePath: string },
     ): DecorationSet => {
       const settings = settingsProvider();
       const livePreview = state.field(editorLivePreviewField, false) ?? false;
@@ -68,7 +69,14 @@ export class StructuralTableEditorController {
       const selections = state.selection.ranges;
       const entries: DecorationEntry[] = [];
       for (const table of tables ?? []) {
-        const mode = structuralTableViewMode(table, settings, selections, callouts, sourceFocused);
+        const resolvedMode = structuralTableViewMode(table, settings, selections, callouts, sourceFocused);
+        const restored = restoredTarget !== undefined
+          && sourcePath === restoredTarget.sourcePath
+          && table.range.from === restoredTarget.from
+          && table.source === restoredTarget.source;
+        const mode = restored && resolvedMode !== "ignored"
+          ? table.valid ? "presentation" : "invalid"
+          : resolvedMode;
         if (mode === "ignored" || mode === "source") continue;
         if (mode === "presentation") {
           entries.push({
@@ -135,9 +143,15 @@ export class StructuralTableEditorController {
         const sourceFocus = transaction.effects.find((effect) => effect.is(structuralTableSourceFocus));
         const historyFocus = transaction.effects.find((effect) => effect.is(tableHistoryTarget));
         const composing = composition?.value ?? value.composing;
-        const sourceFocused = historyFocus?.value.restorePresentation === true
-          ? historyFocus.value.after === ""
-          : sourceFocus?.value ?? value.sourceFocused;
+        const sourceFocused = sourceFocus?.value ?? value.sourceFocused;
+        const restoredTarget = historyFocus?.value.restorePresentation === true
+          && historyFocus.value.after !== ""
+          ? {
+            from: historyFocus.value.from,
+            source: historyFocus.value.after,
+            sourcePath: historyFocus.value.sourcePath,
+          }
+          : undefined;
         if (!shouldRebuild(transaction)) return value;
         const mapped = transaction.docChanged ? mapTablesThroughProseEdit(value.tables, transaction) : value.tables;
         const tables = readTables(transaction.state, mapped);
@@ -151,7 +165,13 @@ export class StructuralTableEditorController {
           callouts,
           decorations: composing
             ? Decoration.none
-            : buildDecorations(transaction.state, tables, callouts, sourceFocused),
+            : buildDecorations(
+              transaction.state,
+              tables,
+              callouts,
+              sourceFocused,
+              restoredTarget,
+            ),
         };
       },
       provide: (field) => Prec.highest(EditorView.decorations.from(field, (value) => value.decorations)),

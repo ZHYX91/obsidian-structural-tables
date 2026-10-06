@@ -35,6 +35,12 @@ import { renderStructuralTable } from "../rendering/table-renderer";
 import { renderTableClipboard } from "../rendering/table-clipboard";
 import { cellClipboardText, copyHtml } from "./table-interchange";
 import {
+  readTableRangeFromDataTransfer,
+  readTableRangeFromNavigator,
+  writeTableRangeToDataTransfer,
+  writeTableRangeToNavigator,
+} from "./table-range-clipboard";
+import {
   addBasePromotionMenuItem,
   addSelectionMenuItems,
   hasSelectionMenuItems,

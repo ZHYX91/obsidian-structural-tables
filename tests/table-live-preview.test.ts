@@ -1070,6 +1070,100 @@ describe("StructuralTableEditorController", () => {
     }
   });
 
+  it.each([
+    {
+      name: "intraword italic marker selection",
+      value: "a*!*b", start: 1, end: 4, key: "i",
+    },
+    {
+      name: "intraword italic content-only selection",
+      value: "a*!*b", start: 2, end: 3, key: "i",
+    },
+    {
+      name: "intraword bold marker selection",
+      value: "a**!**b", start: 1, end: 6, key: "b",
+    },
+    {
+      name: "intraword bold content-only selection",
+      value: "a**!**b", start: 3, end: 4, key: "b",
+    },
+    {
+      name: "intraword Unicode punctuation marker selection",
+      value: "中*！*文", start: 1, end: 4, key: "i",
+    },
+    {
+      name: "intraword Unicode punctuation content-only selection",
+      value: "中*！*文", start: 2, end: 3, key: "i",
+    },
+  ] as const)("keeps non-flanking literal stars for $name", ({ value, start, end, key }) => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = value;
+      editor.setSelectionRange(start, end);
+
+      dispatchDraftShortcut(editor, key);
+
+      expect(editor.value).toBe(value);
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([start, end]);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it.each([
+    {
+      name: "standalone italic punctuation wrapper",
+      value: "*!*", start: 0, end: 3, key: "i", expected: "!",
+    },
+    {
+      name: "standalone italic punctuation content",
+      value: "*!*", start: 1, end: 2, key: "i", expected: "!",
+    },
+    {
+      name: "standalone bold punctuation wrapper",
+      value: "**!**", start: 0, end: 5, key: "b", expected: "!",
+    },
+    {
+      name: "standalone bold punctuation content",
+      value: "**!**", start: 2, end: 3, key: "b", expected: "!",
+    },
+    {
+      name: "standalone Unicode punctuation wrapper",
+      value: "*！*", start: 0, end: 3, key: "i", expected: "！",
+    },
+    {
+      name: "standalone Unicode punctuation content",
+      value: "*！*", start: 1, end: 2, key: "i", expected: "！",
+    },
+  ] as const)("recognizes flanking punctuation emphasis for $name", ({ value, start, end, key, expected }) => {
+    const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>(
+        "[data-structural-row='1'][data-structural-column='1']",
+      )!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = value;
+      editor.setSelectionRange(start, end);
+
+      dispatchDraftShortcut(editor, key);
+
+      expect(editor.value).toBe(expected);
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([0, expected.length]);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
   it("toggles the same format repeatedly without removing the other format", () => {
     const source = "Before\n\n| Region | Value |\n| --- || --- |\n| East | West |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 });

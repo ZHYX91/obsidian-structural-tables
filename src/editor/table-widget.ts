@@ -850,7 +850,7 @@ class StructuralTableInteraction {
     const isMarkdownWhitespace = (character: string | null): boolean =>
       character === null || /\s/u.test(character);
     const isMarkdownPunctuation = (character: string | null): boolean =>
-      character !== null && /\p{P}/u.test(character);
+      character !== null && /[\p{P}\p{S}]/u.test(character);
     const starRunFlanking = (
       value: string,
       from: number,

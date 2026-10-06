@@ -42,6 +42,21 @@ export function structuralTableSelectionFromCoordinates(
   return { table, cells, minRow, maxRow, minColumn, maxColumn, rectangular };
 }
 
+export function completeStructuralTableSelectionCoordinates(
+  selection: StructuralTableSelection,
+): TableCellCoordinate[] {
+  const owners = new Set(selection.cells.map((cell) => `${cell.anchorRow}:${cell.anchorColumn}`));
+  const coordinates: TableCellCoordinate[] = [];
+  for (const row of selection.table.rows) {
+    for (const cell of row.cells) {
+      if (owners.has(`${cell.anchorRow}:${cell.anchorColumn}`)) {
+        coordinates.push({ row: cell.row, column: cell.column });
+      }
+    }
+  }
+  return coordinates;
+}
+
 export function structuralTableSelectionFromBounds(
   table: StructuralTable,
   first: TableCellCoordinate,

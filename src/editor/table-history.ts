@@ -10,6 +10,7 @@ export interface TableHistoryTarget {
   before: string;
   after: string;
   coordinate: TableCellCoordinate;
+  restorePresentation?: boolean;
 }
 
 /** Carry the rendered target through the host's own undo/redo history. */
@@ -23,10 +24,22 @@ export const tableHistory = invertedEffects.of((transaction) => transaction.effe
     ...effect.value, before: effect.value.after, after: effect.value.before,
   })));
 
-export function tableWriteHistory(table: StructuralTable, after: string,
-  sourcePath: string, coordinate: TableCellCoordinate) {
+export function tableWriteHistory(
+  table: StructuralTable,
+  after: string,
+  sourcePath: string,
+  coordinate: TableCellCoordinate,
+  options: { restorePresentation?: boolean } = {},
+) {
   return {
-    effects: tableHistoryTarget.of({ from: table.range.from, before: table.source, after, sourcePath, coordinate }),
+    effects: tableHistoryTarget.of({
+      from: table.range.from,
+      before: table.source,
+      after,
+      sourcePath,
+      coordinate,
+      ...(options.restorePresentation === true ? { restorePresentation: true } : {}),
+    }),
     annotations: isolateHistory.of("full"),
   };
 }

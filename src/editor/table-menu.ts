@@ -19,7 +19,7 @@ import {
   type OperationResult,
 } from "../core/operations";
 import type { StructuralTable } from "../core/model";
-import type { StructuralTableSelection } from "./table-selection";
+import { completeStructuralTableSelectionCoordinates, type StructuralTableSelection } from "./table-selection";
 
 export type TableOperation = (table: StructuralTable) => OperationResult;
 export type TableOperationIntent = "standard" | "owned-grid";
@@ -100,7 +100,7 @@ export function addSelectionMenuItems(
   const state = selectionMenuState(selection, options);
   if (state.fullEditor) {
     if (options.explicitRemoval === true) {
-      const coordinates = selection.cells.map(({ row, column }) => ({ row, column }));
+      const coordinates = completeStructuralTableSelectionCoordinates(selection);
       menu.addItem((item) => item
         .setSection("structural-tables-clear")
         .setIcon("eraser")

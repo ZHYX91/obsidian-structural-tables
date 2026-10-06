@@ -24,12 +24,8 @@ import { reparseUnchangedTable } from "../core/table-snapshot";
 import { parseEditableTables } from "../core/parser";
 import { sourcePrefix } from "../core/source-lines";
 import {
-  parseTableRangePayload,
   sameTableRangeTopology,
-  tableRangeHtml,
   tableRangePayload,
-  tableRangePlainText,
-  TABLE_RANGE_CLIPBOARD_MIME,
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
 import { renderStructuralTable } from "../rendering/table-renderer";
@@ -1146,17 +1142,11 @@ class StructuralTableInteraction {
 
     const doc = content.ownerDocument as Document & {
       caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-      caretRangeFromPoint?: (x: number, y: number) => Range | null;
     };
     const position = doc.caretPositionFromPoint?.(event.clientX, event.clientY);
-    if (position !== undefined && position !== null) {
-      return position.offsetNode === textNode && position.offset >= 0 && position.offset <= raw.length
-        ? position.offset : null;
-    }
-    const range = doc.caretRangeFromPoint?.(event.clientX, event.clientY);
-    if (range !== undefined && range !== null && range.startContainer === textNode
-      && range.startOffset >= 0 && range.startOffset <= raw.length) return range.startOffset;
-    return null;
+    return position !== undefined && position !== null
+      && position.offsetNode === textNode && position.offset >= 0 && position.offset <= raw.length
+      ? position.offset : null;
   }
 
   private cellElement(coordinate: TableCellCoordinate): HTMLElement | null {

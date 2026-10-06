@@ -9,6 +9,10 @@ import { ReadingBlockMapper } from "../src/reading/block-mapping";
 import { StructuralTableReadingProcessor } from "../src/reading/table-postprocessor";
 import { renderTableSignatures } from "../src/rendering/native-table-mapping";
 import { tableRenderingComplete } from "../src/rendering/table-renderer";
+import type { EditorView } from "@codemirror/view";
+import type { StructuralTableWidget } from "../src/editor/table-widget";
+import { CalloutTables } from "../src/editor/callout-tables";
+import { calloutRanges } from "../src/core/source-lines";
 
 const markdown = new MarkdownIt();
 const ordinary = "| Name | Value |\n| --- | --- |\n| North | 10 |";
@@ -173,5 +177,36 @@ describe("Reading View DOM realms", () => {
     expect(signatures).toHaveLength(1);
     expect(targets).toHaveLength(1);
     expectPopoutElement(targets[0]!);
+  });
+
+  it.each(["popout", "adopted"])("mounts a native Live Preview callout created in the %s document", async (realm) => {
+    const source = `> [!note] Report\n${merged.split("\n").map(line => `> ${line}`).join("\n")}`;
+    const editor = popout.window.document.createElement("div");
+    editor.className = "cm-editor";
+    const boundary = (realm === "adopted" ? main : popout).window.document.createElement("div");
+    boundary.innerHTML = `<div class="callout"><div class="callout-content"><p>Before</p>${markdown.render(merged)}<p>After</p></div></div>`;
+    editor.append(boundary);
+    expect(boundary.ownerDocument).toBe(popout.window.document);
+    expect(boundary instanceof popout.window.HTMLElement).toBe(realm !== "adopted");
+    const table = parseEditableTables(source).tables[0]!;
+    const view = { dom: editor, viewport: { from: 0, to: source.length },
+      domAtPos: () => ({ node: editor, offset: 0 }) } as unknown as EditorView;
+    const manager = new CalloutTables(view, () => ({ tables: [table], ranges: calloutRanges(source),
+      sourcePath: "Report.md", owns: () => true,
+      render: (candidate) => renderTableSignatures({} as App, candidate, "Report.md", editor.ownerDocument),
+      widget: () => ({ toDOM: () => {
+        const host = editor.ownerDocument.createElement("div");
+        host.className = "structural-tables-live-preview";
+        return host;
+      }, updateDOM: () => true, destroy: () => {} }) as unknown as StructuralTableWidget,
+    }));
+    try {
+      await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("mounted"));
+      expect(editor.querySelector(".structural-tables-live-preview")).not.toBeNull();
+      expect(editor.textContent).toContain("Before");
+      expect(editor.textContent).toContain("After");
+      manager.destroy();
+      expect(editor.querySelector("table")?.textContent).toContain("North");
+    } finally { manager.destroy(); }
   });
 });

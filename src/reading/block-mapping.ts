@@ -8,7 +8,7 @@ import type { StructuralTable } from "../core/model";
 import { withoutSourcePrefixes } from "../core/source-lines";
 import { renderStructuralTable } from "../rendering/table-renderer";
 
-const barriers = ".callout, .internal-embed, .markdown-embed, pre, code, .cm-editor, .structural-tables-container";
+const barriers = ".callout, .internal-embed:not(.image-embed), .markdown-embed, pre, code, .cm-editor, .structural-tables-container";
 
 class SectionSession extends MarkdownRenderChild {
   active = true;
@@ -30,6 +30,15 @@ interface Target { element: HTMLElement; range?: Range }
 function snapshotHtml(element: HTMLElement): string {
   const clone = element.cloneNode(true) as HTMLElement;
   for (const child of clone.querySelectorAll("[dir]")) child.removeAttribute("dir");
+  // Native image embeds resolve from a text placeholder while comparison
+  // rendering awaits the same queue. Keep their source identity stable here;
+  // matchingTargets still verifies the complete loaded DOM and destinations.
+  for (const embed of clone.querySelectorAll<HTMLElement>(".internal-embed")) {
+    if (embed.matches(".image-embed") || (!embed.matches(".media-embed, .markdown-embed") && embed.childElementCount === 0)) {
+      embed.className = "internal-embed";
+      embed.textContent = embed.getAttribute("src") ?? "";
+    }
+  }
   return clone.innerHTML;
 }
 
@@ -55,6 +64,9 @@ function textIndex(element: HTMLElement): TextIndex {
 }
 
 function rawTarget(element: HTMLElement, expected: HTMLElement, allowPrefix: boolean, allowSuffix: boolean): Target | undefined {
+  // Whole-block identity includes image destinations and other non-text nodes.
+  // Partial paragraph mapping still needs the stricter text-range checks below.
+  if (contentSignature(element) === contentSignature(expected)) return { element };
   const actual = textIndex(element);
   const wanted = textIndex(expected).compact;
   const start = actual.compact.indexOf(wanted);

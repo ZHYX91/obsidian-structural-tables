@@ -1134,11 +1134,11 @@ class StructuralTableInteraction {
     if (content.textContent !== raw) return null;
 
     let textNode: Text | null = null;
-    if (content.childNodes.length === 1 && content.firstChild?.nodeType === Node.TEXT_NODE) {
+    if (content.childNodes.length === 1 && content.firstChild?.nodeType === 3) {
       textNode = content.firstChild as Text;
     } else if (content.children.length === 1 && content.firstElementChild?.tagName === "P") {
       const paragraph = content.firstElementChild;
-      if (paragraph.childNodes.length === 1 && paragraph.firstChild?.nodeType === Node.TEXT_NODE) {
+      if (paragraph.childNodes.length === 1 && paragraph.firstChild?.nodeType === 3) {
         textNode = paragraph.firstChild as Text;
       }
     }

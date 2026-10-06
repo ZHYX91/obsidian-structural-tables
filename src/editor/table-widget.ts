@@ -44,7 +44,6 @@ interface PendingCellFocus {
   sourcePath: string;
   coordinate: TableCellCoordinate;
   edit: boolean;
-  deferFocus?: boolean;
   axisSelection?: AxisSelection;
   selectionBounds?: { first: TableCellCoordinate; last: TableCellCoordinate };
 }
@@ -82,20 +81,14 @@ export function restoreTableHistoryFocus(view: EditorView,
     cancelPendingTableFocus(view);
     const state = view.state;
     const anchor = Math.min(target.from, state.doc.length);
-    const restoreNative = (): void => {
+    queueMicrotask(() => {
       if (view.state !== state || !view.dom.isConnected) return;
       view.dispatch({
         selection: { anchor },
-        effects: [
-          ...(target.restorePresentation === true ? [structuralTableSourceFocus.of(true)] : []),
-          EditorView.scrollIntoView(anchor, { y: "nearest" }),
-        ],
+        effects: EditorView.scrollIntoView(anchor, { y: "nearest" }),
       });
       view.focus();
-    };
-    const win = view.dom.ownerDocument.defaultView;
-    if (target.restorePresentation === true && win !== null) win.setTimeout(restoreNative, 0);
-    else queueMicrotask(restoreNative);
+    });
     return;
   }
   const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
@@ -103,42 +96,17 @@ export function restoreTableHistoryFocus(view: EditorView,
   if (table === undefined || !table.valid) return;
   const state = view.state;
   const pending: PendingCellFocus = {
-    from: target.from,
-    source: target.after,
-    sourcePath: target.sourcePath,
-    coordinate: target.coordinate,
-    edit: false,
-    ...(target.restorePresentation === true ? { deferFocus: true } : {}),
+    from: target.from, source: target.after, sourcePath: target.sourcePath, coordinate: target.coordinate, edit: false,
   };
   pendingCellFocus.set(view, pending);
-  const restoreOwned = (): void => {
-    if (view.state !== state || !view.dom.isConnected || pendingCellFocus.get(view) !== pending) {
-      if (pendingCellFocus.get(view) === pending) pendingCellFocus.delete(view);
-      return;
-    }
+  queueMicrotask(() => {
+    if (view.state !== state || !view.dom.isConnected || pendingCellFocus.get(view) !== pending) return;
     if (!table.structural && !settings.takeOverOrdinaryTables) {
       focusNativeTable(view, table, target.coordinate);
       return;
     }
-    const sourceOffset = target.restorePresentation === true
-      ? tableCellSourceOffset(view.state.doc.toString(), table, target.coordinate)
-      : null;
-    view.dispatch({
-      ...(sourceOffset === null ? {} : { selection: { anchor: sourceOffset } }),
-      effects: [
-        ...(target.restorePresentation === true
-          ? [
-            structuralTableSourceFocus.of(false),
-            structuralTableLogicalCursorSync.of(undefined),
-          ]
-          : []),
-        EditorView.scrollIntoView(sourceOffset ?? table.range.from, { y: "nearest" }),
-      ],
-    });
-  };
-  const win = view.dom.ownerDocument.defaultView;
-  if (target.restorePresentation === true && win !== null) win.setTimeout(restoreOwned, 0);
-  else queueMicrotask(restoreOwned);
+    view.dispatch({ effects: EditorView.scrollIntoView(table.range.from, { y: "nearest" }) });
+  });
 }
 
 export function cancelPendingTableFocus(view: EditorView): void {
@@ -269,37 +237,20 @@ class StructuralTableInteraction {
         this.clearSelection();
       }
     });
-    const consumePendingFocus = (): void => {
+    queueMicrotask(() => {
       const pending = pendingCellFocus.get(view);
       if (!host.isConnected || pending === undefined || pending.from !== this.table.range.from
         || pending.source !== this.table.source || pending.sourcePath !== this.sourcePath) return;
-      const focus = (): void => {
-        if (!host.isConnected || pendingCellFocus.get(view) !== pending) return;
-        pendingCellFocus.delete(view);
-        if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
-        else if (pending.edit) {
-          this.beginCellEdit(view, pending.coordinate);
-          this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-        } else if (pending.selectionBounds !== undefined) {
-          this.selectBounds(pending.selectionBounds.first, pending.selectionBounds.last);
-          this.cellElement(pending.coordinate)?.focus({ preventScroll: true });
-        } else if (pending.deferFocus === true) {
-          this.focusRestoredHistoryCell(view, pending.coordinate);
-        } else this.focusCellAfterUpdate(view, pending.coordinate);
-      };
-      if (pending.deferFocus === true) {
-        view.requestMeasure({
-          read: () => null,
-          write: () => {
-            if (!host.isConnected || pendingCellFocus.get(view) !== pending) return;
-            const win = host.ownerDocument.defaultView;
-            if (win !== null) win.setTimeout(focus, 0);
-            else queueMicrotask(focus);
-          },
-        });
-      } else focus();
-    };
-    queueMicrotask(consumePendingFocus);
+      pendingCellFocus.delete(view);
+      if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
+      else if (pending.edit) {
+        this.beginCellEdit(view, pending.coordinate);
+        this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      } else if (pending.selectionBounds !== undefined) {
+        this.selectBounds(pending.selectionBounds.first, pending.selectionBounds.last);
+        this.cellElement(pending.coordinate)?.focus({ preventScroll: true });
+      } else this.focusCellAfterUpdate(view, pending.coordinate);
+    });
     return host;
   }
 
@@ -1394,22 +1345,6 @@ class StructuralTableInteraction {
     const interaction = this.interactionAfterUpdate(view);
     interaction?.beginCellEdit(view, coordinate);
     interaction?.cellElement(coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  }
-
-  private focusRestoredHistoryCell(view: EditorView, coordinate: TableCellCoordinate): void {
-    if (!view.dom.isConnected) return;
-    const active = view.dom.ownerDocument.activeElement;
-    if (active instanceof view.dom.ownerDocument.defaultView!.HTMLElement
-      && view.contentDOM.contains(active)) {
-      active.blur();
-    }
-    const focus = (): void => {
-      if (!view.dom.isConnected) return;
-      this.focusCellAfterUpdate(view, coordinate);
-    };
-    const win = view.dom.ownerDocument.defaultView;
-    if (win !== null) win.setTimeout(focus, 0);
-    else queueMicrotask(focus);
   }
 
   private focusCellAfterUpdate(view: EditorView, coordinate: TableCellCoordinate): void {

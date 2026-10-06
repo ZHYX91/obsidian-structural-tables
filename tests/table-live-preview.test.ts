@@ -1164,6 +1164,76 @@ describe("StructuralTableEditorController", () => {
     }
   });
 
+  it("owns Delete on hidden-overflow takeover and refuses before any parent source command", () => {
+    const source = "| A | B |\n| --- | --- |\n| 1 | 2 | KEEP |";
+    const { app, parent, view } = mountEditor(
+      source,
+      { anchor: source.length },
+      [history()],
+      undefined,
+      { takeOverOrdinaryTables: true },
+    );
+    const parentDelete = vi.fn(() => {
+      view.dispatch({ changes: { from: 0, to: 1, insert: "" } });
+      return false;
+    });
+    app.scope.register([], "Delete", parentDelete);
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      dispatchPointerDown(cell, "mouse");
+      const event = dispatchOwnedGridKey(cell, "Delete");
+      expect(event.defaultPrevented).toBe(true);
+      expect(parentDelete).not.toHaveBeenCalled();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(notices.at(-1)).toContain("extra source cells");
+
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Clear selected cells")?.callback?.();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("revalidates the exact table after a menu opens and preserves a newer external source change", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const clear = lastMenu?.items.find((item) => item.title === "Clear selected cells");
+      expect(clear).toBeDefined();
+
+      const position = view.state.doc.toString().indexOf("| A | B |") + "| A | ".length;
+      view.dispatch({ changes: { from: position, to: position + 1, insert: "External" } });
+      const externallyChanged = view.state.doc.toString();
+      clear?.callback?.();
+      await Promise.resolve();
+
+      expect(view.state.doc.toString()).toBe(externallyChanged);
+      expect(view.state.doc.toString()).toContain("External");
+      expect(notices.at(-1)).toContain("changed");
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it("ignores owned-grid Delete while its context menu is open", () => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      dispatchPointerDown(cell, "mouse");
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const event = dispatchOwnedGridKey(cell, "Delete", false);
+      expect(event.defaultPrevented).toBe(false);
+      expect(view.state.doc.toString()).toBe(source);
+      lastMenu?.hide();
+    } finally {
+      view.destroy();
+    }
+  });
+
   it("refreshes appearance without changing source or merge semantics", () => {
     const { parent, view, updateSettings } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const before = view.state.doc.toString();

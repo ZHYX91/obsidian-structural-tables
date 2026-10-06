@@ -637,31 +637,51 @@ class StructuralTableInteraction {
     if (event.altKey || event.ctrlKey || event.metaKey || event.target !== this.cellForTarget(event.target)) return false;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return false;
-    const anchor = this.table.rows[coordinate.row]?.cells[coordinate.column];
-    if (anchor === undefined) return false;
     const rtl = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl";
+    const directionByKey = new Map<string, TableGridDirection>([
+      ["ArrowUp", "up"],
+      ["ArrowDown", "down"],
+      [rtl ? "ArrowRight" : "ArrowLeft", "left"],
+      [rtl ? "ArrowLeft" : "ArrowRight", "right"],
+    ]);
+    const direction = directionByKey.get(event.key);
+
+    if (event.shiftKey) {
+      if (direction === undefined) return false;
+      event.preventDefault();
+      event.stopPropagation();
+      const logicalHead = this.selectionHead ?? coordinate;
+      const target = tableCellInDirection(this.table, logicalHead, direction);
+      if (target === null) return true;
+      if (this.selectionAnchor === null) this.selectionAnchor = coordinate;
+      this.selectionHead = target;
+      this.selectionEpoch += 1;
+      this.updateSelection();
+      const element = this.cellElement(target);
+      if (element !== null) {
+        this.syncSourceCursor(view, target);
+        this.setRovingCell(element);
+        element.focus({ preventScroll: true });
+        element.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      }
+      return true;
+    }
+
     let target: TableCellCoordinate | null = null;
-    if (event.key === "ArrowUp") {
-      target = { row: anchor.anchorRow - 1, column: anchor.anchorColumn };
-    } else if (event.key === "ArrowDown") {
-      target = { row: anchor.anchorRow + anchor.rowSpan, column: anchor.anchorColumn };
-    } else if (event.key === (rtl ? "ArrowRight" : "ArrowLeft")) {
-      target = { row: anchor.anchorRow, column: anchor.anchorColumn - 1 };
-    } else if (event.key === (rtl ? "ArrowLeft" : "ArrowRight")) {
-      target = { row: anchor.anchorRow, column: anchor.anchorColumn + anchor.columnSpan };
+    if (direction !== undefined) {
+      target = tableCellInDirection(this.table, coordinate, direction);
     } else if (event.key === "Home") {
-      target = { row: anchor.anchorRow, column: 0 };
+      target = { row: coordinate.row, column: 0 };
     } else if (event.key === "End") {
-      target = { row: anchor.anchorRow, column: this.table.columnCount - 1 };
+      target = { row: coordinate.row, column: this.table.columnCount - 1 };
     } else {
       return false;
     }
+
     event.preventDefault();
     event.stopPropagation();
-    const element = target.row < 0 || target.row >= this.table.rows.length
-      || target.column < 0 || target.column >= this.table.columnCount
-      ? null
-      : this.cellElement(target);
+    if (target === null) return true;
+    const element = this.cellElement(target);
     if (element === null) return true;
     const resolved = this.coordinateFor(element);
     if (resolved !== null) {

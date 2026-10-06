@@ -1320,6 +1320,9 @@ describe("StructuralTableEditorController", () => {
       )!;
       await vi.waitFor(() => expect(document.activeElement).toBe(restoredCell));
       expect(restoredSecond.contains(document.activeElement)).toBe(false);
+      // A real key event arrives in a later event-loop task than the focus/
+      // selectionchange that established grid ownership.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
       const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
       expect(activeScopes[activeScopes.length - 1]!.handlers
@@ -1363,6 +1366,7 @@ describe("StructuralTableEditorController", () => {
       await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
       const restored = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
       await vi.waitFor(() => expect(document.activeElement).toBe(restored));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
       const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
       expect(activeScopes[activeScopes.length - 1]!.handlers

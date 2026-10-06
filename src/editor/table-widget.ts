@@ -105,7 +105,15 @@ export function restoreTableHistoryFocus(view: EditorView,
       focusNativeTable(view, table, target.coordinate);
       return;
     }
-    view.dispatch({ effects: EditorView.scrollIntoView(table.range.from, { y: "nearest" }) });
+    // A whole-table removal hands ownership to the native source surface.
+    // Undo restores the exact table through history metadata; return that
+    // verified target to presentation so its widget can consume pending focus.
+    view.dispatch({
+      effects: [
+        structuralTableSourceFocus.of(false),
+        EditorView.scrollIntoView(table.range.from, { y: "nearest" }),
+      ],
+    });
   });
 }
 

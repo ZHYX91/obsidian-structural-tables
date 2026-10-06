@@ -786,6 +786,7 @@ class StructuralTableInteraction {
   }
 
   private updateSelection(): void {
+    this.selectionEpoch += 1;
     const anchor = this.selectionAnchor;
     const head = this.selectionHead;
     if (anchor === null || head === null || this.renderedTable === null) return;

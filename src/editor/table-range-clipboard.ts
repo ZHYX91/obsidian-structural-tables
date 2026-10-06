@@ -1,3 +1,5 @@
+import { activeWindow } from "obsidian";
+
 import {
   parseTableRangePayload,
   tableRangeHtml,
@@ -52,7 +54,7 @@ export function readTableRangeFromDataTransfer(
 type ClipboardItemConstructor = new (items: Record<string, Blob>) => ClipboardItem;
 
 function clipboardItemConstructor(): ClipboardItemConstructor | null {
-  const value = (globalThis as typeof globalThis & { ClipboardItem?: ClipboardItemConstructor }).ClipboardItem;
+  const value = (activeWindow as Window & { ClipboardItem?: ClipboardItemConstructor }).ClipboardItem;
   return typeof value === "function" ? value : null;
 }
 

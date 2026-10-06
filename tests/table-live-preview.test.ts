@@ -11,6 +11,7 @@ import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/s
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
 import { calloutRanges } from "../src/core/source-lines";
+import { TABLE_RANGE_CLIPBOARD_MIME } from "../src/core/table-range-clipboard";
 import { recoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
 import {

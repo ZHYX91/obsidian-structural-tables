@@ -43,6 +43,41 @@ class NativeCalloutWidget extends WidgetType {
   }
 }
 
+function nativeTableForSource(source: string, ownerDocument = document): HTMLTableElement | null {
+  const table = parseEditableTables(source).tables[0];
+  if (table === undefined) return null;
+  const element = ownerDocument.createElement("table");
+  const head = table.headerRowCount > 0 ? element.createTHead() : null;
+  const body = element.createTBody();
+  table.rows.forEach((row, rowIndex) => {
+    const target = rowIndex < table.headerRowCount ? head! : body;
+    const tr = target.insertRow();
+    row.cells.forEach((cell) => {
+      const node = ownerDocument.createElement(rowIndex < table.headerRowCount ? "th" : "td");
+      node.textContent = cell.raw.trim();
+      tr.appendChild(node);
+    });
+  });
+  return element;
+}
+
+class SourceCalloutWidget extends WidgetType {
+  constructor(private readonly source: string) { super(); }
+
+  override toDOM(): HTMLElement {
+    const element = document.createElement("div");
+    element.className = "callout";
+    const title = element.appendChild(document.createElement("div"));
+    title.className = "callout-title";
+    title.textContent = "Note";
+    const content = element.appendChild(document.createElement("div"));
+    content.className = "callout-content";
+    const table = nativeTableForSource(this.source, element.ownerDocument);
+    if (table !== null) content.appendChild(table);
+    return element;
+  }
+}
+
 const screenshotTable = [
   "|  |  |  |  |  |",
   "| --- | --- | --- | --- | --- |",
@@ -766,6 +801,137 @@ describe("StructuralTableEditorController", () => {
       expect(undo(view)).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
+  });
+
+  it.each(["Delete", "Backspace"] as const)("clears a Callout grid selection with %s and restores through Undo", async (key) => {
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div");
+      element.className = options.cls;
+      return element;
+    });
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const markdown = args[1] as string;
+      const container = args[2] as HTMLElement;
+      if (container.className !== "structural-tables-container") return;
+      const table = nativeTableForSource(markdown, container.ownerDocument);
+      if (table !== null) container.replaceChildren(table);
+    });
+    const source = [
+      "Before",
+      "",
+      "> [!note]",
+      "> | H | V |",
+      "> | --- || --- |",
+      "> | A | 1 |",
+      "> | B | 2 |",
+      "",
+      "End",
+    ].join("\n");
+    const nativeFor = (text: string) => Decoration.set([
+      Decoration.replace({ widget: new SourceCalloutWidget(text), block: true })
+        .range(text.indexOf("> [!note]"), text.indexOf("\n\nEnd")),
+    ]);
+    const native = StateField.define({
+      create: (state) => nativeFor(state.doc.toString()),
+      update: (value, transaction) => transaction.docChanged ? nativeFor(transaction.newDoc.toString()) : value,
+      provide: (field) => EditorView.decorations.from(field),
+    });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native, history()]);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      const cell = parent.querySelector<HTMLElement>(
+        ".callout [data-structural-row='1'][data-structural-column='1']",
+      )!;
+      dispatchPointerDown(cell, "mouse");
+      const event = dispatchOwnedGridKey(cell, key);
+      expect(event.defaultPrevented).toBe(true);
+      await vi.waitFor(() => {
+        expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[1]!.content).toBe("");
+      });
+      expect(view.state.doc.toString()).toContain("> [!note]");
+      expect(view.state.doc.toString().split("\n").filter((line) => line.includes("|")).every((line) => line.startsWith("> "))).toBe(true);
+
+      expect(undo(view)).toBe(true);
+      await vi.waitFor(() => expect(view.state.doc.toString()).toBe(source));
+      expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull();
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it.each([
+    ["clear", "Clear selected cells"],
+    ["row", "Delete selected rows"],
+    ["column", "Delete selected columns"],
+    ["table", "Delete table"],
+  ] as const)("applies Callout context-menu %s through exact source ownership", async (kind, title) => {
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div");
+      element.className = options.cls;
+      return element;
+    });
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const markdown = args[1] as string;
+      const container = args[2] as HTMLElement;
+      if (container.className !== "structural-tables-container") return;
+      const table = nativeTableForSource(markdown, container.ownerDocument);
+      if (table !== null) container.replaceChildren(table);
+    });
+    const source = [
+      "Before",
+      "",
+      "> [!note]",
+      "> | H | V |",
+      "> | --- || --- |",
+      "> | A | 1 |",
+      "> | B | 2 |",
+      "",
+      "End",
+    ].join("\n");
+    const nativeFor = (text: string) => Decoration.set([
+      Decoration.replace({ widget: new SourceCalloutWidget(text), block: true })
+        .range(text.indexOf("> [!note]"), text.indexOf("\n\nEnd")),
+    ]);
+    const native = StateField.define({
+      create: (state) => nativeFor(state.doc.toString()),
+      update: (value, transaction) => transaction.docChanged ? nativeFor(transaction.newDoc.toString()) : value,
+      provide: (field) => EditorView.decorations.from(field),
+    });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native, history()]);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      const host = parent.querySelector<HTMLElement>(".callout .structural-tables-live-preview")!;
+      if (kind === "row") {
+        host.querySelector<HTMLButtonElement>("[data-structural-row-handle='1']")!
+          .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      } else if (kind === "column") {
+        host.querySelector<HTMLButtonElement>("[data-structural-column-handle='1']")!
+          .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      } else {
+        host.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!
+          .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      }
+      const item = lastMenu?.items.find((candidate) => candidate.title === title);
+      expect(item).toBeDefined();
+      item?.callback?.();
+
+      await vi.waitFor(() => {
+        const tables = parseEditableTables(view.state.doc.toString()).tables;
+        if (kind === "table") expect(tables).toHaveLength(0);
+        else if (kind === "row") expect(tables[0]!.rows).toHaveLength(2);
+        else if (kind === "column") expect(tables[0]!.columnCount).toBe(1);
+        else expect(tables[0]!.rows[1]!.cells[1]!.content).toBe("");
+      });
+      expect(view.state.doc.toString()).toContain("> [!note]");
+      expect(view.state.doc.toString()).toContain("Before\n\n");
+      expect(view.state.doc.toString()).toContain("\n\nEnd");
+
+      expect(undo(view)).toBe(true);
+      await vi.waitFor(() => expect(view.state.doc.toString()).toBe(source));
+      expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull();
+    } finally {
+      view.destroy();
+    }
   });
 
   it("returns native focus to the table source when splitting a Callout's last merged cell", async () => {

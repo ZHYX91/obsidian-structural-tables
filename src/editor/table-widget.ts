@@ -224,7 +224,6 @@ class StructuralTableInteraction {
   private touchAxisAnchor: { axis: TableAxis; index: number } | null = null;
   private axisDrag: TableAxisDrag | null = null;
   private selectionMenuOpen = false;
-  private suppressNextCellSourceSync = false;
 
   constructor(
     private readonly app: App,
@@ -284,8 +283,6 @@ class StructuralTableInteraction {
         } else if (pending.selectionBounds !== undefined) {
           this.selectBounds(pending.selectionBounds.first, pending.selectionBounds.last);
           this.cellElement(pending.coordinate)?.focus({ preventScroll: true });
-        } else if (pending.deferFocus === true) {
-          this.focusRestoredHistoryCell(view, pending.coordinate);
         } else this.focusCellAfterUpdate(view, pending.coordinate);
       };
       if (pending.deferFocus === true) {
@@ -338,10 +335,7 @@ class StructuralTableInteraction {
       if (cell !== null) this.setRovingCell(cell);
       if (cell === null || event.target !== cell) return;
       const coordinate = this.coordinateFor(cell);
-      if (coordinate !== null) {
-        if (this.suppressNextCellSourceSync) this.suppressNextCellSourceSync = false;
-        else this.syncSourceCursor(view, coordinate);
-      }
+      if (coordinate !== null) this.syncSourceCursor(view, coordinate);
       this.releaseNavigationScope();
       const scope = new Scope(this.app.scope);
       scope.register([], "F2", (keyEvent) => {
@@ -1398,20 +1392,6 @@ class StructuralTableInteraction {
     const interaction = this.interactionAfterUpdate(view);
     interaction?.beginCellEdit(view, coordinate);
     interaction?.cellElement(coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  }
-
-  private focusRestoredHistoryCell(view: EditorView, coordinate: TableCellCoordinate): void {
-    if (!view.dom.isConnected) return;
-    const cell = this.cellElement(coordinate);
-    if (cell === null) {
-      view.focus();
-      return;
-    }
-    this.selectBounds(coordinate, coordinate);
-    this.suppressNextCellSourceSync = true;
-    this.setRovingCell(cell);
-    cell.focus({ preventScroll: true });
-    if (cell.ownerDocument.activeElement !== cell) this.suppressNextCellSourceSync = false;
   }
 
   private focusCellAfterUpdate(view: EditorView, coordinate: TableCellCoordinate): void {

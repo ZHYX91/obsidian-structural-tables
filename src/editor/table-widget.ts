@@ -100,7 +100,11 @@ export function restoreTableHistoryFocus(view: EditorView,
   };
   pendingCellFocus.set(view, pending);
   queueMicrotask(() => {
-    if (view.state !== state || !view.dom.isConnected || pendingCellFocus.get(view) !== pending) return;
+    if (pendingCellFocus.get(view) !== pending) return;
+    if (view.state !== state || !view.dom.isConnected) {
+      cancelPendingTableFocus(view);
+      return;
+    }
     if (!table.structural && !settings.takeOverOrdinaryTables) {
       focusNativeTable(view, table, target.coordinate);
       return;
@@ -115,7 +119,15 @@ export function cancelPendingTableFocus(view: EditorView): void {
 
 export function mapPendingTableFocus(view: EditorView, changes: ChangeDesc): void {
   const pending = pendingCellFocus.get(view);
-  if (pending !== undefined) pending.from = changes.mapPos(pending.from, 1);
+  if (pending === undefined) return;
+  const to = pending.from + pending.source.length;
+  let targetChanged = false;
+  changes.iterChangedRanges((from, end) => {
+    if (from < to && end > pending.from
+      || (from === end && from > pending.from && from < to)) targetChanged = true;
+  });
+  if (targetChanged) cancelPendingTableFocus(view);
+  else pending.from = changes.mapPos(pending.from, 1);
 }
 
 export function clearTableWidgetSelection(host: HTMLElement): void {
@@ -240,7 +252,9 @@ class StructuralTableInteraction {
     queueMicrotask(() => {
       const pending = pendingCellFocus.get(view);
       if (!host.isConnected || pending === undefined || pending.from !== this.table.range.from
-        || pending.source !== this.table.source || pending.sourcePath !== this.sourcePath) return;
+        || pending.source !== this.table.source || pending.sourcePath !== this.sourcePath
+        || view.state.field(editorInfoField, false)?.file?.path !== pending.sourcePath
+        || view.state.doc.sliceString(pending.from, pending.from + pending.source.length) !== pending.source) return;
       pendingCellFocus.delete(view);
       if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
       else if (pending.edit) {
@@ -249,7 +263,13 @@ class StructuralTableInteraction {
       } else if (pending.selectionBounds !== undefined) {
         this.selectBounds(pending.selectionBounds.first, pending.selectionBounds.last);
         this.cellElement(pending.coordinate)?.focus({ preventScroll: true });
-      } else this.focusCellAfterUpdate(view, pending.coordinate);
+      } else {
+        const cell = this.cellElement(pending.coordinate);
+        if (cell === null) return;
+        this.selectBounds(pending.coordinate, pending.coordinate);
+        this.syncSourceCursor(view, pending.coordinate);
+        if (host.isConnected && this.host === host) cell.focus({ preventScroll: true });
+      }
     });
     return host;
   }

@@ -5,7 +5,7 @@ import { EditorState, Prec, StateField, Transaction, type Extension } from "@cod
 import { history, redo, undo } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { App, MarkdownRenderer, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
 import type { StructuralTable } from "../src/core/model";
@@ -21,6 +21,7 @@ import {
   setMockModKey,
   type MockModKey,
 } from "./mocks/obsidian";
+import { installSelectionChangeTasks } from "./mocks/selection-events";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -105,7 +106,15 @@ beforeAll(() => {
   };
 });
 
+let uninstallSelectionTasks: (() => void) | undefined;
+
+beforeEach(() => {
+  uninstallSelectionTasks = installSelectionChangeTasks(document);
+});
+
 afterEach(() => {
+  uninstallSelectionTasks?.();
+  uninstallSelectionTasks = undefined;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   resetMockModKey();
@@ -1321,8 +1330,21 @@ describe("StructuralTableEditorController", () => {
       await vi.waitFor(() => expect(document.activeElement).toBe(restoredCell));
       expect(restoredSecond.contains(document.activeElement)).toBe(false);
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      expect(restoredCell.isConnected).toBe(true);
+      expect(document.activeElement).toBe(restoredCell);
       expect(restoredFirst.querySelector("textarea")).toBeNull();
       expect(restoredSecond.querySelector("textarea")).toBeNull();
+      const f2 = new KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true });
+      dispatchScopeCaptureThenDom(restoredCell, f2);
+      expect(f2.defaultPrevented).toBe(true);
+      const draft = restoredCell.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(draft?.value).toBe("A");
+      expect(restoredSecond.querySelector("textarea")).toBeNull();
+      dispatchScopeCaptureThenDom(draft, new KeyboardEvent("keydown", {
+        key: "Escape", bubbles: true, cancelable: true,
+      }));
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(source);
 
       expect(redo(view)).toBe(true);
       await vi.waitFor(() => expect(view.state.doc.toString()).toBe(expectedRemoved));
@@ -1356,7 +1378,23 @@ describe("StructuralTableEditorController", () => {
       const restored = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
       await vi.waitFor(() => expect(document.activeElement).toBe(restored));
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      expect(restored.isConnected).toBe(true);
+      expect(document.activeElement).toBe(restored);
       expect(parent.querySelector("textarea")).toBeNull();
+      const f2 = new KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true });
+      dispatchScopeCaptureThenDom(restored, f2);
+      expect(f2.defaultPrevented).toBe(true);
+      const draft = restored.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(draft?.value).toBe("A");
+      dispatchScopeCaptureThenDom(draft, new KeyboardEvent("keydown", {
+        key: "Escape", bubbles: true, cancelable: true,
+      }));
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(redo(view)).toBe(true);
+      await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(0));
+      await vi.waitFor(() => expect(view.hasFocus).toBe(true));
+      expect(view.state.selection.main.anchor).toBe(source.indexOf("| H | V |"));
     } finally {
       view.destroy();
     }
@@ -1416,6 +1454,134 @@ describe("StructuralTableEditorController", () => {
       expect(view.state.doc.toString()).toBe(`Prefix\n${original}`);
     } finally {
       view.destroy();
+    }
+  });
+
+  it.each(["replace", "remove"] as const)("cancels history focus after an external target %s even if its source returns", async (change) => {
+    const tableText = "| H | V |\n| --- || --- |\n| A | 1 |";
+    const source = `Before\n\n${tableText}\n\nAfter`;
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    const callbacks: (() => void)[] = [];
+    vi.spyOn(globalThis, "queueMicrotask").mockImplementation((callback) => callbacks.push(callback));
+    const flush = () => { while (callbacks.length > 0) callbacks.shift()!(); };
+    try {
+      const table = parseEditableTables(source).tables[0]!;
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Delete table")?.callback?.();
+      flush();
+      await Promise.resolve();
+      flush();
+      expect(undo(view)).toBe(true);
+      // Allow the restore request to run, but hold its mounted-cell callback.
+      expect(callbacks.length).toBeGreaterThan(0);
+      callbacks.shift()!();
+      const replacement = change === "remove" ? "" : tableText.replace("| A | 1 |", "| Other | 2 |");
+      view.dispatch({
+        changes: { from: table.range.from, to: table.range.to, insert: replacement },
+        selection: { anchor: source.length - tableText.length + replacement.length },
+      });
+      view.dispatch({
+        changes: { from: table.range.from, to: table.range.from + replacement.length, insert: tableText },
+        selection: { anchor: source.length },
+      });
+      const outside = document.body.appendChild(document.createElement("button"));
+      outside.focus();
+      const selection = view.state.selection;
+      flush();
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+      expect(view.state.doc.toString()).toBe(source);
+      expect(view.state.selection.eq(selection)).toBe(true);
+      expect(document.activeElement).toBe(outside);
+      expect(parent.querySelector(".is-selected")).toBeNull();
+    } finally {
+      view.destroy();
+      flush();
+    }
+  });
+
+  it.each(["document", "table"] as const)("maps pending restored-cell focus through a %s prefix outside the target", async (boundary) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | 1 |\n\nAfter";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    const callbacks: (() => void)[] = [];
+    vi.spyOn(globalThis, "queueMicrotask").mockImplementation((callback) => callbacks.push(callback));
+    const flush = () => { while (callbacks.length > 0) callbacks.shift()!(); };
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Delete table")?.callback?.();
+      flush();
+      await Promise.resolve();
+      flush();
+      expect(undo(view)).toBe(true);
+      callbacks.shift()!();
+      const from = boundary === "document" ? 0 : parseEditableTables(source).tables[0]!.range.from;
+      const prefix = "Inserted prose\n\n";
+      view.dispatch({
+        changes: { from, insert: prefix },
+        selection: { anchor: source.length + prefix.length },
+        annotations: Transaction.addToHistory.of(false),
+      });
+      flush();
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+      const restored = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      expect(view.state.doc.toString()).toBe(source.slice(0, from) + prefix + source.slice(from));
+      expect(restored.isConnected).toBe(true);
+      expect(document.activeElement).toBe(restored);
+      const f2 = new KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true });
+      dispatchScopeCaptureThenDom(restored, f2);
+      expect(restored.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("A");
+    } finally {
+      view.destroy();
+      flush();
+    }
+  });
+
+  it("does not restore old history focus into another note in the same connected view", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | 1 |\n\nAfter";
+    const { app, parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    const callbacks: (() => void)[] = [];
+    vi.spyOn(globalThis, "queueMicrotask").mockImplementation((callback) => callbacks.push(callback));
+    const flush = () => { while (callbacks.length > 0) callbacks.shift()!(); };
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!
+        .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu?.items.find((item) => item.title === "Delete table")?.callback?.();
+      flush();
+      await Promise.resolve();
+      flush();
+      expect(undo(view)).toBe(true);
+      callbacks.shift()!();
+      const controller = new StructuralTableEditorController(app, () => DEFAULT_SETTINGS);
+      const otherSource = source.replace("Before", "Another note");
+      const info = view.state.field(editorInfoField);
+      view.setState(EditorState.create({
+        doc: otherSource,
+        selection: { anchor: otherSource.length },
+        extensions: [
+          editorLivePreviewField,
+          editorInfoField.init(() => ({ ...info, file: { ...info.file!, path: "Other.md" } })),
+          controller.createExtension(),
+          history(),
+        ],
+      }));
+      const outside = document.body.appendChild(document.createElement("button"));
+      outside.focus();
+      const selection = view.state.selection;
+      flush();
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+      expect(view.dom.isConnected).toBe(true);
+      expect(view.state.field(editorInfoField).file?.path).toBe("Other.md");
+      expect(view.state.doc.toString()).toBe(otherSource);
+      expect(view.state.selection.eq(selection)).toBe(true);
+      expect(document.activeElement).toBe(outside);
+      expect(parent.querySelector("textarea")).toBeNull();
+    } finally {
+      view.destroy();
+      flush();
     }
   });
 

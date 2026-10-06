@@ -1030,19 +1030,15 @@ class StructuralTableInteraction {
       scope.register(modifiers, key, (event) => {
         if (settled || composing || event.isComposing || contextMenuOpen
           || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return true;
-        const from = redo ? formatRedo : formatUndo;
-        const to = redo ? formatUndo : formatRedo;
-        const snapshot = from.pop();
-        if (snapshot === undefined) {
-          // Matching this child-scope binding keeps inherited main-editor
-          // history commands out of the draft, while leaving the textarea's
-          // native undo/redo default available.
-          return true;
-        }
         event.preventDefault();
         event.stopPropagation();
-        to.push(draftSnapshot());
-        restoreDraftSnapshot(snapshot);
+        const from = redo ? draftRedo : draftUndo;
+        const to = redo ? draftUndo : draftRedo;
+        const entry = from.pop();
+        if (entry !== undefined) {
+          to.push(entry);
+          restoreDraftSnapshot(redo ? entry.after : entry.before);
+        }
         return false;
       });
     };
@@ -1058,8 +1054,17 @@ class StructuralTableInteraction {
     };
     editor.addEventListener("focus", activateCellScope);
     editor.addEventListener("keydown", handleKey);
-    editor.addEventListener("input", () => {
-      clearDraftFormatHistory();
+    editor.addEventListener("input", (event) => {
+      const after = draftSnapshot();
+      const pending = pendingNativeInput;
+      pendingNativeInput = null;
+      recordDraftHistory(
+        pending?.before ?? lastHistorySnapshot,
+        after,
+        pending?.group ?? nativeHistoryGroup(event),
+        (pending?.group ?? nativeHistoryGroup(event)) === "typing"
+          || (pending?.group ?? nativeHistoryGroup(event)) === "composition",
+      );
       lastRejectedDraft = null;
       resizeEditor();
     });
@@ -1067,17 +1072,20 @@ class StructuralTableInteraction {
       // Soft keyboards can insert a line break before sending a useful keydown.
       // Commit the draft before that insertion replaces the selected cell text.
       event.stopPropagation();
-      if (event.defaultPrevented || composing || event.isComposing) return;
+      if (event.defaultPrevented) return;
       // Gboard may replace the selection with an empty insertText before Enter.
       // Explicit deletion uses delete input types and must remain available.
       if (event.inputType === "insertText" && event.data === "" && editor.selectionStart !== editor.selectionEnd) {
         event.preventDefault();
         return;
       }
-      if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
+      if (!composing && !event.isComposing
+        && (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph")) {
         event.preventDefault();
         finish(true);
+        return;
       }
+      pendingNativeInput = { before: draftSnapshot(), group: nativeHistoryGroup(event) };
     });
     editor.addEventListener("paste", (event) => {
       if (event.clipboardData === null) return;
@@ -1090,13 +1098,13 @@ class StructuralTableInteraction {
       }
       if (result.kind === "text" && result.fallback) new Notice(t("notice.clipboardPlainFallback"));
       const pasted = result.kind === "empty" ? "" : result.text;
-      clearDraftFormatHistory();
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
       // A fragment may be inside an existing math/code/link span. Preserve it
       // in the draft and validate the full cell only when committing.
-      editor.setRangeText(pasted, start, end, "end");
-      resizeEditor();
+      applyDraftMutation("paste", () => {
+        editor.setRangeText(pasted, start, end, "end");
+      });
     });
     editor.addEventListener("contextmenu", (event) => {
       event.preventDefault();

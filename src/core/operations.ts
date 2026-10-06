@@ -13,6 +13,7 @@ export type OperationCode =
   | "already-merged"
   | "cell-unavailable"
   | "cell-edited"
+  | "cells-cleared"
   | "column-aligned"
   | "column-inserted"
   | "column-moved"
@@ -39,6 +40,7 @@ export type OperationCode =
   | "row-unavailable"
   | "split"
   | "split-unsafe"
+  | "table-deleted"
   | "table-invalid";
 
 export interface OperationResult {
@@ -336,6 +338,142 @@ export function insertTableColumn(
 function removedOwnersHaveContent(grid: OwnedGrid, nextOwners: string[][]): boolean {
   const remaining = new Set(nextOwners.flat());
   return [...new Set(grid.owners.flat())].some((owner) => !remaining.has(owner) && (grid.contents.get(owner) ?? "").trim().length > 0);
+}
+
+/** Clear visible selected owners without changing table geometry or roles. */
+export function clearTableCells(
+  table: StructuralTable,
+  coordinates: readonly { row: number; column: number }[],
+): OperationResult {
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
+  if (coordinates.length === 0) {
+    return { changed: false, code: "cell-unavailable", message: "No table cells are selected.", source: table.source };
+  }
+
+  const selectedCoordinates = new Set<string>();
+  const selectedOwners = new Set<string>();
+  const grid = ownedGrid(table);
+  for (const coordinate of coordinates) {
+    if (!Number.isInteger(coordinate.row) || !Number.isInteger(coordinate.column)
+      || coordinate.row < 0 || coordinate.row >= table.rows.length
+      || coordinate.column < 0 || coordinate.column >= table.columnCount) {
+      return { changed: false, code: "cell-unavailable", message: "The selected cell is unavailable.", source: table.source };
+    }
+    const coordinateKey = `${coordinate.row}:${coordinate.column}`;
+    if (selectedCoordinates.has(coordinateKey)) {
+      return { changed: false, code: "invalid-result", message: "The selected cells contain duplicate coordinates.", source: table.source };
+    }
+    selectedCoordinates.add(coordinateKey);
+    const owner = grid.owners[coordinate.row]?.[coordinate.column];
+    if (owner === undefined) {
+      return { changed: false, code: "cell-unavailable", message: "The selected cell is unavailable.", source: table.source };
+    }
+    selectedOwners.add(owner);
+  }
+
+  for (let row = 0; row < grid.owners.length; row += 1) {
+    for (let column = 0; column < (grid.owners[row]?.length ?? 0); column += 1) {
+      const owner = grid.owners[row]?.[column];
+      if (owner !== undefined && selectedOwners.has(owner) && !selectedCoordinates.has(`${row}:${column}`)) {
+        return {
+          changed: false,
+          code: "invalid-result",
+          message: "Select the complete merged cell before clearing its content.",
+          source: table.source,
+        };
+      }
+    }
+  }
+
+  let changed = false;
+  for (const owner of selectedOwners) {
+    if ((grid.contents.get(owner) ?? "").length > 0) changed = true;
+    grid.contents.set(owner, "");
+  }
+  if (!changed) {
+    return { changed: false, code: "cells-cleared", message: "The selected cells are already empty.", source: table.source };
+  }
+  return resultFromOwnedGrid(
+    table,
+    grid,
+    "cells-cleared",
+    "Selected cell contents cleared.",
+    table.headerRowCount,
+    table.rowHeaderColumnCount,
+    table.alignments,
+  );
+}
+
+/** Explicit user intent to remove the complete table, including non-empty visible cells. */
+export function removeTable(table: StructuralTable): OperationResult {
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
+  // The range excludes its final newline. Keep a quoted blank line so removing
+  // the table does not split the surrounding quote or Callout into two blocks.
+  const source = table.sourcePrefix.includes(">") ? table.sourcePrefix : "";
+  return { changed: true, code: "table-deleted", message: "Table deleted.", source };
+}
+
+/** Explicit user intent to remove visible rows or columns, allowing selected visible content to be discarded. */
+export function removeTableAxis(
+  table: StructuralTable,
+  axis: TableAxis,
+  start: number,
+  end: number,
+): OperationResult {
+  const blocked = unavailable(table);
+  if (blocked !== null) return blocked;
+  const length = axis === "row" ? table.rows.length : table.columnCount;
+  const min = Math.min(start, end);
+  const max = Math.max(start, end);
+  if (![min, max].every(Number.isInteger) || min < 0 || max >= length) {
+    return {
+      changed: false,
+      code: axis === "row" ? "row-unavailable" : "cell-unavailable",
+      message: `The selected ${axis} range is unavailable.`,
+      source: table.source,
+    };
+  }
+  if (max - min + 1 >= length) return removeTable(table);
+
+  const grid = ownedGrid(table);
+  if (axis === "row") {
+    const owners = grid.owners.filter((_row, index) => index < min || index > max);
+    const removedHeaderRows = Math.max(0, Math.min(max, table.headerRowCount - 1) - min + 1);
+    let headerRowCount = Math.max(0, table.headerRowCount - removedHeaderRows);
+    // Ordinary GFM must keep a header row. Structural headerless tables stay headerless.
+    if (!table.structural && table.headerRowCount > 0 && headerRowCount === 0 && owners.length > 0) {
+      headerRowCount = 1;
+    }
+    return resultFromOwnedGrid(
+      table,
+      { ...grid, owners },
+      "rows-deleted",
+      "Rows deleted.",
+      headerRowCount,
+      table.rowHeaderColumnCount,
+      table.alignments,
+    );
+  }
+
+  const owners = grid.owners.map((row) => row.filter((_owner, index) => index < min || index > max));
+  const alignments = table.alignments.filter((_alignment, index) => index < min || index > max);
+  const removedRowHeaders = Math.max(0, Math.min(max, table.rowHeaderColumnCount - 1) - min + 1);
+  const remainingColumns = table.columnCount - (max - min + 1);
+  const rowHeaderColumnCount = Math.max(
+    0,
+    Math.min(remainingColumns - 1, table.rowHeaderColumnCount - removedRowHeaders),
+  );
+  return resultFromOwnedGrid(
+    table,
+    { ...grid, owners },
+    "columns-deleted",
+    "Columns deleted.",
+    table.headerRowCount,
+    rowHeaderColumnCount,
+    alignments,
+  );
 }
 
 export function deleteTableRows(table: StructuralTable, startRow: number, endRow: number): OperationResult {

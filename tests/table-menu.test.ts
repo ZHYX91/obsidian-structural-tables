@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Translate } from "../src/config/i18n";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
-import { addBasePromotionMenuItem, addSelectionMenuItems, hasSelectionMenuItems, type TableOperation } from "../src/editor/table-menu";
+import { addBasePromotionMenuItem, addSelectionMenuItems, hasSelectionMenuItems, type TableOperation, type TableOperationIntent } from "../src/editor/table-menu";
 import { structuralTableSelectionFromBounds } from "../src/editor/table-selection";
 import { Menu as MockMenu } from "./mocks/obsidian";
 
@@ -52,6 +52,52 @@ describe("table menus", () => {
     const menu = new MockMenu();
     addSelectionMenuItems(menu as unknown as Menu, t, selection, () => {});
     expect(menu.items.map((item) => item.title)).toEqual(["menu.mergeSelection"]);
+  });
+
+  it("keeps guarded shared deletion while takeover menus expose explicit destructive intents", () => {
+    const table = parseEditableTables("| A | B |\n| --- | --- |\n| 1 | 2 |").tables[0]!;
+    const selection = structuralTableSelectionFromBounds(table, { row: 1, column: 0 }, { row: 1, column: 1 })!;
+
+    const guardedMenu = new MockMenu();
+    const guarded: TableOperation[] = [];
+    addSelectionMenuItems(
+      guardedMenu as unknown as Menu,
+      t,
+      selection,
+      (operation) => { guarded.push(operation); },
+      { fullEditor: true },
+    );
+    expect(guardedMenu.items.map((item) => item.title)).not.toContain("menu.clearCells");
+    expect(guardedMenu.items.map((item) => item.title)).not.toContain("menu.deleteTable");
+    guardedMenu.items.find((item) => item.title === "menu.deleteRows")?.callback?.();
+    expect(guarded[guarded.length - 1]?.(table)).toMatchObject({ changed: false, code: "content-would-be-lost" });
+
+    const explicitMenu = new MockMenu();
+    const explicit: Array<{ operation: TableOperation; intent: TableOperationIntent | undefined }> = [];
+    addSelectionMenuItems(
+      explicitMenu as unknown as Menu,
+      t,
+      selection,
+      (operation, intent) => { explicit.push({ operation, intent }); },
+      { fullEditor: true, explicitRemoval: true },
+    );
+    expect(explicitMenu.items.map((item) => item.title)).toEqual(expect.arrayContaining([
+      "menu.clearCells",
+      "menu.deleteRows",
+      "menu.deleteColumns",
+      "menu.deleteTable",
+    ]));
+
+    explicitMenu.items.find((item) => item.title === "menu.clearCells")?.callback?.();
+    expect(explicit[explicit.length - 1]?.intent).toBe("owned-grid");
+    expect(explicit[explicit.length - 1]?.operation(table)).toMatchObject({ changed: true, code: "cells-cleared" });
+
+    explicitMenu.items.find((item) => item.title === "menu.deleteRows")?.callback?.();
+    expect(explicit[explicit.length - 1]?.intent).toBe("owned-grid");
+    expect(explicit[explicit.length - 1]?.operation(table)).toMatchObject({ changed: true, code: "rows-deleted" });
+
+    explicitMenu.items.find((item) => item.title === "menu.deleteTable")?.callback?.();
+    expect(explicit[explicit.length - 1]?.operation(table)).toMatchObject({ changed: true, code: "table-deleted", source: "" });
   });
 
   it("can expose the full editor for an explicitly owned ordinary table", () => {

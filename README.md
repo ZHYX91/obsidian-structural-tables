@@ -67,7 +67,7 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 3. Put one adjacent `||` in the delimiter row to mark the columns on its left as row headers.
 4. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the rendered result. To edit raw Markdown again, right-click a rendered cell and choose **Edit table source**.
 5. In Live Preview, click a cell on desktop or double-tap it on touch screens to edit it. Enter saves, Escape cancels, Shift+Enter inserts a visual line break, and Tab moves to the next visible cell. While the in-place editor is active, Cmd/Ctrl+B and Cmd/Ctrl+I toggle Markdown bold or italic on the current draft selection without stripping the other emphasis style. Draft typing, composition input, paste, line breaks, and these B/I operations share draft-local undo/redo; the note source and its history are unchanged until you commit. Other formatting toolbar or command-palette actions are not redirected into the draft—use **Edit table source** for those.
-6. Use the **+** controls and row/column handles to add, select, move, align, merge, split, delete, or change header roles. Operations that would lose content or split a merged region are refused.
+6. Use the **+** controls and row/column handles to add, select, move, align, merge, split, or change header roles. With a Structural Tables grid selection focused, unmodified Delete/Backspace clears the selected cell contents only; it does not remove rows, columns, headers, merges, or the table. Right-click to **Clear selected cells** or explicitly **Delete selected rows**, **Delete selected columns**, or **Delete table**. Clear and explicit removal are undoable.
 7. Paste a supported HTML table directly into the Markdown editor to import it. Use the command palette for formatting, copying, and Sheets Extended migration. Convert a table to Base from either the command palette or the table context menu.
 
 Reading view is display-only. In-place editing and table controls are available in Live Preview.
@@ -108,7 +108,7 @@ Single-line TeX is kept as written when it can be stored safely. A bare pipe ins
 
 Ordinary Markdown tables continue to use Obsidian's native editor by default. Enable **Take over ordinary Markdown tables** if you want the same Live Preview controls on them; disable it to return immediately to Obsidian's native UI.
 
-GFM allows body rows to contain fewer or more source cells than the header. Missing cells display as empty. If a row contains extra source cells that Obsidian does not render, Structural Tables leaves the table readable but makes plugin write operations read-only so those hidden cells cannot be lost.
+GFM allows body rows to contain fewer or more source cells than the header. Missing cells display as empty and can still be cleared normally. If a row contains extra source cells that Obsidian does not render, Structural Tables leaves the table readable but makes plugin clear/delete and other write operations read-only; edit or move those extra cells in Markdown first so they cannot be lost. When ordinary-table takeover is off, Delete/Backspace and table deletion remain entirely Obsidian-native.
 
 ### Pasting and copying
 

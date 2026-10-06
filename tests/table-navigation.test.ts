@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseStructuralTables } from "../src/core/parser";
-import { adjacentTableCell } from "../src/core/table-navigation";
+import { adjacentTableCell, tableCellInDirection } from "../src/core/table-navigation";
 
 describe("adjacentTableCell", () => {
   const table = parseStructuralTables([
@@ -24,6 +24,14 @@ describe("adjacentTableCell", () => {
         previous === undefined ? null : { row: previous.row, column: previous.column },
       );
     });
+  });
+
+  it("moves logical directions by visible owners and skips covered slots", () => {
+    expect(tableCellInDirection(table, { row: 1, column: 0 }, "right")).toEqual({ row: 1, column: 2 });
+    expect(tableCellInDirection(table, { row: 1, column: 0 }, "down")).toEqual({ row: 3, column: 0 });
+    expect(tableCellInDirection(table, { row: 3, column: 1 }, "up")).toEqual({ row: 1, column: 0 });
+    expect(tableCellInDirection(table, { row: 1, column: 2 }, "left")).toEqual({ row: 1, column: 0 });
+    expect(tableCellInDirection(table, { row: 0, column: 0 }, "up")).toBeNull();
   });
 
   it("resolves a covered coordinate to its owner and rejects out-of-range coordinates", () => {

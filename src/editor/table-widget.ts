@@ -64,6 +64,7 @@ interface PendingCellFocus {
   edit: boolean;
   axisSelection?: AxisSelection;
   selectionBounds?: { first: TableCellCoordinate; last: TableCellCoordinate };
+  entryIntent?: CellEditEntryIntent;
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
 const activeCellEditors = new WeakMap<Document, HTMLTextAreaElement>();
@@ -331,7 +332,7 @@ class StructuralTableInteraction {
     pendingCellFocus.delete(view);
     if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
     else if (pending.edit) {
-      this.beginCellEdit(view, pending.coordinate);
+      this.beginCellEdit(view, pending.coordinate, pending.entryIntent ?? "select-all");
       this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     } else {
       const cell = this.cellElement(pending.coordinate);
@@ -935,6 +936,41 @@ class StructuralTableInteraction {
     );
   }
 
+  private plainTextCaretOffset(event: MouseEvent | PointerEvent, coordinate: TableCellCoordinate): number | null {
+    const cell = this.table.rows[coordinate.row]?.cells[coordinate.column];
+    const anchor = cell === undefined ? undefined : this.table.rows[cell.anchorRow]?.cells[cell.anchorColumn];
+    const element = anchor === undefined ? null : this.cellElement(anchor);
+    const content = element?.querySelector<HTMLElement>(":scope > .structural-tables-cell-content") ?? null;
+    if (anchor === undefined || content === null) return null;
+    const raw = anchor.raw.trim();
+    if (content.textContent !== raw) return null;
+
+    let textNode: Text | null = null;
+    if (content.childNodes.length === 1 && content.firstChild?.nodeType === Node.TEXT_NODE) {
+      textNode = content.firstChild as Text;
+    } else if (content.children.length === 1 && content.firstElementChild?.tagName === "P") {
+      const paragraph = content.firstElementChild;
+      if (paragraph.childNodes.length === 1 && paragraph.firstChild?.nodeType === Node.TEXT_NODE) {
+        textNode = paragraph.firstChild as Text;
+      }
+    }
+    if (textNode === null || textNode.data !== raw) return null;
+
+    const doc = content.ownerDocument as Document & {
+      caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    };
+    const position = doc.caretPositionFromPoint?.(event.clientX, event.clientY);
+    if (position !== undefined && position !== null) {
+      return position.offsetNode === textNode && position.offset >= 0 && position.offset <= raw.length
+        ? position.offset : null;
+    }
+    const range = doc.caretRangeFromPoint?.(event.clientX, event.clientY);
+    if (range !== undefined && range !== null && range.startContainer === textNode
+      && range.startOffset >= 0 && range.startOffset <= raw.length) return range.startOffset;
+    return null;
+  }
+
   private cellElement(coordinate: TableCellCoordinate): HTMLElement | null {
     const cell = this.table.rows[coordinate.row]?.cells[coordinate.column];
     if (cell === undefined || this.renderedTable === null) return null;
@@ -943,7 +979,11 @@ class StructuralTableInteraction {
     );
   }
 
-  private beginCellEdit(view: EditorView, coordinate: TableCellCoordinate): void {
+  private beginCellEdit(
+    view: EditorView,
+    coordinate: TableCellCoordinate,
+    entryIntent: CellEditEntryIntent = "select-all",
+  ): void {
     this.axisSelection = null;
     this.touchAxisAnchor = null;
     const cell = this.table.rows[coordinate.row]?.cells[coordinate.column];
@@ -959,7 +999,7 @@ class StructuralTableInteraction {
       if (this.host === null) {
         const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) => candidate.range.from === from);
         if (table !== undefined && view.state.field(editorInfoField, false)?.file?.path === sourcePath) {
-          requestTableFocus(view, { from, source: table.source, sourcePath, coordinate, edit: true });
+          requestTableFocus(view, { from, source: table.source, sourcePath, coordinate, edit: true, entryIntent });
         }
         return;
       }
@@ -1459,7 +1499,8 @@ class StructuralTableInteraction {
       this.releaseCellScope(scope);
     });
     editor.focus({ preventScroll: true });
-    editor.select();
+    if (entryIntent === "select-all") editor.select();
+    else editor.setSelectionRange(entryIntent.caretOffset, entryIntent.caretOffset);
     queueMicrotask(resizeEditor);
   }
 

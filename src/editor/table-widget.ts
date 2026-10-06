@@ -25,6 +25,7 @@ import { parseEditableTables } from "../core/parser";
 import { sourcePrefix } from "../core/source-lines";
 import {
   parseTableRangePayload,
+  sameTableRangeTopology,
   tableRangeHtml,
   tableRangePayload,
   tableRangePlainText,

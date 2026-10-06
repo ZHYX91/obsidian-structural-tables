@@ -251,7 +251,7 @@ class StructuralTableInteraction {
   private cellScope: Scope | null = null;
   private navigationScope: Scope | null = null;
   private component: Component | null = null;
-  private clickEditCandidate: TableCellCoordinate | null = null;
+  private clickEditCandidate: { coordinate: TableCellCoordinate; caretOffset: number | null } | null = null;
   private dragging = false;
   private renderedTable: HTMLTableElement | null = null;
   private selection: StructuralTableSelection | null = null;
@@ -268,6 +268,7 @@ class StructuralTableInteraction {
   private touchAxisAnchor: { axis: TableAxis; index: number } | null = null;
   private axisDrag: TableAxisDrag | null = null;
   private selectionMenuOpen = false;
+  private selectionEpoch = 0;
 
   constructor(
     private readonly app: App,

@@ -365,10 +365,17 @@ class StructuralTableInteraction {
   }
 
   private handleGridClear(event: KeyboardEvent, view: EditorView): boolean {
-    if (event.defaultPrevented || event.isComposing || this.selectionMenuOpen
-      || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
+    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey
       || (event.key !== "Delete" && event.key !== "Backspace")
-      || this.host === null) return false;
+      || this.host === null || !this.host.isConnected) return false;
+    const hostWindow = this.host.ownerDocument.defaultView;
+    if (event.view !== null && event.view !== hostWindow) return false;
+    if (this.selectionMenuOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      return true;
+    }
+    if (event.isComposing) return false;
     const active = this.host.ownerDocument.activeElement;
     if (!(active instanceof this.host.ownerDocument.defaultView!.HTMLElement)
       || !this.host.contains(active)

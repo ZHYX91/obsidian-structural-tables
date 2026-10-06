@@ -64,7 +64,7 @@ Core operation tests cover:
 - row/column insertion, deletion, movement, and alignment;
 - adding or removing column-header and row-header roles;
 - content preservation when merged anchors move or are deleted;
-- refusal of operations that would lose non-empty content, hidden GFM source, or part of a merge;
+- refusal of guarded or implicit operations that would lose unselected or hidden content or cut part of a merge, while explicit selected-content clear/remove actions are tested as authorized destructive intents;
 - one-time pipe escaping for Wiki links and embeds;
 - Shift+Enter, menu actions, and multiline paste producing representable `<br>` output;
 - format round-trips that preserve semantics and LF/CRLF/CR.
@@ -82,6 +82,7 @@ Cover:
 - CSV quoting, TSV cleanup, and plain-GFM compatibility output;
 - the unique Sheets Extended separator column and its negative cases;
 - Wiki links, literal pipes, and cell line breaks;
+- bounded owned-range copy/cut/paste for 1x1, single-column, all-empty and complete merged-owner selections, including exact-topology raw round trips, clipboard failure/stale-session refusal, and no fallback to hidden source;
 - mixed prose, multiple tables, images, attachments, links, MathML/SVG, and other unsafe payloads falling back to Obsidian;
 - reparsing at GFM replacement confirmation so stale previews are refused.
 - complete plain-text fallback for headings, inherited preserved whitespace and preserved newlines, including zero replacement when safe fallback is absent.

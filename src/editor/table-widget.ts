@@ -1353,6 +1353,29 @@ class StructuralTableInteraction {
     cell.focus({ preventScroll: true });
   }
 
+  private focusSelectionAfterUpdate(
+    view: EditorView,
+    first: TableCellCoordinate,
+    last: TableCellCoordinate,
+    coordinate: TableCellCoordinate,
+  ): void {
+    if (!view.dom.isConnected) return;
+    const interaction = this.interactionAfterUpdate(view);
+    if (interaction === undefined) {
+      view.focus();
+      return;
+    }
+    interaction.selectBounds(first, last);
+    interaction.syncSourceCursor(view, coordinate);
+    const cell = interaction.cellElement(coordinate);
+    if (cell === null) {
+      view.focus();
+      return;
+    }
+    interaction.setRovingCell(cell);
+    cell.focus({ preventScroll: true });
+  }
+
   private interactionAfterUpdate(view: EditorView): StructuralTableInteraction | undefined {
     const host = view.dom.querySelector<HTMLElement>(
       `[data-structural-source-table-index='${this.table.sourceTableIndex}']`,
@@ -1589,29 +1612,100 @@ class StructuralTableInteraction {
       ?.focus({ preventScroll: true });
   }
 
-  private applyMenuOperation(view: EditorView, operation: TableOperation, next?: TableCellCoordinate, axisSelection?: AxisSelection): void {
+  private applyMenuOperation(
+    view: EditorView,
+    operation: TableOperation,
+    next?: TableCellCoordinate,
+    axisSelection?: AxisSelection,
+    intent: TableOperationIntent = "standard",
+  ): void {
     const t = createTranslator(this.getSettings().language);
+    if (intent === "owned-grid"
+      && view.state.field(editorInfoField, false)?.file?.path !== this.sourcePath) {
+      new Notice(t("notice.staleTable"));
+      return;
+    }
     const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
     if (current === null) {
       new Notice(t("notice.staleTable"));
       return;
     }
+    const selection = this.selection;
+    const selectionAnchor = this.selectionAnchor;
+    const selectionHead = this.selectionHead;
     const result = operation(current);
-    if (result.changed) {
-      const coordinate = next ?? this.selectionAnchor ?? { row: 0, column: 0 };
-      const nativeCallout = this.host?.closest(".callout") != null;
-      view.dispatch({
-        changes: { from: current.range.from, to: current.range.to, insert: result.source },
-        ...(nativeCallout ? tableWriteHistory(current, result.source, this.sourcePath, coordinate) : {}),
-        ...(!nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
+    if (!result.changed) {
+      if (result.code !== "cells-cleared") new Notice(operationNotice(t, result.code));
+      return;
+    }
+
+    const ownedGrid = intent === "owned-grid";
+    const tableDeleted = result.code === "table-deleted";
+    let coordinate = next ?? selectionAnchor ?? { row: 0, column: 0 };
+    let restoredAxis = axisSelection;
+    let restoredBounds = result.code === "cells-cleared"
+      && selectionAnchor !== null && selectionHead !== null
+      ? { first: selectionAnchor, last: selectionHead } : undefined;
+
+    if (ownedGrid && selection !== null && result.code === "rows-deleted") {
+      const remainingRows = current.rows.length - (selection.maxRow - selection.minRow + 1);
+      coordinate = {
+        row: Math.max(0, Math.min(selection.minRow, remainingRows - 1)),
+        column: Math.min(selection.minColumn, current.columnCount - 1),
+      };
+      restoredBounds = undefined;
+      restoredAxis = axisSelection?.axis === "row"
+        ? { axis: "row", start: coordinate.row, end: coordinate.row } : undefined;
+    } else if (ownedGrid && selection !== null && result.code === "columns-deleted") {
+      const remainingColumns = current.columnCount - (selection.maxColumn - selection.minColumn + 1);
+      coordinate = {
+        row: Math.min(selection.minRow, current.rows.length - 1),
+        column: Math.max(0, Math.min(selection.minColumn, remainingColumns - 1)),
+      };
+      restoredBounds = undefined;
+      restoredAxis = axisSelection?.axis === "column"
+        ? { axis: "column", start: coordinate.column, end: coordinate.column } : undefined;
+    }
+
+    const nativeCallout = this.host?.closest(".callout") != null;
+    const historyCoordinate = tableDeleted ? (selectionAnchor ?? { row: 0, column: 0 }) : coordinate;
+    view.dispatch({
+      changes: { from: current.range.from, to: current.range.to, insert: result.source },
+      ...((nativeCallout || ownedGrid)
+        ? tableWriteHistory(current, result.source, this.sourcePath, historyCoordinate) : {}),
+      ...(!nativeCallout ? {
+        selection: { anchor: tableDeleted ? current.range.from : current.range.from + result.source.length },
+      } : {}),
+    });
+
+    if (tableDeleted) {
+      cancelPendingTableFocus(view);
+      this.clearSelection();
+      queueMicrotask(() => {
+        if (!view.dom.isConnected) return;
+        view.dispatch({ effects: structuralTableSourceFocus.of(true) });
+        view.focus();
       });
-      if (nativeCallout) {
-        this.restoreCalloutFocus(view, result.source, coordinate, next !== undefined && axisSelection === undefined);
-        const pending = pendingCellFocus.get(view);
-        if (pending !== undefined && axisSelection !== undefined) pending.axisSelection = axisSelection;
-      } else if (axisSelection !== undefined) queueMicrotask(() => this.interactionAfterUpdate(view)?.focusAxis(axisSelection));
-      else if (next !== undefined) queueMicrotask(() => this.openCellAfterUpdate(view, coordinate));
-      else queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
+    } else if (nativeCallout) {
+      this.restoreCalloutFocus(view, result.source, coordinate, false);
+      const pending = pendingCellFocus.get(view);
+      if (pending !== undefined) {
+        if (restoredAxis !== undefined) pending.axisSelection = restoredAxis;
+        else if (restoredBounds !== undefined) pending.selectionBounds = restoredBounds;
+      }
+    } else if (restoredAxis !== undefined) {
+      queueMicrotask(() => this.interactionAfterUpdate(view)?.focusAxis(restoredAxis));
+    } else if (restoredBounds !== undefined) {
+      queueMicrotask(() => this.focusSelectionAfterUpdate(
+        view,
+        restoredBounds.first,
+        restoredBounds.last,
+        coordinate,
+      ));
+    } else if (ownedGrid || next !== undefined) {
+      queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
+    } else {
+      queueMicrotask(() => this.focusCellAfterUpdate(view, coordinate));
     }
     new Notice(operationNotice(t, result.code));
   }

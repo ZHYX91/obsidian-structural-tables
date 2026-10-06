@@ -129,6 +129,8 @@ Legacy-property migration runs only on explicit user request. Its preview lists 
 - Keyboard-focused or selected handles stay visible.
 - Touch handles remain large enough to tap and must not cover preceding text.
 - Handles live outside the table box and must not change table alignment.
+- Clipped Callouts reserve a compact, stable editing gutter for handles; touch targets retain their larger gutter. Reading view needs no editing gutter.
+- Add-row controls sit below the scroll viewport, including its horizontal scrollbar, and follow viewport resizing.
 - Cells, row handles, and column handles each expose one Tab stop per group; arrow-key movement stays within the group and horizontal movement follows RTL direction.
 
 ### Selection and drag

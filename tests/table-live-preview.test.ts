@@ -3849,6 +3849,77 @@ describe("StructuralTableEditorController", () => {
     }
   });
 
+  it.each([0, 16].flatMap((scrollbarHeight) => ["ltr", "rtl"].map((direction) => ({ scrollbarHeight, direction }))))(
+    "keeps the add-row hit region below a $scrollbarHeight-pixel scrollbar in $direction tables",
+    ({ scrollbarHeight, direction }) => {
+      const originalRect = HTMLElement.prototype.getBoundingClientRect;
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("structural-tables-live-preview")) return new DOMRect(20, 10, 500, 300);
+        if (this.classList.contains("structural-tables-table")) return new DOMRect(-120, 50, 900, 200);
+        if (this.classList.contains("structural-tables-container")) return new DOMRect(70, 50, 250, 200 + scrollbarHeight);
+        return originalRect.call(this);
+      });
+      const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+      const table = parent.querySelector<HTMLElement>(".structural-tables-table")!;
+      const scroller = parent.querySelector<HTMLElement>(".structural-tables-container")!;
+      table.style.direction = direction;
+      scroller.dispatchEvent(new Event("scroll"));
+      const host = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;
+      const addRow = parent.querySelector<HTMLElement>(".structural-tables-add-row")!;
+      const buttonTop = host.getBoundingClientRect().top + Number.parseFloat(addRow.style.top);
+      expect(buttonTop).toBe(scroller.getBoundingClientRect().bottom);
+      expect(Number.parseFloat(addRow.style.left)).toBe(50);
+      expect(Number.parseFloat(addRow.style.width)).toBe(250);
+      expect(view.state.doc.toString()).toBe(screenshotTable);
+      view.destroy();
+    },
+  );
+
+  it("updates the add-row hit region when only the scroll viewport resizes and releases its observer", () => {
+    const observers: Array<{
+      callback: ResizeObserverCallback;
+      elements: Set<Element>;
+      disconnect: ReturnType<typeof vi.fn>;
+      observer: ResizeObserver;
+    }> = [];
+    vi.stubGlobal("ResizeObserver", class {
+      private readonly record;
+      constructor(callback: ResizeObserverCallback) {
+        this.record = { callback, elements: new Set<Element>(), disconnect: vi.fn(), observer: this as unknown as ResizeObserver };
+        observers.push(this.record);
+      }
+      observe(element: Element): void { this.record.elements.add(element); }
+      unobserve(element: Element): void { this.record.elements.delete(element); }
+      disconnect(): void { this.record.disconnect(); }
+    });
+    let scrollbarHeight = 0;
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("structural-tables-live-preview")) return new DOMRect(20, 10, 500, 300);
+      if (this.classList.contains("structural-tables-table")) return new DOMRect(70, 50, 900, 200);
+      if (this.classList.contains("structural-tables-container")) return new DOMRect(70, 50, 250, 200 + scrollbarHeight);
+      return originalRect.call(this);
+    });
+    const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
+    const scroller = parent.querySelector<HTMLElement>(".structural-tables-container")!;
+    const addRow = parent.querySelector<HTMLElement>(".structural-tables-add-row")!;
+    expect(addRow.style.top).toBe("240px");
+    const observer = observers.find((record) => record.elements.has(scroller));
+    expect(observer).toBeDefined();
+    scrollbarHeight = 16;
+    observer!.callback([{
+      target: scroller,
+      contentRect: scroller.getBoundingClientRect(),
+      borderBoxSize: [],
+      contentBoxSize: [],
+      devicePixelContentBoxSize: [],
+    }], observer!.observer);
+    expect(addRow.style.top).toBe("256px");
+    expect(view.state.doc.toString()).toBe(screenshotTable);
+    view.destroy();
+    expect(observer!.disconnect).toHaveBeenCalledOnce();
+  });
+
   it("uses one tab stop per cell and handle group with arrow-key navigation", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cells = Array.from(parent.querySelectorAll<HTMLElement>(

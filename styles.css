@@ -24,7 +24,7 @@
 
 
 .structural-tables-live-preview {
-  --structural-table-handle-gutter: 1.5rem;
+  --structural-table-handle-gutter: 1.25rem;
   position: relative;
   max-width: 100%;
   min-width: 0;

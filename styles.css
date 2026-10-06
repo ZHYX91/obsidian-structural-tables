@@ -50,6 +50,10 @@
   margin-block-start: var(--structural-table-column-gutter, 0) !important;
 }
 
+.structural-tables-live-preview .structural-tables-table:not(:first-child) {
+  margin-block-start: var(--structural-table-handle-gutter) !important;
+}
+
 .structural-tables-live-preview > button.structural-tables-add-row,
 .structural-tables-live-preview > button.structural-tables-add-column {
   position: absolute;

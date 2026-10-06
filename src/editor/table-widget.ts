@@ -1320,8 +1320,54 @@ class StructuralTableInteraction {
       if (!composing) finish(true, next, true, operation);
     };
 
+    const stableSingleVisualLine = (): boolean => {
+      if (editor.value.includes("\n")) return false;
+      const style = editor.ownerDocument.defaultView?.getComputedStyle(editor);
+      const lineHeight = Number.parseFloat(style?.lineHeight ?? "");
+      const clientHeight = editor.clientHeight;
+      const scrollHeight = editor.scrollHeight;
+      return Number.isFinite(lineHeight) && lineHeight > 0
+        && clientHeight > 0 && scrollHeight > 0
+        && clientHeight >= lineHeight * 0.75 && clientHeight <= lineHeight * 1.5
+        && scrollHeight <= lineHeight * 1.5;
+    };
     const handleKey = (event: KeyboardEvent): void => {
       if (composing || event.isComposing || contextMenuOpen) return;
+      const noModifier = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+      const collapsed = editor.selectionStart === editor.selectionEnd;
+      const rtl = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl";
+      const backwardKey = rtl ? "ArrowRight" : "ArrowLeft";
+      const forwardKey = rtl ? "ArrowLeft" : "ArrowRight";
+
+      if (noModifier && collapsed && event.key === backwardKey && editor.selectionStart === 0) {
+        const previous = this.adjacentCell(anchor, "backward");
+        if (previous !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          finish(true, previous);
+        }
+        return;
+      }
+      if (noModifier && collapsed && event.key === forwardKey && editor.selectionEnd === editor.value.length) {
+        const next = this.adjacentCell(anchor, "forward");
+        if (next !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          finish(true, next);
+        }
+        return;
+      }
+      if (noModifier && collapsed && (event.key === "ArrowUp" || event.key === "ArrowDown")
+        && stableSingleVisualLine()) {
+        const target = tableCellInDirection(this.table, anchor, event.key === "ArrowUp" ? "up" : "down");
+        if (target !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          finish(true, target);
+        }
+        return;
+      }
+
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -1333,7 +1379,17 @@ class StructuralTableInteraction {
       } else if (event.key === "Enter") {
         event.preventDefault();
         event.stopPropagation();
-        finish(true);
+        const next = tableCellInDirection(this.table, anchor, "down");
+        if (next !== null) {
+          finish(true, next);
+        } else {
+          finish(
+            true,
+            { row: this.table.rows.length, column: Math.min(anchor.anchorColumn, this.table.columnCount - 1) },
+            true,
+            appendTableRow,
+          );
+        }
       } else if (event.key === "Tab") {
         event.preventDefault();
         event.stopPropagation();

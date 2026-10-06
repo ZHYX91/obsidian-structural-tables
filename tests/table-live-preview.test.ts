@@ -2813,6 +2813,188 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it("copies an owned rectangle without writing source and exports portable GFM plus structured range data", () => {
+    const source = "| H1 | H2 |\n| --- || --- |\n| A | **B** |\n| C | [[N\\|A]] |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const first = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const last = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+      dispatchPointerDown(first, "mouse");
+      last.dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      const transfer = new DataTransfer();
+      const event = gridClipboardEvent("copy", transfer);
+      first.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(transfer.getData(TABLE_RANGE_CLIPBOARD_MIME)).not.toBe("");
+      expect(transfer.getData("text/plain")).toContain("| A | **B** |");
+      expect(transfer.getData("text/plain")).toContain(String.raw`[[N\|A]]`);
+      expect(transfer.getData("text/html")).toContain("<table>");
+    } finally { view.destroy(); }
+  });
+
+  it("cuts only after synchronous clipboard payload success and restores in one Undo", () => {
+    const source = "| H1 | H2 |\n| --- || --- |\n| A | B |\n| C | D |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      const first = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const last = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      dispatchPointerDown(first, "mouse");
+      last.dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      const transfer = new DataTransfer();
+      const event = gridClipboardEvent("cut", transfer);
+      first.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(transfer.getData(TABLE_RANGE_CLIPBOARD_MIME)).not.toBe("");
+      const cleared = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(cleared.rows[1]!.cells.map((cell) => cell.content)).toEqual(["", ""]);
+      expect(cleared.rows[2]!.cells.map((cell) => cell.content)).toEqual(["C", "D"]);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("keeps source when Cut cannot synchronously write its clipboard payload", () => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      dispatchPointerDown(cell, "mouse");
+      const transfer = {
+        setData: () => { throw new Error("clipboard denied"); },
+        getData: () => "",
+      } as unknown as DataTransfer;
+      const event = gridClipboardEvent("cut", transfer);
+      cell.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(notices[notices.length - 1]).toContain("Could not copy");
+    } finally { view.destroy(); }
+  });
+
+  it("pastes an exact-topology owned range into only the selected target owners", async () => {
+    const source = "| H1 | H2 |\n| --- || --- |\n| **A** | [[N\\|A]] |\n| C | D |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      const sourceFirst = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const sourceLast = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      dispatchPointerDown(sourceFirst, "mouse");
+      sourceLast.dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      const transfer = new DataTransfer();
+      sourceFirst.dispatchEvent(gridClipboardEvent("copy", transfer));
+
+      const targetFirst = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='0']")!;
+      const targetLast = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
+      dispatchPointerDown(targetFirst, "mouse");
+      targetLast.dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      const paste = gridClipboardEvent("paste", transfer);
+      targetFirst.dispatchEvent(paste);
+      expect(paste.defaultPrevented).toBe(true);
+
+      await vi.waitFor(() => {
+        const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+        expect(table.rows[1]!.cells[0]!.raw.trim()).toBe("**A**");
+        expect(table.rows[2]!.cells[0]!.raw.trim()).toBe("**A**");
+        expect(table.rows[2]!.cells[1]!.raw.trim()).toBe(String.raw`[[N\|A]]`);
+      });
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("consumes unsupported grid paste without falling through to hidden source", () => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      dispatchPointerDown(cell, "mouse");
+      const transfer = new DataTransfer();
+      transfer.setData("text/plain", "ordinary text");
+      const event = gridClipboardEvent("paste", transfer);
+      cell.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(notices[notices.length - 1]).toContain("compatible");
+    } finally { view.destroy(); }
+  });
+
+  it("keeps textarea clipboard events outside owned range interception", () => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      for (const type of ["copy", "cut"] as const) {
+        const event = gridClipboardEvent(type, new DataTransfer());
+        editor.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+      }
+    } finally { view.destroy(); }
+  });
+
+  it("freezes a merged menu selection across focusout and clears the originally selected owner", async () => {
+    const source = "| H1 | H2 | H3 |\n| --- || --- | --- |\n| Region | West | < |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const west = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      west.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const clear = lastMenu?.items.find((item) => item.title === "Clear selected cells");
+      expect(clear).toBeDefined();
+
+      const outside = document.body.appendChild(document.createElement("button"));
+      outside.focus();
+      clear?.callback?.();
+      await vi.waitFor(() => {
+        const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+        expect(table.rows[1]!.cells[0]!.content).toBe("Region");
+        expect(table.rows[1]!.cells[1]!.content).toBe("");
+        expect(table.rows[1]!.cells[2]!.marker).toBe("left");
+      });
+      const restored = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      await vi.waitFor(() => expect(document.activeElement).toBe(restored));
+    } finally { view.destroy(); }
+  });
+
+  it("does not clear after an asynchronous menu Cut if source changes before clipboard success", async () => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    let resolveWrite: (() => void) | undefined;
+    class MockClipboardItem {
+      constructor(readonly data: Record<string, Blob>) {}
+    }
+    vi.stubGlobal("ClipboardItem", MockClipboardItem);
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: {
+        write: vi.fn(() => new Promise<void>((resolve) => { resolveWrite = resolve; })),
+      },
+    });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const cut = lastMenu?.items.find((item) => item.title === "Cut selected cells");
+      expect(cut).toBeDefined();
+      cut?.callback?.();
+      await vi.waitFor(() => expect(resolveWrite).toBeDefined());
+
+      const at = view.state.doc.toString().indexOf("A | B");
+      view.dispatch({ changes: { from: at, to: at + 1, insert: "External" } });
+      const changed = view.state.doc.toString();
+      resolveWrite!();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(view.state.doc.toString()).toBe(changed);
+      expect(view.state.doc.toString()).toContain("External");
+    } finally {
+      Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined });
+      view.destroy();
+    }
+  });
+
   it.each([false, true])("does not steal focus when a cell editor loses focus (changed=%s)", async (changed) => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     try {

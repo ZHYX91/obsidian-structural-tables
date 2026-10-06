@@ -13,7 +13,9 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Reading view.
 - [ ] Callout mapping: custom and foldable callouts, rich row headers, multiple header rows, nested callouts, mixed ordinary/structural tables, identical tables, and list continuations in both views. Fenced examples and invalid syntax remain uneditable.
 - [ ] Edit the second of two identical callout tables, commit and undo/redo; only the selected source table changes, quote prefixes remain, and focus returns to its rendered cell without revealing the whole callout source. Test Tab traversal, folding/reopening and view switching after edits.
-- [ ] Live Preview desktop single-click, touch-screen double-tap, and Enter/F2 cell editing with one outer border, no inner textarea border or resize grip, and no table/column expansion.
+- [ ] Live Preview desktop single-click, touch-screen double-tap, and Enter/F2 cell editing with one outer border, no inner textarea border or resize grip, and no table/column expansion. A provable plain-text pointer click places a UTF-16 caret at the clicked character (include A😀B); formatted/code/Wiki/entity/ambiguous rendering falls back to selecting the full draft. Editing cells retain theme header/zebra/background/borders instead of the multi-cell selection fill.
+- [ ] Enter commits to the next logical row in the same column; terminal Enter edits and appends one row in one source/history transaction. Tab/Shift+Tab remains visible-anchor and merge-aware. Horizontal draft arrows cross cells only at a collapsed exact text boundary; Up/Down crosses only with stable single-visual-line textarea geometry. Text selections, modifiers, IME and uncertain geometry stay textarea-native.
+- [ ] Shift+Arrow extends and shrinks the owned logical range from the original anchor/head through merge closure, including reverse shrink after crossing a merged owner and RTL horizontal direction. Range menus retain the frozen logical selection through menu focus transfer; a real external selection/source/session change invalidates deferred actions.
 - [ ] Exact `<br>`, `<br/>`, and `<br />` visual rendering plus spelling preservation through format preview.
 - [ ] Shift+Enter and the cell-editor context menu inserting canonical `<br>`.
 - [ ] Enter/Escape/Tab, multiline paste, undo/redo, English and Chinese IME.
@@ -28,6 +30,7 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Browser/Excel HTML-table paste with row/column spans, in-cell line breaks, and escaped pipes, plus disabled pass-through.
 - [ ] Explicit-write source-pipe alignment by display width across ASCII, CJK, emoji, row-header `||`, alignment markers, escaped pipes, Wiki links, code spans, and LF/CRLF/CR while rendering alone makes no write.
 - [ ] HTML/GFM/TSV/CSV clipboard output including semantic HTML break elements.
+- [ ] Owned-grid range Copy writes a synchronous normalized v1 owner payload plus plain GFM and HTML without touching source. Cover ordinary rectangles, 1x1, one-column, all-empty, headerless/multi-header, horizontal/vertical/2D merges, raw bold/code/Wiki/math/<br>, and external GFM header conversion. Cut clears exactly once only after clipboard success and exact source/path/range/selection/session revalidation; clipboard failure, Promise rejection, selection/source/note/window/unload changes preserve source. Paste consumes unsupported/bad/stale payloads without hidden-source fallback and succeeds only for exact dimensions plus owner topology, preserving target roles/alignment/size/merge and unselected owners in one undoable write. Active textarea copy/cut/paste remains text-local.
 
 - [ ] GFM preview confirm/cancel/stale refusal.
 

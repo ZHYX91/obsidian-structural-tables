@@ -1324,9 +1324,8 @@ describe("StructuralTableEditorController", () => {
       // selectionchange that established grid ownership.
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-      const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
-      expect(activeScopes[activeScopes.length - 1]!.handlers
-        .find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
+      const f2 = new KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true });
+      restoredCell.dispatchEvent(f2);
       expect(f2.defaultPrevented).toBe(true);
       expect(restoredFirst.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("A");
       expect(restoredSecond.querySelector("textarea")).toBeNull();
@@ -1334,6 +1333,7 @@ describe("StructuralTableEditorController", () => {
       const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
       restoredFirst.querySelector<HTMLTextAreaElement>("textarea")!.dispatchEvent(escape);
       expect(restoredFirst.querySelector("textarea")).toBeNull();
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
       expect(redo(view)).toBe(true);
       await vi.waitFor(() => expect(view.state.doc.toString()).toBe(expectedRemoved));
@@ -1368,10 +1368,16 @@ describe("StructuralTableEditorController", () => {
       await vi.waitFor(() => expect(document.activeElement).toBe(restored));
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-      const f2 = new KeyboardEvent("keydown", { key: "F2", cancelable: true });
-      expect(activeScopes[activeScopes.length - 1]!.handlers
-        .find((handler) => handler.key === "F2")!.callback(f2)).toBe(false);
-      expect(parent.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("A");
+      const f2 = new KeyboardEvent("keydown", { key: "F2", bubbles: true, cancelable: true });
+      restored.dispatchEvent(f2);
+      expect(f2.defaultPrevented).toBe(true);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(editor.value).toBe("A");
+      editor.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "Escape", bubbles: true, cancelable: true,
+      }));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      expect(parent.querySelector("textarea")).toBeNull();
     } finally {
       view.destroy();
     }

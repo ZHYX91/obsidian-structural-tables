@@ -1,10 +1,11 @@
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Editor } from "obsidian";
+import { Platform, type Editor } from "obsidian";
 
 import {
   cellClipboardText,
+  copyHtml,
   replaceSelectionFromClipboardTable,
   singleCellTextFromClipboardHtml,
   structuralSourceFromClipboardHtml,
@@ -14,6 +15,69 @@ import { parseEditableTables } from "../src/core/parser";
 
 const originalDomParser = globalThis.DOMParser;
 const originalHtmlTable = globalThis.HTMLTableElement;
+
+describe("whole-table clipboard copy", () => {
+  afterEach(() => {
+    Platform.isMobileApp = false;
+    vi.unstubAllGlobals();
+  });
+
+  function clipboard() {
+    const write = vi.fn(async (_items: ClipboardItem[]) => {});
+    const writeText = vi.fn(async (_text: string) => {});
+    class CopyItem {
+      constructor(readonly data: Record<string, Blob>) {}
+    }
+    vi.stubGlobal("navigator", { clipboard: { write, writeText } });
+    vi.stubGlobal("ClipboardItem", CopyItem);
+    return { write, writeText };
+  }
+
+  it("copies complete text on mobile without calling a resolving image-only rich bridge", async () => {
+    Platform.isMobileApp = true;
+    const { write, writeText } = clipboard();
+    const plain = 'Name\tNote\nNorth\t"First\nSecond"\nSouth\t';
+
+    await copyHtml("<table><tr><td>North</td></tr></table>", plain);
+
+    expect(write).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(plain);
+  });
+
+  it("propagates mobile text-copy failure rather than falling back to the image bridge", async () => {
+    Platform.isMobileApp = true;
+    const { write, writeText } = clipboard();
+    writeText.mockRejectedValueOnce(new Error("text clipboard unavailable"));
+
+    await expect(copyHtml("<table></table>", "complete text")).rejects.toThrow("text clipboard unavailable");
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("retains both HTML and complete text on the desktop rich clipboard", async () => {
+    const { write, writeText } = clipboard();
+    const html = '<table><tr><th colspan="2">Group</th></tr></table>';
+    const plain = "Group\t\nAlice\t10";
+
+    await copyHtml(html, plain);
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(write).toHaveBeenCalledOnce();
+    const item = write.mock.calls[0]![0][0] as unknown as { data: Record<string, Blob> };
+    expect(Object.keys(item.data)).toEqual(["text/html", "text/plain"]);
+    expect(await item.data["text/html"]!.text()).toBe(html);
+    expect(await item.data["text/plain"]!.text()).toBe(plain);
+  });
+
+  it("retains the desktop plain-text fallback when rich items are unavailable", async () => {
+    const { write, writeText } = clipboard();
+    vi.stubGlobal("ClipboardItem", undefined);
+
+    await copyHtml("<table></table>", "Name\tValue\nAlice\t10");
+
+    expect(write).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("Name\tValue\nAlice\t10");
+  });
+});
 
 describe("HTML table clipboard import", () => {
   it.each(["&lt;!--", "%%"])("does not import a truncated table containing %s", content => {

@@ -77,6 +77,8 @@ Menu Copy/Cut and menu Paste check platform clipboard-write and clipboard-read s
 
 Mobile range menus use verified text-only clipboard transport because the host's rich clipboard bridge may only support images. Copy/Cut writes portable GFM and reads it back before reporting success or clearing content. A session-only owner payload is scoped to that clipboard; Paste uses it only after an exact system-text match and unchanged copy identity across the asynchronous read. Changed or unowned text, failed readback and superseded copies never infer topology or write source. The existing frozen source/selection/session and exact target-topology checks still apply. Restarting the host or plugin loses the session payload; desktop rich transports and textarea clipboard behavior remain unchanged.
 
+Whole-table HTML copy commands also bypass the mobile image-only rich bridge and use their complete tab-separated text alternative. Desktop HTML and plain-text representations remain unchanged; mobile whole-table text does not carry rich formatting or merge topology.
+
 Range Copy also exposes portable HTML and plain Markdown. Range HTML escapes each owner's raw Markdown as text and represents spans; it does not render that Markdown as rich content. Plain Markdown makes the first copied row a header and retains structural markers where representable. It does not promise equivalent merge topology in external GFM, especially for vertical merges.
 
 Plain GFM, TSV, and CSV whole-table output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, scope, and break elements.

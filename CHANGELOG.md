@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Verify mobile selected-cell copies through the system text clipboard before cutting, and preserve merge layouts for bounded paste within the current plugin session.
+- Use complete tab-separated text for mobile whole-table copies instead of the host's image-only rich clipboard bridge.
 - Keep full touch row handles inside the visible text column and place column controls in their own table-top space, clear of external captions on desktop and touch screens, including tables inside Callouts.
 - Acquire native Callout tables adopted into separate editor windows, and render complete source-verified table blocks containing inline images while retaining note-embed and partial-paragraph protections.
 - Keep grid clearing, cell drafts and control positioning working in separate editor windows without activating the main window first.

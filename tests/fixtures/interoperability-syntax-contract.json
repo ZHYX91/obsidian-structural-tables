@@ -54,7 +54,7 @@
     {
       "id": "escaped-merge-markers-are-literal",
       "class": "positive",
-      "source": "| Group | \\\\< |\n| Name | Value |\n| --- | --- |\n| A | \\\\^ |",
+      "source": "| Group | \\< |\n| Name | Value |\n| --- | --- |\n| A | \\^ |",
       "expected": {
         "structural_table_count": 1,
         "valid": true,

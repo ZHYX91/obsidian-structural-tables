@@ -122,6 +122,8 @@ With a grid range selected, Copy/Cut/Paste exchanges Structural Tables' own rang
 
 Range menu Copy/Cut needs platform clipboard-write support; menu Paste separately needs clipboard-read support. One may be available while the other is not. Plain text, ordinary HTML, or unrecognized range data cannot be pasted directly into a grid selection and never reaches the hidden Markdown source. To paste ordinary text, open a single cell for editing; to import an HTML table, paste in the note's Markdown editor. **Edit table source** also lets you work directly in Markdown.
 
+On mobile, range Copy/Cut writes a plain Markdown table and checks that the system clipboard contains that exact text before Cut can clear anything. The plugin remembers the copied merge layout for the current session. Range Paste works while the clipboard still matches that copy; restarting Obsidian or the plugin loses this session information. Text copied elsewhere belongs in a cell editor or the note editor.
+
 For other applications, range Copy also provides HTML and plain Markdown. Range HTML represents spans and shows the cell's Markdown as raw text. Plain Markdown uses the first copied row as a header and retains structural markers where representable; it does not guarantee the same merge layout in other applications, including vertical merges.
 
 Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.

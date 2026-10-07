@@ -1,7 +1,7 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
-import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor } from "obsidian";
+import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -997,7 +997,10 @@ class StructuralTableInteraction {
   ): Promise<void> {
     const t = createTranslator(this.getSettings().language);
     const clipboard = frozen.host.ownerDocument.defaultView?.navigator.clipboard;
-    if (!await writeTableRangeToNavigator(clipboard, frozen.payload, frozen.host.ownerDocument.defaultView)) {
+    if (!await writeTableRangeToNavigator(
+      clipboard, frozen.payload, frozen.host.ownerDocument.defaultView,
+      Platform.isMobileApp ? "verified-text" : "rich",
+    )) {
       new Notice(t("notice.rangeClipboardWriteFailed"));
       return;
     }
@@ -1012,6 +1015,7 @@ class StructuralTableInteraction {
     const result = await readTableRangeFromNavigator(
       frozen.host.ownerDocument.defaultView?.navigator.clipboard,
       frozen.host.ownerDocument,
+      Platform.isMobileApp ? "verified-text" : "rich",
     );
     if (result.kind === "unsupported") {
       new Notice(t("notice.rangeClipboardReadFailed"));

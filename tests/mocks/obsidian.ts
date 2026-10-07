@@ -1,5 +1,7 @@
 import { StateField } from "@codemirror/state";
 
+export const Platform = { isMobileApp: false };
+
 let mockUuid = 0;
 export const activeWindow = {
   crypto: {

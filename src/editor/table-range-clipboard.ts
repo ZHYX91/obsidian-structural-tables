@@ -74,12 +74,53 @@ type ClipboardOwnerWindow = Window & {
   Blob?: typeof Blob;
 };
 
+export type RangeClipboardTransport = "rich" | "verified-text";
+
+interface TextRangeCopy {
+  plain: string;
+  structured: string;
+  verified: boolean;
+}
+
+// Mobile hosts may route ClipboardItem writes through an image-only bridge.
+// Keep topology in this plugin session, and recover it only while the real
+// system clipboard still contains the exact plain-text copy we verified.
+const textRangeCopies = new WeakMap<Clipboard, TextRangeCopy>();
+
+async function writeVerifiedTextRange(
+  clipboard: Clipboard | undefined,
+  payload: TableRangeClipboardPayloadV1,
+): Promise<boolean> {
+  if (clipboard === undefined || typeof clipboard.writeText !== "function"
+    || typeof clipboard.readText !== "function") return false;
+  const represented = tableRangeClipboardRepresentations(payload);
+  const copy: TextRangeCopy = { plain: represented.plain, structured: represented.structured, verified: false };
+  textRangeCopies.set(clipboard, copy);
+  try {
+    await clipboard.writeText(copy.plain);
+    const actual = await clipboard.readText();
+    if (textRangeCopies.get(clipboard) !== copy) return false;
+    if (actual !== copy.plain) {
+      textRangeCopies.delete(clipboard);
+      return false;
+    }
+    copy.verified = true;
+    return true;
+  } catch {
+    if (textRangeCopies.get(clipboard) === copy) textRangeCopies.delete(clipboard);
+    return false;
+  }
+}
+
 export async function writeTableRangeToNavigator(
   clipboard: Clipboard | undefined,
   payload: TableRangeClipboardPayloadV1,
   ownerWindow: Window | null | undefined = window,
+  transport: RangeClipboardTransport = "rich",
 ): Promise<boolean> {
   const owner = ownerWindow as ClipboardOwnerWindow | null | undefined;
+  if (owner == null) return false;
+  if (transport === "verified-text") return writeVerifiedTextRange(clipboard, payload);
   const ClipboardItemCtor = owner?.ClipboardItem;
   const BlobCtor = owner?.Blob;
   if (clipboard === undefined || typeof clipboard.write !== "function"
@@ -106,7 +147,25 @@ export type NavigatorRangeRead =
 export async function readTableRangeFromNavigator(
   clipboard: Clipboard | undefined,
   ownerDocument: Document = document,
+  transport: RangeClipboardTransport = "rich",
 ): Promise<NavigatorRangeRead> {
+  if (transport === "verified-text") {
+    if (clipboard === undefined || typeof clipboard.readText !== "function") return { kind: "unsupported" };
+    const copy = textRangeCopies.get(clipboard);
+    if (copy?.verified !== true) return { kind: "failed" };
+    try {
+      const actual = await clipboard.readText();
+      if (textRangeCopies.get(clipboard) !== copy) return { kind: "failed" };
+      if (actual !== copy.plain) {
+        textRangeCopies.delete(clipboard);
+        return { kind: "failed" };
+      }
+      const payload = parseTableRangePayload(copy.structured);
+      return payload === null ? { kind: "failed" } : { kind: "payload", payload };
+    } catch {
+      return { kind: "failed" };
+    }
+  }
   if (clipboard === undefined || typeof clipboard.read !== "function") return { kind: "unsupported" };
   try {
     const items = await clipboard.read();

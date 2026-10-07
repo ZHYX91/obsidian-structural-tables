@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-10-07
 
 - Verify mobile selected-cell copies through the system text clipboard before cutting, and preserve merge layouts for bounded paste within the current plugin session.
 - Use complete tab-separated text for mobile whole-table copies instead of the host's image-only rich clipboard bridge.

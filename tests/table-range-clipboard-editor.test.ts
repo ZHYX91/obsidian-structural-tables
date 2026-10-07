@@ -29,6 +29,101 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("verified text-only range clipboard", () => {
+  function textClipboard(initial = ""): Clipboard {
+    let text = initial;
+    return {
+      // This models a host whose rich write resolves without copying a range.
+      write: vi.fn(async () => {}),
+      read: vi.fn(async () => []),
+      writeText: vi.fn(async (value: string) => { text = value; }),
+      readText: vi.fn(async () => text),
+    } as unknown as Clipboard;
+  }
+
+  it.each([payload, {
+    version: 1, rows: 2, columns: 2,
+    owners: [["o0", "o1"], ["o0", "o2"]],
+    rawByOwner: { o0: "North", o1: "10", o2: "20" },
+  }, {
+    version: 1, rows: 1, columns: 1, owners: [["o0"]], rawByOwner: { o0: "" },
+  }] satisfies TableRangeClipboardPayloadV1[])("round-trips an owned range through verified real text without the rich bridge: %j", async (range) => {
+    const clipboard = textClipboard();
+    expect(await writeTableRangeToNavigator(clipboard, range, window, "verified-text")).toBe(true);
+    expect(clipboard.writeText).toHaveBeenCalledWith(tableRangeClipboardRepresentations(range).plain);
+    expect(clipboard.write).not.toHaveBeenCalled();
+    expect(await readTableRangeFromNavigator(clipboard, document, "verified-text"))
+      .toEqual({ kind: "payload", payload: range });
+    expect(clipboard.read).not.toHaveBeenCalled();
+  });
+
+  it.each(["ignored-write", "write-rejected", "read-rejected"] as const)("refuses %s without retaining a usable range", async (failure) => {
+    const clipboard = textClipboard("previous clipboard");
+    if (failure === "ignored-write") vi.mocked(clipboard.writeText).mockResolvedValue(undefined);
+    if (failure === "write-rejected") vi.mocked(clipboard.writeText).mockRejectedValue(new Error("Denied"));
+    if (failure === "read-rejected") vi.mocked(clipboard.readText).mockRejectedValue(new Error("Denied"));
+    expect(await writeTableRangeToNavigator(clipboard, payload, window, "verified-text")).toBe(false);
+    expect(await readTableRangeFromNavigator(clipboard, document, "verified-text")).toEqual({ kind: "failed" });
+    expect(clipboard.write).not.toHaveBeenCalled();
+  });
+
+  it.each(["readText", "writeText"] as const)("requires %s before copying or cutting", async (missing) => {
+    const clipboard = textClipboard();
+    Object.defineProperty(clipboard, missing, { value: undefined });
+    expect(await writeTableRangeToNavigator(clipboard, payload, window, "verified-text")).toBe(false);
+    expect(clipboard.write).not.toHaveBeenCalled();
+  });
+
+  it("never infers topology from unowned or changed system text", async () => {
+    const plain = tableRangeClipboardRepresentations(payload).plain;
+    const clipboard = textClipboard(plain);
+    expect(await readTableRangeFromNavigator(clipboard, document, "verified-text")).toEqual({ kind: "failed" });
+    expect(await writeTableRangeToNavigator(clipboard, payload, window, "verified-text")).toBe(true);
+    await clipboard.writeText("external text");
+    expect(await readTableRangeFromNavigator(clipboard, document, "verified-text")).toEqual({ kind: "failed" });
+    await clipboard.writeText(plain);
+    expect(await readTableRangeFromNavigator(clipboard, document, "verified-text")).toEqual({ kind: "failed" });
+  });
+
+  it("keeps topology scoped to its clipboard and returns independent payload snapshots", async () => {
+    const clipboard = textClipboard();
+    expect(await writeTableRangeToNavigator(clipboard, payload, window, "verified-text")).toBe(true);
+    const result = await readTableRangeFromNavigator(clipboard, document, "verified-text");
+    expect(result.kind).toBe("payload");
+    if (result.kind === "payload") result.payload.rawByOwner.o0 = "Mutated consumer";
+    expect(await readTableRangeFromNavigator(clipboard, document, "verified-text"))
+      .toEqual({ kind: "payload", payload });
+    expect(await readTableRangeFromNavigator(textClipboard(tableRangeClipboardRepresentations(payload).plain), document, "verified-text"))
+      .toEqual({ kind: "failed" });
+  });
+
+  it("does not let a late copy restore ownership after a newer copy", async () => {
+    const clipboard = textClipboard();
+    let resolveOld: ((text: string) => void) | undefined;
+    vi.mocked(clipboard.readText).mockImplementationOnce(() => new Promise<string>((resolve) => { resolveOld = resolve; }));
+    const old = writeTableRangeToNavigator(clipboard, payload, window, "verified-text");
+    await vi.waitFor(() => expect(resolveOld).toBeDefined());
+    const newer = { ...payload, rawByOwner: { ...payload.rawByOwner, o0: "New" } };
+    expect(await writeTableRangeToNavigator(clipboard, newer, window, "verified-text")).toBe(true);
+    resolveOld!(tableRangeClipboardRepresentations(payload).plain);
+    expect(await old).toBe(false);
+    expect(await readTableRangeFromNavigator(clipboard, document, "verified-text"))
+      .toEqual({ kind: "payload", payload: newer });
+  });
+
+  it("refuses a pending paste when a new copy replaces the owned range", async () => {
+    const clipboard = textClipboard();
+    expect(await writeTableRangeToNavigator(clipboard, payload, window, "verified-text")).toBe(true);
+    let resolveOld: ((text: string) => void) | undefined;
+    vi.mocked(clipboard.readText).mockImplementationOnce(() => new Promise<string>((resolve) => { resolveOld = resolve; }));
+    const pending = readTableRangeFromNavigator(clipboard, document, "verified-text");
+    const newer = { ...payload, rawByOwner: { ...payload.rawByOwner, o0: "New" } };
+    expect(await writeTableRangeToNavigator(clipboard, newer, window, "verified-text")).toBe(true);
+    resolveOld!(tableRangeClipboardRepresentations(payload).plain);
+    expect(await pending).toEqual({ kind: "failed" });
+  });
+});
+
 function htmlOnlyClipboard(html: string): Clipboard {
   return {
     read: vi.fn(async () => [{ types: ["text/html"], getType: vi.fn(async () => new Blob([html], { type: "text/html" })) }]),

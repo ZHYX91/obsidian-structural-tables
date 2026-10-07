@@ -1,4 +1,4 @@
-import type { Editor } from "obsidian";
+import { Platform, type Editor } from "obsidian";
 
 import type { ImportedHtmlRow } from "../core/interchange";
 import { importedHtmlTableToStructuralSource } from "../core/interchange";
@@ -243,7 +243,7 @@ export async function copyText(text: string): Promise<void> {
 }
 
 export async function copyHtml(html: string, text: string): Promise<void> {
-  if (typeof ClipboardItem === "undefined" || navigator.clipboard.write === undefined) {
+  if (Platform.isMobileApp || typeof ClipboardItem === "undefined" || navigator.clipboard.write === undefined) {
     await copyText(text);
     return;
   }

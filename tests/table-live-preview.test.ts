@@ -4,7 +4,7 @@ import type { BaseEditorInfo } from "../src/app/base-promotion-service";
 import { EditorState, Prec, StateField, Transaction, type Extension } from "@codemirror/state";
 import { history, historyKeymap, redo, undo } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
-import { App, MarkdownRenderer, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
+import { App, MarkdownRenderer, Platform, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
@@ -123,6 +123,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   resetMockModKey();
+  Platform.isMobileApp = false;
   document.body.replaceChildren();
 });
 
@@ -3310,6 +3311,120 @@ describe("StructuralTableEditorController", () => {
 
       expect(view.state.doc.toString()).toBe(changed);
       expect(view.state.doc.toString()).toContain("External");
+    } finally {
+      Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined });
+      view.destroy();
+    }
+  });
+
+  it.each(["ignored-write", "read-rejected"] as const)("preserves mobile Cut source and history after %s", async (failure) => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    Platform.isMobileApp = true;
+    let writes = 0;
+    const listener = EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; });
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(), listener]);
+    const richWrite = vi.fn(async () => {});
+    const readText = vi.fn(async () => {
+      if (failure === "read-rejected") throw new Error("Denied");
+      return "previous clipboard";
+    });
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true, value: { write: richWrite, writeText: vi.fn(async () => {}), readText },
+    });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      dispatchPointerDown(cell, "touch");
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem("Cut selected cells", true);
+      await vi.waitFor(() => expect(notices[notices.length - 1]).toContain("not changed"));
+      expect(richWrite).not.toHaveBeenCalled();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(writes).toBe(0);
+      expect(undo(view)).toBe(false);
+    } finally {
+      Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined });
+      view.destroy();
+    }
+  });
+
+  it("copies and pastes mobile row ranges without changing dimensions, header roles or unselected cells", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n| C | D |\n\nAfter";
+    Platform.isMobileApp = true;
+    let text = "";
+    let writes = 0;
+    const listener = EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; });
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(), listener]);
+    const richWrite = vi.fn(async () => {});
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: { write: richWrite, writeText: vi.fn(async (value: string) => { text = value; }), readText: vi.fn(async () => text) },
+    });
+    try {
+      const sourceHandle = parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!;
+      sourceHandle.click();
+      sourceHandle.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem("Copy selected cells", true);
+      await vi.waitFor(() => expect(text).toContain("| A | B |"));
+      await Promise.resolve();
+      expect(writes).toBe(0);
+      const targetHandle = parent.querySelector<HTMLElement>("[data-structural-row-handle='2']")!;
+      targetHandle.click();
+      targetHandle.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem("Paste into selected cells", true);
+      await vi.waitFor(() => expect(writes).toBe(1));
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(table.rows).toHaveLength(3);
+      expect(table.columnCount).toBe(2);
+      expect(table.rowHeaderColumnCount).toBe(1);
+      expect(table.rows[0]!.cells.map((cell) => cell.content)).toEqual(["H", "V"]);
+      expect(table.rows[1]!.cells.map((cell) => cell.content)).toEqual(["A", "B"]);
+      expect(table.rows[2]!.cells.map((cell) => cell.content)).toEqual(["A", "B"]);
+      expect(view.state.doc.toString()).toMatch(/^Before\n\n/u);
+      expect(view.state.doc.toString()).toMatch(/\n\nAfter$/u);
+      expect(richWrite).not.toHaveBeenCalled();
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally {
+      Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined });
+      view.destroy();
+    }
+  });
+
+  it.each([false, true])("clears mobile Cut only after verified text and unchanged source (source changed=%s)", async (sourceChanged) => {
+    const source = "| H | V |\n| --- || --- |\n| A | B |";
+    Platform.isMobileApp = true;
+    let text = "";
+    let resolveRead: ((value: string) => void) | undefined;
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn(async (value: string) => { text = value; }),
+        readText: vi.fn(() => new Promise<string>((resolve) => { resolveRead = resolve; })),
+      },
+    });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      dispatchPointerDown(cell, "touch");
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem("Cut selected cells", true);
+      await vi.waitFor(() => expect(resolveRead).toBeDefined());
+      expect(view.state.doc.toString()).toBe(source);
+      if (sourceChanged) {
+        const at = source.indexOf("A | B");
+        view.dispatch({ changes: { from: at, to: at + 1, insert: "External" } });
+      }
+      const beforeResolution = view.state.doc.toString();
+      resolveRead!(text);
+      if (sourceChanged) {
+        await vi.waitFor(() => expect(notices[notices.length - 1]).toContain("changed"));
+        expect(view.state.doc.toString()).toBe(beforeResolution);
+      } else {
+        await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[0]!.content).toBe(""));
+        expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[1]!.content).toBe("B");
+        expect(undo(view)).toBe(true);
+        expect(view.state.doc.toString()).toBe(source);
+      }
     } finally {
       Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined });
       view.destroy();

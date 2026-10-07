@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { App, Component, MarkdownRenderer } from "obsidian";
+import { App, Component, MarkdownRenderer, Platform } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { parseEditableTables } from "../src/core/parser";
@@ -18,9 +18,34 @@ beforeAll(() => {
   };
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  Platform.isMobileApp = false;
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("portable table clipboard", () => {
+  it("copies the real mobile TSV projection with sanitized cell whitespace and complete rows", async () => {
+    Platform.isMobileApp = true;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      if (text === "Rich") element.innerHTML = "<strong>中文😊</strong><br>First\tSecond\r\nThird";
+      else element.textContent = text;
+    });
+    const write = vi.spyOn(navigator.clipboard, "write").mockResolvedValue();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const richItem = vi.fn(() => { throw new Error("mobile image-only rich bridge"); });
+    vi.stubGlobal("ClipboardItem", richItem);
+    const table = parseEditableTables(source.replace("| North | Rich | 12 |", "| North | Rich |  |" )).tables[0]!;
+
+    const rendered = await renderTableClipboard(new App(), table, "Note.md", "grid");
+    await copyHtml(rendered.html, rendered.text);
+
+    expect(rendered.html).toContain("<br>");
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("Region\tSales / Q1\tSales / Q2\nNorth\t中文😊 First Second Third\t\nNorth\t8\t11");
+    expect(write).not.toHaveBeenCalled();
+    expect(richItem).not.toHaveBeenCalled();
+  });
+
   it.each(["theme", "grid", "three-line"] as const)("keeps portable layout and column alignment in %s exports", async (appearance) => {
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
       element.textContent = text;

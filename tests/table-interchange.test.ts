@@ -36,7 +36,7 @@ describe("whole-table clipboard copy", () => {
   it("copies complete text on mobile without calling a resolving image-only rich bridge", async () => {
     Platform.isMobileApp = true;
     const { write, writeText } = clipboard();
-    const plain = 'Name\tNote\nNorth\t"First\nSecond"\nSouth\t';
+    const plain = "Name\tNote\nNorth\tFirst Second\nSouth\t";
 
     await copyHtml("<table><tr><td>North</td></tr></table>", plain);
 

@@ -128,7 +128,7 @@ For other applications, range Copy also provides HTML and plain Markdown. Range 
 
 Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.
 
-On mobile, the HTML copy commands copy tab-separated text. Rich HTML formatting and merged-cell layout are unavailable through the mobile clipboard.
+On mobile, the HTML copy commands copy tab-separated text. Cell-internal line breaks and tabs become spaces. Rich HTML formatting and merged-cell layout are unavailable through the mobile clipboard.
 
 ### Convert to Base
 

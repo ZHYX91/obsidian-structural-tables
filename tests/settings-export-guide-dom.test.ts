@@ -45,6 +45,9 @@ class MockElement {
   }
   scrollIntoView(): void {}
   focus(): void {}
+  cloneNode(): MockElement { return new MockElement(this.tag); }
+  replaceWith(_replacement: MockElement): void {}
+  remove(): void {}
 }
 
 class MockInput {

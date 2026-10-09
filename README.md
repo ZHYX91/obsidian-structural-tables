@@ -62,15 +62,23 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 <!-- section: usage -->
 ## Usage
 
+**Quick start:** Create a Markdown table, enter `<` in a cell to merge left or `^` to merge up, then move the source cursor outside the table in Live Preview or switch to Reading view. Click a rendered cell in Live Preview to edit it.
+
 1. Create or paste a normal Markdown pipe table.
 2. Put `<` in a cell to merge it with the cell on its left, or `^` to merge it with the cell above.
 3. Put one adjacent `||` in the delimiter row to mark the columns on its left as row headers.
 4. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the rendered result. To edit raw Markdown again, right-click a rendered cell and choose **Edit table source**.
-5. In Live Preview, click plain text to place the in-cell caret when the mapping is unambiguous; formatted or otherwise ambiguous content opens with the whole draft selected. Enter saves and moves to the same column on the next logical row (appending one row at the bottom), Escape cancels, Shift+Enter inserts a visual line break, and Tab moves to the next visible cell. While the in-place editor is active, Cmd/Ctrl+B and Cmd/Ctrl+I toggle Markdown bold or italic on the current draft selection without stripping the other emphasis style. Draft typing, composition input, paste, line breaks, and these B/I operations share draft-local undo/redo; the note source and its history are unchanged until you commit. Other formatting toolbar or command-palette actions are not redirected into the draft—use **Edit table source** for those.
-6. Use the **+** controls and row/column handles to add, select, move, align, merge, split, or change header roles. Shift+Arrow extends or shrinks the current logical grid range. With a Structural Tables grid selection focused, unmodified Delete/Backspace clears the selected cell contents only; it does not remove rows, columns, headers, merges, or the table. Right-click to **Clear selected cells** or explicitly **Delete selected rows**, **Delete selected columns**, or **Delete table**—non-empty selected rows, columns, or the table do not need to be cleared first. Clear and explicit removal are each undoable in one step.
+5. Click a cell in Live Preview to edit its text. Enter saves and advances; Escape cancels. See **Advanced editing and safe deletion** below for other shortcuts and undo behavior.
+6. Use the **+** controls, row/column handles, and the context menu to add, move, merge, split, or remove cells and rows. Delete/Backspace clears selected cell text rather than deleting table structure.
 7. Paste a supported HTML table directly into the Markdown editor to import it. Use the command palette for formatting, copying, and Sheets Extended migration. Convert a table to Base from either the command palette or the table context menu.
 
 Reading view is display-only. In-place editing and table controls are available in Live Preview.
+
+### Advanced editing and safe deletion
+
+When text can be mapped to its source precisely, clicking places the caret at that position. For formatted or ambiguous text, the cell opens with its draft selected. Enter saves and moves to the same column in the next logical row (adding a row at the bottom); Shift+Enter inserts a visual line break; Tab moves to the next visible cell. Cmd/Ctrl+B and Cmd/Ctrl+I toggle Markdown bold and italic in the active cell draft. Typing, composition, paste, line breaks, and these shortcuts share undo/redo within the draft; they do not alter the note until the edit is saved. To use other formatting commands, choose **Edit table source**.
+
+Shift+Arrow extends or shrinks a logical grid selection. With that selection focused, Delete/Backspace clears cell contents without removing rows, columns, header roles, or merges. For structural removal, right-click and choose **Delete selected rows**, **Delete selected columns**, or **Delete table**. Clearing or explicitly deleting is undoable in one step; non-empty rows do not need to be cleared first.
 
 ### Table syntax
 
@@ -156,6 +164,8 @@ The settings page has **General**, **Views**, and **Appearance** tabs.
 **Follow theme** leaves borders, header colors, and typography to the active Obsidian theme, including the outer edges of tables without column headers. **Grid** gives semantic headers a consistent header band, with slightly thicker single lines below the complete column-header area and along the row-header divider declared by `||`. Both boundaries remain visible even before data rows are added. These lines follow merged-cell edges; tables without headers keep a uniform grid. **Three-line table** uses top and bottom rules plus one rule below the complete column-header area, with no vertical body rules. A headerless Three-line table naturally has only the top and bottom rules.
 
 Appearance settings affect only rendering; they never change Markdown.
+
+**Export to Word:** Structural Tables uses extra Markdown syntax for merged cells and header structure. For compatible DOCX conversion, [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) can work with the separate local DocWen application. Enable the Structural Tables **input** extension in DocWen's Markdown syntax settings (and the output extension when converting back to Markdown). Conversion is optional and available only on supported desktop systems.
 
 <!-- section: limitations -->
 ## Limitations

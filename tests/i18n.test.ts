@@ -21,6 +21,15 @@ describe("i18n", () => {
     expect(createTranslator("zh-CN")("menu.flattenAndPromoteBase")).toBe("展开结构并升级为 Base…");
   });
 
+  it("explains complex-table export as an optional desktop workflow", () => {
+    const en = createTranslator("en");
+    const zh = createTranslator("zh-CN");
+    expect(en("settings.exportGuide.body")).toContain("extra Markdown syntax");
+    expect(en("settings.exportGuide.setup")).toContain("input extension");
+    expect(zh("settings.exportGuide.setup")).toContain("输入扩展");
+    expect(zh("settings.reading.desc")).toContain("合并单元格");
+  });
+
   it("uses direct Base wording without internal promotion terminology", () => {
     expect(createTranslator("en")("command.createBaseRecord")).toBe("Create record for current Base");
     expect(createTranslator("en")("command.restorePromotedTable")).toBe("Restore table from current Base");

@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 
-import { createTranslator } from "../config/i18n";
+import { createTranslator, type Translate } from "../config/i18n";
 import { moveSettingsTabIndex } from "./settings-tab-navigation";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import type { StructuralTablesPlugin } from "./plugin";
@@ -93,6 +93,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       new Setting(panels).setName(t("settings.warnConflicts")).setDesc(t("settings.warnConflicts.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.warnPluginConflicts)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ warnPluginConflicts: value })));
+      this.renderExportGuide(panels, t);
     } else if (this.activeTab === "views") {
       new Setting(panels).setName(t("settings.reading")).setDesc(t("settings.reading.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.enableReadingView)
@@ -141,6 +142,22 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.statusCleanup?.();
     this.statusCleanup = null;
     super.hide();
+  }
+
+  private renderExportGuide(container: HTMLElement, t: Translate): void {
+    const guide = container.createDiv({ cls: "structural-tables-settings-export-guide" });
+    guide.setAttribute("role", "note");
+    guide.setAttribute("aria-labelledby", "structural-tables-settings-export-guide-title");
+    const title = guide.createEl("strong", { text: t("settings.exportGuide.title") });
+    title.id = "structural-tables-settings-export-guide-title";
+    guide.createEl("p", { text: t("settings.exportGuide.body") });
+    guide.createEl("p", { text: t("settings.exportGuide.setup") });
+    const link = guide.createEl("a", {
+      text: t("settings.exportGuide.link"),
+      href: "https://obsidian.md/plugins?id=docwen-assistant",
+    });
+    link.setAttribute("target", "_blank");
+    link.setAttribute("rel", "noopener noreferrer");
   }
 
   private renderSaveStatus(container: HTMLElement): () => void {

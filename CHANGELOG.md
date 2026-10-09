@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 - 2026-10-09
+
+- Clarify table editing and safe deletion guidance without changing table operations.
+- Add optional DocWen Word-export guidance to the General settings tab, including input/output extension requirements and a community installation link.
+
 ## 0.6.0 - 2026-10-07
 
 - Verify mobile selected-cell copies through the system text clipboard before cutting, and preserve merge layouts for bounded paste within the current plugin session.

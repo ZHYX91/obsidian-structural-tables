@@ -63,6 +63,79 @@ describe("standalone Markdown rendering", () => {
     expect(h.container.textContent).not.toContain("|");
   });
 
+  it("keeps ordinary export DOM intact when native-table takeover is disabled", async () => {
+    const ordinary = "| Name | Score |\n| :--- | ---: |\n| Alice | 10 |";
+    const h = harness(ordinary);
+    const original = h.container.innerHTML;
+    await h.run();
+    expect(h.container.innerHTML).toBe(original);
+    expect(h.container.querySelector(".structural-tables-table")).toBeNull();
+    expect(h.render).not.toHaveBeenCalled();
+  });
+
+  it("exports a verified ordinary table with Reading View appearance when takeover is enabled", async () => {
+    const ordinary = "| Name | Score |\n| :--- | ---: |\n| Alice | 10 |";
+    const h = harness(ordinary);
+    h.settings.takeOverOrdinaryTables = true;
+    h.settings.appearance = "grid";
+    h.settings.density = "compact";
+    h.settings.layout = "content-center";
+    h.settings.zebraRows = true;
+    await h.run();
+    const wrapper = h.container.querySelector<HTMLElement>(".structural-tables-container");
+    expect(wrapper?.dataset).toMatchObject({
+      tableKind: "ordinary",
+      appearance: "grid",
+      density: "compact",
+      layout: "content-center",
+      zebra: "true",
+      structuralTablesProcessed: "true",
+    });
+    expect(wrapper?.querySelectorAll("thead th")).toHaveLength(2);
+    expect(wrapper?.querySelector("tbody td[data-align='right']")?.textContent).toBe("10");
+    expect(h.container.cloneNode(true).textContent).toContain("Alice");
+    expect(h.cachedRead).toHaveBeenCalledTimes(2);
+  });
+
+  it("maps only the source-verified ordinary table in a mixed structural note", async () => {
+    const ordinary = "| Name | Score |\n| --- | --- |\n| Alice | 10 |";
+    const h = harness(merged + "\n\n" + ordinary, ordinary);
+    h.settings.takeOverOrdinaryTables = true;
+    await h.run();
+    expect(h.container.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+    expect(h.container.querySelector<HTMLElement>(".structural-tables-container")?.dataset.tableKind)
+      .toBe("ordinary");
+    expect(h.container.textContent).not.toContain("North");
+  });
+
+  it.each(["identical Markdown", "HTML alias"])(
+    "refuses ambiguous ordinary-table sources: %s", async (kind) => {
+      const ordinary = "| Name | Score |\n| --- | --- |\n| Alice | 10 |";
+      const source = kind === "identical Markdown"
+        ? ordinary + "\n\n" + ordinary
+        : ordinary + "\n\n" + markdown.render(ordinary);
+      const h = harness(source, ordinary);
+      h.settings.takeOverOrdinaryTables = true;
+      const original = h.container.innerHTML;
+      await h.run();
+      expect(h.container.innerHTML).toBe(original);
+      expect(h.container.querySelector(".structural-tables-table")).toBeNull();
+    },
+  );
+
+  it("honors takeover being disabled before an asynchronous export commits", async () => {
+    const ordinary = "| Name | Score |\n| --- | --- |\n| Alice | 10 |";
+    const h = harness(ordinary);
+    h.settings.takeOverOrdinaryTables = true;
+    const original = h.container.innerHTML;
+    h.render.mockImplementation(async (_app, text, target) => {
+      target.innerHTML = markdown.render(text);
+      h.settings.takeOverOrdinaryTables = false;
+    });
+    await h.run();
+    expect(h.container.innerHTML).toBe(original);
+  });
+
   it("matches a selected table by identity rather than its position in the original note", async () => {
     const other = "| A | B |\n| --- | --- |\n| one | two |";
     const h = harness(other + "\n\n" + merged, merged);

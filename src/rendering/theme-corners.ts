@@ -57,8 +57,7 @@ export function installThemeCornerRemap(table: HTMLTableElement, component: Comp
   };
   // Popout and test documents have their own observer realm; never require
   // the main window's global MutationObserver to exist.
-  const view = table.ownerDocument.defaultView as (Window & typeof globalThis) | null;
-  const Observer = view?.MutationObserver;
+  const Observer = table.ownerDocument.defaultView?.MutationObserver;
   if (Observer !== undefined) {
     const observer = new Observer(() => queueMicrotask(refresh));
     observer.observe(table.ownerDocument.documentElement, { attributes: true, attributeFilter: ["class", "style"] });

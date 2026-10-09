@@ -111,6 +111,65 @@ describe("theme outer borders", () => {
   });
 });
 
+describe("semantic theme corner ownership", () => {
+  it("moves the bottom-left corner to the spanning row header, not the last row's first child", () => {
+    const source = "| --- || --- |\n| North | 10 |\n| ^ | 20 |";
+    const table = parseStructuralTables(source).tables[0]!;
+    expect(table.valid).toBe(true);
+    const root = document.createElement("div");
+    const rendered = renderStructuralTable({} as App, table, root, "Corners.md", new Component());
+    expect(rendered.dataset.structuralRemapEndStart).toBe("true");
+    expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.textContent).toContain("North");
+    expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.getAttribute("rowspan")).toBe("2");
+    expect(rendered.querySelector("tr[data-structural-last-row='true'] > :first-child")
+      ?.hasAttribute("data-structural-corner-end-start")).toBe(false);
+    expect(rendered.dataset.structuralRemapEndEnd).toBeUndefined();
+  });
+
+  it("assigns both bottom corners when the last visual row is entirely covered by spanning cells", () => {
+    const source = "| --- | --- |\n| Left | Right |\n| ^ | ^ |";
+    const table = parseStructuralTables(source).tables[0]!;
+    expect(table.valid).toBe(true);
+    const rendered = renderStructuralTable({} as App, table, document.createElement("div"),
+      "Covered.md", new Component());
+    expect(rendered.dataset.structuralRemapEndStart).toBe("true");
+    expect(rendered.dataset.structuralRemapEndEnd).toBe("true");
+    expect(rendered.querySelector("tr[data-structural-last-row='true']")?.children).toHaveLength(0);
+    expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.textContent).toContain("Left");
+    expect(rendered.querySelector("[data-structural-corner-end-end='true']")?.textContent).toContain("Right");
+  });
+
+  it("marks a top-right corner spanning layered headers without changing the table shape", () => {
+    const source = "| Region | Scores | < |\n| Detail | ^ | ^ |\n| --- | --- | --- |";
+    const table = parseStructuralTables(source).tables[0]!;
+    expect(table.valid).toBe(true);
+    const rendered = renderStructuralTable({} as App, table, document.createElement("div"),
+      "Headers.md", new Component());
+    expect(rendered.dataset.structuralRemapStartEnd).toBe("true");
+    expect(rendered.dataset.structuralRemapEndEnd).toBe("true");
+    expect(rendered.querySelector("[data-structural-corner-start-end='true']")?.getAttribute("rowspan")).toBe("2");
+    expect(rendered.querySelector("tr[data-structural-last-header-row='true'] > :last-child")
+      ?.hasAttribute("data-structural-corner-start-end")).toBe(false);
+  });
+
+  it("does not remap ordinary or unspanned tables", () => {
+    for (const source of [
+      "| Name | Value |\n| --- | --- |\n| Alice | 1 |",
+      "| --- || --- |\n| Alice | 1 |\n| Bob | 2 |",
+    ]) {
+      const table = parseEditableTables(source).tables[0]!;
+      const rendered = renderStructuralTable({} as App, table, document.createElement("div"),
+        "Unmerged.md", new Component());
+      expect(rendered.dataset.structuralRemapStartStart).toBeUndefined();
+      expect(rendered.dataset.structuralRemapStartEnd).toBeUndefined();
+      expect(rendered.dataset.structuralRemapEndStart).toBeUndefined();
+      expect(rendered.dataset.structuralRemapEndEnd).toBeUndefined();
+      expect(rendered.querySelectorAll("[data-structural-corner-end-start='true']")).toHaveLength(1);
+      expect(rendered.querySelectorAll("[data-structural-corner-end-end='true']")).toHaveLength(1);
+    }
+  });
+});
+
 describe("Grid header boundaries", () => {
   const cases = [
     {

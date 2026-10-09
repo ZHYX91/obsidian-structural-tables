@@ -62,6 +62,10 @@ export function renderStructuralTable(
   table.rows.forEach((row, rowIndex) => {
     const section = rowIndex < table.headerRowCount ? head : body;
     const rowElement = (section ?? body).createEl("tr");
+    if (rowIndex === table.rows.length - 1) rowElement.dataset.structuralLastRow = "true";
+    if (table.headerRowCount > 0 && rowIndex === table.headerRowCount - 1) {
+      rowElement.dataset.structuralLastHeaderRow = "true";
+    }
     row.cells.forEach((cell) => {
       if (cell.covered) return;
       const header = cell.role !== "data";
@@ -71,6 +75,28 @@ export function renderStructuralTable(
       element.dataset.structuralRole = cell.role;
       element.dataset.structuralBlockEnd = String(cell.row + cell.rowSpan === table.rows.length);
       element.dataset.structuralInlineEnd = String(cell.column + cell.columnSpan === table.columnCount);
+      // Themes often select first/last DOM children for rounded corners.
+      // Spanning anchors can own the visual corner from an earlier row.
+      const blockStart = cell.row === 0;
+      const blockEnd = cell.row + cell.rowSpan === table.rows.length;
+      const inlineStart = cell.column === 0;
+      const inlineEnd = cell.column + cell.columnSpan === table.columnCount;
+      if (blockStart && inlineStart) {
+        element.dataset.structuralCornerStartStart = "true";
+        if (cell.rowSpan > 1 && table.headerRowCount > 1) rendered.dataset.structuralRemapStartStart = "true";
+      }
+      if (blockStart && inlineEnd) {
+        element.dataset.structuralCornerStartEnd = "true";
+        if (cell.rowSpan > 1 && table.headerRowCount > 1) rendered.dataset.structuralRemapStartEnd = "true";
+      }
+      if (blockEnd && inlineStart) {
+        element.dataset.structuralCornerEndStart = "true";
+        if (cell.row < table.rows.length - 1) rendered.dataset.structuralRemapEndStart = "true";
+      }
+      if (blockEnd && inlineEnd) {
+        element.dataset.structuralCornerEndEnd = "true";
+        if (cell.row < table.rows.length - 1) rendered.dataset.structuralRemapEndEnd = "true";
+      }
       if (rowIndex < table.headerRowCount) {
         element.dataset.structuralHeaderEnd = String(cell.row + cell.rowSpan === table.headerRowCount);
       }

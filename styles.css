@@ -179,6 +179,48 @@
   border-block-start-width: var(--table-header-border-width, var(--table-border-width, 1px));
 }
 
+/* Theme-only corner remap: merged anchors can occupy a visible outer corner
+   without being the first/last DOM child of the outer row. Consume a theme's
+   own radius token if provided; an undefined token leaves hard-coded theme
+   styling alone rather than inventing rounded corners for square themes. */
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table {
+  --structural-tables-corner-radius: var(--table-radius, var(--table-border-radius));
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-start-start="true"] [data-structural-corner-start-start="true"] {
+  border-start-start-radius: var(--structural-tables-corner-radius) !important;
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-start-end="true"] [data-structural-corner-start-end="true"] {
+  border-start-end-radius: var(--structural-tables-corner-radius) !important;
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-end-start="true"] [data-structural-corner-end-start="true"] {
+  border-end-start-radius: var(--structural-tables-corner-radius) !important;
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-end-end="true"] [data-structural-corner-end-end="true"] {
+  border-end-end-radius: var(--structural-tables-corner-radius) !important;
+}
+
+/* Clear a theme's position-based corner only when its radius variable exists;
+   otherwise leave non-token-based theme CSS untouched. */
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-start-start="true"] tr[data-structural-last-header-row="true"] > :first-child:not([data-structural-corner-start-start="true"]) {
+  border-start-start-radius: calc(var(--structural-tables-corner-radius) * 0) !important;
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-start-end="true"] tr[data-structural-last-header-row="true"] > :last-child:not([data-structural-corner-start-end="true"]) {
+  border-start-end-radius: calc(var(--structural-tables-corner-radius) * 0) !important;
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-end-start="true"] tr[data-structural-last-row="true"] > :first-child:not([data-structural-corner-end-start="true"]) {
+  border-end-start-radius: calc(var(--structural-tables-corner-radius) * 0) !important;
+}
+
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-end-end="true"] tr[data-structural-last-row="true"] > :last-child:not([data-structural-corner-end-end="true"]) {
+  border-end-end-radius: calc(var(--structural-tables-corner-radius) * 0) !important;
+}
+
 :is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="grid"] .structural-tables-table {
   border-collapse: collapse !important;
   border: var(--table-border-width, 1px) solid var(--table-border-color, var(--background-modifier-border)) !important;

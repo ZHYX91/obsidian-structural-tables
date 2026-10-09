@@ -17,6 +17,7 @@ class MockElement {
 
   empty(): void { this.children.length = 0; }
   addClass(cls: string): void { this.attributes.set("class", cls); }
+  toggleClass(cls: string, enabled: boolean): void { if (enabled) this.addClass(cls); }
   createDiv(options?: Options): MockElement { return this.createEl("div", options); }
   createSpan(options?: Options): MockElement { return this.createEl("span", options); }
   createEl(tag: string, options?: Options): MockElement {

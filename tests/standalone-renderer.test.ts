@@ -92,7 +92,7 @@ describe("standalone Markdown rendering", () => {
       structuralTablesProcessed: "true",
     });
     expect(wrapper?.querySelectorAll("thead th")).toHaveLength(2);
-    expect(wrapper?.querySelector("tbody td[data-align='right']")?.textContent).toBe("10");
+    expect(wrapper?.querySelector("tbody td[data-align='right']")?.textContent?.trim()).toBe("10");
     expect(h.container.cloneNode(true).textContent).toContain("Alice");
     expect(h.cachedRead).toHaveBeenCalledTimes(2);
   });

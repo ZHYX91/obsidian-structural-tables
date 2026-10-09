@@ -55,11 +55,19 @@ export function installThemeCornerRemap(table: HTMLTableElement, component: Comp
       table.dataset[`structuralReady${suffix(side)}`] = "true";
     }
   };
-  const observer = new MutationObserver(() => queueMicrotask(refresh));
-  observer.observe(table.ownerDocument.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
-  if (table.ownerDocument.body !== null) {
-    observer.observe(table.ownerDocument.body, { attributes: true, attributeFilter: ["class", "style"] });
+  // Popout and test documents have their own observer realm; never require
+  // the main window's global MutationObserver to exist.
+  const view = table.ownerDocument.defaultView as (Window & typeof globalThis) | null;
+  const Observer = view?.MutationObserver;
+  if (Observer !== undefined) {
+    const observer = new Observer(() => queueMicrotask(refresh));
+    observer.observe(table.ownerDocument.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+    if (table.ownerDocument.body !== null) {
+      observer.observe(table.ownerDocument.body, { attributes: true, attributeFilter: ["class", "style"] });
+    }
+    component.register(() => { disposed = true; observer.disconnect(); });
+  } else {
+    component.register(() => { disposed = true; });
   }
-  component.register(() => { disposed = true; observer.disconnect(); });
   queueMicrotask(refresh);
 }

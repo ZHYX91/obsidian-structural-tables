@@ -1,6 +1,7 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 
 import type { StructuralTable } from "../core/model";
+import { installThemeCornerRemap } from "./theme-corners";
 
 interface PendingCellRender {
   cancelled: boolean;
@@ -119,5 +120,6 @@ export function renderStructuralTable(
   // is still constructing the widget DOM. The owning component cancels stale
   // work if the view is destroyed before this microtask runs.
   completionByTable.set(rendered, scheduleCellRendering(app, pendingCells, sourcePath, component));
+  installThemeCornerRemap(rendered, component);
   return rendered;
 }

@@ -112,6 +112,40 @@ describe("theme outer borders", () => {
 });
 
 describe("semantic theme corner ownership", () => {
+  it("uses a hard-coded theme radius only when a displaced corner actually has one", async () => {
+    const table = parseStructuralTables("| --- || --- |\n| North | 10 |\n| ^ | 20 |").tables[0]!;
+    const container = document.body.appendChild(document.createElement("div"));
+    try {
+      const rendered = renderStructuralTable({} as App, table, container, "HardCoded.md", new Component());
+      rendered.parentElement!.dataset.appearance = "theme";
+      const lastCell = rendered.querySelector<HTMLElement>("tr[data-structural-last-row='true'] > :first-child")!;
+      lastCell.style.setProperty("border-end-start-radius", "11px");
+      await Promise.resolve();
+      expect(rendered.dataset.structuralReadyEndStart).toBe("true");
+      expect(rendered.style.getPropertyValue("--structural-tables-corner-end-start")).toBe("11px");
+      expect(rendered.dataset.structuralReadyEndEnd).toBeUndefined();
+    } finally {
+      container.remove();
+    }
+  });
+
+  it("leaves unknown-radius themes and non-theme modes alone", async () => {
+    for (const appearance of ["theme", "grid", "three-line"]) {
+      const table = parseStructuralTables("| --- || --- |\n| North | 10 |\n| ^ | 20 |").tables[0]!;
+      const container = document.body.appendChild(document.createElement("div"));
+      try {
+        const rendered = renderStructuralTable({} as App, table, container, "Square.md", new Component());
+        rendered.parentElement!.dataset.appearance = appearance;
+        await Promise.resolve();
+        expect(rendered.dataset.structuralReadyEndStart).toBeUndefined();
+        expect(rendered.style.getPropertyValue("--structural-tables-corner-end-start")).toBe("");
+      } finally {
+        container.remove();
+      }
+    }
+  });
+
+
   it("moves the bottom-left corner to the spanning row header, not the last row's first child", () => {
     const source = "| --- || --- |\n| North | 10 |\n| ^ | 20 |";
     const table = parseStructuralTables(source).tables[0]!;
@@ -119,7 +153,7 @@ describe("semantic theme corner ownership", () => {
     const root = document.createElement("div");
     const rendered = renderStructuralTable({} as App, table, root, "Corners.md", new Component());
     expect(rendered.dataset.structuralRemapEndStart).toBe("true");
-    expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.textContent).toContain("North");
+    expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.getAttribute("data-structural-column")).toBe("0");
     expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.getAttribute("rowspan")).toBe("2");
     expect(rendered.querySelector("tr[data-structural-last-row='true'] > :first-child")
       ?.hasAttribute("data-structural-corner-end-start")).toBe(false);
@@ -135,8 +169,8 @@ describe("semantic theme corner ownership", () => {
     expect(rendered.dataset.structuralRemapEndStart).toBe("true");
     expect(rendered.dataset.structuralRemapEndEnd).toBe("true");
     expect(rendered.querySelector("tr[data-structural-last-row='true']")?.children).toHaveLength(0);
-    expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.textContent).toContain("Left");
-    expect(rendered.querySelector("[data-structural-corner-end-end='true']")?.textContent).toContain("Right");
+    expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.getAttribute("data-structural-column")).toBe("0");
+    expect(rendered.querySelector("[data-structural-corner-end-end='true']")?.getAttribute("data-structural-column")).toBe("1");
   });
 
   it("marks a top-right corner spanning layered headers without changing the table shape", () => {

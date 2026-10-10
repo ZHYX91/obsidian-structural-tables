@@ -137,6 +137,8 @@ For other applications, range Copy also provides HTML and plain Markdown. Range 
 
 Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.
 
+Copied HTML includes standard links between headers and data cells, but Word may discard these links when saving a DOCX; a complete semantic round-trip for multiple row-header columns is not guaranteed.
+
 On mobile, or when rich clipboard support is unavailable, the HTML copy commands copy tab-separated plain text and say that header structure and merged cells were flattened. Cell-internal line breaks and tabs become spaces; rich HTML formatting and merged-cell layout are unavailable in this fallback.
 
 ### Export a table image

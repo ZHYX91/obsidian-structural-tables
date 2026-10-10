@@ -254,23 +254,79 @@ async function resourceData(url: string, document: Document, signal: AbortSignal
   return imageWork(pending, signal);
 }
 
-const cssURL = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)]*?))\s*\)/giu;
+const cssSpace = /[\t\n\f\r ]/u;
+const cssName = /[-\w\u0080-\uFFFF]/u;
+
+function cssEscape(value: string, index: number): { text: string; end: number } {
+  const start = index + 1;
+  const hex = /^[\da-f]{1,6}/iu.exec(value.slice(start))?.[0];
+  if (hex !== undefined) {
+    let end = start + hex.length;
+    if (cssSpace.test(value[end] ?? "")) { if (value[end] === "\r" && value[end + 1] === "\n") end += 1; end += 1; }
+    const code = Number.parseInt(hex, 16);
+    return { text: code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ? "\ufffd" : String.fromCodePoint(code), end };
+  }
+  const char = value[start] ?? "\ufffd";
+  if (/^[\n\r\f]$/u.test(char)) return { text: "", end: start + (char === "\r" && value[start + 1] === "\n" ? 2 : 1) };
+  return { text: char, end: start + 1 };
+}
+
+function cssString(value: string, start: number): { text: string; end: number } {
+  let text = ""; let index = start + 1;
+  while (index < value.length && value[index] !== value[start]) {
+    if (value[index] === "\\") { const escaped = cssEscape(value, index); text += escaped.text; index = escaped.end; }
+    else { text += value[index]; index += 1; }
+  }
+  return { text, end: index < value.length ? index + 1 : index };
+}
+
+/** Traverse browser-parsed CSS values, keeping strings/comments out of URL tokens.
+ * https://www.w3.org/TR/css-syntax-3/#tokenizer-algorithms */
+function* cssURLs(value: string): Generator<{ start: number; end: number; url: string }> {
+  let index = 0;
+  while (index < value.length) {
+    const char = value[index]!;
+    if (char === '"' || char === "'") { index = cssString(value, index).end; continue; }
+    if (value.startsWith("/*", index)) { const end = value.indexOf("*/", index + 2); index = end < 0 ? value.length : end + 2; continue; }
+    if (!cssName.test(char) && char !== "\\") { index += 1; continue; }
+    const start = index; let name = "";
+    while (index < value.length && (cssName.test(value[index]!) || value[index] === "\\")) {
+      if (value[index] === "\\") { const escaped = cssEscape(value, index); name += escaped.text; index = escaped.end; }
+      else { name += value[index]; index += 1; }
+    }
+    if (name.toLowerCase() !== "url" || value[index] !== "(") continue;
+    index += 1;
+    while (cssSpace.test(value[index] ?? "")) index += 1;
+    let url = "";
+    if (value[index] === '"' || value[index] === "'") { const string = cssString(value, index); url = string.text; index = string.end; }
+    else {
+      while (index < value.length && value[index] !== ")" && !cssSpace.test(value[index]!)) {
+        if (value[index] === "\\") { const escaped = cssEscape(value, index); url += escaped.text; index = escaped.end; }
+        else { url += value[index]; index += 1; }
+      }
+    }
+    while (cssSpace.test(value[index] ?? "")) index += 1;
+    if (value[index] !== ")") throw new TableImageError("resource");
+    index += 1;
+    yield { start, end: index, url };
+  }
+}
+
 async function embedCSSURLs(value: string, document: Document, signal: AbortSignal, budget: ResourceBudget,
-  images: boolean): Promise<string> {
+  images: boolean, base = document.baseURI): Promise<string> {
   let output = "";
   let cursor = 0;
-  for (const match of value.matchAll(cssURL)) {
-    const url = (match[1] ?? match[2] ?? match[3] ?? "").trim().replace(/\\(["'\\() ])/gu, "$1");
+  for (const { start, end, url } of cssURLs(value)) {
     if (url === "") throw new TableImageError("resource");
     if (url.startsWith("#")) continue;
-    const data = await resourceData(url, document, signal, budget);
+    const data = await resourceData(new URL(url, base).href, document, signal, budget);
     if (images) {
       const image = document.createElement("img");
       image.src = data;
       try { await decodeImage(image, signal); } finally { image.removeAttribute("src"); }
     }
-    output += value.slice(cursor, match.index) + `url("${data}")`;
-    cursor = match.index + match[0].length;
+    output += value.slice(cursor, start) + `url("${data}")`;
+    cursor = end;
   }
   return output + value.slice(cursor);
 }
@@ -354,9 +410,7 @@ async function embeddedFonts(root: HTMLElement, signal: AbortSignal, budget: Res
           try {
             // Probe src in its actual priority order. local() success needs no
             // URL fallback; URL sources are made self-contained and validated.
-            const resolved = source.replace(cssURL, (_raw, quoted: string | undefined, single: string | undefined, plain: string | undefined) =>
-              `url("${new URL(quoted ?? single ?? plain ?? "", base).href}")`);
-            const embedded = await embedCSSURLs(resolved, root.ownerDocument, signal, budget, false);
+            const embedded = await embedCSSURLs(source, root.ownerDocument, signal, budget, false, base);
             const probe = new view.FontFace(face.style.fontFamily, embedded, descriptors);
             await imageWork(probe.load(), signal);
             selected = embedded; break;
@@ -404,7 +458,7 @@ async function embedSerializedResources(svg: string, document: Document, signal:
       // already have var() resolved by the browser before serialization.
       if (property.startsWith("--") || property === "cursor") continue;
       const value = style.getPropertyValue(property);
-      if (!value.toLowerCase().includes("url(")) continue;
+      if (!value.includes("(")) continue;
       style.setProperty(property, await embedCSSURLs(value, document, signal, budget, images), style.getPropertyPriority(property));
     }
   };

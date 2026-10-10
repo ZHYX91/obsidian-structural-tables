@@ -20,6 +20,18 @@ function render(overrides = {}) {
     settings: DEFAULT_SETTINGS, document, signal: new AbortController().signal, isCurrent: () => true, ...overrides });
 }
 
+function serializedContent(value: string, inline = false): string {
+  const xml = new DOMParser().parseFromString('<svg xmlns="http://www.w3.org/2000/svg"/>', "image/svg+xml");
+  if (inline) {
+    const element = xml.createElementNS("http://www.w3.org/1999/xhtml", "div");
+    element.setAttribute("style", `content:${value}`); xml.documentElement.append(element);
+  } else {
+    const style = xml.createElementNS("http://www.w3.org/2000/svg", "style");
+    style.textContent = `.content::before{content:${value}}`; xml.documentElement.append(style);
+  }
+  return `data:image/svg+xml,${encodeURIComponent(new XMLSerializer().serializeToString(xml))}`;
+}
+
 beforeEach(() => {
   Object.defineProperty(document, "fonts", { value: { ready: Promise.resolve(), [Symbol.iterator]: () => [][Symbol.iterator]() }, configurable: true });
   Object.defineProperty(window, "FontFace", { configurable: true, value: class {
@@ -131,6 +143,51 @@ describe("complete table PNG", () => {
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, source, target) => { target.textContent = source; });
     raster.toSvg.mockResolvedValue(`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><div xmlns="http://www.w3.org/1999/xhtml" style="background-image:url(\'\')"/></foreignObject></svg>')}`);
     await expect(render()).rejects.toMatchObject({ code: "resource" });
+  });
+
+  it.each(['"url()"', "'url(\"/missing.svg\")'", String.raw`"quote \" url() \\ url('/missing.svg')"`,
+    String.raw`'quote \' url() \\ url("/missing.svg")'`, String.raw`"\75rl()"`, '"not-url()"'])("preserves CSS string content %s without inventing image resources", async (value) => {
+    const fetch = vi.spyOn(window, "fetch").mockRejectedValue(new Error("CSS string is not an image"));
+    const src = vi.spyOn(HTMLImageElement.prototype, "src", "set");
+    for (const inline of [false, true]) {
+      raster.toSvg.mockResolvedValue(serializedContent(value, inline));
+      await expect(render()).resolves.toMatchObject({ width: 1280 });
+      const svg = decodeURIComponent(src.mock.calls[src.mock.calls.length - 1]![0].split(",").slice(1).join(","));
+      expect(svg).not.toContain("data:image/");
+      const xml = new DOMParser().parseFromString(svg, "image/svg+xml");
+      const expected = document.createElement("div").style; expected.setProperty("content", value);
+      if (inline) {
+        const actual = document.createElement("div").style; actual.cssText = xml.querySelector("div")!.getAttribute("style")!;
+        expect(actual.getPropertyValue("content")).toBe(expected.getPropertyValue("content"));
+      } else {
+        const sheet = new CSSStyleSheet(); sheet.replaceSync(xml.querySelector("style")!.textContent!);
+        expect((sheet.cssRules[0] as CSSStyleRule).style.getPropertyValue("content")).toBe(expected.getPropertyValue("content"));
+      }
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([String.raw`url("https://example.invalid/r\65 d\(1\).svg")`,
+    String.raw`u\72l(https://example.invalid/r\65 d\(1\).svg)`])("embeds real escaped content URLs %s alongside literal URL text", async (url) => {
+    const fetch = vi.spyOn(window, "fetch").mockResolvedValue(new Response('<svg xmlns="http://www.w3.org/2000/svg"/>',
+      { headers: { "Content-Type": "image/svg+xml" } }));
+    const src = vi.spyOn(HTMLImageElement.prototype, "src", "set");
+    raster.toSvg.mockResolvedValue(serializedContent(`${url} "url()" 'url("/missing.svg")'`));
+    await render();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0]![0]).toBe("https://example.invalid/red(1).svg");
+    const svg = decodeURIComponent(src.mock.calls[src.mock.calls.length - 1]![0].split(",").slice(1).join(","));
+    expect(svg).toContain("data:image/svg+xml;base64,");
+    expect(svg).toContain("url()");
+    expect(svg).toContain("/missing.svg");
+  });
+
+  it("refuses missing real CSS content images even when followed by URL-like strings", async () => {
+    const fetch = vi.spyOn(window, "fetch").mockResolvedValue(new Response("missing", { status: 404 }));
+    raster.toSvg.mockResolvedValue(serializedContent('url("https://example.invalid/missing.svg") "url()"'));
+    await expect(render()).rejects.toMatchObject({ code: "resource" });
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(document.querySelector(".structural-tables-image-stage")).toBeNull();
   });
 
   it("allows unrelated renderer head updates but refuses changed source presentation", async () => {

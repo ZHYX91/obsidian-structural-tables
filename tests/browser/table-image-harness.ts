@@ -34,6 +34,8 @@ MarkdownRenderer.render = async (_app, source, target) => {
     use.setAttribute("href", "#math-glyph"); svg.append(use); container.append(svg);
   } else if (source === "decoration" || source === "regular-decoration" || source === "missing-decoration") {
     target.createDiv({ cls: source, text: "text" });
+  } else if (source.startsWith("css-content-")) {
+    target.createDiv({ cls: source, text: "text" });
   } else target.innerHTML = markdown.renderInline(source);
 };
 
@@ -83,6 +85,8 @@ async function run(): Promise<void> {
     const cell = sourceTable.querySelector("th")!;
     const sourceColor = getComputedStyle(cell).backgroundColor;
     const sourceBorder = getComputedStyle(sourceTable.querySelector("td")!).borderLeftColor;
+    const generated = sourceTable.querySelector('[class^="css-content-"]');
+    const sourceContent = generated === null ? undefined : getComputedStyle(generated, "::before").content;
     let changed = false;
     try {
       const result = await renderTableImage(new App(), { table, sourcePath: "Table image export.md", settings: DEFAULT_SETTINGS,
@@ -90,7 +94,7 @@ async function run(): Promise<void> {
           if (!changed && mutate !== undefined) { changed = true; mutate(sourceTable); }
           return true;
         } });
-      return { ...await pixels(result), sourceColor, sourceBorder };
+      return { ...await pixels(result), sourceColor, sourceBorder, sourceContent };
     } finally { owner.unload(); scope.remove(); }
   };
   regression.noteScope = await cases("source styled", "theme-note");
@@ -105,6 +109,25 @@ async function run(): Promise<void> {
   if (pseudos.red < 5000 || pseudos.blue < 5000) throw new Error(`Lost pseudo resources: ${JSON.stringify(pseudos)}`);
   try { await cases("missing-decoration"); throw new Error("Missing pseudo resource succeeded"); }
   catch (error) { if (!(error instanceof TableImageError) || error.code !== "resource") throw error; regression.missingPseudo = error.code; }
+  for (const name of ["string", "escaped"]) {
+    const literal = await cases(`css-content-${name}`);
+    // Adjacent CSS strings show identical text while the control spelling has
+    // no contiguous url(). Both use pseudos so library font cloning is equal.
+    const control = await cases(`css-content-${name}-control`);
+    if (literal.hash !== control.hash || literal.dark <= 100 || !literal.sourceContent?.includes("url()")) {
+      throw new Error(`CSS ${name} content differs from real text control: ${JSON.stringify({ literal, control })}`);
+    }
+    regression[`cssContent${name}`] = literal;
+  }
+  const contentImage = await cases("css-content-image");
+  const escapedImage = await cases("css-content-escaped-image");
+  const mixedImage = await cases("css-content-mixed");
+  if (contentImage.red < 5000 || escapedImage.hash !== contentImage.hash || mixedImage.red < 5000) {
+    throw new Error(`Lost CSS content URL: ${JSON.stringify({ contentImage, escapedImage, mixedImage })}`);
+  }
+  regression.cssContentImage = contentImage; regression.cssContentMixed = mixedImage;
+  try { await cases("css-content-missing"); throw new Error("Missing CSS content image succeeded"); }
+  catch (error) { if (!(error instanceof TableImageError) || error.code !== "resource") throw error; regression.missingContentImage = error.code; }
   runtimeStyle = true;
   regression.runtimeStyle = await cases("unrelated head style"); runtimeStyle = false;
   regression.renderChildReplacement = await cases("stable source model", "theme-note", false,

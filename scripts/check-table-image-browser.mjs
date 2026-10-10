@@ -17,7 +17,20 @@ const bundle = await build({ entryPoints: ["tests/browser/table-image-harness.ts
 const [source, styles, attachment] = await Promise.all([
   readFile("acceptance/fixtures/Table image export.md", "utf8"), readFile("styles.css", "utf8"), readFile("acceptance/fixtures/table-image-local.svg"),
 ]);
+const contentStyles = String.raw`
+.css-content-string::before,.css-content-string-control::before,.css-content-escaped::before,.css-content-escaped-control::before{display:block;width:460px;height:40px;color:#222;font:16px sans-serif}
+.css-content-string::before{content:"url()"}
+.css-content-string-control::before{content:"u" "rl()"}
+.css-content-escaped::before{content:"quote \" url() \\ url('/string-not-resource.svg')"}
+.css-content-escaped-control::before{content:"quote \" u" "rl() \\ u" "rl('/string-not-resource.svg')"}
+.css-content-image::before,.css-content-escaped-image::before,.css-content-mixed::before,.css-content-missing::before{display:block;width:40px;height:40px}
+.css-content-image::before{content:url('/red.svg')}
+.css-content-escaped-image::before{content:url('/r\65 d.svg')}
+.css-content-mixed::before{content:url('/red.svg') "url()"}
+.css-content-missing::before{content:url('/missing.svg') "url()"}
+`;
 const html = `<html><head><style>body{--background-primary:#fff;--text-normal:#222;--font-text:sans-serif;--font-text-size:16px}table{border-collapse:collapse}td,th{border:1px solid #777;padding:8px}svg{display:inline-block}${styles}
+${contentStyles}
 .theme-note th{background:red!important}.callout[data-callout=warning] .callout-content td{border:6px solid blue!important}
 .decoration::before,.decoration::after,.regular-decoration,.missing-decoration::before{content:"";display:block;width:40px;height:40px}
 .decoration::before,.regular-decoration{background-image:url('/red.svg')}.decoration::after{background-image:url('/blue.svg')}

@@ -10,6 +10,8 @@ import { ReadingBlockMapper } from "./block-mapping";
 import { StandaloneTableRenderer } from "./standalone-renderer";
 import type { StructuralTable } from "../core/model";
 import { calloutBlocks, matchingBlocks, renderTableSignatures } from "../rendering/native-table-mapping";
+import type { ExportTableImage } from "../app/table-image-modal";
+import { installReadingImageMenu } from "./table-image-menu";
 
 class CalloutRenderSession extends MarkdownRenderChild {
   active = true;
@@ -55,8 +57,9 @@ export class StructuralTableReadingProcessor {
   constructor(
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
+    private readonly exportImage?: ExportTableImage,
   ) {
-    this.blockMapper = new ReadingBlockMapper(app, getSettings);
+    this.blockMapper = new ReadingBlockMapper(app, getSettings, exportImage);
     this.standalone = new StandaloneTableRenderer(app, getSettings);
   }
 
@@ -157,6 +160,8 @@ export class StructuralTableReadingProcessor {
       // on the replacement, otherwise removing the source block can cancel
       // queued cell rendering while the visible table is still alive.
       component.containerEl = wrapper;
+      installReadingImageMenu(this.app, wrapper, table, context.sourcePath, component,
+        () => createTranslator(this.getSettings().language), this.exportImage);
       existing.replaceWith(wrapper);
       ownReadingLayout(wrapper, component);
       context.addChild(component);
@@ -205,6 +210,8 @@ export class StructuralTableReadingProcessor {
       wrapper.dataset.zebra = String(settings.zebraRows);
       wrapper.dataset.tableKind = plan.table.structural ? "structural" : "ordinary";
       wrapper.dataset.structuralTablesProcessed = "true";
+      installReadingImageMenu(this.app, wrapper, plan.table, context.sourcePath, session,
+        () => createTranslator(this.getSettings().language), this.exportImage);
       targets[0]!.before(wrapper);
       for (const target of targets) target.remove();
     }

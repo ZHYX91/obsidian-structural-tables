@@ -1,9 +1,16 @@
 # Changelog
 
-## 0.6.2 - Unreleased
+## 0.6.2 - 2026-10-10
 
 - Honor ordinary-table takeover in standalone Markdown exports while preserving native output when disabled.
 - Preserve theme rounding at logical outer corners of merged and multi-row-header tables, including detached export clones, and clear misplaced internal corners.
+- Add desktop whole-table PNG export from table menus and the command palette, with a preview, image copy and saving to the Vault. Preserve merged cells, rendered formulas, loaded local images and source-note styles without changing Markdown; refuse incomplete resources, oversized images and stale exports.
+- Avoid cold-start PNG timeouts on plain tables while retaining the host math-completion barrier for actual formulas.
+- Group owned table menus by action scope, keep Word/HTML and PNG output adjacent, and place row/column deletion last in their groups and whole-table deletion in its own final warning group. Reflect selected-column alignment, omit redundant header-setting actions and make whole-table row-header removal explicit.
+- Use standard unique HTML header IDs and explicit associations for multi-level headers, crossing spans and merged data in whole-table Word/HTML copies. Retain simple row/column scopes and exclude unrelated corner titles from data headers.
+- Report the actual clipboard format from both whole-table HTML copy entries. Mobile or unavailable rich clipboard support copies complete TSV with a notice that header structure and merged cells were flattened; rejected rich writes report failure.
+- Word can discard HTML header associations when saving DOCX. Preserved geometry and repeated column-header rows do not guarantee a complete semantic roundtrip for multi-column row headers.
+- The meal fixture is reconstructed from the issue #58 screenshot; the reporter's original Markdown was not supplied and the original centering symptom was not reproduced. Native PNG export does not establish a fix or closure for that report or full compatibility with third-party exporters and Advanced Tables.
 
 ## 0.6.1 - 2026-10-09
 

@@ -44,6 +44,7 @@ import { NativeTableMenuBridge } from "../editor/native-table-menu";
 import { StructuralTableEditorController } from "../editor/table-live-preview";
 import {
   addBasePromotionMenuItem,
+  addImageExportMenuItem,
   addSelectionMenuItems,
   hasSelectionMenuItems,
   type TableOperation,
@@ -67,6 +68,7 @@ import {
 import { BasePropertyMigrationModal } from "./base-property-migration-modal";
 import { BasePropertyMigrationService } from "./base-property-migration-service";
 import { showRecoveredCellDrafts } from "../editor/cell-draft-recovery";
+import { TableImageExportService } from "./table-image-modal";
 
 const TEMPLATE = `| Region | Sales | < |
 | Quarter | Q1 | Q2 |
@@ -110,6 +112,7 @@ export class StructuralTablesPlugin extends Plugin {
   private basePropertyMigrationService: BasePropertyMigrationService | null = null;
   private readonly localizedCommands: Command[] = [];
   private settingsPersistence: SettingsPersistenceSession | null = null;
+  private imageExport: TableImageExportService | null = null;
 
   override async onload(): Promise<void> {
     const loaded = normalizeStoredSettings(await this.loadData());
@@ -122,14 +125,16 @@ export class StructuralTablesPlugin extends Plugin {
     const promote = (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable): void => {
       this.previewBasePromotion(editor, getInfo, table);
     };
-    this.editorController = new StructuralTableEditorController(this.app, () => this.settings, promote);
+    this.imageExport = new TableImageExportService(this.app, () => ({ settings: this.settings, t: createTranslator(this.settings.language) }));
+    this.register(() => this.imageExport?.close());
+    this.editorController = new StructuralTableEditorController(this.app, () => this.settings, promote, this.imageExport.open);
     const basePromotionService = new BasePromotionService(this.app, this.manifest.version);
     this.basePromotionService = basePromotionService;
     this.basePropertyMigrationService = new BasePropertyMigrationService(this.app);
     this.registerEditorExtension(this.editorController.createExtension());
-    const reading = new StructuralTableReadingProcessor(this.app, () => this.settings);
+    const reading = new StructuralTableReadingProcessor(this.app, () => this.settings, this.imageExport.open);
     this.registerMarkdownPostProcessor((element, context) => reading.process(element, context));
-    new NativeTableMenuBridge(this.app, () => this.settings, promote).register(this);
+    new NativeTableMenuBridge(this.app, () => this.settings, promote, this.imageExport.open).register(this);
     this.addSettingTab(new StructuralTablesSettingTab(this.app, this));
     this.registerCommands();
     this.localizedCommands.push(this.addCommand({
@@ -178,6 +183,15 @@ export class StructuralTablesPlugin extends Plugin {
 
   private registerCommands(): void {
     const t = createTranslator(this.settings.language);
+    this.localizedCommands.push(this.addCommand({
+      id: "export-current-table-as-image", name: t("command.exportImage"),
+      editorCallback: (editor, info) => {
+        const current = this.currentTable(editor);
+        if (current === null) return this.noTable();
+        if (!current.table.valid) { new Notice(current.table.diagnostics[0]?.message ?? "Invalid structural table."); return; }
+        this.exportImage(editor, () => info, current.table);
+      },
+    }));
     this.localizedCommands.push(this.addCommand({
       id: "insert-structural-table",
       name: t("command.insert"),
@@ -263,6 +277,7 @@ export class StructuralTablesPlugin extends Plugin {
   private refreshCommandNames(): void {
     const t = createTranslator(this.settings.language);
     const names: Record<string, string> = {
+      "export-current-table-as-image": t("command.exportImage"),
       "recover-cell-drafts": t("command.recoverDrafts"),
       "convert-current-sheets-extended-table": t("command.migrateSheets"),
       "convert-current-table-to-plain-gfm": t("command.convertGfm"),
@@ -313,6 +328,7 @@ export class StructuralTablesPlugin extends Plugin {
       }
       const current = this.currentTable(editor);
       if (current !== null && current.table.valid) {
+        addImageExportMenuItem(menu, t, () => this.exportImage(editor, () => info, current.table));
         addBasePromotionMenuItem(menu, t, current.table, () => {
           this.previewBasePromotion(editor, () => info, current.table);
         });
@@ -361,6 +377,20 @@ export class StructuralTablesPlugin extends Plugin {
     if (row < 0) return { table, row: -1, column: -1 };
     const column = cellColumnAt(editor.getLine(cursor.line), cursor.ch);
     return { table, row, column: Math.min(column ?? 0, table.columnCount - 1) };
+  }
+
+  private exportImage(editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable): void {
+    const info = getInfo();
+    const sourcePath = info?.file?.path;
+    if (sourcePath === undefined) { new Notice(createTranslator(this.settings.language)("notice.noFile")); return; }
+    let contextElement: HTMLElement | undefined;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.view instanceof MarkdownView && leaf.view.editor === editor) {
+        contextElement = leaf.view.containerEl.querySelector<HTMLElement>(".markdown-source-view, .markdown-preview-view") ?? leaf.view.containerEl;
+      }
+    });
+    this.imageExport?.open(table, sourcePath, () => getInfo()?.file?.path === sourcePath
+      && reparseUnchangedTable(editor.getValue(), table) !== null, contextElement);
   }
 
   private replaceTable(editor: Editor, table: StructuralTable, source: string): void {
@@ -444,16 +474,16 @@ export class StructuralTablesPlugin extends Plugin {
           sourcePath,
           this.settings.appearance,
         );
-        await copyHtml(html, text);
-        return;
+        return copyHtml(html, text);
       }
       const text = format === "GFM"
         ? structuralTableToPlainGfm(current.table)
         : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t");
       await copyText(text);
     });
-    void write.then(() => {
-      const message = createTranslator(this.settings.language)("notice.copied").replace("{format}", format);
+    void write.then((mode) => {
+      const t = createTranslator(this.settings.language);
+      const message = mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", format);
       new Notice(message);
     }).catch(() => new Notice(createTranslator(this.settings.language)("notice.clipboardFailed")));
   }

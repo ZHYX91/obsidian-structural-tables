@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-06
+last_synced: 2026-10-10
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -77,7 +77,8 @@ Serialization tests also cover display width for ASCII, CJK, combining character
 Cover:
 
 - flattened multi-row header paths and merged values;
-- HTML `thead`, `th`, `td`, `rowspan`, `colspan`, `scope`, and line breaks;
+- HTML `thead`, `th`, `td`, `rowspan`, `colspan`, simple `scope`, and line breaks; complex `id`/`headers` relationships for multi-level and crossing row/column spans, merged data, corner-title exclusion from data, and unique IDs across repeated copies and multiple tables;
+- actual whole-table clipboard mode and localized notices for mobile/desktop text fallback, desktop rich writes, and rejected writes through both command and menu entries;
 - body-only `td` tables remaining headerless instead of inventing a first-row header;
 - CSV quoting, TSV cleanup, and plain-GFM compatibility output;
 - the unique Sheets Extended separator column and its negative cases;
@@ -121,6 +122,7 @@ Check:
 - cleanup when the plugin is disabled or uninstalled.
 - FakeLink with Hover Editor under both ordinary-table takeover settings, including detach/reopen and cell edit/history without repeated mounting;
 - standalone full-note and selected-table export with HTML lookalikes, inline code, delayed content, superseded sessions and DOM-removing render-child cleanup;
+- native whole-table PNG preview/copy/save with the reconstructed five-column meal fixture (not the issue reporter's original source), equal right-side left alignment, local image and actual formula pixels, wide/tall content, theme and source changes, denial/oversize errors, cancellation and unload cleanup; compare saved PNG bytes with the preview and keep this separate from third-party exporter acceptance;
 - Advanced Tables operations after source handoff, with exact caret/range preservation and diagnostics for invalid resulting topology;
 - native menu coexistence, row/column range preservation, cell reattachment and popout-window closure.
 - cold-start Reading view in a separate desktop window, including combinations with FakeLink. Record the initial result before switching focus, then check whether activating the main window and returning restores content; recovery does not turn an initial blank page into an unqualified pass.

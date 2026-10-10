@@ -18,6 +18,7 @@ import { CalloutTables } from "./callout-tables";
 import { renderTableSignatures } from "../rendering/native-table-mapping";
 import { structuralTableViewMode } from "./table-view-state";
 import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
+import type { ExportTableImage } from "../app/table-image-modal";
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
@@ -44,12 +45,14 @@ export class StructuralTableEditorController {
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
+    private readonly exportImage?: ExportTableImage,
   ) {}
 
   createExtension(): Extension {
     const app = this.app;
     const settingsProvider = this.getSettings;
     const promote = this.promote;
+    const exportImage = this.exportImage;
     const views = this.views;
     const readTables = (state: EditorState, cached: readonly StructuralTable[] | null): readonly StructuralTable[] | null => {
       if (!settingsProvider().enableLivePreview || !state.field(editorLivePreviewField, false)) return null;
@@ -83,7 +86,7 @@ export class StructuralTableEditorController {
             from: table.range.from,
             to: table.range.from,
             decoration: Decoration.widget({
-              widget: new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote),
+              widget: new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote, exportImage),
               block: true,
               side: -1,
             }),

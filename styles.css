@@ -22,6 +22,70 @@
   overflow-x: auto;
 }
 
+/* Export stages are measured in the host theme, outside the visible viewport. */
+.structural-tables-image-stage {
+  position: fixed !important;
+  inset: 0 auto auto -100000px !important;
+  width: max-content !important;
+  height: auto !important;
+  overflow: visible !important;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  font-size: var(--font-text-size);
+  pointer-events: none;
+}
+
+.structural-tables-image-scope {
+  display: block !important;
+  position: static !important;
+  inset: auto !important;
+  width: max-content !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  contain: none !important;
+  content-visibility: visible !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+
+.structural-tables-image-snapshot {
+  box-sizing: border-box;
+  width: max-content !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 16px;
+}
+
+.structural-tables-image-snapshot .structural-tables-table {
+  width: max-content !important;
+  max-width: none !important;
+  table-layout: auto !important;
+  margin: 0 !important;
+}
+
+.structural-tables-image-snapshot :is(th, td, .structural-tables-cell-content, p, pre) {
+  max-width: none !important;
+  max-height: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.structural-tables-image-preview {
+  max-height: 60vh;
+  overflow: auto;
+  margin-block: 1rem;
+}
+
+.structural-tables-image-preview img { display: block; max-width: 100%; height: auto; }
+.structural-tables-image-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
 
 .structural-tables-live-preview {
   --structural-table-handle-gutter: 1.25rem;

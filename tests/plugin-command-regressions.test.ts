@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 
 import type { App, Command, Editor, TFile } from "obsidian";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MarkdownRenderer, Platform } from "obsidian";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StructuralTablesPlugin } from "../src/app/plugin";
 import { ConversionPreviewModal } from "../src/app/conversion-preview-modal";
@@ -80,7 +81,8 @@ function pluginHarness(editor: Editor, sourceFile: MockTFile) {
     plugin: plugin as unknown as {
       formatCurrent: (editor: Editor, sourceFile: TFile | null) => void;
       previewPlainGfmConversion: (editor: Editor, sourceFile: TFile | null) => void;
-      copyCurrentTable: (editor: Editor, format: "GFM", sourcePath?: string) => void;
+      copyCurrentTable: (editor: Editor, format: "HTML" | "GFM", sourcePath?: string) => void;
+      settings: StructuralTablesSettings;
       migrateSheetsExtended: (editor: Editor) => void;
     },
     setViewFile: (file: MockTFile | null) => { currentViewFile = file; },
@@ -101,9 +103,60 @@ function capturePreview() {
   };
 }
 
+beforeAll(() => {
+  HTMLElement.prototype.setCssStyles = function setCssStyles(styles: Partial<CSSStyleDeclaration>): void {
+    Object.assign(this.style, styles);
+  };
+});
+
 beforeEach(() => {
   notices.splice(0);
   vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  Platform.isMobileApp = false;
+  vi.unstubAllGlobals();
+});
+
+describe("whole-table HTML command notices", () => {
+  it.each(["en", "zh-CN"] as const)("reports flattened plain text on mobile in %s", async (language) => {
+    const editor = editorHarness();
+    const harness = pluginHarness(editor.editor, new MockTFile("A.md"));
+    harness.plugin.settings.language = language;
+    Platform.isMobileApp = true;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => { element.textContent = text; });
+    const write = vi.fn(async () => {});
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { clipboard: { write, writeText } });
+
+    harness.plugin.copyCurrentTable(editor.editor, "HTML", "A.md");
+    await vi.waitFor(() => expect(notices).toContain(createTranslator(language)("notice.copiedHtmlPlain")));
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("A\tB\tB\nx\ty\tz");
+    expect(write).not.toHaveBeenCalled();
+    expect(notices).not.toContain(createTranslator(language)("notice.copied").replace("{format}", "HTML"));
+    expect(editor.source()).toBe(SOURCE);
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+  });
+
+  it.each(["html", "plain", "failure"])("reports the actual desktop result: %s", async (mode) => {
+    const editor = editorHarness();
+    const harness = pluginHarness(editor.editor, new MockTFile("A.md"));
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => { element.textContent = text; });
+    class CopyItem { constructor(readonly data: Record<string, Blob>) {} }
+    const write = vi.fn(async () => {});
+    const writeText = vi.fn(async () => {});
+    if (mode === "failure") write.mockRejectedValueOnce(new Error("denied"));
+    vi.stubGlobal("ClipboardItem", mode === "plain" ? undefined : CopyItem);
+    vi.stubGlobal("navigator", { clipboard: { write, writeText } });
+
+    harness.plugin.copyCurrentTable(editor.editor, "HTML", "A.md");
+    const expected = mode === "html" ? "Table copied as HTML."
+      : createTranslator("en")(mode === "plain" ? "notice.copiedHtmlPlain" : "notice.clipboardFailed");
+    await vi.waitFor(() => expect(notices).toEqual([expected]));
+    expect(writeText).toHaveBeenCalledTimes(mode === "plain" ? 1 : 0);
+    expect(editor.source()).toBe(SOURCE);
+  });
 });
 
 describe("registered conversion command entry", () => {
@@ -137,6 +190,7 @@ describe("registered conversion command entry", () => {
 });
 
 const localizedCommandKeys = [
+  ["export-current-table-as-image", "command.exportImage"],
   ["insert-structural-table", "command.insert"],
   ["migrate-legacy-base-properties", "command.migrateBaseProperties"],
   ["promote-current-table-to-base", "command.promoteBase"],

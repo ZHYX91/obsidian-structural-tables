@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-09-30
+last_synced: 2026-10-10
 translation_of: product-requirements.zh-CN.md
 ---
 
@@ -31,6 +31,8 @@ Every structural row has exactly the delimiter width. A merge resolves to one to
 ## Capabilities
 
 Reading view and Live Preview rendering on desktop and Android; default-native ordinary GFM tables with an opt-in, reversible takeover mode that changes no Markdown; in-place cell editing with table-safe Wiki-link pipe escaping and IME protection; mouse drag selection plus two-tap rectangular selection on touch screens, with owned selection cleared when focus or the editor cursor leaves; roving keyboard navigation; overlaid row/column handles that do not shift table alignment and remain touch-sized and visible on coarse pointers; native theme styling with optional grid and three-line presets; content-driven fine-pointer row sizing, coarse-pointer touch minimums, and span-aware table borders; insert, safe delete, move, align, format, merge left/up, rectangular-selection merge, split, header setting, and note validation; integration with Obsidian's native ordinary-table selection and context menu; HTML-table paste with rowspan/colspan preservation; semantic HTML, plain GFM, TSV, and CSV output; Sheets Extended separator migration and conflict warnings; right-click Base upgrade for ordinary and structural tables; an explicit preview that preserves non-empty numeric and text header paths as Property names, reserves `column_n` for blank headers, flattens multi-row/merged column headers, turns row headers into properties, and blocks merged data cells before any file is written; path-independent `structural-tables` list membership without per-record plugin IDs, a recovery manifest, table restoration that keeps records, later-record creation beside the host's current folder, and an explicit previewed legacy-property migration; native bilingual settings; and explicit diagnostics. Canonical formatting is previewed and explicitly confirmed before replacing Markdown source; other structural edits are explicit actions. Rendering never changes source.
+
+Desktop whole-table image export previews the final theme/background PNG and copies or saves to the Vault the same completed bytes. It preserves semantic spans, renders supported cell text/math and loaded local images, includes full wide/tall content within explicit resource limits, excludes editing controls and drafts, and never writes Markdown or uploads the table. Unsupported mobile image operations and dynamic embeds are explained rather than silently degraded.
 
 <!-- section: exclusions -->
 ## Exclusions

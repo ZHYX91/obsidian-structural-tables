@@ -242,13 +242,16 @@ export async function copyText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
 
-export async function copyHtml(html: string, text: string): Promise<void> {
+export type HtmlClipboardMode = "html" | "plain";
+
+export async function copyHtml(html: string, text: string): Promise<HtmlClipboardMode> {
   if (Platform.isMobileApp || typeof ClipboardItem === "undefined" || navigator.clipboard.write === undefined) {
     await copyText(text);
-    return;
+    return "plain";
   }
   await navigator.clipboard.write([new ClipboardItem({
     "text/html": new Blob([html], { type: "text/html" }),
     "text/plain": new Blob([text], { type: "text/plain" }),
   })]);
+  return "html";
 }

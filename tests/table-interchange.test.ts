@@ -38,7 +38,7 @@ describe("whole-table clipboard copy", () => {
     const { write, writeText } = clipboard();
     const plain = "Name\tNote\nNorth\tFirst Second\nSouth\t";
 
-    await copyHtml("<table><tr><td>North</td></tr></table>", plain);
+    await expect(copyHtml("<table><tr><td>North</td></tr></table>", plain)).resolves.toBe("plain");
 
     expect(write).not.toHaveBeenCalled();
     expect(writeText).toHaveBeenCalledExactlyOnceWith(plain);
@@ -58,7 +58,7 @@ describe("whole-table clipboard copy", () => {
     const html = '<table><tr><th colspan="2">Group</th></tr></table>';
     const plain = "Group\t\nAlice\t10";
 
-    await copyHtml(html, plain);
+    await expect(copyHtml(html, plain)).resolves.toBe("html");
 
     expect(writeText).not.toHaveBeenCalled();
     expect(write).toHaveBeenCalledOnce();
@@ -72,10 +72,24 @@ describe("whole-table clipboard copy", () => {
     const { write, writeText } = clipboard();
     vi.stubGlobal("ClipboardItem", undefined);
 
-    await copyHtml("<table></table>", "Name\tValue\nAlice\t10");
+    await expect(copyHtml("<table></table>", "Name\tValue\nAlice\t10")).resolves.toBe("plain");
 
     expect(write).not.toHaveBeenCalled();
     expect(writeText).toHaveBeenCalledExactlyOnceWith("Name\tValue\nAlice\t10");
+  });
+
+  it("reports plain mode when desktop rich write is unavailable", async () => {
+    const { writeText } = clipboard();
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    await expect(copyHtml("<table></table>", "A\tB")).resolves.toBe("plain");
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("A\tB");
+  });
+
+  it("propagates a rejected desktop rich write without claiming a text fallback", async () => {
+    const { write, writeText } = clipboard();
+    write.mockRejectedValueOnce(new Error("rich clipboard denied"));
+    await expect(copyHtml("<table></table>", "A\tB")).rejects.toThrow("rich clipboard denied");
+    expect(writeText).not.toHaveBeenCalled();
   });
 });
 

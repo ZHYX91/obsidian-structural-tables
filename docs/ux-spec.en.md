@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-02
+last_synced: 2026-10-10
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -77,15 +77,17 @@ Menu Copy/Cut and menu Paste check platform clipboard-write and clipboard-read s
 
 Mobile range menus use verified text-only clipboard transport because the host's rich clipboard bridge may only support images. Copy/Cut writes portable GFM and reads it back before reporting success or clearing content. A session-only owner payload is scoped to that clipboard; Paste uses it only after an exact system-text match and unchanged copy identity across the asynchronous read. Changed or unowned text, failed readback and superseded copies never infer topology or write source. The existing frozen source/selection/session and exact target-topology checks still apply. Restarting the host or plugin loses the session payload; desktop rich transports and textarea clipboard behavior remain unchanged.
 
-Whole-table HTML copy commands also bypass the mobile image-only rich bridge and use their complete tab-separated text alternative. This existing TSV projection converts cell-internal line breaks and tabs to spaces while retaining row separators and column tabs. Desktop HTML and plain-text representations remain unchanged; mobile whole-table text does not carry rich formatting or merge topology.
+Whole-table HTML copy commands bypass the mobile image-only rich bridge and use their complete tab-separated text alternative on mobile or when desktop rich clipboard support is unavailable. This TSV projection converts cell-internal line breaks and tabs to spaces while retaining row separators and column tabs. Both entry points report the actual clipboard form; the plain-text notice explains that header structure and merged cells were flattened and rich formatting is unavailable. A rejected clipboard write reports failure.
 
 Range Copy also exposes portable HTML and plain Markdown. Range HTML escapes each owner's raw Markdown as text and represents spans; it does not render that Markdown as rich content. Plain Markdown makes the first copied row a header and retains structural markers where representable. It does not promise equivalent merge topology in external GFM, especially for vertical merges.
 
-Plain GFM, TSV, and CSV whole-table output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, scope, and break elements.
+Plain GFM, TSV, and CSV whole-table output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, and break elements. Simple headers use row/column `scope`. Complex headers use document-wide unique `id`/`headers` associations for every intersecting row/column header path, including merged data and crossing header spans. Corner titles label the corresponding row-header columns rather than every data cell. Each whole-table copy uses a fresh ID namespace; no unsupported row/column group scope or application-specific markup is added.
 
 HTML conversion accepts one complete supported table only. Mixed prose, multiple tables, captions, math, images, attachments, and links that cannot be preserved are left to native note paste. In a cell editor, unsupported HTML uses the complete plain-text alternative with a notice; if none exists, the current edit remains intact. A verified empty cell can still clear the selected text. HTML copy falls back to original Markdown/LaTeX for math, images, attachments, and internal or relative links, preserving references without embedding arbitrary HTML.
 
 Safe single-line math is preserved verbatim, including fractions, superscripts, `\lvert`/`\rvert`, `\lVert`/`\rVert`, `\mid`, existing `\|` norms, and matrices using TeX `\\`. Bare pipes such as `$|x|$` and `$P(A|B)$`, actual newlines inside math, TeX comments/verbatim commands, and incomplete delimiters are refused before saving; the complete draft remains editable. Use explicit TeX commands for the intended pipe symbol, and `\$` for a literal dollar sign. Rejected edits do not navigate or append a row. Interrupted drafts can be recovered within the current plugin session; this is not persistent storage across restarts. Formatting preserves existing math source and does not guess whether an old norm was intended as an absolute value.
+
+Desktop whole-table image export is available from the source command palette, owned table menus and native ordinary-table menus. Its modal first generates a complete theme/background snapshot, then previews the final PNG with Copy image and Save PNG to Vault actions sharing the same bytes. It excludes active cell drafts and controls, leaves Markdown untouched, and keeps a completed snapshot stable. Source or theme changes during generation require a retry. Clipboard denial leaves Vault saving available. Mobile shows a desktop-only explanation. Fixed 2× output is limited to 8192 pixels per side and 16 megapixels; resource/render failures, timeouts and interactive or note embeds produce explicit errors rather than clipped or incomplete success.
 
 <!-- section: base-promotion -->
 ## Convert to Base
@@ -145,11 +147,15 @@ Row/column reordering is a two-step interaction: first select handles, then drag
 
 ### Menu operations
 
+Owned Live Preview menus group actions in this order: selected-cell Copy/Cut/Paste; available Merge/Split and header roles; rows; columns; column alignment; whole-table Word/HTML copy and PNG export; source and Base; Clear selected cells; Delete table. Whole-table outputs share a group. Row and column deletion stays last in its respective group, while Delete table has its own final group and warning styling.
+
+Column alignment shows a check only when all selected columns have that alignment; mixed alignment has no check. Header-role actions omit setting the current number of header rows or columns, while eligible header removal remains available. Opening a menu freezes the logical selection; activation revalidates it before acting.
+
 A rectangular multi-cell selection can merge; a single merged cell can split. Refuse a merge when non-top-left cells contain data, when the selection crosses roles, or when it includes only part of an existing merge.
 
-Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole left-side columns can add or remove row-header roles.
+Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole left-side columns can set row-header roles. With a complete column selected, **Remove row-header columns from the whole table** removes all row-header roles while preserving every cell's content.
 
-Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled.
+Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled; the plugin contributes its applicable items. Reading View keeps its brief whole-table PNG entry.
 
 <!-- section: diagnostics -->
 ## Diagnostics

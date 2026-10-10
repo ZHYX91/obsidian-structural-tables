@@ -44,7 +44,7 @@ export async function renderTableClipboard(
   sourcePath: string,
   appearance: TableAppearance,
 ): Promise<{ html: string; text: string }> {
-  const document = new DOMParser().parseFromString(structuralTableToHtml(table), "text/html");
+  const document = new DOMParser().parseFromString(structuralTableToHtml(table, `st-${crypto.randomUUID()}`), "text/html");
   const output = document.querySelector("table")!;
   output.setCssStyles({ borderCollapse: "collapse", color: "#000000", maxWidth: "100%" });
   const textTable: StructuralTable = { ...table, rows: table.rows.map((row) => ({

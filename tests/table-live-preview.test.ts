@@ -1,4 +1,5 @@
 import type { BaseEditorInfo } from "../src/app/base-promotion-service";
+import type { ExportTableImage } from "../src/app/table-image-modal";
 // @vitest-environment happy-dom
 
 import { EditorState, Prec, StateField, Transaction, type Extension } from "@codemirror/state";
@@ -8,6 +9,7 @@ import { App, MarkdownRenderer, Platform, editorInfoField, editorLivePreviewFiel
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
+import { createTranslator } from "../src/config/i18n";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
 import { calloutRanges } from "../src/core/source-lines";
@@ -94,6 +96,9 @@ const screenshotTable = [
 ].join("\n");
 
 beforeAll(() => {
+  HTMLElement.prototype.setCssStyles = function setCssStyles(styles: Partial<CSSStyleDeclaration>): void {
+    Object.assign(this.style, styles);
+  };
   HTMLElement.prototype.createEl = function createEl<K extends keyof HTMLElementTagNameMap>(
     tag: K,
     options?: ObsidianElementOptions,
@@ -133,6 +138,7 @@ function mountEditor(
   extensions: Extension[] = [],
   promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
   settingsOverride: Partial<StructuralTablesSettings> = {},
+  exportImage?: ExportTableImage,
 ): {
     app: App;
     parent: HTMLElement;
@@ -145,6 +151,7 @@ function mountEditor(
     app,
     () => settings,
     promote,
+    exportImage,
   );
   const state = EditorState.create({
     doc: source,
@@ -3913,6 +3920,83 @@ describe("StructuralTableEditorController", () => {
     expect(enabled.parent.querySelector(".structural-tables-live-preview")).toBeNull();
     expect(enabled.view.state.doc.toString()).toBe(source);
     enabled.view.destroy();
+  });
+
+  it.each([false, true])("groups an owned menu by action scope, retaining whole-table export (ordinary=%s)", (ordinary) => {
+    const table = `| Region | Value |\n| --- ${ordinary ? "|" : "||"} :---: |\n| West | 2 |`;
+    const source = `Before\n\n${table}\n\nBetween\n\n${table}\n\nAfter`;
+    const exportImage = vi.fn<ExportTableImage>();
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [], vi.fn(), {
+      language: "en", takeOverOrdinaryTables: ordinary,
+    }, exportImage);
+    try {
+      const header = parent.querySelector<HTMLElement>("[data-structural-row-handle='0']")!;
+      header.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const items = lastMenu!.items;
+      expect(items.filter((item, index) => item.section !== items[index - 1]?.section).map((item) => item.section)).toEqual([
+        "structural-tables-clipboard",
+        "structural-tables",
+        "structural-tables-row",
+        "structural-tables-column",
+        "structural-tables-alignment",
+        "structural-tables-output",
+        "structural-tables-source",
+        "structural-tables-clear",
+        "structural-tables-danger",
+      ]);
+      expect(items.filter((item) => item.section === "structural-tables-output").map((item) => item.title))
+        .toEqual(["Copy whole table for Word / HTML", "Export whole table as image…"]);
+      expect(items.filter((item) => item.section === "structural-tables-source")).toHaveLength(2);
+      for (const [section, title] of [
+        ["structural-tables-row", "Delete selected rows"],
+        ["structural-tables-column", "Delete selected columns"],
+        ["structural-tables-danger", "Delete table"],
+      ]) {
+        const group = items.filter((item) => item.section === section);
+        expect(group[group.length - 1]).toMatchObject({ title, warning: true });
+      }
+      expect(items[items.length - 1]?.title).toBe("Delete table");
+      expect(items.some((item) => item.title === "Set first 1 rows as column headers")).toBe(false);
+      expect(items.some((item) => item.title === "Remove column headers")).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+
+      clickCurrentMenuItem("Export whole table as image…", true);
+      expect(exportImage).toHaveBeenCalledOnce();
+      const [snapshot, sourcePath, isCurrent, context] = exportImage.mock.calls[0]!;
+      expect(snapshot).toEqual(parseEditableTables(source).tables[0]);
+      expect(sourcePath).toBe("Test.md");
+      expect(isCurrent()).toBe(true);
+      expect(context).toBe(parent.querySelector(".structural-tables-table"));
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each([
+    ["mobile", "en"], ["mobile", "zh-CN"], ["html", "en"], ["plain", "en"], ["failure", "en"],
+  ] as const)("reports the actual whole-table menu copy result: %s (%s)", async (mode, language) => {
+    const source = "| Region | Value |\n| --- || --- |\n| North | 1 |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [], undefined, { language });
+    const start = notices.length;
+    const t = createTranslator(language);
+    const write = vi.fn(async () => {});
+    const writeText = vi.fn(async () => {});
+    class CopyItem { constructor(readonly data: Record<string, Blob>) {} }
+    Platform.isMobileApp = mode === "mobile";
+    if (mode === "failure") write.mockRejectedValueOnce(new Error("denied"));
+    vi.stubGlobal("navigator", { clipboard: { write, writeText } });
+    vi.stubGlobal("ClipboardItem", mode === "plain" ? undefined : CopyItem);
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => { element.textContent = text; });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!
+        .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem(t("menu.copyWholeHtml"), true);
+      const expected = mode === "failure" ? t("notice.clipboardFailed")
+        : mode === "html" ? t("notice.copied").replace("{format}", "HTML") : t("notice.copiedHtmlPlain");
+      await vi.waitFor(() => expect(notices.slice(start)).toEqual([expected]));
+      expect(writeText).toHaveBeenCalledTimes(mode === "mobile" || mode === "plain" ? 1 : 0);
+      if (mode === "mobile" || mode === "plain") expect(writeText).toHaveBeenCalledWith("Region\tValue\nNorth\t1");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
   });
 
   it("provides row and column handles with the full structural-table menu", () => {

@@ -7,6 +7,9 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { withoutSourcePrefixes } from "../core/source-lines";
 import { renderStructuralTable } from "../rendering/table-renderer";
+import type { ExportTableImage } from "../app/table-image-modal";
+import { createTranslator } from "../config/i18n";
+import { installReadingImageMenu } from "./table-image-menu";
 
 const barriers = ".callout, .internal-embed:not(.image-embed), .markdown-embed, pre, code, .cm-editor, .structural-tables-container";
 
@@ -169,7 +172,8 @@ function replaceTarget(target: Target, replacement?: HTMLElement): void {
 export class ReadingBlockMapper {
   private readonly sections = new WeakMap<HTMLElement, Section>();
 
-  constructor(private readonly app: App, private readonly getSettings: () => StructuralTablesSettings) {}
+  constructor(private readonly app: App, private readonly getSettings: () => StructuralTablesSettings,
+    private readonly exportImage?: ExportTableImage) {}
 
   process(element: HTMLElement, context: MarkdownPostProcessorContext, info: MarkdownSectionInformation,
     tables: readonly StructuralTable[]): void {
@@ -257,6 +261,8 @@ export class ReadingBlockMapper {
     wrapper.dataset.tableKind = "structural";
     wrapper.dataset.structuralTablesProcessed = "true";
     component.containerEl = wrapper;
+    installReadingImageMenu(this.app, wrapper, table, owner.context.sourcePath, component,
+      () => createTranslator(this.getSettings().language), this.exportImage);
     targets.forEach((target, index) => replaceTarget(target, index === 0 ? wrapper : undefined));
     ownReadingLayout(wrapper, component);
     owner.context.addChild(component);

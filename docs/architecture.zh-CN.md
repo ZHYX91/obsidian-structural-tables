@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-10-06
+last_synced: 2026-10-10
 ---
 
 [English](architecture.en.md)
@@ -57,6 +57,8 @@ Callout 写入通过可逆效果将焦点目标保存在 CodeMirror 自身的历
 纯核心投影把有效结构表格展开为稳定的列路径和二维数据。GFM、TSV、CSV 与后续记录迁移共用该投影；语义 HTML 直接使用验证后的 rowspan、colspan、角色、scope 和真正的换行元素。整篇笔记的 HTML 导入接线把 HTML DOM 归一化成单元格、跨度、th/td 角色和规范 `<br>` 视觉换行，再交给纯核心生成并重新解析结构 Markdown。Sheets Extended 迁移只接受唯一、非边缘且整列严格为 `-` 的伪分隔列。
 
 接管网格范围使用独立的规范化 v1 载荷，只含相对 canonical owner ID 和 raw owner token。粘贴只接受尺寸与 owner 拓扑一致的这种载荷，构造并验证一份完整候选，再通过一次源码事务提交。菜单的剪贴板写入和读取分别检查平台能力。无法识别的载荷、普通文字和 HTML 不会从接管网格选区回退到隐藏源码。范围 HTML 用转义后的原始文字表示内容并携带跨度；普通 Markdown 将第一条复制行作为表头，并在可表示时保留结构标记，不保证外部 GFM 仍能保留合并拓扑。
+
+整表 PNG 导出使用独立桌面会话，在保留来源 cssclass 和 Callout 作用域的离屏容器中以正常语义渲染器渲染经过验证的模型，等待单元格、公共 `finishRenderMath()` 完成屏障、字体和图片后测量完整内容，再通过固定版本、MIT 授权的 `html-to-image` 将带样式 DOM 克隆经 SVG foreignObject 和 canvas 转为图片。已加载的图片附件在本地光栅化，所需 SVG symbol、包含伪元素的实际 CSS 资源与成功选择的字体来源会嵌入。字体规则按规范化描述符及文档顺序关联到具体 CSS-connected FontFace，区分 Unicode 分片、字宽及描述符相同而来源不同的规则，排除失活规则；字体收集遵循来源优先级，保留笔记已有字体回退，不修改宿主样式表。资源校验解析属性和声明，不扫描文字。主题保护观察来源实际外观及主题模式，允许无关的渲染器 head 更新，以及同一已验证笔记内的 render child 替换。该路径不复用刻意简化的 Word/HTML 投影。取消、渲染失败、源码或主题改变、尺寸/节点/资源超限、无法截取的动态嵌入均拒绝结果。最终 PNG Blob 同时供预览、剪贴板和 Vault 附件保存使用；重复请求取消前一个会话，关闭弹窗或卸载插件会释放渲染组件、离屏 DOM、事件订阅和 object URL，不写源码，也不上传内容。
 
 <!-- section: base-promotion -->
 ## Base 提升

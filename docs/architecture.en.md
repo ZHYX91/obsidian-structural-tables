@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-06
+last_synced: 2026-10-10
 translation_of: architecture.zh-CN.md
 ---
 
@@ -58,6 +58,8 @@ Commands and in-place edits produce candidate source from a pure in-memory owner
 A pure-core projection expands a valid structural table into stable column paths and two-dimensional data. GFM, TSV, CSV, and later record migrations share that projection; semantic HTML uses the validated rowspan, colspan, roles, scope, and real break elements. Whole-note HTML-import wiring normalizes an HTML DOM into cells, spans, th/td roles, and canonical `<br>` visual breaks before the pure core generates and reparses structural Markdown. Sheets Extended migration accepts only one non-edge pseudo-separator column whose cells are all exact `-` tokens.
 
 Owned grid ranges use a separate normalized v1 payload with relative canonical owner IDs and raw owner tokens. Paste accepts only this payload with equal dimensions and owner topology, constructs and validates one complete candidate, and applies a single source transaction. Menu clipboard writes and reads check platform support independently. Unsupported payloads, ordinary text, and HTML never fall through from an owned-grid selection to hidden source. Portable range HTML represents spans with escaped raw text; plain Markdown treats the first copied row as a header and retains structural markers where representable, without guaranteeing merge topology in external GFM.
+
+Whole-table PNG export has its own desktop session. It renders the validated model with the normal semantic renderer in an offscreen shell retaining source cssclass and Callout scopes, waits for cell rendering, the public `finishRenderMath()` barrier, fonts and images, measures complete content, and converts a styled DOM clone through pinned MIT-licensed `html-to-image` SVG foreignObject and canvas. Loaded image attachments are rasterized locally; required SVG symbols, active CSS resources including pseudo-elements, and successfully selected font sources are embedded. Font rules are associated with their specific CSS-connected FontFace by normalized descriptors and document order, distinguishing Unicode subsets, widths and repeated descriptors with different sources; inactive rules are excluded. Font collection follows source priority, retains the note's existing font fallback and never mutates host stylesheets. Resource validation parses attributes and declarations rather than text. The theme guard observes actual source presentation and theme mode, allowing unrelated renderer head updates and render-child replacements in the same verified note. It does not reuse the intentionally simplified Word/HTML projection. Cancellation, render errors, source/theme changes, excessive dimensions/nodes/resources and unsupported dynamic embeds refuse the result. A final PNG Blob supplies preview, clipboard and Vault attachment saving; a repeated request cancels its predecessor, and modal close or plugin unload releases the render component, offscreen DOM, event subscriptions and object URL. No source write or upload occurs.
 
 <!-- section: base-promotion -->
 ## Base promotion

@@ -1,6 +1,7 @@
 import { StateField } from "@codemirror/state";
 
 export const Platform = { isMobileApp: false };
+export async function finishRenderMath(): Promise<void> {}
 
 let mockUuid = 0;
 export const activeWindow = {
@@ -84,12 +85,16 @@ export class Menu {
 
 export class MenuItem {
   title = "";
+  section = "";
+  checked: boolean | null = null;
+  warning = false;
   callback: (() => void) | null = null;
 
   setTitle(title: string): this { this.title = title; return this; }
   setIcon(_icon: string | null): this { return this; }
-  setSection(_section: string): this { return this; }
-  setWarning(_warning: boolean): this { return this; }
+  setSection(section: string): this { this.section = section; return this; }
+  setChecked(checked: boolean | null): this { this.checked = checked; return this; }
+  setWarning(warning: boolean): this { this.warning = warning; return this; }
   onClick(callback: () => void): this { this.callback = callback; return this; }
 }
 

@@ -74,14 +74,32 @@ describe("portable table clipboard", () => {
     const result = await renderTableClipboard(new App(), parseEditableTables(source).tables[0]!, "Note.md", "grid");
     const document = new DOMParser().parseFromString(result.html, "text/html");
     expect(document.querySelector("thead th")?.getAttribute("rowspan")).toBe("2");
-    expect(document.querySelector("thead th[colspan]")?.getAttribute("scope")).toBe("colgroup");
-    expect(document.querySelector("tbody th")?.getAttribute("scope")).toBe("rowgroup");
+    expect(document.querySelector("thead th[colspan]")?.id).not.toBe("");
+    expect(document.querySelector("tbody th")?.getAttribute("headers"))
+      .toBe(document.querySelector("thead th")?.id);
+    expect(document.querySelector('[scope="colgroup"], [scope="rowgroup"]')).toBeNull();
     expect(document.querySelector("strong")?.textContent).toBe("Bold");
     expect(document.querySelector("a")?.getAttribute("href")).toBe("https://example.com");
     expect(document.querySelector("code")?.textContent).toBe("a|b");
     expect(document.querySelector("img, [class], [href='Note']")).toBeNull();
     expect(result.text).toBe("Region\tSales / Q1\tSales / Q2\nNorth\tBold Link a|b\t12\nNorth\t8\t11");
     expect(unload).toHaveBeenCalledOnce();
+  });
+
+  it("uses independent header IDs for multiple tables and repeated whole-table copies", async () => {
+    const table = parseEditableTables(source).tables[0]!;
+    const other = parseEditableTables(source.replace(/Sales/gu, "Costs")).tables[0]!;
+    const copies = await Promise.all([table, other, table].map((candidate) => renderTableClipboard(new App(), candidate, "Note.md", "grid")));
+    const document = new DOMParser().parseFromString(copies.map((copy) => copy.html).join("\n"), "text/html");
+    const ids = [...document.querySelectorAll("th")].map((cell) => cell.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const cell of document.querySelectorAll("[headers]")) {
+      for (const id of cell.getAttribute("headers")!.split(" ").filter(Boolean)) {
+        const header = document.getElementById(id);
+        expect(header?.tagName).toBe("TH");
+        expect(header?.closest("table")).toBe(cell.closest("table"));
+      }
+    }
   });
 
   it("falls back to original math source when rendered output is not portable", async () => {

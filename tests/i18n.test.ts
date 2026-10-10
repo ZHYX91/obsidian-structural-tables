@@ -42,4 +42,9 @@ describe("i18n", () => {
     expect(operationNotice(t, "merged")).toBe("已合并单元格。");
     expect(withCount(t("menu.setHeaderRows"), 3)).toBe("将前 3 行设为列标题");
   });
+
+  it("states that HTML clipboard fallback flattens header structure and merged cells", () => {
+    expect(createTranslator("en")("notice.copiedHtmlPlain")).toContain("Header structure and merged cells were flattened");
+    expect(createTranslator("zh-CN")("notice.copiedHtmlPlain")).toContain("标题结构与合并单元格已展平");
+  });
 });

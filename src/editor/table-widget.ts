@@ -1,4 +1,5 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
+import type { ExportTableImage } from "../app/table-image-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
 import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor } from "obsidian";
@@ -39,8 +40,9 @@ import {
 } from "./table-range-clipboard";
 import {
   addBasePromotionMenuItem,
-  addSelectionMenuItems,
-  hasSelectionMenuItems,
+  addImageExportMenuItem,
+  addSelectionEditingMenuItems,
+  addSelectionRemovalMenuItems,
   type TableOperation,
   type TableOperationIntent,
 } from "./table-menu";
@@ -217,6 +219,7 @@ export class StructuralTableWidget extends WidgetType {
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
+    private readonly exportImage?: ExportTableImage,
   ) { super(); }
 
   override eq(other: StructuralTableWidget): boolean {
@@ -224,12 +227,12 @@ export class StructuralTableWidget extends WidgetType {
       && this.table.range.from === other.table.range.from && this.table.range.to === other.table.range.to
       && this.table.sourceTableIndex === other.table.sourceTableIndex
       && this.sourcePath === other.sourcePath && samePresentation(this.settings, other.settings)
-      && this.promote === other.promote;
+      && this.promote === other.promote && this.exportImage === other.exportImage;
   }
 
   override toDOM(view: EditorView): HTMLElement {
     const interaction = new StructuralTableInteraction(
-      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote,
+      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage,
     );
     const host = interaction.mount(view);
     interactions.set(host, interaction);
@@ -281,6 +284,7 @@ class StructuralTableInteraction {
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
+    private readonly exportImage?: ExportTableImage,
   ) {}
 
   rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
@@ -1110,11 +1114,15 @@ class StructuralTableInteraction {
     };
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
-    menu.addItem((item) => item
-      .setSection("structural-tables-source")
-      .setTitle(t("menu.editSource"))
-      .setIcon("file-pen-line")
-      .onClick(() => activate(() => this.focusTableSource(view, sourceCoordinate))));
+    const menuOptions = { fullEditor: true, explicitRemoval: true } as const;
+    const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => this.applyMenuOperation(
+      view,
+      operation,
+      undefined,
+      intent === "owned-grid" ? frozen.axisSelection : undefined,
+      intent,
+      frozen,
+    ));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("copy")
@@ -1130,33 +1138,32 @@ class StructuralTableInteraction {
       .setIcon("clipboard-paste")
       .setTitle(t("menu.pasteSelection"))
       .onClick(() => activate(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); })));
-    menu.addItem((item) => item.setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
+    addSelectionEditingMenuItems(menu, t, selection, applySelectionOperation, menuOptions);
+    menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }
       void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance)
         .then(({ html, text }) => copyHtml(html, text))
-        .then(() => { new Notice(t("notice.copied").replace("{format}", "HTML")); })
+        .then((mode) => { new Notice(mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", "HTML")); })
         .catch(() => { new Notice(t("notice.clipboardFailed")); });
     })));
+    if (this.exportImage !== undefined) {
+      addImageExportMenuItem(menu, t, () => activate(() => {
+        const expected = this.table;
+        this.exportImage?.(expected, this.sourcePath, () => view.dom.isConnected
+          && view.state.field(editorInfoField, false)?.file?.path === this.sourcePath
+          && reparseUnchangedTable(view.state.doc.toString(), expected) !== null, this.renderedTable ?? view.dom);
+      }));
+    }
+    menu.addItem((item) => item
+      .setSection("structural-tables-source")
+      .setTitle(t("menu.editSource"))
+      .setIcon("file-pen-line")
+      .onClick(() => activate(() => this.focusTableSource(view, sourceCoordinate))));
     if (this.promote !== undefined && info?.editor !== undefined) {
       addBasePromotionMenuItem(menu, t, this.table, () => activate(() => this.promote?.(info.editor!, () => view.dom.isConnected ? view.state.field(editorInfoField, false) ?? null : null, this.table)));
     }
-    const menuOptions = { fullEditor: true, explicitRemoval: true } as const;
-    if (!hasSelectionMenuItems(selection, menuOptions)) return;
-    addSelectionMenuItems(
-      menu,
-      t,
-      selection,
-      (operation, intent) => activate(() => this.applyMenuOperation(
-        view,
-        operation,
-        undefined,
-        intent === "owned-grid" ? frozen.axisSelection : undefined,
-        intent,
-        frozen,
-      )),
-      menuOptions,
-    );
+    addSelectionRemovalMenuItems(menu, t, selection, applySelectionOperation, menuOptions);
   }
 
   private plainTextCaretOffset(event: MouseEvent | PointerEvent, coordinate: TableCellCoordinate): number | null {

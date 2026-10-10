@@ -35,6 +35,7 @@ Choose Follow theme, Grid, or Three-line table independently of table layout and
 - Edit cells directly in Live Preview, add or reorder rows and columns, change alignment, merge or split selections, and change header roles without deleting their text.
 - Paste supported HTML tables from browsers, Excel, and Google Sheets while keeping row and column spans.
 - Copy tables as HTML, plain GFM, TSV, or CSV.
+- Export a complete table as a PNG with a preview, image copy, and Vault attachment saving on desktop.
 - Optionally use the Structural Tables editor for ordinary GFM tables. Turning the option off restores Obsidian's native table UI without changing Markdown.
 - Convert a table to an Obsidian Base after reviewing the generated records and Property mapping. Moving or renaming those record notes does not break their Base membership.
 - Refuse unintended writes that would discard unselected or hidden source content, while allowing explicit clear/delete actions on the visible selection. Invalid structural syntax stays visible with diagnostics instead of being silently rewritten.
@@ -136,7 +137,17 @@ For other applications, range Copy also provides HTML and plain Markdown. Range 
 
 Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.
 
-On mobile, the HTML copy commands copy tab-separated text. Cell-internal line breaks and tabs become spaces. Rich HTML formatting and merged-cell layout are unavailable through the mobile clipboard.
+Copied HTML includes standard links between headers and data cells, but Word may discard these links when saving a DOCX; a complete semantic round-trip for multiple row-header columns is not guaranteed.
+
+On mobile, or when rich clipboard support is unavailable, the HTML copy commands copy tab-separated plain text and say that header structure and merged cells were flattened. Cell-internal line breaks and tabs become spaces; rich HTML formatting and merged-cell layout are unavailable in this fallback.
+
+### Export a table image
+
+On desktop, right-click a table and choose **Export whole table as image…**, or place the source cursor inside a table and run **Export whole table as image** from the command palette. The preview shows the final PNG. **Copy image** and **Save PNG to Vault** use the same bytes; image copy requires clipboard permission, and saving creates a new attachment at the Vault's configured location without overwriting files or inserting a note link. Ordinary GFM tables can also be exported from their native menu or the command palette.
+
+The snapshot uses the current theme, background, table appearance and density. It includes the complete table, merged headers, rendered text, supported math and loaded local image attachments, without editing controls or selection marks. Long content expands the image instead of being cropped. Save or cancel any active cell draft first; the export excludes that draft and never changes Markdown. A source or theme change during generation requires a fresh export; a completed preview retains its original snapshot.
+
+Images use a fixed 2× scale and stop at 8192 pixels per side or 16 megapixels. Oversized tables, unavailable resources needed to preserve the rendered appearance and unsupported interactive or note embeds report failure instead of producing a partial PNG. A font that already falls back in the note keeps that visible fallback; unused font URLs are not required. Cross-origin images may be blocked by browser security; use local attachments. Export is local and has no upload service. Mobile image export is unavailable; use the text copy commands there.
 
 ### Convert to Base
 
@@ -179,7 +190,7 @@ Restoring a converted table requires the generated `_promotion.json` file to rem
 <!-- section: privacy-and-security -->
 ## Privacy and security
 
-Structural Tables processes tables locally and does not add networking or analytics. Cell contents are rendered by Obsidian, so remote images or embeds still follow Obsidian's own network behavior.
+Structural Tables processes tables locally and does not upload content or collect analytics. Cell contents are rendered by Obsidian, so remote images or embeds still follow Obsidian's own network behavior. Image export may read the active theme's font or decoration resources to embed them in the local PNG; offline export needs those resources available locally.
 
 Simply rendering a table never changes its Markdown. Edits and menu commands are explicit and validated before replacement. Base conversion creates only the local files shown in its preview. If a conversion fails partway through, created files are kept for inspection rather than deleted automatically.
 

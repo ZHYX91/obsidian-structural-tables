@@ -274,7 +274,9 @@
         "Hover cells in content-left and content-center layouts and inspect the corresponding row and column handles",
         "Select an owned cell, move focus or the editor cursor outside it, then select a cell in the other owned table",
         "Open Editing checks; edit the introduction before a rendered table, then edit a cell; also keep a cell draft open while an unrelated source change shifts the table",
-        "Navigate forward and backward through vertically and horizontally merged cells with Tab and Shift+Tab"
+        "Navigate forward and backward through vertically and horizontally merged cells with Tab and Shift+Tab",
+        "Inspect owned Live Preview cell, row and column menus: selected-cell clipboard, available structure/header actions, rows, columns, alignment, adjacent whole-table Word/HTML and PNG outputs, source/Base, clear content and final whole-table deletion. Compare uniform and mixed column alignment and current/different header counts. On desktop activate an action after menu focus transfer, then retry an old action after changing source",
+        "Enable ordinary-table takeover and inspect the same menu organization; disable takeover and verify Obsidian's native items remain with applicable plugin contributions. In Reading View verify the brief whole-table PNG entry"
       ],
       "expected": [
         "Desktop single-click editing works while Android retains double-tap editing and touch selection",
@@ -283,7 +285,9 @@
         "Only the hovered cell's row and column handles reveal, remain reachable without clipping, and align to the actual table rectangle; always-visible touch column handles reserve space without covering preceding text",
         "The previous cell and handles lose selected styling when focus or the editor cursor leaves, and selection never remains on two owned tables",
         "Unchanged tables retain current source bindings and open drafts after source shifts, including when preceding tables change their indexes",
-        "Tab and Shift+Tab visit each visible anchor once without loops or skipped cells"
+        "Tab and Shift+Tab visit each visible anchor once without loops or skipped cells",
+        "Owned menus group actions by scope in the declared order; row/column deletion stays last in its respective group and whole-table deletion has a separate final warning group. Uniform selected-column alignment has one check, mixed alignment has none; identical header counts are omitted while eligible content-preserving removal remains available",
+        "Menu activation retains the frozen logical selection through focus transfer and revalidates source before acting; real source changes refuse the stale action. Ordinary native menus and Reading View's brief PNG entry remain available without adopting the owned editing menu"
       ]
     },
     {

@@ -26,7 +26,7 @@ export type TableOperationIntent = "standard" | "owned-grid";
 export type TableOperationApplier = (operation: TableOperation, intent?: TableOperationIntent) => void;
 
 export function addImageExportMenuItem(menu: Menu, t: Translate, exportImage: () => void): void {
-  menu.addItem((item) => item.setSection("structural-tables-clipboard")
+  menu.addItem((item) => item.setSection("structural-tables-output")
     .setIcon("image").setTitle(t("menu.exportImage")).onClick(exportImage));
 }
 
@@ -37,7 +37,7 @@ export function addBasePromotionMenuItem(
   promote: () => void,
 ): void {
   menu.addItem((item) => item
-    .setSection("structural-tables-base")
+    .setSection("structural-tables-source")
     .setIcon("database")
     .setTitle(t(table.structural ? "menu.flattenAndPromoteBase" : "menu.promoteBase"))
     .onClick(promote));
@@ -79,8 +79,11 @@ function selectionMenuState(
     canRemoveHeaderRows: selectsWholeRows && table.headerRowCount > 0
       && selection.minRow === 0 && selection.maxRow === table.headerRowCount - 1,
     canRemoveRowHeaders: selectsWholeColumns && table.rowHeaderColumnCount > 0,
-    canSetHeaderRows: selectsWholeRows && selection.minRow === 0,
-    canSetRowHeaderColumns: selectsWholeColumns && selection.minColumn === 0 && selection.maxColumn < table.columnCount - 1,
+    canSetHeaderRows: selectsWholeRows && selection.minRow === 0
+      && selection.maxRow + 1 !== table.headerRowCount,
+    canSetRowHeaderColumns: selectsWholeColumns && selection.minColumn === 0
+      && selection.maxColumn < table.columnCount - 1
+      && selection.maxColumn + 1 !== table.rowHeaderColumnCount,
     canSplit: anchor !== undefined && (anchor.rowSpan > 1 || anchor.columnSpan > 1),
     fullEditor: options.fullEditor ?? table.structural,
   };
@@ -107,16 +110,20 @@ export function addSelectionMenuItems(
   apply: TableOperationApplier,
   options: SelectionMenuOptions = {},
 ): void {
+  addSelectionEditingMenuItems(menu, t, selection, apply, options);
+  addSelectionRemovalMenuItems(menu, t, selection, apply, options);
+}
+
+export function addSelectionEditingMenuItems(
+  menu: Menu,
+  t: Translate,
+  selection: StructuralTableSelection,
+  apply: TableOperationApplier,
+  options: SelectionMenuOptions = {},
+): void {
   const state = selectionMenuState(selection, options);
+  addSelectionStructureMenuItems(menu, t, selection, apply, state);
   if (state.fullEditor) {
-    if (options.explicitRemoval === true) {
-      const coordinates = completeStructuralTableSelectionCoordinates(selection);
-      menu.addItem((item) => item
-        .setSection("structural-tables-clear")
-        .setIcon("eraser")
-        .setTitle(t("menu.clearCells"))
-        .onClick(() => apply((current) => clearTableCells(current, coordinates), "owned-grid")));
-    }
     menu.addItem((item) => item
       .setSection("structural-tables-row")
       .setIcon("arrow-up-to-line")
@@ -181,11 +188,13 @@ export function addSelectionMenuItems(
       ["center", "menu.alignCenter", "align-center"],
       ["right", "menu.alignRight", "align-right"],
     ] as const;
+    const selectedAlignments = selection.table.alignments.slice(selection.minColumn, selection.maxColumn + 1);
     for (const [alignment, title, icon] of alignments) {
       menu.addItem((item) => item
         .setSection("structural-tables-alignment")
         .setIcon(icon)
         .setTitle(t(title))
+        .setChecked(selectedAlignments.every((current) => current === alignment))
         .onClick(() => apply((current) => alignTableColumns(
           current,
           selection.minColumn,
@@ -193,15 +202,16 @@ export function addSelectionMenuItems(
           alignment,
         ))));
     }
-    if (options.explicitRemoval === true) {
-      menu.addItem((item) => item
-        .setSection("structural-tables-danger")
-        .setIcon("trash")
-        .setTitle(t("menu.deleteTable"))
-        .setWarning(true)
-        .onClick(() => apply(removeTable, "owned-grid")));
-    }
   }
+}
+
+function addSelectionStructureMenuItems(
+  menu: Menu,
+  t: Translate,
+  selection: StructuralTableSelection,
+  apply: TableOperationApplier,
+  state: SelectionMenuState,
+): void {
   if (state.canMerge) {
     menu.addItem((item) => item
       .setSection("structural-tables")
@@ -253,4 +263,26 @@ export function addSelectionMenuItems(
       .setTitle(t("menu.removeRowHeaders"))
       .onClick(() => apply((current) => setRowHeaderColumnCount(current, 0))));
   }
+}
+
+export function addSelectionRemovalMenuItems(
+  menu: Menu,
+  t: Translate,
+  selection: StructuralTableSelection,
+  apply: TableOperationApplier,
+  options: SelectionMenuOptions = {},
+): void {
+  if (!(options.fullEditor ?? selection.table.structural) || options.explicitRemoval !== true) return;
+  const coordinates = completeStructuralTableSelectionCoordinates(selection);
+  menu.addItem((item) => item
+    .setSection("structural-tables-clear")
+    .setIcon("eraser")
+    .setTitle(t("menu.clearCells"))
+    .onClick(() => apply((current) => clearTableCells(current, coordinates), "owned-grid")));
+  menu.addItem((item) => item
+    .setSection("structural-tables-danger")
+    .setIcon("trash")
+    .setTitle(t("menu.deleteTable"))
+    .setWarning(true)
+    .onClick(() => apply(removeTable, "owned-grid")));
 }

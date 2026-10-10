@@ -41,8 +41,8 @@ import {
 import {
   addBasePromotionMenuItem,
   addImageExportMenuItem,
-  addSelectionMenuItems,
-  hasSelectionMenuItems,
+  addSelectionEditingMenuItems,
+  addSelectionRemovalMenuItems,
   type TableOperation,
   type TableOperationIntent,
 } from "./table-menu";
@@ -1114,19 +1114,15 @@ class StructuralTableInteraction {
     };
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
-    if (this.exportImage !== undefined) {
-      addImageExportMenuItem(menu, t, () => activate(() => {
-        const expected = this.table;
-        this.exportImage?.(expected, this.sourcePath, () => view.dom.isConnected
-          && view.state.field(editorInfoField, false)?.file?.path === this.sourcePath
-          && reparseUnchangedTable(view.state.doc.toString(), expected) !== null, this.renderedTable ?? view.dom);
-      }));
-    }
-    menu.addItem((item) => item
-      .setSection("structural-tables-source")
-      .setTitle(t("menu.editSource"))
-      .setIcon("file-pen-line")
-      .onClick(() => activate(() => this.focusTableSource(view, sourceCoordinate))));
+    const menuOptions = { fullEditor: true, explicitRemoval: true } as const;
+    const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => this.applyMenuOperation(
+      view,
+      operation,
+      undefined,
+      intent === "owned-grid" ? frozen.axisSelection : undefined,
+      intent,
+      frozen,
+    ));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("copy")
@@ -1142,7 +1138,8 @@ class StructuralTableInteraction {
       .setIcon("clipboard-paste")
       .setTitle(t("menu.pasteSelection"))
       .onClick(() => activate(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); })));
-    menu.addItem((item) => item.setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
+    addSelectionEditingMenuItems(menu, t, selection, applySelectionOperation, menuOptions);
+    menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }
       void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance)
@@ -1150,25 +1147,23 @@ class StructuralTableInteraction {
         .then(() => { new Notice(t("notice.copied").replace("{format}", "HTML")); })
         .catch(() => { new Notice(t("notice.clipboardFailed")); });
     })));
+    if (this.exportImage !== undefined) {
+      addImageExportMenuItem(menu, t, () => activate(() => {
+        const expected = this.table;
+        this.exportImage?.(expected, this.sourcePath, () => view.dom.isConnected
+          && view.state.field(editorInfoField, false)?.file?.path === this.sourcePath
+          && reparseUnchangedTable(view.state.doc.toString(), expected) !== null, this.renderedTable ?? view.dom);
+      }));
+    }
+    menu.addItem((item) => item
+      .setSection("structural-tables-source")
+      .setTitle(t("menu.editSource"))
+      .setIcon("file-pen-line")
+      .onClick(() => activate(() => this.focusTableSource(view, sourceCoordinate))));
     if (this.promote !== undefined && info?.editor !== undefined) {
       addBasePromotionMenuItem(menu, t, this.table, () => activate(() => this.promote?.(info.editor!, () => view.dom.isConnected ? view.state.field(editorInfoField, false) ?? null : null, this.table)));
     }
-    const menuOptions = { fullEditor: true, explicitRemoval: true } as const;
-    if (!hasSelectionMenuItems(selection, menuOptions)) return;
-    addSelectionMenuItems(
-      menu,
-      t,
-      selection,
-      (operation, intent) => activate(() => this.applyMenuOperation(
-        view,
-        operation,
-        undefined,
-        intent === "owned-grid" ? frozen.axisSelection : undefined,
-        intent,
-        frozen,
-      )),
-      menuOptions,
-    );
+    addSelectionRemovalMenuItems(menu, t, selection, applySelectionOperation, menuOptions);
   }
 
   private plainTextCaretOffset(event: MouseEvent | PointerEvent, coordinate: TableCellCoordinate): number | null {

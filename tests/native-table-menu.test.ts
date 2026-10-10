@@ -5,6 +5,7 @@ import { MarkdownView, Menu } from "obsidian";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings";
+import type { ExportTableImage } from "../src/app/table-image-modal";
 import { NativeTableMenuBridge } from "../src/editor/native-table-menu";
 import { lastMenu } from "./mocks/obsidian";
 
@@ -17,7 +18,7 @@ function openContextMenu(target: HTMLElement): void {
   target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true }));
 }
 
-function fixture(takeOverOrdinaryTables = false): {
+function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage): {
   cell: HTMLTableCellElement;
   outside: HTMLElement;
   promote: ReturnType<typeof vi.fn>;
@@ -79,6 +80,7 @@ function fixture(takeOverOrdinaryTables = false): {
     app,
     () => ({ ...DEFAULT_SETTINGS, language: "en", takeOverOrdinaryTables }),
     promote,
+    exportImage,
   ).register(component);
   return {
     cell,
@@ -110,6 +112,18 @@ describe("native table menu bridge", () => {
     openContextMenu(cell);
 
     expect(lastMenu?.items.filter(({ title }) => title === "Upgrade to Base…")).toHaveLength(1);
+  });
+
+  it("keeps the native action and contributes only export and Base items to an unowned single cell", () => {
+    const exportImage = vi.fn<ExportTableImage>();
+    const { cell } = fixture(false, exportImage);
+    openContextMenu(cell);
+    expect(lastMenu?.items.map(({ title }) => title)).toEqual([
+      "Native table action", "Export whole table as image…", "Upgrade to Base…",
+    ]);
+    lastMenu?.items.find(({ title }) => title === "Export whole table as image…")?.callback?.();
+    expect(exportImage).toHaveBeenCalledOnce();
+    expect(exportImage.mock.calls[0]![0].source).toBe(SOURCE);
   });
 
   it("releases a native cell listener when the host removes that cell", async () => {

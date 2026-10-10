@@ -147,11 +147,15 @@ Row/column reordering is a two-step interaction: first select handles, then drag
 
 ### Menu operations
 
+Owned Live Preview menus group actions in this order: selected-cell Copy/Cut/Paste; available Merge/Split and header roles; rows; columns; column alignment; whole-table Word/HTML copy and PNG export; source and Base; Clear selected cells; Delete table. Whole-table outputs share a group. Row and column deletion stays last in its respective group, while Delete table has its own final group and warning styling.
+
+Column alignment shows a check only when all selected columns have that alignment; mixed alignment has no check. Header-role actions omit setting the current number of header rows or columns, while eligible header removal remains available. Opening a menu freezes the logical selection; activation revalidates it before acting.
+
 A rectangular multi-cell selection can merge; a single merged cell can split. Refuse a merge when non-top-left cells contain data, when the selection crosses roles, or when it includes only part of an existing merge.
 
 Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole left-side columns can add or remove row-header roles.
 
-Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled.
+Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled; the plugin contributes its applicable items. Reading View keeps its brief whole-table PNG entry.
 
 <!-- section: diagnostics -->
 ## Diagnostics

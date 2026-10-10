@@ -493,6 +493,7 @@
         "desktop": []
       },
       "steps": [
+        "In a fresh host before opening notes with math, export the plain merged table in Editing checks from owned Live Preview and Reading View; restart between the two cold-start checks. Inspect and save each final PNG with unchanged source bytes. Afterwards open Math input, export a math table and inspect completed formula glyphs. Literal link-target dollars, escaped dollars and code must not trigger math work when the host renders them as text.",
         "Open Table image export. Use source command palette, owned Live Preview and Reading menus, then a native ordinary-table menu with takeover disabled. Export the intended table and compare source hashes before and after.",
         "Inspect the reconstructed five-column meal table. Verify noon/evening colspan 2, date rowspan 3, category rowspan 2 and equal left alignment of both right-side dish names. This is a screenshot reconstruction, not the reporter's original source and not proof of an issue fix.",
         "Export Local image and math plus existing Math input fixtures. Inspect the final PNG preview, save to the Vault, independently decode and open that PNG, and paste Copy image into an image-capable application. Check actual rich text, formula glyphs, red/blue SVG attachment pixels and line breaks; original TeX, placeholders or borders alone do not pass.",

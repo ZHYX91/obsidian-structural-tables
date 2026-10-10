@@ -13,11 +13,19 @@ const raster = vi.hoisted(() => ({ toSvg: vi.fn() }));
 vi.mock("html-to-image", () => raster);
 const fixture = readFileSync("acceptance/fixtures/Table image export.md", "utf8");
 const meal = parseEditableTables(fixture).tables[0]!;
+const mathTable = parseEditableTables("| A |\n| --- |\n| $x$ |").tables[0]!;
 const originalFontFace = window.FontFace;
 
 function render(overrides = {}) {
   return renderTableImage(new App(), { table: meal, sourcePath: "Table image export.md",
     settings: DEFAULT_SETTINGS, document, signal: new AbortController().signal, isCurrent: () => true, ...overrides });
+}
+
+function hostMathContent(markup: string): void {
+  vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, source, target) => {
+    if (source === "$x$") target.innerHTML = markup;
+    else target.textContent = source;
+  });
 }
 
 function serializedContent(value: string, inline = false): string {
@@ -207,18 +215,93 @@ describe("complete table PNG", () => {
     await expect(render({ contextElement: context })).rejects.toMatchObject({ code: "stale" });
   });
 
-  it("uses the public math barrier and actual host DOM, including dollars in links/code and empty-resource text", async () => {
-    const barrier = vi.spyOn(host, "finishRenderMath").mockResolvedValue();
-    const table = parseEditableTables('| A |\n| --- |\n| [text](https://example.invalid/$x$) `background:url()` src="" |').tables[0]!;
+  it("exports a plain merged table on a cold host without calling the pending global math barrier", async () => {
+    const barrier = vi.spyOn(host, "finishRenderMath").mockReturnValue(new Promise(() => undefined));
+    const table = parseEditableTables(readFileSync("acceptance/fixtures/Editing checks.md", "utf8")).tables[0]!;
+    await expect(render({ table })).resolves.toMatchObject({ width: 1280 });
+    expect(barrier).not.toHaveBeenCalled();
+    expect(raster.toSvg).toHaveBeenCalledOnce();
+    expect(document.querySelector(".structural-tables-image-stage")).toBeNull();
+  });
+
+  it("uses actual host DOM rather than dollars in links, escapes, code or literal resource text", async () => {
+    const barrier = vi.spyOn(host, "finishRenderMath").mockReturnValue(new Promise(() => undefined));
+    const table = parseEditableTables('| A |\n| --- |\n| [text](https://example.invalid/$x$) \\$escaped\\$ `$code$` $unclosed `background:url()` src="" |').tables[0]!;
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, source, target) => {
       target.textContent = source;
       target.createEl("a").href = "https://example.invalid/$x$";
     });
     raster.toSvg.mockResolvedValue(`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"><text>background:url() src=""</text></svg>')}`);
     await expect(render({ table })).resolves.toMatchObject({ width: 1280 });
+    expect(barrier).not.toHaveBeenCalled();
+  });
+
+  it("waits for the public math barrier and glyphs in the fresh DOM after placeholder replacement", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish!: () => void;
+      const barrier = vi.spyOn(host, "finishRenderMath").mockImplementation(() => new Promise<void>((resolve) => { finish = resolve; }));
+      hostMathContent('<span class="math">x</span>');
+      const pending = render({ table: mathTable });
+      await vi.waitFor(() => expect(barrier).toHaveBeenCalledOnce());
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(raster.toSvg).not.toHaveBeenCalled();
+      const completed = document.createElement("mjx-container");
+      document.querySelector(".structural-tables-image-stage .math")!.replaceWith(completed);
+      finish();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(raster.toSvg).not.toHaveBeenCalled();
+      completed.append(document.createElement("mjx-c"));
+      raster.toSvg.mockImplementation(async (root: HTMLElement) => {
+        expect(root.querySelector(".math")).toBeNull();
+        expect(root.querySelector("mjx-container")).toBe(completed);
+        return "data:image/svg+xml,%3Csvg%2F%3E";
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(pending).resolves.toMatchObject({ width: 1280 });
+      expect(raster.toSvg).toHaveBeenCalledOnce();
+      expect(document.querySelector(".structural-tables-image-stage")).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("rejects standalone math error DOM before the no-math early return", async () => {
+    const barrier = vi.spyOn(host, "finishRenderMath").mockReturnValue(new Promise(() => undefined));
+    hostMathContent('<span class="katex-error">invalid math</span>');
+    await expect(render({ table: mathTable })).rejects.toMatchObject({ code: "resource" });
+    expect(barrier).not.toHaveBeenCalled();
+    expect(raster.toSvg).not.toHaveBeenCalled();
+  });
+
+  it("rechecks math errors after the public barrier changes the rendered DOM", async () => {
+    hostMathContent('<span class="math">x</span>');
+    const barrier = vi.spyOn(host, "finishRenderMath").mockImplementation(async () => {
+      document.querySelector(".structural-tables-image-stage .math")!.innerHTML = '<mjx-merror data-mjx-error="invalid">invalid math</mjx-merror>';
+    });
+    await expect(render({ table: mathTable })).rejects.toMatchObject({ code: "resource" });
     expect(barrier).toHaveBeenCalledOnce();
-    barrier.mockRejectedValue(new Error("math flush failed"));
-    await expect(render({ table })).rejects.toMatchObject({ code: "resource" });
+    expect(raster.toSvg).not.toHaveBeenCalled();
+  });
+
+  it("keeps public math flush failures fatal even when actual formula glyphs are present", async () => {
+    hostMathContent("<mjx-container><mjx-c>x</mjx-c></mjx-container>");
+    const barrier = vi.spyOn(host, "finishRenderMath").mockRejectedValue(new Error("math flush failed"));
+    await expect(render({ table: mathTable })).rejects.toMatchObject({ code: "resource" });
+    expect(barrier).toHaveBeenCalledOnce();
+    expect(raster.toSvg).not.toHaveBeenCalled();
+  });
+
+  it("cancels a pending actual-math barrier and cleans up the export stage", async () => {
+    hostMathContent('<span class="math">x</span>');
+    const barrier = vi.spyOn(host, "finishRenderMath").mockReturnValue(new Promise(() => undefined));
+    const unload = vi.spyOn(Component.prototype, "unload");
+    const controller = new AbortController();
+    const pending = render({ table: mathTable, signal: controller.signal });
+    await vi.waitFor(() => expect(barrier).toHaveBeenCalledOnce());
+    controller.abort(new Error("closed"));
+    await expect(pending).rejects.toThrow("closed");
+    expect(unload).toHaveBeenCalled();
+    expect(document.querySelector(".structural-tables-image-stage")).toBeNull();
+    expect(raster.toSvg).not.toHaveBeenCalled();
   });
 
   it("keeps source cssclasses and Callout attributes in a shallow scope without copying controls", async () => {

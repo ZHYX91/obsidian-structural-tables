@@ -122,11 +122,16 @@ function sourcePresentation(staging: HTMLElement, context?: HTMLElement): void {
 }
 
 async function waitForMath(root: HTMLElement, signal: AbortSignal): Promise<void> {
-  // The host owns Markdown/math syntax. Flush its public completion barrier,
-  // then inspect only actual rendered math nodes, never dollars in raw links.
+  const math = "mjx-container, .math, .katex";
+  const errors = "[data-mjx-error], mjx-merror, .MathJax_Error, .katex-error";
+  if (root.querySelector(errors) !== null) throw new TableImageError("resource");
+  // Completed Markdown supplies actual math markers. The global barrier needs
+  // initialized MathJax, so a plain table must not invoke it on a cold host.
+  if (root.querySelector(math) === null) return;
   await imageWork(finishRenderMath(), signal);
-  if (root.querySelector("[data-mjx-error], mjx-merror, .MathJax_Error, .katex-error") !== null) throw new TableImageError("resource");
-  const expected = Array.from(root.querySelectorAll("mjx-container, .math, .katex")).filter((node) => node.parentElement?.closest("mjx-container, .math, .katex") === null);
+  // The host can replace placeholders while flushing; read the finished DOM.
+  if (root.querySelector(errors) !== null) throw new TableImageError("resource");
+  const expected = Array.from(root.querySelectorAll(math)).filter((node) => node.parentElement?.closest(math) === null);
   const complete = (): boolean => expected.every((cell) => cell.matches(".katex")
     || cell.querySelector("svg path, svg use, svg rect, svg line, mjx-c") !== null);
   if (complete()) return;

@@ -1,4 +1,5 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
+import type { ExportTableImage } from "../app/table-image-modal";
 import { EditorView } from "@codemirror/view";
 import { MarkdownView, Menu, Notice, type App, type Component, type Editor } from "obsidian";
 
@@ -10,6 +11,7 @@ import { reparseUnchangedTable } from "../core/table-snapshot";
 import { nativeTableDomSelection } from "./native-table-selection";
 import {
   addBasePromotionMenuItem,
+  addImageExportMenuItem,
   addSelectionMenuItems,
   hasSelectionMenuItems,
   type TableOperation,
@@ -27,6 +29,7 @@ export class NativeTableMenuBridge {
     private readonly app: App,
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
+    private readonly exportImage?: ExportTableImage,
   ) {}
 
   register(component: Component): void {
@@ -111,6 +114,12 @@ export class NativeTableMenuBridge {
     this.contributedEvents.add(event);
     const menu = Menu.forEvent(event);
     const t = createTranslator(this.getSettings().language);
+    if (this.exportImage !== undefined) {
+      const sourcePath = markdownView.file?.path ?? "";
+      addImageExportMenuItem(menu, t, () => this.exportImage?.(table, sourcePath,
+        () => markdownView.containerEl.isConnected && markdownView.file?.path === sourcePath
+          && reparseUnchangedTable(markdownView.editor.getValue(), table) !== null, domSelection.tableElement));
+    }
     addBasePromotionMenuItem(menu, t, table, () => this.promote(markdownView.editor, () => markdownView, table));
     if (hasSelectionMenuItems(selection)) {
       addSelectionMenuItems(

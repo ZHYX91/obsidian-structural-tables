@@ -26,8 +26,8 @@ if (Buffer.byteLength(bundle) > 1_500_000) {
 if (bundle.includes("sourceMappingURL=") || bundle.includes("D:\\Projects\\")) {
   throw new Error("Production bundle contains development-only source metadata.");
 }
-if (/require\(["']yaml["']\)/u.test(bundle)) {
-  throw new Error("The YAML parser must be bundled, not required from the host.");
+if (/require\(["'](?:yaml|html-to-image)["']\)/u.test(bundle)) {
+  throw new Error("Runtime dependencies must be bundled, not required from the host.");
 }
 for (const external of ["obsidian", "@codemirror/state", "@codemirror/view"]) {
   if (!bundle.includes(`require("${external}")`)) {

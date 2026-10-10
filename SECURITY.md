@@ -1,6 +1,6 @@
 # Security policy
 
-Structural Tables processes tables locally and has no networking or telemetry of its own. It delegates cell rendering to Obsidian, so remote images and embeds in note content remain subject to Obsidian's rendering and network behavior.
+Structural Tables processes tables locally, uploads no content and collects no telemetry. It delegates cell rendering to Obsidian, so remote images and embeds in note content remain subject to Obsidian's rendering and network behavior. Image export may read active theme font or decoration resources to embed them in a local PNG; it has no upload service or remote renderer.
 
 Please report security or data-loss issues privately through [GitHub Security Advisories](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new). Include the plugin version, Obsidian version, operating system, minimal Markdown sample, exact command, preview state, and whether the file was open in an editor.
 

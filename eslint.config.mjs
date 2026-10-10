@@ -55,7 +55,7 @@ export default defineConfig([
   {
     // Clipboard and cross-window rendering must create nodes in the target document.
     files: ["src/rendering/table-clipboard.ts", "src/rendering/native-table-mapping.ts",
-      "src/reading/standalone-renderer.ts"],
+      "src/reading/standalone-renderer.ts", "src/rendering/table-image.ts", "src/app/table-image-modal.ts"],
     rules: {
       "obsidianmd/prefer-create-el": "off",
     },

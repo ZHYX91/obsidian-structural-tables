@@ -25,6 +25,11 @@ export type TableOperation = (table: StructuralTable) => OperationResult;
 export type TableOperationIntent = "standard" | "owned-grid";
 export type TableOperationApplier = (operation: TableOperation, intent?: TableOperationIntent) => void;
 
+export function addImageExportMenuItem(menu: Menu, t: Translate, exportImage: () => void): void {
+  menu.addItem((item) => item.setSection("structural-tables-clipboard")
+    .setIcon("image").setTitle(t("menu.exportImage")).onClick(exportImage));
+}
+
 export function addBasePromotionMenuItem(
   menu: Menu,
   t: Translate,

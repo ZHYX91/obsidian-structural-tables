@@ -478,6 +478,28 @@
         "Export Image preview and saved PNG retain completed content, merged geometry and explicit alignment. Ordinary-table ownership follows the opt-in setting in standalone rendering.",
         "Theme changes do not leave stale rounding; square themes and non-theme appearances retain their intended styling. Source bytes are unchanged."
       ]
+    },
+    {
+      "id": "whole-table-image-export",
+      "title": "Native complete table PNG preview, clipboard and Vault saving",
+      "surfaces": [
+        "desktop"
+      ],
+      "requiredCapabilities": {
+        "desktop": []
+      },
+      "steps": [
+        "Open Table image export. Use source command palette, owned Live Preview and Reading menus, then a native ordinary-table menu with takeover disabled. Export the intended table and compare source hashes before and after.",
+        "Inspect the reconstructed five-column meal table. Verify noon/evening colspan 2, date rowspan 3, category rowspan 2 and equal left alignment of both right-side dish names. This is a screenshot reconstruction, not the reporter's original source and not proof of an issue fix.",
+        "Export Local image and math plus existing Math input fixtures. Inspect the final PNG preview, save to the Vault, independently decode and open that PNG, and paste Copy image into an image-capable application. Check actual rich text, formula glyphs, red/blue SVG attachment pixels and line breaks; original TeX, placeholders or borders alone do not pass.",
+        "Export the wide unbroken table and the 30-row table while horizontally scrolled or with controls visible. Inspect the last column, last row, Chinese text, background, spans and explicit alignment in final pixels. Repeat selected Follow theme/Grid/Three-line and Default/Minimal/Maple light/dark combinations.",
+        "Cancel a delayed render, repeat export and close/unload the plugin. Change table or theme during generation and verify refusal; completed snapshots stay stable. Try missing or tainted images, unsupported note embeds, denied clipboard/file writes and an oversized table; verify explicit errors and no partial PNG or source write. Recheck existing Word/HTML, GFM/CSV/TSV/range copy and actual third-party Export Image separately."
+      ],
+      "expected": [
+        "Preview, copy and saving share the same completed PNG bytes; saving follows public attachment APIs, avoids overwrites and does not insert a Markdown link.",
+        "Complete content and supported local resources become actual pixels, without controls, drafts, viewport cropping or silent missing content. Unsupported resources and resource limits fail clearly.",
+        "Cancellation and unload release offscreen DOM, subscriptions and object URLs; source Markdown remains unchanged. Native PNG and third-party export observations stay separate, and uncovered host/platform combinations are reported accurately."
+      ]
     }
   ]
 }

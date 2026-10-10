@@ -9,6 +9,11 @@ interface PendingCellRender {
 
 const pendingByComponent = new WeakMap<Component, Set<PendingCellRender>>();
 const completionByTable = new WeakMap<HTMLTableElement, Promise<void>>();
+const failures = new WeakSet<HTMLTableElement>();
+
+export function tableRenderingFailed(table: HTMLTableElement): boolean {
+  return failures.has(table);
+}
 
 /** Standalone consumers may clone the DOM as soon as their render promise settles. */
 export function tableRenderingComplete(table: HTMLTableElement): Promise<void> {
@@ -20,6 +25,7 @@ function scheduleCellRendering(
   cells: readonly { source: string; target: HTMLElement }[],
   sourcePath: string,
   component: Component,
+  onFailure: () => void,
 ): Promise<void> {
   let pending = pendingByComponent.get(component);
   if (pending === undefined) {
@@ -41,6 +47,7 @@ function scheduleCellRendering(
       try {
         await MarkdownRenderer.render(app, source, target, sourcePath, component);
       } catch {
+        onFailure();
         if (!task.cancelled) target.textContent = source;
       }
     });
@@ -120,7 +127,7 @@ export function renderStructuralTable(
   // Never re-enter Obsidian's Markdown post-processor pipeline while CodeMirror
   // is still constructing the widget DOM. The owning component cancels stale
   // work if the view is destroyed before this microtask runs.
-  completionByTable.set(rendered, scheduleCellRendering(app, pendingCells, sourcePath, component));
+  completionByTable.set(rendered, scheduleCellRendering(app, pendingCells, sourcePath, component, () => failures.add(rendered)));
   installThemeCornerRemap(rendered, component);
   return rendered;
 }

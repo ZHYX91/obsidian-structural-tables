@@ -137,6 +137,7 @@ describe("registered conversion command entry", () => {
 });
 
 const localizedCommandKeys = [
+  ["export-current-table-as-image", "command.exportImage"],
   ["insert-structural-table", "command.insert"],
   ["migrate-legacy-base-properties", "command.migrateBaseProperties"],
   ["promote-current-table-to-base", "command.promoteBase"],

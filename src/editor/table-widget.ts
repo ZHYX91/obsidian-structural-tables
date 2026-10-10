@@ -1,4 +1,5 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
+import type { ExportTableImage } from "../app/table-image-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
 import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor } from "obsidian";
@@ -39,6 +40,7 @@ import {
 } from "./table-range-clipboard";
 import {
   addBasePromotionMenuItem,
+  addImageExportMenuItem,
   addSelectionMenuItems,
   hasSelectionMenuItems,
   type TableOperation,
@@ -217,6 +219,7 @@ export class StructuralTableWidget extends WidgetType {
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
+    private readonly exportImage?: ExportTableImage,
   ) { super(); }
 
   override eq(other: StructuralTableWidget): boolean {
@@ -224,12 +227,12 @@ export class StructuralTableWidget extends WidgetType {
       && this.table.range.from === other.table.range.from && this.table.range.to === other.table.range.to
       && this.table.sourceTableIndex === other.table.sourceTableIndex
       && this.sourcePath === other.sourcePath && samePresentation(this.settings, other.settings)
-      && this.promote === other.promote;
+      && this.promote === other.promote && this.exportImage === other.exportImage;
   }
 
   override toDOM(view: EditorView): HTMLElement {
     const interaction = new StructuralTableInteraction(
-      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote,
+      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage,
     );
     const host = interaction.mount(view);
     interactions.set(host, interaction);
@@ -281,6 +284,7 @@ class StructuralTableInteraction {
     private readonly settings: StructuralTablesSettings,
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
+    private readonly exportImage?: ExportTableImage,
   ) {}
 
   rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
@@ -1110,6 +1114,14 @@ class StructuralTableInteraction {
     };
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
+    if (this.exportImage !== undefined) {
+      addImageExportMenuItem(menu, t, () => activate(() => {
+        const expected = this.table;
+        this.exportImage?.(expected, this.sourcePath, () => view.dom.isConnected
+          && view.state.field(editorInfoField, false)?.file?.path === this.sourcePath
+          && reparseUnchangedTable(view.state.doc.toString(), expected) !== null, this.renderedTable ?? view.dom);
+      }));
+    }
     menu.addItem((item) => item
       .setSection("structural-tables-source")
       .setTitle(t("menu.editSource"))

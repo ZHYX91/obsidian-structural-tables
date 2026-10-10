@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-02
+last_synced: 2026-10-10
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -86,6 +86,8 @@ Plain GFM, TSV, and CSV whole-table output repeats merged values and joins multi
 HTML conversion accepts one complete supported table only. Mixed prose, multiple tables, captions, math, images, attachments, and links that cannot be preserved are left to native note paste. In a cell editor, unsupported HTML uses the complete plain-text alternative with a notice; if none exists, the current edit remains intact. A verified empty cell can still clear the selected text. HTML copy falls back to original Markdown/LaTeX for math, images, attachments, and internal or relative links, preserving references without embedding arbitrary HTML.
 
 Safe single-line math is preserved verbatim, including fractions, superscripts, `\lvert`/`\rvert`, `\lVert`/`\rVert`, `\mid`, existing `\|` norms, and matrices using TeX `\\`. Bare pipes such as `$|x|$` and `$P(A|B)$`, actual newlines inside math, TeX comments/verbatim commands, and incomplete delimiters are refused before saving; the complete draft remains editable. Use explicit TeX commands for the intended pipe symbol, and `\$` for a literal dollar sign. Rejected edits do not navigate or append a row. Interrupted drafts can be recovered within the current plugin session; this is not persistent storage across restarts. Formatting preserves existing math source and does not guess whether an old norm was intended as an absolute value.
+
+Desktop whole-table image export is available from the source command palette, owned table menus and native ordinary-table menus. Its modal first generates a complete theme/background snapshot, then previews the final PNG with Copy image and Save PNG to Vault actions sharing the same bytes. It excludes active cell drafts and controls, leaves Markdown untouched, and keeps a completed snapshot stable. Source or theme changes during generation require a retry. Clipboard denial leaves Vault saving available. Mobile shows a desktop-only explanation. Fixed 2× output is limited to 8192 pixels per side and 16 megapixels; resource/render failures, timeouts and interactive or note embeds produce explicit errors rather than clipped or incomplete success.
 
 <!-- section: base-promotion -->
 ## Convert to Base

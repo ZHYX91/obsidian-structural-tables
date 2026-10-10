@@ -36,6 +36,15 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 
 - [ ] GFM preview confirm/cancel/stale refusal.
 
+### Whole-table image export (desktop)
+
+- [ ] From the source command palette, owned Live Preview menu, Reading view menu and native ordinary-table menu, export the intended complete table. Keep adjacent and repeated tables distinct; source bytes must not change.
+- [ ] Use `Table image export.md`, its local SVG attachment and existing `Math input.md`, `Theme corners and export.md` and width fixtures. The meal table is a five-column screenshot reconstruction, not the reporter's original Markdown. Verify both right-side dish names have equal left alignment, noon/evening headers span two columns, the date spans three rows and category spans two rows. This coverage does not establish an issue fix.
+- [ ] Inspect the final PNG preview and independently decode the PNG saved to the Vault. Check rich text, actual formula glyphs and local red/blue image pixels, line breaks, all rightmost long content and the last row below the viewport; borders alone are insufficient. Verify Copy image pastes the same completed image, or accurately reports clipboard denial while Save PNG to Vault remains usable.
+- [ ] Cover Follow theme, Grid and Three-line in Default/Minimal/Maple light and dark as selected for the change. Check the theme background, header roles, spans and explicit alignment. Repeat while horizontally scrolled and with selection controls visible; exported pixels exclude controls, selections and active cell drafts.
+- [ ] Cancel during delayed rendering, repeat export, close the window and unload the plugin. No export stage, object URL or Vault subscription survives. Source/theme changes during generation refuse the pending result; changes after completion leave the existing PNG snapshot stable. Oversized, missing/tainted images, unsupported embeds and timeouts report failure without a partial PNG. Mobile shows its desktop-only message without invoking an image bridge.
+- [ ] Recheck whole-table Word/HTML, range copy, GFM/CSV/TSV and actual third-party Export Image output separately. Native PNG success does not prove those channels.
+
 ### Bases and migration
 - [ ] Sheets Extended migration and conflict warning.
 - [ ] Bases-disabled upgrade refusal.

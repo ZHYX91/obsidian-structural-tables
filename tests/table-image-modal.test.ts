@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { parseEditableTables } from "../src/core/parser";
 import { TableImageError } from "../src/rendering/table-image";
 import { installReadingImageMenu } from "../src/reading/table-image-menu";
-import { lastMenu, notices, TFile } from "./mocks/obsidian";
+import { lastMenu, MarkdownView, notices, TFile } from "./mocks/obsidian";
 
 const pipeline = vi.hoisted(() => ({ renderTableImage: vi.fn() }));
 vi.mock("../src/rendering/table-image", async (original) => ({ ...await original<object>(), ...pipeline }));
@@ -139,7 +139,10 @@ describe("PNG preview and outputs", () => {
     const cachedRead = vi.fn().mockResolvedValue(source);
     Object.assign(harness.app.vault, { getAbstractFileByPath: () => file, cachedRead });
     const owner = new Component();
-    const wrapper = document.body.appendChild(document.createElement("div"));
+    const pane = document.body.appendChild(document.createElement("div")); pane.className = "markdown-preview-view";
+    const wrapper = pane.appendChild(document.createElement("div"));
+    const view = new MarkdownView(); view.file = file; view.containerEl = pane;
+    Object.assign(harness.app, { workspace: { iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => callback({ view }) } });
     const exportImage = vi.fn();
     const translator = () => createTranslator("en");
     installReadingImageMenu(harness.app, wrapper, table, "Note.md", owner, translator, exportImage);
@@ -149,7 +152,11 @@ describe("PNG preview and outputs", () => {
     expect(exportImage.mock.calls[0]![2]()).toBe(true);
     expect(exportImage.mock.calls[0]![3]).toBe(wrapper);
     owner.unload();
+    wrapper.remove();
+    expect(exportImage.mock.calls[0]![2]()).toBe(true);
+    view.file = new TFile("Other.md");
     expect(exportImage.mock.calls[0]![2]()).toBe(false);
+    view.file = file; pane.append(wrapper);
     const second = new Component();
     installReadingImageMenu(harness.app, wrapper, table, "Note.md", second, translator, exportImage);
     cachedRead.mockResolvedValue(source.replace("x", "changed"));

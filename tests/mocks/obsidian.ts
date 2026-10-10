@@ -1,6 +1,7 @@
 import { StateField } from "@codemirror/state";
 
 export const Platform = { isMobileApp: false };
+export async function finishRenderMath(): Promise<void> {}
 
 let mockUuid = 0;
 export const activeWindow = {

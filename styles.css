@@ -36,6 +36,23 @@
   pointer-events: none;
 }
 
+.structural-tables-image-scope {
+  display: block !important;
+  position: static !important;
+  inset: auto !important;
+  width: max-content !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  contain: none !important;
+  content-visibility: visible !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+
 .structural-tables-image-snapshot {
   box-sizing: border-box;
   width: max-content !important;

@@ -17,11 +17,28 @@ const bundle = await build({ entryPoints: ["tests/browser/table-image-harness.ts
 const [source, styles, attachment] = await Promise.all([
   readFile("acceptance/fixtures/Table image export.md", "utf8"), readFile("styles.css", "utf8"), readFile("acceptance/fixtures/table-image-local.svg"),
 ]);
-const html = `<html><head><style>body{--background-primary:#fff;--text-normal:#222;--font-text:sans-serif;--font-text-size:16px}table{border-collapse:collapse}td,th{border:1px solid #777;padding:8px}svg{display:inline-block}${styles}</style></head><body><svg width="0" height="0"><defs><path id="math-glyph" d="M0 20L15 0L30 20Z" fill="#00a000"/></defs></svg><script id="input" type="application/json">${JSON.stringify(source).replaceAll("<", "\\u003c")}</script><pre id="result">pending</pre><script src="/bundle.js"></script></body></html>`;
+const html = `<html><head><style>body{--background-primary:#fff;--text-normal:#222;--font-text:sans-serif;--font-text-size:16px}table{border-collapse:collapse}td,th{border:1px solid #777;padding:8px}svg{display:inline-block}${styles}
+.theme-note th{background:red!important}.callout[data-callout=warning] .callout-content td{border:6px solid blue!important}
+.decoration::before,.decoration::after,.regular-decoration,.missing-decoration::before{content:"";display:block;width:40px;height:40px}
+.decoration::before,.regular-decoration{background-image:url('/red.svg')}.decoration::after{background-image:url('/blue.svg')}
+.missing-decoration::before{background-image:url('/missing.svg')}
+@font-face{font-family:OnlyLocal;src:local('Arial'),url('/missing.woff2') format('woff2')}
+@font-face{font-family:OnlyLocalControl;src:local('Arial')}
+@font-face{font-family:BrokenFace;src:url('data:font/woff2;base64,AA==') format('woff2')}
+.local-font :is(td,th){font-family:OnlyLocal,serif!important}.broken-font :is(td,th){font-family:BrokenFace,serif!important}
+.local-control :is(td,th){font-family:OnlyLocalControl,serif!important}.fallback-control :is(td,th){font-family:serif!important}
+</style></head><body><svg width="0" height="0"><defs><path id="math-glyph" d="M0 20L15 0L30 20Z" fill="#00a000"/></defs></svg><script id="input" type="application/json">${JSON.stringify(source).replaceAll("<", "\\u003c")}</script><pre id="result">pending</pre><script src="/bundle.js"></script></body></html>`;
+let missingFont = 0;
 const server = createServer((request, response) => {
   if (request.url === "/attachment.svg") { response.setHeader("Content-Type", "image/svg+xml"); response.end(attachment); }
+  else if (request.url === "/red.svg" || request.url === "/blue.svg") {
+    response.setHeader("Content-Type", "image/svg+xml");
+    response.end(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="${request.url === "/red.svg" ? "red" : "blue"}"/></svg>`);
+  }
+  else if (request.url === "/requests.json") { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify({ missingFont })); }
   else if (request.url === "/bundle.js") { response.setHeader("Content-Type", "text/javascript"); response.end(bundle.outputFiles[0].text); }
-  else { response.setHeader("Content-Type", "text/html; charset=utf-8"); response.end(html); }
+  else if (request.url === "/") { response.setHeader("Content-Type", "text/html; charset=utf-8"); response.end(html); }
+  else { if (request.url === "/missing.woff2") missingFont += 1; response.statusCode = 404; response.end("missing"); }
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 let child;
@@ -53,6 +70,19 @@ try {
   const command = (method, params = {}) => new Promise((resolve, reject) => {
     id += 1; requests.set(id, { resolve, reject }); socket.send(JSON.stringify({ id, method, params }));
   });
+  // The debugging endpoint can appear before the first navigation commits.
+  // Do not evaluate an awaiting promise in the discarded about:blank context.
+  let ready = false;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    try {
+      const state = await command("Runtime.evaluate", { returnByValue: true,
+        expression: "({ready:document.readyState,url:location.href})" });
+      ready = state.result?.value?.ready === "complete" && state.result.value.url === `http://127.0.0.1:${address.port}/`;
+      if (ready) break;
+    } catch { /* Navigation may still replace the initial execution context. */ }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.ok(ready, "Chromium fixture navigation did not complete");
   const evaluation = await command("Runtime.evaluate", { awaitPromise: true, returnByValue: true,
     expression: `new Promise((resolve,reject)=>{let attempts=0;const timer=setInterval(()=>{const value=document.getElementById('result')?.textContent;if(value&&value!=='pending'){clearInterval(timer);resolve(value);}else if(++attempts>500){clearInterval(timer);reject(new Error('PNG smoke timed out'));}},50);})` });
   assert.ok(!evaluation.exceptionDetails, JSON.stringify(evaluation));

@@ -145,7 +145,7 @@ On desktop, right-click a table and choose **Export whole table as image…**, o
 
 The snapshot uses the current theme, background, table appearance and density. It includes the complete table, merged headers, rendered text, supported math and loaded local image attachments, without editing controls or selection marks. Long content expands the image instead of being cropped. Save or cancel any active cell draft first; the export excludes that draft and never changes Markdown. A source or theme change during generation requires a fresh export; a completed preview retains its original snapshot.
 
-Images use a fixed 2× scale and stop at 8192 pixels per side or 16 megapixels. Oversized tables, failed image/font loads and unsupported interactive or note embeds report failure instead of producing a partial PNG. Cross-origin images may be blocked by browser security; use local attachments. Export is local and has no upload service. Mobile image export is unavailable; use the text copy commands there.
+Images use a fixed 2× scale and stop at 8192 pixels per side or 16 megapixels. Oversized tables, unavailable resources needed to preserve the rendered appearance and unsupported interactive or note embeds report failure instead of producing a partial PNG. A font that already falls back in the note keeps that visible fallback; unused font URLs are not required. Cross-origin images may be blocked by browser security; use local attachments. Export is local and has no upload service. Mobile image export is unavailable; use the text copy commands there.
 
 ### Convert to Base
 

@@ -1,9 +1,8 @@
 import { toSvg } from "html-to-image";
-import { App, Component } from "obsidian";
+import { App, Component, finishRenderMath } from "obsidian";
 
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
-import { closedCodeSpanEnd } from "../core/table-cell-syntax";
 import { renderStructuralTable, tableRenderingComplete, tableRenderingFailed } from "./table-renderer";
 
 export type TableImageErrorCode = "too-large" | "resource" | "unsupported-content" | "stale" | "timeout";
@@ -45,15 +44,69 @@ export function imageWork<T>(work: Promise<T>, signal: AbortSignal): Promise<T> 
   });
 }
 
-function themeIdentity(document: Document): string {
-  return `${document.documentElement.className}\n${document.body.className}\n${document.body.getAttribute("style")}\n${document.head.innerHTML}`;
+const presentationProperties = ["color", "background-color", "background-image", "font-family", "font-size",
+  "font-weight", "font-style", "line-height", "text-align", "border-top-color", "border-top-style", "border-top-width",
+  "border-right-color", "border-right-style", "border-right-width", "border-bottom-color", "border-bottom-style", "border-bottom-width",
+  "border-left-color", "border-left-style", "border-left-width", "padding", "content", "mask-image", "-webkit-mask-image"];
+
+/** Observe the source's presentation, not renderer-owned styles/meta in head. */
+function themeWitness(document: Document, context?: HTMLElement): () => string {
+  const view = document.defaultView!;
+  const elements: Element[] = [document.body];
+  for (let element: HTMLElement | null = context ?? null; element !== null && element !== document.body; element = element.parentElement) {
+    elements.push(element);
+  }
+  if (context !== undefined) elements.push(...context.querySelectorAll("th, td"));
+  const last = new Map<Element, string>();
+  return () => {
+    const parts = [String(document.body.classList.contains("theme-dark")), String(document.body.classList.contains("theme-light")),
+      document.getElementById("theme")?.textContent ?? ""];
+    for (const element of elements) {
+      // A host render-child replacement is not a theme change. Its surviving
+      // note scopes/body remain observed; the replaced child's style is frozen.
+      if (!element.isConnected && last.has(element)) { parts.push(last.get(element)!); continue; }
+      const values: string[] = [];
+      const style = view.getComputedStyle(element);
+      values.push(...presentationProperties.map((property) => style.getPropertyValue(property)));
+      if (element === document.body || element === context) {
+        for (const property of Array.from(style)) if (property.startsWith("--")) values.push(property, style.getPropertyValue(property));
+      }
+      for (const pseudo of ["::before", "::after"]) {
+        const computed = view.getComputedStyle(element, pseudo);
+        if (computed.content !== "none" && computed.content !== "") {
+          values.push(pseudo, ...presentationProperties.map((property) => computed.getPropertyValue(property)));
+        }
+      }
+      const value = values.join("\n"); last.set(element, value); parts.push(value);
+    }
+    return parts.join("\n");
+  };
+}
+
+/** Shallow source scopes retain cssclasses/Callout selectors, without controls. */
+function sourceScope(staging: HTMLElement, context?: HTMLElement): HTMLElement {
+  if (context === undefined) { staging.classList.add("markdown-preview-view", "markdown-rendered"); return staging; }
+  const ancestors: HTMLElement[] = [];
+  for (let element: HTMLElement | null = context; element !== null && element !== staging.ownerDocument.body; element = element.parentElement) {
+    if (!element.matches("table, thead, tbody, tfoot, tr, th, td, .structural-tables-container")) ancestors.unshift(element);
+  }
+  let parent = staging;
+  for (const ancestor of ancestors) {
+    const scope = staging.ownerDocument.createElement(ancestor.tagName.toLowerCase());
+    for (const { name, value } of ancestor.attributes) {
+      if (name === "class" || name === "style" || name === "dir" || name === "lang" || name.startsWith("data-")) scope.setAttribute(name, value);
+    }
+    scope.classList.add("structural-tables-image-scope");
+    parent.append(scope); parent = scope;
+  }
+  return parent;
 }
 
 function sourcePresentation(staging: HTMLElement, context?: HTMLElement): void {
   if (context === undefined) return;
   const view = staging.ownerDocument.defaultView!;
   const computed = view.getComputedStyle(context);
-  for (const property of computed) {
+  for (const property of Array.from(computed)) {
     if (property.startsWith("--")) staging.style.setProperty(property, computed.getPropertyValue(property));
   }
   for (const property of ["font-family", "font-size", "line-height", "color", "direction"]) {
@@ -68,36 +121,14 @@ function sourcePresentation(staging: HTMLElement, context?: HTMLElement): void {
   }
 }
 
-function mathCount(source: string): number {
-  let count = 0;
-  for (let index = 0; index < source.length; index += 1) {
-    if (source[index] === "\\") { index += 1; continue; }
-    if (source[index] === "`") {
-      const end = closedCodeSpanEnd(source, index);
-      if (end !== null) { index = end - 1; continue; }
-    }
-    if (source[index] !== "$") continue;
-    const delimiter = source[index + 1] === "$" ? "$$" : "$";
-    for (let end = index + delimiter.length; end < source.length; end += 1) {
-      if (source[end] === "\\") { end += 1; continue; }
-      if (!source.startsWith(delimiter, end)) continue;
-      if (source.slice(index + delimiter.length, end).trim() !== "") count += 1;
-      index = end + delimiter.length - 1;
-      break;
-    }
-  }
-  return count;
-}
-
-async function waitForMath(root: HTMLElement, table: StructuralTable, signal: AbortSignal): Promise<void> {
-  const expected = table.rows.flatMap((row) => row.cells).filter((cell) => !cell.covered && mathCount(cell.content) > 0);
-  if (expected.length === 0) return;
-  const complete = (): boolean => expected.every((cell) => {
-    const target = root.querySelector(`[data-structural-row="${cell.row}"][data-structural-column="${cell.column}"]`);
-    if (target?.querySelector("[data-mjx-error], mjx-merror, .MathJax_Error") !== null) return false;
-    const glyphs = target?.querySelectorAll("mjx-container:has(svg path, svg use, mjx-c), .katex").length ?? 0;
-    return glyphs >= mathCount(cell.content);
-  });
+async function waitForMath(root: HTMLElement, signal: AbortSignal): Promise<void> {
+  // The host owns Markdown/math syntax. Flush its public completion barrier,
+  // then inspect only actual rendered math nodes, never dollars in raw links.
+  await imageWork(finishRenderMath(), signal);
+  if (root.querySelector("[data-mjx-error], mjx-merror, .MathJax_Error, .katex-error") !== null) throw new TableImageError("resource");
+  const expected = Array.from(root.querySelectorAll("mjx-container, .math, .katex")).filter((node) => node.parentElement?.closest("mjx-container, .math, .katex") === null);
+  const complete = (): boolean => expected.every((cell) => cell.matches(".katex")
+    || cell.querySelector("svg path, svg use, svg rect, svg line, mjx-c") !== null);
   if (complete()) return;
   const Observer = root.ownerDocument.defaultView!.MutationObserver;
   let finish: () => void = () => undefined;
@@ -152,10 +183,9 @@ async function decodeImage(image: HTMLImageElement, signal: AbortSignal): Promis
   if (image.naturalWidth === 0 || image.naturalHeight === 0) throw new TableImageError("resource");
 }
 
-async function inlineImages(root: HTMLElement, signal: AbortSignal): Promise<void> {
+async function inlineImages(root: HTMLElement, signal: AbortSignal, budget: ResourceBudget): Promise<void> {
   // Rasterize already-loaded attachments locally. This works with app:// URLs
   // without fetching the Vault again. Cross-origin taint fails explicitly.
-  let bytes = 0;
   for (const image of root.querySelectorAll<HTMLImageElement>("img")) {
     await decodeImage(image, signal);
     const bounds = image.getBoundingClientRect();
@@ -169,8 +199,8 @@ async function inlineImages(root: HTMLElement, signal: AbortSignal): Promise<voi
     const data = canvas.toDataURL("image/png");
     canvas.width = 0;
     canvas.height = 0;
-    bytes += data.length * 0.75;
-    if (bytes > TABLE_IMAGE_LIMITS.resourceBytes) throw new TableImageError("too-large");
+    budget.bytes += data.length * 0.75;
+    if (budget.bytes > TABLE_IMAGE_LIMITS.resourceBytes) throw new TableImageError("too-large");
     image.removeAttribute("srcset");
     image.style.width = `${bounds.width}px`;
     image.style.height = `${bounds.height}px`;
@@ -194,42 +224,122 @@ function inlineSvgSymbols(root: HTMLElement): void {
   }
 }
 
-async function embeddedFonts(root: HTMLElement, signal: AbortSignal): Promise<string> {
+interface ResourceBudget { bytes: number; urls: Map<string, Promise<string>> }
+
+async function resourceData(url: string, document: Document, signal: AbortSignal, budget: ResourceBudget): Promise<string> {
+  if (url.startsWith("data:")) return url;
+  const absolute = new URL(url, document.baseURI).href;
+  let pending = budget.urls.get(absolute);
+  if (pending === undefined) {
+    pending = (async () => {
+      const view = document.defaultView!;
+      const response = await imageWork(view.fetch(absolute, { signal }), signal);
+      if (!response.ok) throw new TableImageError("resource");
+      const length = Number(response.headers.get("content-length"));
+      if (Number.isFinite(length) && length + budget.bytes > TABLE_IMAGE_LIMITS.resourceBytes) throw new TableImageError("too-large");
+      const blob = await imageWork(response.blob(), signal);
+      budget.bytes += blob.size;
+      if (budget.bytes > TABLE_IMAGE_LIMITS.resourceBytes) throw new TableImageError("too-large");
+      const reader = new view.FileReader();
+      try {
+        return await imageWork(new Promise<string>((resolve, reject) => {
+          reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new TableImageError("resource"));
+          reader.onerror = () => reject(new TableImageError("resource"));
+          reader.readAsDataURL(blob);
+        }), signal);
+      } finally { if (reader.readyState === reader.LOADING) reader.abort(); }
+    })();
+    budget.urls.set(absolute, pending);
+  }
+  return imageWork(pending, signal);
+}
+
+const cssURL = /url\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([^)]*?))\s*\)/giu;
+async function embedCSSURLs(value: string, document: Document, signal: AbortSignal, budget: ResourceBudget,
+  images: boolean): Promise<string> {
+  let output = "";
+  let cursor = 0;
+  for (const match of value.matchAll(cssURL)) {
+    const url = (match[1] ?? match[2] ?? match[3] ?? "").trim().replace(/\\(["'\\() ])/gu, "$1");
+    if (url === "") throw new TableImageError("resource");
+    if (url.startsWith("#")) continue;
+    const data = await resourceData(url, document, signal, budget);
+    if (images) {
+      const image = document.createElement("img");
+      image.src = data;
+      try { await decodeImage(image, signal); } finally { image.removeAttribute("src"); }
+    }
+    output += value.slice(cursor, match.index) + `url("${data}")`;
+    cursor = match.index + match[0].length;
+  }
+  return output + value.slice(cursor);
+}
+
+function fontSources(value: string): string[] {
+  // Split the browser-normalized src descriptor at top-level commas.
+  const sources: string[] = [];
+  let depth = 0; let quote = ""; let start = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index]!;
+    if (char === "\\") { index += 1; continue; }
+    if (quote !== "") { if (char === quote) quote = ""; continue; }
+    if (char === '"' || char === "'") { quote = char; continue; }
+    if (char === "(") depth += 1;
+    else if (char === ")") depth -= 1;
+    else if (char === "," && depth === 0) { sources.push(value.slice(start, index).trim()); start = index + 1; }
+  }
+  sources.push(value.slice(start).trim());
+  return sources;
+}
+
+async function embeddedFonts(root: HTMLElement, signal: AbortSignal, budget: ResourceBudget): Promise<string> {
   const view = root.ownerDocument.defaultView;
   if (view === null) throw new TableImageError("resource");
   const families = new Set<string>();
   for (const element of [root, ...root.querySelectorAll("*")]) {
-    for (const family of view.getComputedStyle(element).fontFamily.split(",")) {
-      families.add(family.trim().replace(/["']/gu, "").toLowerCase());
+    for (const pseudo of [null, "::before", "::after"]) {
+      const style = view.getComputedStyle(element, pseudo);
+      if (pseudo !== null && (style.content === "none" || style.content === "")) continue;
+      for (const family of style.fontFamily.split(",")) families.add(family.trim().replace(/["']/gu, "").toLowerCase());
     }
   }
-  let bytes = 0;
   const result: string[] = [];
   const visit = async (rules: CSSRuleList, base: string): Promise<void> => {
     for (const rule of rules) {
       if (rule instanceof view.CSSFontFaceRule) {
         const face = rule;
         if (!families.has(face.style.fontFamily.replace(/["']/gu, "").trim().toLowerCase())) continue;
-        let css = face.cssText;
-        for (const match of css.matchAll(/url\(["']?([^"')]+)["']?\)/gu)) {
-          const url = match[1]!;
-          if (url.startsWith("data:")) continue;
-          const response = await imageWork(view.fetch(new URL(url, base), { signal }), signal);
-          if (!response.ok) throw new TableImageError("resource");
-          const blob = await imageWork(response.blob(), signal);
-          bytes += blob.size;
-          if (bytes > TABLE_IMAGE_LIMITS.resourceBytes) throw new TableImageError("too-large");
-          const reader = new view.FileReader();
-          const data = await imageWork(new Promise<string>((resolve, reject) => {
-            reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new TableImageError("resource"));
-            reader.onerror = () => reject(new TableImageError("resource"));
-            reader.readAsDataURL(blob);
-          }), signal);
-          css = css.replace(match[0], `url("${data}")`);
+        // A failed/unselected face already falls back in the source. Retain that
+        // visible fallback instead of introducing a new required network load.
+        const loaded = Array.from(root.ownerDocument.fonts).some((font) => font.status === "loaded"
+          && font.family.replace(/["']/gu, "").trim().toLowerCase() === face.style.fontFamily.replace(/["']/gu, "").trim().toLowerCase()
+          && font.style === (face.style.fontStyle || "normal") && font.weight === (face.style.fontWeight || "normal"));
+        if (!loaded) continue;
+        let selected: string | undefined;
+        for (const source of fontSources(face.style.getPropertyValue("src"))) {
+          try {
+            // Probe src in its actual priority order. local() success needs no
+            // URL fallback; URL sources are made self-contained and validated.
+            const resolved = source.replace(cssURL, (_raw, quoted: string | undefined, single: string | undefined, plain: string | undefined) =>
+              `url("${new URL(quoted ?? single ?? plain ?? "", base).href}")`);
+            const embedded = await embedCSSURLs(resolved, root.ownerDocument, signal, budget, false);
+            const probe = new view.FontFace(face.style.fontFamily, embedded, { style: face.style.fontStyle || "normal",
+              weight: face.style.fontWeight || "normal", stretch: face.style.getPropertyValue("font-stretch") || "normal" });
+            await imageWork(probe.load(), signal);
+            selected = embedded; break;
+          } catch (error) {
+            signal.throwIfAborted();
+            if (error instanceof TableImageError && error.code === "too-large") throw error;
+          }
         }
-        result.push(css);
-      } else if (rule instanceof view.CSSImportRule && rule.styleSheet !== null) {
-        await visit(rule.styleSheet.cssRules, rule.styleSheet.href ?? base);
+        if (selected === undefined) throw new TableImageError("resource");
+        const sheet = new view.CSSStyleSheet(); sheet.replaceSync(face.cssText);
+        const copy = sheet.cssRules[0] as CSSFontFaceRule;
+        copy.style.setProperty("src", selected);
+        result.push(copy.cssText);
+      } else if ("styleSheet" in rule && (rule as CSSImportRule).styleSheet !== null) {
+        const imported = (rule as CSSImportRule).styleSheet!;
+        await visit(imported.cssRules, imported.href ?? base);
       } else if ("cssRules" in rule) {
         await visit((rule as CSSGroupingRule).cssRules, base);
       }
@@ -243,6 +353,51 @@ async function embeddedFonts(root: HTMLElement, signal: AbortSignal): Promise<st
   return result.join("\n");
 }
 
+/** Inspect actual attributes/declarations, including library-generated pseudos. */
+async function embedSerializedResources(svg: string, document: Document, signal: AbortSignal, budget: ResourceBudget): Promise<string> {
+  const view = document.defaultView!;
+  const xml = new view.DOMParser().parseFromString(decodeURIComponent(svg.slice(svg.indexOf(",") + 1)), "image/svg+xml");
+  if (xml.querySelector("parsererror") !== null) throw new TableImageError("resource");
+  const declarations = async (style: CSSStyleDeclaration, images: boolean): Promise<void> => {
+    for (const property of Array.from(style)) {
+      // Unused custom variables are not resources. Computed visible properties
+      // already have var() resolved by the browser before serialization.
+      if (property.startsWith("--") || property === "cursor") continue;
+      const value = style.getPropertyValue(property);
+      if (!value.toLowerCase().includes("url(")) continue;
+      style.setProperty(property, await embedCSSURLs(value, document, signal, budget, images), style.getPropertyPriority(property));
+    }
+  };
+  for (const element of xml.querySelectorAll("[style]")) {
+    const declaration = document.createElement("div").style;
+    declaration.cssText = element.getAttribute("style")!;
+    await declarations(declaration, true);
+    element.setAttribute("style", declaration.cssText);
+  }
+  const rules = async (list: CSSRuleList): Promise<void> => {
+    for (const rule of list) {
+      if ("styleSheet" in rule) throw new TableImageError("resource");
+      if ("style" in rule) await declarations((rule as CSSStyleRule).style, !(rule instanceof view.CSSFontFaceRule));
+      if ("cssRules" in rule) await rules((rule as CSSGroupingRule).cssRules);
+    }
+  };
+  for (const element of xml.querySelectorAll("style")) {
+    const sheet = new view.CSSStyleSheet(); sheet.replaceSync(element.textContent ?? "");
+    await rules(sheet.cssRules);
+    element.textContent = Array.from(sheet.cssRules, (rule) => rule.cssText).join("\n");
+  }
+  for (const element of xml.querySelectorAll("img, image")) {
+    const attribute = element.localName === "img" ? "src" : element.hasAttribute("href") ? "href" : "xlink:href";
+    const url = element.getAttribute(attribute);
+    if (url === null || url === "") throw new TableImageError("resource");
+    const data = await resourceData(url, document, signal, budget);
+    const image = document.createElement("img"); image.src = data;
+    try { await decodeImage(image, signal); } finally { image.removeAttribute("src"); }
+    element.setAttribute(attribute, data);
+  }
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new view.XMLSerializer().serializeToString(xml))}`;
+}
+
 export async function renderTableImage(app: App, request: TableImageRequest): Promise<TableImage> {
   const { document, table, settings } = request;
   const owner = new Component();
@@ -253,22 +408,24 @@ export async function renderTableImage(app: App, request: TableImageRequest): Pr
   const signal = controller.signal;
   const timeout = document.defaultView!.setTimeout(() => controller.abort(new TableImageError("timeout")), TABLE_IMAGE_LIMITS.timeoutMs);
   const staging = document.createElement("div");
-  staging.className = "markdown-preview-view markdown-rendered structural-tables-image-stage";
+  staging.className = "structural-tables-image-stage";
   staging.setAttribute("aria-hidden", "true");
   staging.setAttribute("inert", "");
-  sourcePresentation(staging, request.contextElement);
-  const identity = themeIdentity(document);
-  const current = (): void => {
-    signal.throwIfAborted();
-    if (!request.isCurrent() || identity !== themeIdentity(document)) throw new TableImageError("stale");
-  };
-  owner.load();
   try {
-    current();
+    owner.load();
     if (!table.valid || table.rows.length * table.columnCount > TABLE_IMAGE_LIMITS.nodes) {
       throw new TableImageError("too-large");
     }
-    const rendered = renderStructuralTable(app, table, staging, request.sourcePath, owner);
+    sourcePresentation(staging, request.contextElement);
+    const scope = sourceScope(staging, request.contextElement);
+    const presentation = themeWitness(document, request.contextElement);
+    const identity = presentation();
+    const current = (): void => {
+      signal.throwIfAborted();
+      if (!request.isCurrent() || identity !== presentation()) throw new TableImageError("stale");
+    };
+    current();
+    const rendered = renderStructuralTable(app, table, scope, request.sourcePath, owner);
     const root = rendered.parentElement!;
     root.classList.add("structural-tables-image-snapshot");
     Object.assign(root.dataset, { appearance: table.structural || settings.takeOverOrdinaryTables ? settings.appearance : "theme", density: settings.density,
@@ -276,16 +433,17 @@ export async function renderTableImage(app: App, request: TableImageRequest): Pr
     document.body.append(staging);
     await imageWork(tableRenderingComplete(rendered), signal);
     if (tableRenderingFailed(rendered)) throw new TableImageError("resource");
-    await waitForMath(root, table, signal);
+    await waitForMath(root, signal);
     await quietContent(root, signal);
     if (root.querySelector("iframe, video, audio, canvas, .internal-embed:not(.image-embed), .markdown-embed")) {
       throw new TableImageError("unsupported-content");
     }
     if (root.querySelectorAll("*").length > TABLE_IMAGE_LIMITS.nodes) throw new TableImageError("too-large");
     await imageWork(document.fonts.ready, signal);
-    await inlineImages(root, signal);
+    const budget: ResourceBudget = { bytes: 0, urls: new Map() };
+    await inlineImages(root, signal, budget);
     inlineSvgSymbols(root);
-    const fontEmbedCSS = await embeddedFonts(root, signal);
+    const fontEmbedCSS = await embeddedFonts(root, signal, budget);
     await nextFrame(document, signal);
     await nextFrame(document, signal);
     current();
@@ -293,15 +451,12 @@ export async function renderTableImage(app: App, request: TableImageRequest): Pr
     const height = Math.ceil(Math.max(root.scrollHeight, root.getBoundingClientRect().height));
     const size = tableImageDimensions(width, height);
     const background = document.defaultView!.getComputedStyle(staging).backgroundColor;
-    const svg = await imageWork(toSvg(root, { width, height, fontEmbedCSS, backgroundColor: background,
+    let svg = await imageWork(toSvg(root, { width, height, fontEmbedCSS, backgroundColor: background,
       includeQueryParams: true, fetchRequestInit: { signal },
       filter: () => { signal.throwIfAborted(); return true; } }), signal);
     if (svg.length > TABLE_IMAGE_LIMITS.svgCharacters) throw new TableImageError("too-large");
-    // The dependency can substitute empty URLs on a failed CSS resource fetch.
-    // Refuse that result instead of presenting a successful incomplete image.
-    const xml = decodeURIComponent(svg.slice(svg.indexOf(",") + 1));
-    if (/(?:background(?:-image)?|(?:-webkit-)?mask(?:-image)?):[^;{}]*url\((?:&quot;|["'])?(?:&quot;|["'])?\)/u.test(xml)
-      || /src=""/u.test(xml)) throw new TableImageError("resource");
+    svg = await embedSerializedResources(svg, document, signal, budget);
+    if (svg.length > TABLE_IMAGE_LIMITS.svgCharacters) throw new TableImageError("too-large");
     current();
     const image = document.createElement("img");
     image.src = svg;

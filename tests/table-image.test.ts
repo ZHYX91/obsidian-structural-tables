@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
 import { App, Component, MarkdownRenderer } from "obsidian";
+import * as host from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings";
@@ -37,7 +38,7 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => callback(new Blob(["PNG"], { type: "image/png" })));
 });
 
-afterEach(() => { document.body.replaceChildren(); document.head.replaceChildren(); vi.restoreAllMocks(); });
+afterEach(() => { document.body.replaceChildren(); document.body.removeAttribute("class"); document.body.removeAttribute("style"); document.head.replaceChildren(); vi.restoreAllMocks(); });
 
 describe("complete table PNG", () => {
   it("renders the reconstructed five-column owner model, completed rich cells and explicit alignment without controls", async () => {
@@ -119,8 +120,69 @@ describe("complete table PNG", () => {
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, _source, target) => { target.innerHTML = '<iframe src="about:blank"></iframe>'; });
     await expect(render()).rejects.toMatchObject({ code: "unsupported-content" });
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, source, target) => { target.textContent = source; });
-    raster.toSvg.mockResolvedValue('data:image/svg+xml,%3Csvg%3Ebackground%3Aurl(%26quot%3B%26quot%3B)%3C%2Fsvg%3E');
+    raster.toSvg.mockResolvedValue(`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><div xmlns="http://www.w3.org/1999/xhtml" style="background-image:url(\'\')"/></foreignObject></svg>')}`);
     await expect(render()).rejects.toMatchObject({ code: "resource" });
+  });
+
+  it("allows unrelated renderer head updates but refuses changed source presentation", async () => {
+    const context = document.body.appendChild(document.createElement("div"));
+    context.style.setProperty("--background-primary", "white");
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, source, target) => {
+      target.textContent = source;
+      if (document.getElementById("render-runtime-style") === null) {
+        const style = document.createElement("style"); style.id = "render-runtime-style";
+        style.textContent = ".unused-math-runtime{visibility:visible}"; document.head.append(style);
+      }
+    });
+    await expect(render({ contextElement: context })).resolves.toMatchObject({ width: 1280 });
+    raster.toSvg.mockImplementation(async () => {
+      context.style.setProperty("--background-primary", "black"); return "data:image/svg+xml,%3Csvg%2F%3E";
+    });
+    await expect(render({ contextElement: context })).rejects.toMatchObject({ code: "stale" });
+  });
+
+  it("uses the public math barrier and actual host DOM, including dollars in links/code and empty-resource text", async () => {
+    const barrier = vi.spyOn(host, "finishRenderMath").mockResolvedValue();
+    const table = parseEditableTables('| A |\n| --- |\n| [text](https://example.invalid/$x$) `background:url()` src="" |').tables[0]!;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, source, target) => {
+      target.textContent = source;
+      target.createEl("a").href = "https://example.invalid/$x$";
+    });
+    raster.toSvg.mockResolvedValue(`data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg"><text>background:url() src=""</text></svg>')}`);
+    await expect(render({ table })).resolves.toMatchObject({ width: 1280 });
+    expect(barrier).toHaveBeenCalledOnce();
+    barrier.mockRejectedValue(new Error("math flush failed"));
+    await expect(render({ table })).rejects.toMatchObject({ code: "resource" });
+  });
+
+  it("keeps source cssclasses and Callout attributes in a shallow scope without copying controls", async () => {
+    const context = document.body.appendChild(document.createElement("div"));
+    context.className = "theme-note markdown-preview-view";
+    const callout = context.createDiv({ cls: "callout" }); callout.dataset.callout = "warning";
+    const wrapper = callout.createDiv({ cls: "structural-tables-container" });
+    wrapper.createEl("button");
+    raster.toSvg.mockImplementation(async (root: HTMLElement) => {
+      expect(root.closest(".theme-note")).not.toBeNull();
+      expect(root.closest(".callout")?.getAttribute("data-callout")).toBe("warning");
+      expect(root.parentElement?.querySelector("button")).toBeNull();
+      return "data:image/svg+xml,%3Csvg%2F%3E";
+    });
+    await render({ contextElement: wrapper });
+    expect(document.querySelector(".structural-tables-image-stage")).toBeNull();
+  });
+
+  it("refuses an unavailable URL needed to embed a loaded font, while leaving source fallback alone", async () => {
+    const style = document.createElement("style");
+    style.textContent = '@font-face{font-family:NeededRemote;src:url("https://example.invalid/font.woff2")} .structural-tables-table{font-family:NeededRemote,serif}';
+    document.head.append(style);
+    const faces = [{ family: "NeededRemote", status: "loaded", weight: "normal", style: "normal" }];
+    Object.defineProperty(document, "fonts", { value: { ready: Promise.resolve(), [Symbol.iterator]: () => faces[Symbol.iterator]() }, configurable: true });
+    const fetch = vi.spyOn(window, "fetch").mockResolvedValue(new Response("missing", { status: 404 }));
+    await expect(render()).rejects.toMatchObject({ code: "resource" });
+    expect(fetch).toHaveBeenCalledOnce();
+    faces[0]!.status = "error";
+    await expect(render()).resolves.toMatchObject({ width: 1280 });
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it("handles already-aborted and rejected work without keeping an abort listener", async () => {

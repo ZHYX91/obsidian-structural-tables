@@ -108,4 +108,18 @@ When Android regression is selected, run the current packaged bytes in a named d
 
 Host acceptance is a quality report, not a publication prerequisite. Quick checks cover plugin loading, rendering, edit/save and disable/restore. Targeted regression selects changed modules; full regression covers all scenarios. Keep rendering, editing/selection, theme/geometry, clipboard/format, and migration results separate. Record passed, product failure, tool failure, skipped and not-run accurately, with exact candidate, host, theme and observation scope. Repeating a module adds a new observation without rewriting earlier results.
 
-The theme matrix is Default and Minimal, each in light and dark mode. Table appearance (Theme/Grid/Three-line), density and layout are separate dimensions. Use representative combinations and change-directed coverage instead of rerunning every combination for unrelated changes. Check long text and empty merged cells before/during/after editing, measuring table width, column boundaries and local/page overflow alongside visual inspection.
+The baseline theme matrix is the built-in Default theme and Minimal, each in light and dark mode. Start ordinary rendering and editing checks with the built-in theme and no third-party plugins. Pin and record the exact Minimal version when used. Add a pinned Maple theme for rounded-corner and theme-switching changes; add Export Image only for actual export interoperability. The `source-interoperability` provider preview checks standalone rendering and does not require or prove Export Image integration.
+
+For the desktop `theme-corner-export` scenario, use these representative combinations. They define expected coverage, not historical passes:
+
+| Environment | View or output | Table appearance and ownership | Checks |
+| --- | --- | --- | --- |
+| Maple, light and dark | Reading View and Live Preview, including Callout | Follow theme, takeover off | Four logical outer corners, covered final row, layered and row headers; internal corners square; ordinary alignment native |
+| Maple, light | Actual saved Export Image PNG | Follow theme, takeover off; then Grid, takeover on | Completed text and spans, Callout, left/center/right alignment, Chinese rows and `<br>`; ordinary export ownership follows the setting |
+| Maple, light | Reading View | Grid and Three-line; toggle takeover on then off | Structural appearance remains selected; ordinary table returns to native theme styling |
+| Default and Minimal, light and dark | Reading View and Live Preview | Follow theme, takeover off | Square corners, intact content and alignment, no stale Maple radius |
+| Maple → Minimal → Default → Maple, without reopening the note | Reading View and Live Preview | Follow theme | Theme changes apply to mounted tables and restore only the active theme's corners |
+
+Use `Theme corners and export.md` unchanged, hash its bytes before and after render/export checks, and inspect saved PNG files separately from exporter previews. Record a separate result for each exercised theme, mode, view/output, appearance and takeover combination, including evidence and omitted checks. A scenario with uncovered combinations is partial or unverified; provider previews, existing screenshots and missing exporter dependencies cannot stand in for real saved-image acceptance. None of these desktop observations proves Android coverage.
+
+Table appearance (Follow theme/Grid/Three-line), density and layout are separate dimensions. Use representative combinations and change-directed coverage instead of rerunning every combination for unrelated changes. Check long text and empty merged cells before/during/after editing, measuring table width, column boundaries and local/page overflow alongside visual inspection.

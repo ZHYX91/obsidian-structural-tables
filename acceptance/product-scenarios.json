@@ -300,7 +300,7 @@
       "steps": [
         "Open Empty geometry and compare cell and editor dimensions before, during, and after editing, merging, and splitting, first with fresh theme density and then comfortable and compact densities",
         "Open Width and format checks and inspect long unbroken content before and during editing in narrow and split panes",
-        "On desktop, compare default and Minimal theme table widths with note-level table-wide, table-max and table-100 classes; switch Theme/Grid/Three-line styles and all density/layout options, including merged cells and multi-row headers"
+        "On desktop, compare default and pinned Minimal theme table widths in light and dark mode with note-level table-wide, table-max and table-100 classes; switch Theme/Grid/Three-line styles and all density/layout options, including merged cells and multi-row headers. Keep third-party exporters disabled for this baseline and record each exercised combination separately. Rounded-corner checks belong to theme-corner-export."
       ],
       "expected": [
         "Empty cells retain at least one line of content height in every density; cell and table geometry remains stable when entering or cancelling editing and usable through merge and split",
@@ -454,7 +454,7 @@
       ],
       "expected": [
         "Native source ownership survives external controls without relocating the caret or losing a draft. Explicit source handoff addresses the selected cell.",
-        "The standalone clone contains completed text and semantic spans; escaped literals remain literal and render-only operations do not modify the note.",
+        "The standalone clone contains completed text and semantic spans; escaped literals remain literal and render-only operations do not modify the note. Provider preview is standalone-renderer coverage only, not proof of Export Image or saved PNG interoperability.",
         "Cell commits and history preserve the corresponding source, table geometry and Callout prefixes."
       ]
     },
@@ -468,10 +468,10 @@
         "desktop": []
       },
       "steps": [
-        "Use a pinned theme with native rounded table cells (for example Maple), then open Theme corners and export in Live Preview and Reading View. Inspect the covered final row, layered headers and Callout: only the four logical outer corners are rounded, including the spanning anchors; internal header corners remain square.",
-        "With ordinary-table takeover disabled, export the saved note through Export Image and save the actual PNG. Inspect all text, spans and explicit left/center/right alignment, including the separate Chinese rows and the br cell. Enable takeover, choose Grid appearance, export again and verify the ordinary table now follows the same owned appearance as the structural tables. Disable takeover and verify native ordinary rendering returns.",
-        "With Follow theme restored, compare Maple with Minimal and the built-in theme; inspect light/dark styling, then switch back without reopening the note. Square-theme tables must not acquire rounding or retain the previous theme radius. Check Grid and Three-line remain unchanged by theme-corner remapping.",
-        "Compare fixture bytes before and after all render/export/settings operations; inspect the saved PNG separately from the preview. Record exact host, theme and exporter identities and retain representative images. If a prerequisite exporter or theme is absent, record the uncovered checks rather than treating provider preview as a real export."
+        "Use pinned Maple in light and dark mode with Follow theme and ordinary-table takeover off, then open Theme corners and export in Live Preview and Reading View. Inspect the covered final row, layered headers and Callout in both views: only the four logical outer corners are rounded, including the spanning anchors; internal header corners remain square.",
+        "In Maple light mode with ordinary-table takeover disabled and Follow theme selected, export the saved note through pinned Export Image and save the actual PNG. Inspect all text, spans, Callout and explicit left/center/right alignment, including the separate Chinese rows and the br cell. Enable takeover, choose Grid appearance, export again and verify the ordinary table now follows the same owned appearance as the structural tables. In Reading View check Grid and Three-line with takeover on, then disable takeover and verify native ordinary rendering returns while structural tables retain the selected appearance.",
+        "With Follow theme restored and takeover off, compare Minimal and the built-in theme in light/dark mode in Reading View and Live Preview. Switch Maple to Minimal to the built-in theme and back to Maple without reopening the note. Square-theme tables must not acquire rounding or retain the previous theme radius; Maple rounding returns. Check Grid and Three-line remain unchanged by theme-corner remapping.",
+        "Compare fixture bytes before and after all render/export/settings operations; inspect the saved PNG separately from the preview. Record exact host, theme and exporter identities and retain representative images. Record each theme, mode, view/output, appearance and takeover combination separately using the representative matrix in docs/ACCEPTANCE.md. If a prerequisite exporter or theme is absent or a combination is not exercised, record uncovered checks and a partial or unverified scenario rather than treating provider preview or a subset as complete real export acceptance."
       ],
       "expected": [
         "Native theme rounding is retained at logical table corners despite row spans, row headers and layered headers, with no dummy cells added to the actual table.",

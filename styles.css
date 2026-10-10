@@ -179,6 +179,13 @@
   border-block-start-width: var(--table-header-border-width, var(--table-border-width, 1px));
 }
 
+.structural-tables-theme-probe {
+  position: fixed !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  inset: 0 auto auto 0 !important;
+}
+
 /* Only repair logical outer corners when runtime resolved a real theme radius.
    Guarding with ready flags avoids invalid-at-computed-value-time var() rules
    unexpectedly clearing hard-coded, non-token-based theme corner styling. */
@@ -187,7 +194,7 @@
   border-start-start-radius: var(--structural-tables-corner-start-start) !important;
 }
 
-:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-start-start="true"][data-structural-ready-start-start="true"] tr[data-structural-last-header-row="true"] > :first-child:not([data-structural-corner-start-start="true"]) {
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-start-start="true"][data-structural-ready-start-start="true"] :is(thead, tbody) > tr > :is(th, td):not([data-structural-corner-start-start="true"]) {
   border-start-start-radius: 0 !important;
 }
 
@@ -195,7 +202,7 @@
   border-start-end-radius: var(--structural-tables-corner-start-end) !important;
 }
 
-:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-start-end="true"][data-structural-ready-start-end="true"] tr[data-structural-last-header-row="true"] > :last-child:not([data-structural-corner-start-end="true"]) {
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-start-end="true"][data-structural-ready-start-end="true"] :is(thead, tbody) > tr > :is(th, td):not([data-structural-corner-start-end="true"]) {
   border-start-end-radius: 0 !important;
 }
 
@@ -203,7 +210,7 @@
   border-end-start-radius: var(--structural-tables-corner-end-start) !important;
 }
 
-:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-end-start="true"][data-structural-ready-end-start="true"] tr[data-structural-last-row="true"] > :first-child:not([data-structural-corner-end-start="true"]) {
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-end-start="true"][data-structural-ready-end-start="true"] :is(thead, tbody) > tr > :is(th, td):not([data-structural-corner-end-start="true"]) {
   border-end-start-radius: 0 !important;
 }
 
@@ -211,7 +218,7 @@
   border-end-end-radius: var(--structural-tables-corner-end-end) !important;
 }
 
-:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-end-end="true"][data-structural-ready-end-end="true"] tr[data-structural-last-row="true"] > :last-child:not([data-structural-corner-end-end="true"]) {
+:is(.structural-tables-container, .structural-tables-live-preview)[data-appearance="theme"] .structural-tables-table[data-structural-remap-end-end="true"][data-structural-ready-end-end="true"] :is(thead, tbody) > tr > :is(th, td):not([data-structural-corner-end-end="true"]) {
   border-end-end-radius: 0 !important;
 }
 

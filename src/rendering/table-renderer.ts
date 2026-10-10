@@ -57,6 +57,11 @@ export function renderStructuralTable(
 ): HTMLTableElement {
   const wrapper = container.createDiv({ cls: "structural-tables-container markdown-rendered" });
   const rendered = wrapper.createEl("table", { cls: "structural-tables-table" });
+  if (table.structural) {
+    for (const corner of ["StartStart", "StartEnd", "EndStart", "EndEnd"]) {
+      rendered.dataset[`structuralRemap${corner}`] = "true";
+    }
+  }
   const head = table.headerRowCount > 0 ? rendered.createEl("thead") : null;
   const body = rendered.createEl("tbody");
   const pendingCells: { source: string; target: HTMLElement }[] = [];
@@ -84,19 +89,15 @@ export function renderStructuralTable(
       const inlineEnd = cell.column + cell.columnSpan === table.columnCount;
       if (blockStart && inlineStart) {
         element.dataset.structuralCornerStartStart = "true";
-        if (cell.rowSpan > 1 && table.headerRowCount > 1) rendered.dataset.structuralRemapStartStart = "true";
       }
       if (blockStart && inlineEnd) {
         element.dataset.structuralCornerStartEnd = "true";
-        if (cell.rowSpan > 1 && table.headerRowCount > 1) rendered.dataset.structuralRemapStartEnd = "true";
       }
       if (blockEnd && inlineStart) {
         element.dataset.structuralCornerEndStart = "true";
-        if (cell.row < table.rows.length - 1) rendered.dataset.structuralRemapEndStart = "true";
       }
       if (blockEnd && inlineEnd) {
         element.dataset.structuralCornerEndEnd = "true";
-        if (cell.row < table.rows.length - 1) rendered.dataset.structuralRemapEndEnd = "true";
       }
       if (rowIndex < table.headerRowCount) {
         element.dataset.structuralHeaderEnd = String(cell.row + cell.rowSpan === table.headerRowCount);

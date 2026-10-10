@@ -5,7 +5,7 @@ import { type App, Component, MarkdownRenderer } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
-import { renderStructuralTable } from "../src/rendering/table-renderer";
+import { renderStructuralTable, tableRenderingComplete } from "../src/rendering/table-renderer";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -115,16 +115,17 @@ describe("semantic theme corner ownership", () => {
   it("uses a hard-coded theme radius only when a displaced corner actually has one", async () => {
     const table = parseStructuralTables("| --- || --- |\n| North | 10 |\n| ^ | 20 |").tables[0]!;
     const container = document.body.appendChild(document.createElement("div"));
+    const theme = document.head.appendChild(document.createElement("style"));
+    theme.textContent = "tbody tr:last-child > td:first-child { border-end-start-radius: 11px; }";
     try {
       const rendered = renderStructuralTable({} as App, table, container, "HardCoded.md", new Component());
       rendered.parentElement!.dataset.appearance = "theme";
-      const lastCell = rendered.querySelector<HTMLElement>("tr[data-structural-last-row='true'] > :first-child")!;
-      lastCell.style.setProperty("border-end-start-radius", "11px");
       await Promise.resolve();
       expect(rendered.dataset.structuralReadyEndStart).toBe("true");
       expect(rendered.style.getPropertyValue("--structural-tables-corner-end-start")).toBe("11px");
       expect(rendered.dataset.structuralReadyEndEnd).toBeUndefined();
     } finally {
+      theme.remove();
       container.remove();
     }
   });
@@ -157,7 +158,7 @@ describe("semantic theme corner ownership", () => {
     expect(rendered.querySelector("[data-structural-corner-end-start='true']")?.getAttribute("rowspan")).toBe("2");
     expect(rendered.querySelector("tr[data-structural-last-row='true'] > :first-child")
       ?.hasAttribute("data-structural-corner-end-start")).toBe(false);
-    expect(rendered.dataset.structuralRemapEndEnd).toBeUndefined();
+    expect(rendered.dataset.structuralRemapEndEnd).toBe("true");
   });
 
   it("assigns both bottom corners when the last visual row is entirely covered by spanning cells", () => {
@@ -186,7 +187,7 @@ describe("semantic theme corner ownership", () => {
       ?.hasAttribute("data-structural-corner-start-end")).toBe(false);
   });
 
-  it("does not remap ordinary or unspanned tables", () => {
+  it("leaves ordinary tables alone and includes semantic row headers", () => {
     for (const source of [
       "| Name | Value |\n| --- | --- |\n| Alice | 1 |",
       "| --- || --- |\n| Alice | 1 |\n| Bob | 2 |",
@@ -194,14 +195,72 @@ describe("semantic theme corner ownership", () => {
       const table = parseEditableTables(source).tables[0]!;
       const rendered = renderStructuralTable({} as App, table, document.createElement("div"),
         "Unmerged.md", new Component());
-      expect(rendered.dataset.structuralRemapStartStart).toBeUndefined();
-      expect(rendered.dataset.structuralRemapStartEnd).toBeUndefined();
-      expect(rendered.dataset.structuralRemapEndStart).toBeUndefined();
-      expect(rendered.dataset.structuralRemapEndEnd).toBeUndefined();
+      expect(rendered.dataset.structuralRemapStartStart).toBe(table.structural ? "true" : undefined);
+      expect(rendered.dataset.structuralRemapStartEnd).toBe(table.structural ? "true" : undefined);
+      expect(rendered.dataset.structuralRemapEndStart).toBe(table.structural ? "true" : undefined);
+      expect(rendered.dataset.structuralRemapEndEnd).toBe(table.structural ? "true" : undefined);
       expect(rendered.querySelectorAll("[data-structural-corner-end-start='true']")).toHaveLength(1);
       expect(rendered.querySelectorAll("[data-structural-corner-end-end='true']")).toHaveLength(1);
     }
   });
+  it("resolves all covered corners before a detached export clone and clears internal header corners", async () => {
+    const theme = document.head.appendChild(document.createElement("style"));
+    theme.textContent = `
+      .markdown-rendered th:first-child { border-start-start-radius: 9px; }
+      .markdown-rendered th:last-child { border-start-end-radius: 7px; }
+      .markdown-rendered tbody tr:last-child td:first-child { border-end-start-radius: 11px; }
+      .markdown-rendered tbody tr:last-child td:last-child { border-end-end-radius: 13px; }
+    ` + readFileSync("styles.css", "utf8");
+    const owner = new Component();
+    owner.load();
+    const container = document.createElement("div");
+    try {
+      const source = "| A | B | C |\n| --- || --- | --- |\n| Left | Right | < |\n| ^ | ^ | ^ |";
+      const table = parseStructuralTables(source).tables[0]!;
+      const rendered = renderStructuralTable({} as App, table, container, "Clone.md", owner);
+      rendered.parentElement!.dataset.appearance = "theme";
+      await tableRenderingComplete(rendered);
+      expect(rendered.isConnected).toBe(false);
+      const clone = container.cloneNode(true) as HTMLElement;
+      document.body.append(clone);
+      try {
+        const clonedTable = clone.querySelector("table")!;
+        expect(clonedTable.querySelector("tbody tr:last-child")!.children).toHaveLength(0);
+        const sides = ["start-start", "start-end", "end-start", "end-end"];
+        for (const [index, side] of sides.entries()) {
+          const cell = clonedTable.querySelector(`[data-structural-corner-${side}="true"]`)!;
+          expect(getComputedStyle(cell).getPropertyValue(`border-${side}-radius`))
+            .toBe(["9px", "7px", "11px", "13px"][index]);
+        }
+        const rowHeader = clonedTable.querySelector("tbody th")!;
+        expect(getComputedStyle(rowHeader).getPropertyValue("border-start-start-radius")).toMatch(/^0(?:px)?$/u);
+        expect(clone.querySelectorAll("table")).toHaveLength(1);
+        expect(table.source).toBe(source);
+      } finally { clone.remove(); }
+      expect(document.querySelector("[inert]")).toBeNull();
+    } finally { owner.unload(); theme.remove(); }
+  });
+
+  it("refreshes after stylesheet replacement and releases its observer on unload", async () => {
+    const theme = document.head.appendChild(document.createElement("style"));
+    theme.textContent = "tbody tr:last-child td:first-child { border-end-start-radius: 11px; }";
+    const owner = new Component();
+    owner.load();
+    const table = parseStructuralTables("| --- || --- |\n| Left | Right |\n| ^ | ^ |").tables[0]!;
+    const rendered = renderStructuralTable({} as App, table, document.createElement("div"), "Switch.md", owner);
+    rendered.parentElement!.dataset.appearance = "theme";
+    try {
+      await tableRenderingComplete(rendered);
+      expect(rendered.dataset.structuralReadyEndStart).toBe("true");
+      theme.textContent = "table td { border-end-start-radius: 0px; }";
+      await vi.waitFor(() => expect(rendered.dataset.structuralReadyEndStart).toBeUndefined());
+      owner.unload();
+      theme.textContent = "tbody tr:last-child td:first-child { border-end-start-radius: 15px; }";
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(rendered.style.getPropertyValue("--structural-tables-corner-end-start")).toBe("");
+    } finally { owner.unload(); theme.remove(); }
+  });
+
 });
 
 describe("Grid header boundaries", () => {

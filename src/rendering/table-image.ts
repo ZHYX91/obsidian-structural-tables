@@ -292,6 +292,28 @@ function fontSources(value: string): string[] {
   return sources;
 }
 
+const fontDescriptors = [
+  ["style", "font-style", "normal"], ["weight", "font-weight", "normal"], ["stretch", "font-stretch", "normal"],
+  ["unicodeRange", "unicode-range", "U+0-10FFFF"], ["featureSettings", "font-feature-settings", "normal"],
+  ["variationSettings", "font-variation-settings", "normal"], ["display", "font-display", "auto"],
+  ["ascentOverride", "ascent-override", "normal"], ["descentOverride", "descent-override", "normal"],
+  ["lineGapOverride", "line-gap-override", "normal"],
+] as const;
+
+function faceDescriptors(face: CSSFontFaceRule): FontFaceDescriptors {
+  const descriptors: FontFaceDescriptors = {};
+  for (const [key, property] of fontDescriptors) {
+    const value = face.style.getPropertyValue(property);
+    if (value !== "") Object.assign(descriptors, { [key]: value });
+  }
+  return descriptors;
+}
+
+function fontIdentity(font: FontFace): string {
+  return [font.family.replace(/["']/gu, "").trim().toLowerCase(),
+    ...fontDescriptors.map(([key, , fallback]) => (font[key] || fallback).replace(/\s+/gu, " ").trim().toLowerCase())].join("\n");
+}
+
 async function embeddedFonts(root: HTMLElement, signal: AbortSignal, budget: ResourceBudget): Promise<string> {
   const view = root.ownerDocument.defaultView;
   if (view === null) throw new TableImageError("resource");
@@ -304,17 +326,29 @@ async function embeddedFonts(root: HTMLElement, signal: AbortSignal, budget: Res
     }
   }
   const result: string[] = [];
+  const connected = new Map<string, FontFace[]>();
+  for (const font of root.ownerDocument.fonts) {
+    const identity = fontIdentity(font);
+    const group = connected.get(identity) ?? []; group.push(font); connected.set(identity, group);
+  }
   const visit = async (rules: CSSRuleList, base: string): Promise<void> => {
     for (const rule of rules) {
       if (rule instanceof view.CSSFontFaceRule) {
         const face = rule;
+        if (face.style.fontFamily === "" || face.style.getPropertyValue("src") === "") continue;
         if (!families.has(face.style.fontFamily.replace(/["']/gu, "").trim().toLowerCase())) continue;
+        const descriptors = faceDescriptors(face);
+        // CSS-connected faces iterate in their rule's document order. Consume
+        // one corresponding face per rule, including unloaded rules. Complete
+        // normalized descriptors distinguish subsets/widths; occurrence order
+        // distinguishes identical descriptors with different src. Never let a
+        // different loaded face sponsor an unloaded rule's resource fetch.
+        // https://www.w3.org/TR/css-font-loading-3/#fontfaceset
+        const identity = fontIdentity(new view.FontFace(face.style.fontFamily, face.style.getPropertyValue("src"), descriptors));
+        const font = connected.get(identity)?.shift();
         // A failed/unselected face already falls back in the source. Retain that
         // visible fallback instead of introducing a new required network load.
-        const loaded = Array.from(root.ownerDocument.fonts).some((font) => font.status === "loaded"
-          && font.family.replace(/["']/gu, "").trim().toLowerCase() === face.style.fontFamily.replace(/["']/gu, "").trim().toLowerCase()
-          && font.style === (face.style.fontStyle || "normal") && font.weight === (face.style.fontWeight || "normal"));
-        if (!loaded) continue;
+        if (font?.status !== "loaded") continue;
         let selected: string | undefined;
         for (const source of fontSources(face.style.getPropertyValue("src"))) {
           try {
@@ -323,8 +357,7 @@ async function embeddedFonts(root: HTMLElement, signal: AbortSignal, budget: Res
             const resolved = source.replace(cssURL, (_raw, quoted: string | undefined, single: string | undefined, plain: string | undefined) =>
               `url("${new URL(quoted ?? single ?? plain ?? "", base).href}")`);
             const embedded = await embedCSSURLs(resolved, root.ownerDocument, signal, budget, false);
-            const probe = new view.FontFace(face.style.fontFamily, embedded, { style: face.style.fontStyle || "normal",
-              weight: face.style.fontWeight || "normal", stretch: face.style.getPropertyValue("font-stretch") || "normal" });
+            const probe = new view.FontFace(face.style.fontFamily, embedded, descriptors);
             await imageWork(probe.load(), signal);
             selected = embedded; break;
           } catch (error) {
@@ -339,8 +372,13 @@ async function embeddedFonts(root: HTMLElement, signal: AbortSignal, budget: Res
         result.push(copy.cssText);
       } else if ("styleSheet" in rule && (rule as CSSImportRule).styleSheet !== null) {
         const imported = (rule as CSSImportRule).styleSheet!;
-        await visit(imported.cssRules, imported.href ?? base);
+        const media = imported.media.mediaText || "";
+        if (!imported.disabled && (media === "" || view.matchMedia(media).matches)) {
+          await visit(imported.cssRules, imported.href ?? base);
+        }
       } else if ("cssRules" in rule) {
+        if (typeof view.CSSMediaRule === "function" && rule instanceof view.CSSMediaRule && !view.matchMedia(rule.conditionText).matches) continue;
+        if (typeof view.CSSSupportsRule === "function" && rule instanceof view.CSSSupportsRule && !view.CSS.supports(rule.conditionText)) continue;
         await visit((rule as CSSGroupingRule).cssRules, base);
       }
     }
@@ -348,6 +386,8 @@ async function embeddedFonts(root: HTMLElement, signal: AbortSignal, budget: Res
   // Read only: unlike the library font collector, never insert imported rules
   // into the host stylesheet or fetch unrelated remote stylesheets.
   for (const sheet of root.ownerDocument.styleSheets) {
+    const media = sheet.media.mediaText || "";
+    if (sheet.disabled || (media !== "" && !view.matchMedia(media).matches)) continue;
     await visit(sheet.cssRules, sheet.href ?? root.ownerDocument.baseURI);
   }
   return result.join("\n");

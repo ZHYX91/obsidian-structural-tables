@@ -13,6 +13,7 @@ const raster = vi.hoisted(() => ({ toSvg: vi.fn() }));
 vi.mock("html-to-image", () => raster);
 const fixture = readFileSync("acceptance/fixtures/Table image export.md", "utf8");
 const meal = parseEditableTables(fixture).tables[0]!;
+const originalFontFace = window.FontFace;
 
 function render(overrides = {}) {
   return renderTableImage(new App(), { table: meal, sourcePath: "Table image export.md",
@@ -20,7 +21,14 @@ function render(overrides = {}) {
 }
 
 beforeEach(() => {
-  Object.defineProperty(document, "fonts", { value: { ready: Promise.resolve() }, configurable: true });
+  Object.defineProperty(document, "fonts", { value: { ready: Promise.resolve(), [Symbol.iterator]: () => [][Symbol.iterator]() }, configurable: true });
+  Object.defineProperty(window, "FontFace", { configurable: true, value: class {
+    style = "normal"; weight = "normal"; stretch = "normal"; unicodeRange = "U+0-10FFFF";
+    featureSettings = "normal"; variationSettings = "normal"; display = "auto";
+    ascentOverride = "normal"; descentOverride = "normal"; lineGapOverride = "normal";
+    constructor(readonly family: string, readonly source: string, descriptors: FontFaceDescriptors = {}) { Object.assign(this, descriptors); }
+    load() { return Promise.resolve(this); }
+  } });
   HTMLElement.prototype.createEl = function<K extends keyof HTMLElementTagNameMap>(tag: K, options?: { cls?: string }): HTMLElementTagNameMap[K] {
     const element = this.ownerDocument.createElement(tag);
     if (options?.cls !== undefined) element.className = options.cls;
@@ -38,7 +46,8 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => callback(new Blob(["PNG"], { type: "image/png" })));
 });
 
-afterEach(() => { document.body.replaceChildren(); document.body.removeAttribute("class"); document.body.removeAttribute("style"); document.head.replaceChildren(); vi.restoreAllMocks(); });
+afterEach(() => { document.body.replaceChildren(); document.body.removeAttribute("class"); document.body.removeAttribute("style"); document.head.replaceChildren();
+  Object.defineProperty(window, "FontFace", { configurable: true, value: originalFontFace }); vi.restoreAllMocks(); });
 
 describe("complete table PNG", () => {
   it("renders the reconstructed five-column owner model, completed rich cells and explicit alignment without controls", async () => {
@@ -183,6 +192,34 @@ describe("complete table PNG", () => {
     faces[0]!.status = "error";
     await expect(render()).resolves.toMatchObject({ width: 1280 });
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("associates actual loaded subsets, widths and repeated descriptors without reading unused sources", async () => {
+    const style = document.createElement("style");
+    style.textContent = '@font-face{font-family:Subset;src:local("Arial");unicode-range:U+0-FF}'
+      + '@font-face{font-family:Subset;src:url("https://example.invalid/cjk.woff2");unicode-range:U+4E00-9FFF}'
+      + '@font-face{font-family:Width;src:local("Arial");font-stretch:normal}'
+      + '@font-face{font-family:Width;src:url("https://example.invalid/narrow.woff2");font-stretch:condensed}'
+      + '@font-face{font-family:Repeat;src:url("https://example.invalid/unused.woff2")}'
+      + '@font-face{font-family:Repeat;src:local("Arial")}'
+      + '.structural-tables-table{font-family:Subset,Width,Repeat,serif}';
+    document.head.append(style);
+    const faces = [
+      { family: "Subset", unicodeRange: "U+0-FF", status: "loaded" },
+      { family: "Subset", unicodeRange: "U+4E00-9FFF", status: "unloaded" },
+      { family: "Width", stretch: "normal", status: "loaded" },
+      { family: "Width", stretch: "condensed", status: "unloaded" },
+      { family: "Repeat", status: "unloaded" }, { family: "Repeat", status: "loaded" },
+    ];
+    Object.defineProperty(document, "fonts", { value: { ready: Promise.resolve(), [Symbol.iterator]: () => faces[Symbol.iterator]() }, configurable: true });
+    const fetch = vi.spyOn(window, "fetch").mockRejectedValue(new Error("Unused URL must not be read"));
+    raster.toSvg.mockImplementation(async (_root, options) => {
+      expect(options.fontEmbedCSS).toContain("Subset"); expect(options.fontEmbedCSS).toContain("Width"); expect(options.fontEmbedCSS).toContain("Repeat");
+      expect(options.fontEmbedCSS).not.toContain("url(");
+      return "data:image/svg+xml,%3Csvg%2F%3E";
+    });
+    await expect(render()).resolves.toMatchObject({ width: 1280 });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("handles already-aborted and rejected work without keeping an abort listener", async () => {

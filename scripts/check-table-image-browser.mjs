@@ -25,20 +25,36 @@ const html = `<html><head><style>body{--background-primary:#fff;--text-normal:#2
 @font-face{font-family:OnlyLocal;src:local('Arial'),url('/missing.woff2') format('woff2')}
 @font-face{font-family:OnlyLocalControl;src:local('Arial')}
 @font-face{font-family:BrokenFace;src:url('data:font/woff2;base64,AA==') format('woff2')}
+@font-face{font-family:SubsetFace;src:local('Arial');unicode-range:U+0000-00FF}
+@font-face{font-family:SubsetFace;src:url('/missing-subset.woff2');unicode-range:U+4E00-9FFF}
+@font-face{font-family:StretchFace;src:local('Arial');font-stretch:normal}
+@font-face{font-family:StretchFace;src:url('/missing-stretch.woff2');font-stretch:condensed}
+@font-face{font-family:DuplicateFace;src:url('/missing-duplicate.woff2')}
+@font-face{font-family:DuplicateFace;src:local('Arial')}
+@media (max-width:1px){@font-face{font-family:ConditionalFace;src:url('/missing-media.woff2')}}
+@supports (display:structural-table-impossible){@font-face{font-family:ConditionalFace;src:url('/missing-supports.woff2')}}
+@font-face{font-family:ConditionalFace;src:local('Arial')}
 .local-font :is(td,th){font-family:OnlyLocal,serif!important}.broken-font :is(td,th){font-family:BrokenFace,serif!important}
 .local-control :is(td,th){font-family:OnlyLocalControl,serif!important}.fallback-control :is(td,th){font-family:serif!important}
+.subset-font :is(td,th){font-family:SubsetFace,serif!important}.stretch-font :is(td,th){font-family:StretchFace,serif!important;font-stretch:normal}
+.duplicate-font :is(td,th){font-family:DuplicateFace,serif!important}.conditional-font :is(td,th){font-family:ConditionalFace,serif!important}
 </style></head><body><svg width="0" height="0"><defs><path id="math-glyph" d="M0 20L15 0L30 20Z" fill="#00a000"/></defs></svg><script id="input" type="application/json">${JSON.stringify(source).replaceAll("<", "\\u003c")}</script><pre id="result">pending</pre><script src="/bundle.js"></script></body></html>`;
 let missingFont = 0;
+const fontRequests = {};
 const server = createServer((request, response) => {
   if (request.url === "/attachment.svg") { response.setHeader("Content-Type", "image/svg+xml"); response.end(attachment); }
   else if (request.url === "/red.svg" || request.url === "/blue.svg") {
     response.setHeader("Content-Type", "image/svg+xml");
     response.end(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="${request.url === "/red.svg" ? "red" : "blue"}"/></svg>`);
   }
-  else if (request.url === "/requests.json") { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify({ missingFont })); }
+  else if (request.url === "/requests.json") { response.setHeader("Content-Type", "application/json"); response.end(JSON.stringify({ missingFont, fontRequests })); }
   else if (request.url === "/bundle.js") { response.setHeader("Content-Type", "text/javascript"); response.end(bundle.outputFiles[0].text); }
   else if (request.url === "/") { response.setHeader("Content-Type", "text/html; charset=utf-8"); response.end(html); }
-  else { if (request.url === "/missing.woff2") missingFont += 1; response.statusCode = 404; response.end("missing"); }
+  else {
+    if (request.url === "/missing.woff2") missingFont += 1;
+    if (request.url?.endsWith(".woff2")) fontRequests[request.url] = (fontRequests[request.url] ?? 0) + 1;
+    response.statusCode = 404; response.end("missing");
+  }
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 let child;

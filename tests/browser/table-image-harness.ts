@@ -121,8 +121,21 @@ async function run(): Promise<void> {
   if (!Array.from(document.fonts).some((face) => face.family === "BrokenFace" && face.status === "error")) throw new Error("Fallback font did not exercise error face");
   const fallbackControl = await cases("Fallback font WWW iii", "fallback-control");
   if (fallbackControl.hash !== (regression.failedSourceFontFallback as typeof fallbackControl).hash) throw new Error("Source fallback PNG differs from serif control");
-  const requests = await (await window.fetch("/requests.json")).json() as { missingFont: number };
+  const disabled = document.createElement("style");
+  disabled.textContent = "@font-face{font-family:ConditionalFace;src:url('/missing-disabled.woff2')}";
+  document.head.append(disabled); disabled.sheet!.disabled = true;
+  const descriptorControl = await cases("ASCII only", "local-control");
+  for (const [name, cls] of [["unicodeSubset", "subset-font"], ["fontStretch", "stretch-font"],
+    ["duplicateDescriptors", "duplicate-font"], ["inactiveConditions", "conditional-font"]]) {
+    const result = await cases("ASCII only", cls);
+    if (result.hash !== descriptorControl.hash) throw new Error(`${name} font PNG differs from local-only control`);
+    regression[name!] = result;
+  }
+  regression.fontFaces = Array.from(document.fonts).filter((face) => ["SubsetFace", "StretchFace", "DuplicateFace", "ConditionalFace"].includes(face.family))
+    .map((face) => ({ family: face.family, unicodeRange: face.unicodeRange, stretch: face.stretch, status: face.status }));
+  const requests = await (await window.fetch("/requests.json")).json() as { missingFont: number; fontRequests: Record<string, number> };
   if (requests.missingFont !== 0) throw new Error("Unselected font fallback was fetched");
+  if (Object.values(requests.fontRequests).some((count) => count !== 0)) throw new Error(`Unselected font face was fetched: ${JSON.stringify(requests)}`);
   if (document.querySelector(".structural-tables-image-stage") !== null) throw new Error("Stage leaked");
   document.getElementById("result")!.textContent = JSON.stringify({ passed: true, results, regression, requests });
 }

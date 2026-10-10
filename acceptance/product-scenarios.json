@@ -457,6 +457,27 @@
         "The standalone clone contains completed text and semantic spans; escaped literals remain literal and render-only operations do not modify the note.",
         "Cell commits and history preserve the corresponding source, table geometry and Callout prefixes."
       ]
+    },
+    {
+      "id": "theme-corner-export",
+      "title": "Theme corners and ordinary-table export ownership",
+      "surfaces": [
+        "desktop"
+      ],
+      "requiredCapabilities": {
+        "desktop": []
+      },
+      "steps": [
+        "Use a pinned theme with native rounded table cells (for example Maple), then open Theme corners and export in Live Preview and Reading View. Inspect the covered final row, layered headers and Callout: only the four logical outer corners are rounded, including the spanning anchors; internal header corners remain square.",
+        "With ordinary-table takeover disabled, export the saved note through Export Image and save the actual PNG. Inspect all text, spans and explicit left/center/right alignment, including the separate Chinese rows and the br cell. Enable takeover, choose Grid appearance, export again and verify the ordinary table now follows the same owned appearance as the structural tables. Disable takeover and verify native ordinary rendering returns.",
+        "With Follow theme restored, compare Maple with Minimal and the built-in theme; inspect light/dark styling, then switch back without reopening the note. Square-theme tables must not acquire rounding or retain the previous theme radius. Check Grid and Three-line remain unchanged by theme-corner remapping.",
+        "Compare fixture bytes before and after all render/export/settings operations; inspect the saved PNG separately from the preview. Record exact host, theme and exporter identities and retain representative images. If a prerequisite exporter or theme is absent, record the uncovered checks rather than treating provider preview as a real export."
+      ],
+      "expected": [
+        "Native theme rounding is retained at logical table corners despite row spans, row headers and layered headers, with no dummy cells added to the actual table.",
+        "Export Image preview and saved PNG retain completed content, merged geometry and explicit alignment. Ordinary-table ownership follows the opt-in setting in standalone rendering.",
+        "Theme changes do not leave stale rounding; square themes and non-theme appearances retain their intended styling. Source bytes are unchanged."
+      ]
     }
   ]
 }

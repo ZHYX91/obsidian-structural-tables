@@ -1,6 +1,7 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 
 import type { StructuralTable } from "../core/model";
+import { installThemeCornerRemap } from "./theme-corners";
 
 interface PendingCellRender {
   cancelled: boolean;
@@ -56,12 +57,21 @@ export function renderStructuralTable(
 ): HTMLTableElement {
   const wrapper = container.createDiv({ cls: "structural-tables-container markdown-rendered" });
   const rendered = wrapper.createEl("table", { cls: "structural-tables-table" });
+  if (table.structural) {
+    for (const corner of ["StartStart", "StartEnd", "EndStart", "EndEnd"]) {
+      rendered.dataset[`structuralRemap${corner}`] = "true";
+    }
+  }
   const head = table.headerRowCount > 0 ? rendered.createEl("thead") : null;
   const body = rendered.createEl("tbody");
   const pendingCells: { source: string; target: HTMLElement }[] = [];
   table.rows.forEach((row, rowIndex) => {
     const section = rowIndex < table.headerRowCount ? head : body;
     const rowElement = (section ?? body).createEl("tr");
+    if (rowIndex === table.rows.length - 1) rowElement.dataset.structuralLastRow = "true";
+    if (table.headerRowCount > 0 && rowIndex === table.headerRowCount - 1) {
+      rowElement.dataset.structuralLastHeaderRow = "true";
+    }
     row.cells.forEach((cell) => {
       if (cell.covered) return;
       const header = cell.role !== "data";
@@ -71,6 +81,24 @@ export function renderStructuralTable(
       element.dataset.structuralRole = cell.role;
       element.dataset.structuralBlockEnd = String(cell.row + cell.rowSpan === table.rows.length);
       element.dataset.structuralInlineEnd = String(cell.column + cell.columnSpan === table.columnCount);
+      // Themes often select first/last DOM children for rounded corners.
+      // Spanning anchors can own the visual corner from an earlier row.
+      const blockStart = cell.row === 0;
+      const blockEnd = cell.row + cell.rowSpan === table.rows.length;
+      const inlineStart = cell.column === 0;
+      const inlineEnd = cell.column + cell.columnSpan === table.columnCount;
+      if (blockStart && inlineStart) {
+        element.dataset.structuralCornerStartStart = "true";
+      }
+      if (blockStart && inlineEnd) {
+        element.dataset.structuralCornerStartEnd = "true";
+      }
+      if (blockEnd && inlineStart) {
+        element.dataset.structuralCornerEndStart = "true";
+      }
+      if (blockEnd && inlineEnd) {
+        element.dataset.structuralCornerEndEnd = "true";
+      }
       if (rowIndex < table.headerRowCount) {
         element.dataset.structuralHeaderEnd = String(cell.row + cell.rowSpan === table.headerRowCount);
       }
@@ -93,5 +121,6 @@ export function renderStructuralTable(
   // is still constructing the widget DOM. The owning component cancels stale
   // work if the view is destroyed before this microtask runs.
   completionByTable.set(rendered, scheduleCellRendering(app, pendingCells, sourcePath, component));
+  installThemeCornerRemap(rendered, component);
   return rendered;
 }

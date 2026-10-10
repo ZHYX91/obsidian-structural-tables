@@ -22,3 +22,23 @@ describe("table editing styles", () => {
     expect(editorRule).toContain("background: transparent");
   });
 });
+
+
+describe("theme corner remapping stylesheet", () => {
+  it("requires resolved radius flags and scopes all corner rules to Follow theme", () => {
+    const styles = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const start = styles.indexOf("/* Only repair logical outer corners");
+    const end = styles.indexOf('[data-appearance="grid"] .structural-tables-table {', start);
+    const rules = styles.slice(start, end);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    for (const corner of ["start-start", "start-end", "end-start", "end-end"]) {
+      expect(rules).toContain(`[data-structural-remap-${corner}="true"][data-structural-ready-${corner}="true"]`);
+      expect(rules).toContain(`[data-structural-corner-${corner}="true"]`);
+      expect(rules).toContain(`border-${corner}-radius: var(--structural-tables-corner-${corner}) !important`);
+      expect(rules).toContain(`border-${corner}-radius: 0 !important`);
+    }
+    expect(rules.match(/\[data-appearance="theme"\]/gu)).toHaveLength(8);
+    expect(rules).not.toContain("var(--radius-s");
+  });
+});

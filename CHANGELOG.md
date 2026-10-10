@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2 - Unreleased
+
+- Honor ordinary-table takeover in standalone Markdown exports while preserving native output when disabled.
+- Preserve theme rounding at logical outer corners of merged and multi-row-header tables, including detached export clones, and clear misplaced internal corners.
+
 ## 0.6.1 - 2026-10-09
 
 - Clarify table editing and safe deletion guidance without changing table operations.

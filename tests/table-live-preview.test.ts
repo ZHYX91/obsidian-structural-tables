@@ -9,6 +9,7 @@ import { App, MarkdownRenderer, Platform, editorInfoField, editorLivePreviewFiel
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
+import { createTranslator } from "../src/config/i18n";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
 import { calloutRanges } from "../src/core/source-lines";
@@ -95,6 +96,9 @@ const screenshotTable = [
 ].join("\n");
 
 beforeAll(() => {
+  HTMLElement.prototype.setCssStyles = function setCssStyles(styles: Partial<CSSStyleDeclaration>): void {
+    Object.assign(this.style, styles);
+  };
   HTMLElement.prototype.createEl = function createEl<K extends keyof HTMLElementTagNameMap>(
     tag: K,
     options?: ObsidianElementOptions,
@@ -3963,6 +3967,34 @@ describe("StructuralTableEditorController", () => {
       expect(sourcePath).toBe("Test.md");
       expect(isCurrent()).toBe(true);
       expect(context).toBe(parent.querySelector(".structural-tables-table"));
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each([
+    ["mobile", "en"], ["mobile", "zh-CN"], ["html", "en"], ["plain", "en"], ["failure", "en"],
+  ] as const)("reports the actual whole-table menu copy result: %s (%s)", async (mode, language) => {
+    const source = "| Region | Value |\n| --- || --- |\n| North | 1 |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [], undefined, { language });
+    const start = notices.length;
+    const t = createTranslator(language);
+    const write = vi.fn(async () => {});
+    const writeText = vi.fn(async () => {});
+    class CopyItem { constructor(readonly data: Record<string, Blob>) {} }
+    Platform.isMobileApp = mode === "mobile";
+    if (mode === "failure") write.mockRejectedValueOnce(new Error("denied"));
+    vi.stubGlobal("navigator", { clipboard: { write, writeText } });
+    vi.stubGlobal("ClipboardItem", mode === "plain" ? undefined : CopyItem);
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => { element.textContent = text; });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!
+        .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem(t("menu.copyWholeHtml"), true);
+      const expected = mode === "failure" ? t("notice.clipboardFailed")
+        : mode === "html" ? t("notice.copied").replace("{format}", "HTML") : t("notice.copiedHtmlPlain");
+      await vi.waitFor(() => expect(notices.slice(start)).toEqual([expected]));
+      expect(writeText).toHaveBeenCalledTimes(mode === "mobile" || mode === "plain" ? 1 : 0);
+      if (mode === "mobile" || mode === "plain") expect(writeText).toHaveBeenCalledWith("Region\tValue\nNorth\t1");
       expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
   });

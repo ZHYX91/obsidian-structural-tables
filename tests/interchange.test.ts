@@ -52,9 +52,9 @@ describe("table interchange", () => {
   });
 
   it("exports semantic HTML with spans and scopes", () => {
-    const html = structuralTableToHtml(table(STRUCTURAL));
-    expect(html).toContain('<th colspan="2" scope="colgroup">Sales</th>');
-    expect(html).toContain('<th rowspan="2" scope="rowgroup">North</th>');
+    const html = structuralTableToHtml(table(STRUCTURAL), "test");
+    expect(html).toContain('<th colspan="2" id="test-r0-c1" headers="">Sales</th>');
+    expect(html).toContain('<th rowspan="2" id="test-r2-c0" headers="test-r0-c0 test-r1-c0">North</th>');
     expect(html).toContain("<thead>");
     expect(html).toContain("<tbody>");
   });
@@ -71,7 +71,7 @@ describe("table interchange", () => {
     expect(structuralTableToDelimited(parsed, ",")).toBe("Alice,10\nBob,20");
     expect(structuralTableToDelimited(parsed, "\t")).toBe("Alice\t10\nBob\t20");
     expect(structuralTableToPlainGfm(parsed)).toBe("|  |  |\n| --- | --- |\n| Alice | 10 |\n| Bob | 20 |");
-    const html = structuralTableToHtml(parsed);
+    const html = structuralTableToHtml(parsed, "test");
     expect(html).not.toContain("<thead>");
     expect(html).toContain("<tbody>");
     expect(html).toContain('<th scope="row">Alice</th>');
@@ -80,7 +80,7 @@ describe("table interchange", () => {
   it.each(["<br>", "<br/>", "<br />"])("exports %s as a semantic HTML line break", (tag) => {
     const source = `| Name | Note |\n| --- || --- |\n| Alice | First${tag}Second |`;
 
-    expect(structuralTableToHtml(table(source))).toContain("First<br>Second");
+    expect(structuralTableToHtml(table(source), "test")).toContain("First<br>Second");
   });
 
   it("exports quoted CSV and sanitized TSV", () => {

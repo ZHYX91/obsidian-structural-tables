@@ -1144,7 +1144,7 @@ class StructuralTableInteraction {
       if (current === null) { new Notice(t("notice.staleTable")); return; }
       void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance)
         .then(({ html, text }) => copyHtml(html, text))
-        .then(() => { new Notice(t("notice.copied").replace("{format}", "HTML")); })
+        .then((mode) => { new Notice(mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", "HTML")); })
         .catch(() => { new Notice(t("notice.clipboardFailed")); });
     })));
     if (this.exportImage !== undefined) {

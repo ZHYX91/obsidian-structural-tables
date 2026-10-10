@@ -474,16 +474,16 @@ export class StructuralTablesPlugin extends Plugin {
           sourcePath,
           this.settings.appearance,
         );
-        await copyHtml(html, text);
-        return;
+        return copyHtml(html, text);
       }
       const text = format === "GFM"
         ? structuralTableToPlainGfm(current.table)
         : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t");
       await copyText(text);
     });
-    void write.then(() => {
-      const message = createTranslator(this.settings.language)("notice.copied").replace("{format}", format);
+    void write.then((mode) => {
+      const t = createTranslator(this.settings.language);
+      const message = mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", format);
       new Notice(message);
     }).catch(() => new Notice(createTranslator(this.settings.language)("notice.clipboardFailed")));
   }

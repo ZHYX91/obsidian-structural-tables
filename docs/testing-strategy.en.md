@@ -77,7 +77,8 @@ Serialization tests also cover display width for ASCII, CJK, combining character
 Cover:
 
 - flattened multi-row header paths and merged values;
-- HTML `thead`, `th`, `td`, `rowspan`, `colspan`, `scope`, and line breaks;
+- HTML `thead`, `th`, `td`, `rowspan`, `colspan`, simple `scope`, and line breaks; complex `id`/`headers` relationships for multi-level and crossing row/column spans, merged data, corner-title exclusion from data, and unique IDs across repeated copies and multiple tables;
+- actual whole-table clipboard mode and localized notices for mobile/desktop text fallback, desktop rich writes, and rejected writes through both command and menu entries;
 - body-only `td` tables remaining headerless instead of inventing a first-row header;
 - CSV quoting, TSV cleanup, and plain-GFM compatibility output;
 - the unique Sheets Extended separator column and its negative cases;

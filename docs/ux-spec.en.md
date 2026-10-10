@@ -153,7 +153,7 @@ Column alignment shows a check only when all selected columns have that alignmen
 
 A rectangular multi-cell selection can merge; a single merged cell can split. Refuse a merge when non-top-left cells contain data, when the selection crosses roles, or when it includes only part of an existing merge.
 
-Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole left-side columns can add or remove row-header roles.
+Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole left-side columns can set row-header roles. With a complete column selected, **Remove row-header columns from the whole table** removes all row-header roles while preserving every cell's content.
 
 Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled; the plugin contributes its applicable items. Reading View keeps its brief whole-table PNG entry.
 

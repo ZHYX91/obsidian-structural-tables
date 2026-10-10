@@ -1,7 +1,7 @@
 import type { Editor, Menu } from "obsidian";
 import { describe, expect, it } from "vitest";
 
-import type { Translate } from "../src/config/i18n";
+import { createTranslator, type Translate } from "../src/config/i18n";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { addBasePromotionMenuItem, addSelectionMenuItems, hasSelectionMenuItems, type TableOperation, type TableOperationIntent } from "../src/editor/table-menu";
 import { selectedStructuralTableCells, structuralTableSelectionFromBounds } from "../src/editor/table-selection";
@@ -68,6 +68,26 @@ describe("table menus", () => {
     widerMenu.items.find((item) => item.title === "menu.setRowHeaderColumns")?.callback?.();
     expect(operations).toHaveLength(2);
     expect(parseEditableTables(operations[1]!(table).source).tables[0]!.rowHeaderColumnCount).toBe(2);
+  });
+
+  it.each([
+    ["en", "Remove row-header columns from the whole table"],
+    ["zh-CN", "取消整表行标题列"],
+  ] as const)("names whole-table row-header removal when a non-header column is selected (%s)", (language, title) => {
+    const table = parseStructuralTables("| Region | Name | Qty |\n| --- || --- | --- |\n| West | A | 2 |").tables[0]!;
+    const selection = structuralTableSelectionFromBounds(table, { row: 0, column: 2 }, { row: 1, column: 2 })!;
+    const menu = new MockMenu();
+    const operations: TableOperation[] = [];
+    addSelectionMenuItems(menu as unknown as Menu, createTranslator(language), selection,
+      (operation) => { operations.push(operation); }, { fullEditor: false });
+    const remove = menu.items.find((item) => item.title === title);
+    expect(remove).toBeDefined();
+    remove?.callback?.();
+    expect(operations).toHaveLength(1);
+    const removed = parseEditableTables(operations[0]!(table).source).tables[0]!;
+    expect(removed.rowHeaderColumnCount).toBe(0);
+    expect(removed.rows.map((row) => row.cells.map((cell) => cell.content)))
+      .toEqual(table.rows.map((row) => row.cells.map((cell) => cell.content)));
   });
 
   it("offers a changed multi-row header count while omitting the identical count", () => {

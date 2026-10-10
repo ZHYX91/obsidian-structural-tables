@@ -79,7 +79,9 @@ export class StandaloneTableRenderer {
     session: RenderSession): Promise<void> {
     const source = await this.app.vault.cachedRead(file);
     const tables = parseEditableTables(source).tables;
-    if (!tables.some((table) => table.valid && table.structural)) return;
+    const initialSettings = this.settings();
+    if (!initialSettings.enableReadingView || !tables.some((table) =>
+      table.valid && (table.structural || initialSettings.takeOverOrdinaryTables))) return;
     const [templates, sourceRender] = await Promise.all([
       Promise.all(tables.map(async (table) => {
         const staging = await nativeSnapshot(
@@ -113,7 +115,7 @@ export class StandaloneTableRenderer {
       // A standalone container can be a selection or an export fragment. Only
       // acquire it when the same native block has one unique origin in the full
       // saved note; HTML or other source constructs may render identically.
-      if (!plan.table.valid || !plan.table.structural
+      if (!plan.table.valid || (!plan.table.structural && !settings.takeOverOrdinaryTables)
         || plan.sourceTargets.length !== 1 || plan.targets.length !== 1) continue;
       // A literal escaped marker may render identically to structural syntax.
       // Include ordinary tables in ambiguity checks rather than guessing by DOM.
@@ -126,7 +128,8 @@ export class StandaloneTableRenderer {
       completions.push(tableRenderingComplete(rendered));
       const wrapper = rendered.parentElement!;
       Object.assign(wrapper.dataset, { layout: settings.layout, appearance: settings.appearance,
-        density: settings.density, zebra: String(settings.zebraRows), tableKind: "structural",
+        density: settings.density, zebra: String(settings.zebraRows),
+        tableKind: plan.table.structural ? "structural" : "ordinary",
         structuralTablesProcessed: "true" });
       targets[0]!.before(wrapper);
       for (const target of targets) target.remove();

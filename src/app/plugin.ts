@@ -57,6 +57,7 @@ import { copyHtml, copyText, replaceSelectionFromClipboardTable } from "../edito
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
 import { renderTableClipboard } from "../rendering/table-clipboard";
+import { editorTableDirection } from "../editor/editor-view-context";
 import { StructuralTablesSettingTab } from "./settings-tab";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import { SettingsPersistenceSession } from "./settings-persistence-session";
@@ -245,7 +246,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.localizedCommands.push(this.addCommand({
       id: "copy-current-table-as-html",
       name: t("command.copyHtml"),
-      editorCallback: (editor, context) => this.copyCurrentTable(editor, "HTML", context.file?.path ?? "", context instanceof MarkdownView ? context.containerEl : undefined),
+      editorCallback: (editor, context) => this.copyCurrentTable(editor, "HTML", context.file?.path ?? "", context instanceof MarkdownView ? context : undefined),
     }));
     this.localizedCommands.push(this.addCommand({
       id: "copy-current-table-as-plain-gfm",
@@ -355,7 +356,7 @@ export class StructuralTablesPlugin extends Plugin {
         addSelectionMenuItems(
           menu, t, selection,
           (operation) => this.applyMenuOperation(editor, selection.table, operation),
-          { direction: info instanceof MarkdownView && info.containerEl.ownerDocument.defaultView?.getComputedStyle(info.containerEl).direction === "rtl" ? "rtl" : "ltr" },
+          { direction: editorTableDirection(this.app, editor, selection.table, info instanceof MarkdownView ? info : undefined) },
         );
       }
       if (current === null || !current.table.valid) return;
@@ -492,7 +493,7 @@ export class StructuralTablesPlugin extends Plugin {
     }).open();
   }
 
-  private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = "", contextElement?: HTMLElement): void {
+  private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = "", viewHint?: MarkdownView): void {
     const t = createTranslator(this.settings.language);
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
@@ -500,7 +501,7 @@ export class StructuralTablesPlugin extends Plugin {
       new Notice(current.table.diagnostics[0] === undefined ? t("operation.tableInvalid") : diagnosticNotice(t, current.table.diagnostics[0]));
       return;
     }
-    const direction = contextElement?.ownerDocument.defaultView?.getComputedStyle(contextElement).direction === "rtl" ? "rtl" : "ltr";
+    const direction = format === "HTML" ? editorTableDirection(this.app, editor, current.table, viewHint) : "ltr";
     const write = Promise.resolve().then(async () => {
       if (format === "HTML") {
         const { html, text } = await renderTableClipboard(

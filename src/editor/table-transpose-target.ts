@@ -1,24 +1,12 @@
 import { isolateHistory } from "@codemirror/commands";
-import { EditorView } from "@codemirror/view";
-import { MarkdownView, Notice, editorInfoField, type App, type Editor, type TFile } from "obsidian";
+import { Notice, type MarkdownView, type App, type Editor, type TFile } from "obsidian";
 
 import { operationNotice, type Translate } from "../config/i18n";
 import type { StructuralTable } from "../core/model";
 import { transposeTable } from "../core/operations";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { requestWholeTableTranspose, type TableTransposeRequest } from "../app/table-transpose-modal";
-
-function codeMirrorForEditor(container: HTMLElement, editor: Editor): EditorView | null {
-  const roots = [...container.querySelectorAll<HTMLElement>(".cm-editor")];
-  if (container.matches(".cm-editor")) roots.unshift(container);
-  for (const root of roots) {
-    const view = EditorView.findFromDOM(root);
-    // Embedded editors can share the note container. Match the host's editor
-    // identity rather than choosing the first DOM editor or matching text.
-    if (view?.state.field(editorInfoField, false)?.editor === editor) return view;
-  }
-  return null;
-}
+import { codeMirrorForEditor, markdownViewForEditor } from "./editor-view-context";
 
 /**
  * An editor, source offset, or matching Markdown alone does not prove file identity.
@@ -32,16 +20,8 @@ export function captureEditorTransposeTarget(
   viewHint?: MarkdownView,
   isActive: () => boolean = () => true,
 ): TableTransposeRequest | null {
-  let view: MarkdownView | null = null;
-  let ambiguous = false;
-  app.workspace.iterateAllLeaves((leaf) => {
-    if (!(leaf.view instanceof MarkdownView) || leaf.view.editor !== editor
-      || (viewHint !== undefined && leaf.view !== viewHint)) return;
-    if (view !== null && view !== leaf.view) ambiguous = true;
-    view = leaf.view;
-  });
-  if (ambiguous || view === null) return null;
-  const captured: MarkdownView = view;
+  const captured = markdownViewForEditor(app, editor, viewHint);
+  if (captured === null) return null;
   const file: TFile | null = captured.file;
   if (file === null || !captured.containerEl.isConnected) return null;
   const path = file.path;

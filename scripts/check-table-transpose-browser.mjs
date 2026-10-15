@@ -210,20 +210,22 @@ try {
   await historyKey(true); state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, rtlTransposed);
   results.push({ mode: "rtl-transpose", keyboardUndoRedo: true });
   for (const mode of ["rtl-ascii-draft", "ltr-arabic-draft", "ltr-mixed-draft"]) {
-    await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
-    await evaluate("(function(){const table=document.querySelector('.structural-tables-table');const cell=table.querySelector('[data-structural-row=\"1\"][data-structural-column=\"1\"] .structural-tables-cell-content');const probe=document.createElement('textarea');probe.id='native-caret-probe';probe.value=cell.textContent;probe.dir=getComputedStyle(table).direction;document.body.append(probe);probe.focus();probe.setSelectionRange(0,0);})()");
-    await key("ArrowRight", "ArrowRight", 39);
-    const nativeCaret = await evaluate("(function(){const probe=document.querySelector('#native-caret-probe');const result=[probe.selectionStart,probe.selectionEnd];probe.remove();return result;})()");
-    await click(select("[data-structural-row='1'][data-structural-column='1']"));
-    await evaluate("document.querySelector('textarea.structural-tables-cell-editor').setSelectionRange(0,0)");
-    const before = await evaluate("window.transposeBrowser.result().source");
-    await key("ArrowRight", "ArrowRight", 39);
-    state = await evaluate("window.transposeBrowser.result()");
-    assert.equal(state.draft, true, JSON.stringify(state)); assert.equal(state.activeColumn, "1", JSON.stringify(state));
-    assert.deepEqual([state.draftStart, state.draftEnd], nativeCaret, JSON.stringify(state));
-    assert.equal(state.source, before); assert.equal(state.changes, 0);
-    await key("Escape", "Escape", 27);
-    results.push({ mode, nativeCaret: true, sourcePreserved: true });
+    for (const arrow of ["ArrowLeft", "ArrowRight"]) {
+      await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
+      await evaluate("(function(){const table=document.querySelector('.structural-tables-table');const cell=table.querySelector('[data-structural-row=\"1\"][data-structural-column=\"1\"] .structural-tables-cell-content');const probe=document.createElement('textarea');probe.id='native-caret-probe';probe.value=cell.textContent;probe.dir=getComputedStyle(table).direction;document.body.append(probe);probe.focus();probe.setSelectionRange(0,0);})()");
+      await key(arrow, arrow, arrow === "ArrowLeft" ? 37 : 39);
+      const nativeCaret = await evaluate("(function(){const probe=document.querySelector('#native-caret-probe');const result=[probe.selectionStart,probe.selectionEnd];probe.remove();return result;})()");
+      await click(select("[data-structural-row='1'][data-structural-column='1']"));
+      await evaluate("document.querySelector('textarea.structural-tables-cell-editor').setSelectionRange(0,0)");
+      const before = await evaluate("window.transposeBrowser.result().source");
+      await key(arrow, arrow, arrow === "ArrowLeft" ? 37 : 39);
+      state = await evaluate("window.transposeBrowser.result()");
+      assert.equal(state.draft, true, JSON.stringify(state)); assert.equal(state.activeColumn, "1", JSON.stringify(state));
+      assert.deepEqual([state.draftStart, state.draftEnd], nativeCaret, JSON.stringify(state));
+      assert.equal(state.source, before); assert.equal(state.changes, 0);
+      await key("Escape", "Escape", 27);
+      results.push({ mode, arrow, nativeCaret: true, sourcePreserved: true });
+    }
   }
   for (const mode of ["focus", "focus-after", "focus-canceled"]) {
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();

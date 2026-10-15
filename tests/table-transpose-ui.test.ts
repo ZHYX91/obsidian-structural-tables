@@ -69,7 +69,7 @@ describe("whole-table transpose consent and draft safety", () => {
     textarea.value = "unfinished";
     requestWholeTableTranspose(app(), t, table(safe), apply, document);
     expect(apply).not.toHaveBeenCalled();
-    expect(notices.at(-1)).toContain("active cell draft");
+    expect(notices[notices.length - 1]).toContain("active cell draft");
     expect(textarea.value).toBe("unfinished");
     textarea.remove();
     requestWholeTableTranspose(app(), t, table(gfm), apply, document);
@@ -85,6 +85,6 @@ describe("whole-table transpose consent and draft safety", () => {
     requestWholeTableTranspose(app(), t, table(headerOnly), apply, document);
     expect(apply).not.toHaveBeenCalled();
     expect(document.body.querySelector("button")).toBeNull();
-    expect(notices.at(-1)).toContain("cannot be represented safely");
+    expect(notices[notices.length - 1]).toContain("cannot be represented safely");
   });
 });

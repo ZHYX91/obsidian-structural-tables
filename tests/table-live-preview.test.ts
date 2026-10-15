@@ -3938,7 +3938,7 @@ describe("StructuralTableEditorController", () => {
         "structural-tables",
         "structural-tables-row",
         "structural-tables-column",
-        "structural-tables-alignment",
+        "structural-tables-transform",
         "structural-tables-output",
         "structural-tables-source",
         "structural-tables-clear",

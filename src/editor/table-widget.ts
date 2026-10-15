@@ -1,5 +1,6 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import type { ExportTableImage } from "../app/table-image-modal";
+import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
 import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor } from "obsidian";
@@ -18,6 +19,7 @@ import {
   insertTableColumn,
   pasteTableRangeRaw,
   reorderTableAxis,
+  transposeTable,
   type TableAxis,
 } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
@@ -43,6 +45,7 @@ import {
   addImageExportMenuItem,
   addSelectionEditingMenuItems,
   addSelectionRemovalMenuItems,
+  addWholeTableTransposeMenuItem,
   type TableOperation,
   type TableOperationIntent,
 } from "./table-menu";
@@ -1139,6 +1142,11 @@ class StructuralTableInteraction {
       .setTitle(t("menu.pasteSelection"))
       .onClick(() => activate(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); })));
     addSelectionEditingMenuItems(menu, t, selection, applySelectionOperation, menuOptions);
+    addWholeTableTransposeMenuItem(menu, t, () => activate(() => requestWholeTableTranspose(
+      this.app, t, this.table,
+      () => this.applyMenuOperation(view, transposeTable, undefined, undefined, "owned-grid", frozen),
+      frozen.host.ownerDocument,
+    )));
     menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }
@@ -2090,6 +2098,16 @@ class StructuralTableInteraction {
         ? { axis: "column", start: coordinate.column, end: coordinate.column } : undefined;
     }
 
+    const preTransposeCoordinate = selectionAnchor ?? { row: 0, column: 0 };
+    if (result.code === "table-transposed") {
+      coordinate = {
+        row: preTransposeCoordinate.column,
+        column: preTransposeCoordinate.row,
+      };
+      restoredAxis = undefined;
+      restoredBounds = undefined;
+    }
+
     const nativeCallout = this.host?.closest(".callout") != null;
     const historyCoordinate = tableDeleted ? (selectionAnchor ?? { row: 0, column: 0 }) : coordinate;
     const targetAxis = ownedGrid ? restoredAxis : axisSelection;
@@ -2108,7 +2126,8 @@ class StructuralTableInteraction {
           result.source,
           this.sourcePath,
           historyCoordinate,
-          tableDeleted ? { restorePresentation: true } : {},
+          tableDeleted ? { restorePresentation: true }
+            : result.code === "table-transposed" ? { undoCoordinate: preTransposeCoordinate } : {},
         ) : {}),
       ...(!nativeCallout ? {
         selection: { anchor: tableDeleted ? current.range.from : current.range.from + result.source.length },

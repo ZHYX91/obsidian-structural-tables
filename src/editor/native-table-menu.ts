@@ -1,5 +1,6 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import type { ExportTableImage } from "../app/table-image-modal";
+import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { EditorView } from "@codemirror/view";
 import { MarkdownView, Menu, Notice, type App, type Component, type Editor } from "obsidian";
 
@@ -8,11 +9,13 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+import { transposeTable } from "../core/operations";
 import { nativeTableDomSelection } from "./native-table-selection";
 import {
   addBasePromotionMenuItem,
   addImageExportMenuItem,
   addSelectionMenuItems,
+  addWholeTableTransposeMenuItem,
   hasSelectionMenuItems,
   type TableOperation,
 } from "./table-menu";
@@ -114,6 +117,17 @@ export class NativeTableMenuBridge {
     this.contributedEvents.add(event);
     const menu = Menu.forEvent(event);
     const t = createTranslator(this.getSettings().language);
+    if (hasSelectionMenuItems(selection)) {
+      addSelectionMenuItems(
+        menu, t, selection,
+        (operation) => this.applyMenuOperation(markdownView.editor, table, operation),
+      );
+    }
+    addWholeTableTransposeMenuItem(menu, t, () => requestWholeTableTranspose(
+      this.app, t, table,
+      () => this.applyMenuOperation(markdownView.editor, table, transposeTable),
+      domSelection.tableElement.ownerDocument,
+    ));
     if (this.exportImage !== undefined) {
       const sourcePath = markdownView.file?.path ?? "";
       addImageExportMenuItem(menu, t, () => this.exportImage?.(table, sourcePath,
@@ -121,14 +135,6 @@ export class NativeTableMenuBridge {
           && reparseUnchangedTable(markdownView.editor.getValue(), table) !== null, domSelection.tableElement));
     }
     addBasePromotionMenuItem(menu, t, table, () => this.promote(markdownView.editor, () => markdownView, table));
-    if (hasSelectionMenuItems(selection)) {
-      addSelectionMenuItems(
-        menu,
-        t,
-        selection,
-        (operation) => this.applyMenuOperation(markdownView.editor, table, operation),
-      );
-    }
   }
 
   private markdownViewFor(target: Node): MarkdownView | null {

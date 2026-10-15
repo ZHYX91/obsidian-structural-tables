@@ -19,6 +19,7 @@ import {
   cellColumnAt,
   mergeCell,
   splitCell,
+  transposeTable,
   type MergeDirection,
   type OperationResult,
 } from "../core/operations";
@@ -41,11 +42,13 @@ import {
 } from "../core/base-promotion";
 import type { BasePromotionContentKind } from "../core/base-promotion-content";
 import { NativeTableMenuBridge } from "../editor/native-table-menu";
+import { requestWholeTableTranspose } from "./table-transpose-modal";
 import { StructuralTableEditorController } from "../editor/table-live-preview";
 import {
   addBasePromotionMenuItem,
   addImageExportMenuItem,
   addSelectionMenuItems,
+  addWholeTableTransposeMenuItem,
   hasSelectionMenuItems,
   type TableOperation,
 } from "../editor/table-menu";
@@ -193,6 +196,16 @@ export class StructuralTablesPlugin extends Plugin {
       },
     }));
     this.localizedCommands.push(this.addCommand({
+      id: "transpose-current-table", name: t("command.transpose"),
+      editorCallback: (editor) => {
+        const current = this.currentTable(editor);
+        if (current === null) return this.noTable();
+        const translator = createTranslator(this.settings.language);
+        requestWholeTableTranspose(this.app, translator, current.table,
+          () => this.applyMenuOperation(editor, current.table, transposeTable));
+      },
+    }));
+    this.localizedCommands.push(this.addCommand({
       id: "insert-structural-table",
       name: t("command.insert"),
       editorCallback: (editor) => {
@@ -278,6 +291,7 @@ export class StructuralTablesPlugin extends Plugin {
     const t = createTranslator(this.settings.language);
     const names: Record<string, string> = {
       "export-current-table-as-image": t("command.exportImage"),
+      "transpose-current-table": t("command.transpose"),
       "recover-cell-drafts": t("command.recoverDrafts"),
       "convert-current-sheets-extended-table": t("command.migrateSheets"),
       "convert-current-table-to-plain-gfm": t("command.convertGfm"),
@@ -327,20 +341,23 @@ export class StructuralTablesPlugin extends Plugin {
         return;
       }
       const current = this.currentTable(editor);
-      if (current !== null && current.table.valid) {
-        addImageExportMenuItem(menu, t, () => this.exportImage(editor, () => info, current.table));
-        addBasePromotionMenuItem(menu, t, current.table, () => {
-          this.previewBasePromotion(editor, () => info, current.table);
-        });
-      }
       const selection = selectedStructuralTableCells(editor);
-      if (selection === null || !selection.table.valid || !selection.rectangular || !hasSelectionMenuItems(selection)) return;
-      addSelectionMenuItems(
-        menu,
-        t,
-        selection,
-        (operation) => this.applyMenuOperation(editor, selection.table, operation),
-      );
+      if (selection !== null && selection.table.valid && selection.rectangular && hasSelectionMenuItems(selection)) {
+        addSelectionMenuItems(
+          menu, t, selection,
+          (operation) => this.applyMenuOperation(editor, selection.table, operation),
+        );
+      }
+      if (current === null || !current.table.valid) return;
+      addWholeTableTransposeMenuItem(menu, t, () => requestWholeTableTranspose(
+        this.app, t, current.table,
+        () => this.applyMenuOperation(editor, current.table, transposeTable),
+        info.containerEl.ownerDocument,
+      ));
+      addImageExportMenuItem(menu, t, () => this.exportImage(editor, () => info, current.table));
+      addBasePromotionMenuItem(menu, t, current.table, () => {
+        this.previewBasePromotion(editor, () => info, current.table);
+      });
     }));
   }
 

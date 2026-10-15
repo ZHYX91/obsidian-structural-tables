@@ -101,8 +101,10 @@ describe("native table menu bridge", () => {
 
     openContextMenu(cell);
 
-    expect(lastMenu?.items.map(({ title }) => title)).toEqual(["Native table action", "Upgrade to Base…"]);
-    lastMenu?.items[1]?.callback?.();
+    expect(lastMenu?.items.map(({ title }) => title)).toEqual([
+      "Native table action", "Transpose whole table (swap rows and columns)", "Upgrade to Base…",
+    ]);
+    lastMenu?.items.find(({ title }) => title === "Upgrade to Base…")?.callback?.();
     expect(promote).toHaveBeenCalledOnce();
   });
 
@@ -114,12 +116,13 @@ describe("native table menu bridge", () => {
     expect(lastMenu?.items.filter(({ title }) => title === "Upgrade to Base…")).toHaveLength(1);
   });
 
-  it("keeps the native action and contributes only export and Base items to an unowned single cell", () => {
+  it("keeps the native action and contributes transpose, export and Base to an unowned single cell", () => {
     const exportImage = vi.fn<ExportTableImage>();
     const { cell } = fixture(false, exportImage);
     openContextMenu(cell);
     expect(lastMenu?.items.map(({ title }) => title)).toEqual([
-      "Native table action", "Export whole table as image…", "Upgrade to Base…",
+      "Native table action", "Transpose whole table (swap rows and columns)",
+      "Export whole table as image…", "Upgrade to Base…",
     ]);
     lastMenu?.items.find(({ title }) => title === "Export whole table as image…")?.callback?.();
     expect(exportImage).toHaveBeenCalledOnce();

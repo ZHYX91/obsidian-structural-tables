@@ -4876,7 +4876,7 @@ describe("whole-table transpose from an owned grid", () => {
       const table = parseEditableTables(modified).tables[0]!;
       expect(table.valid).toBe(true);
       expect(table.rows.length).toBe(3);
-      expect(table.columnCount).toBe(3);
+      expect(table.columnCount).toBe(4);
       expect(table.headerRowCount).toBe(1);
       expect(table.rowHeaderColumnCount).toBe(1);
       expect(table.rows[1]!.cells[2]!.content).toBe("3");
@@ -4924,7 +4924,7 @@ describe("whole-table transpose confirmation and source revalidation", () => {
       const table = parseEditableTables(source).tables[0]!;
       expect(table.valid).toBe(true);
       expect(table.rows.length).toBe(3);
-      expect(table.columnCount).toBe(4);
+      expect(table.columnCount).toBe(3);
       expect(table.headerRowCount).toBe(1);
       expect(table.rowHeaderColumnCount).toBe(1);
       expect(table.alignments).toEqual(["default", "default", "default"]);

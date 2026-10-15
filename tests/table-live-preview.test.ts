@@ -4566,9 +4566,9 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
-  it("keeps an unsafe math draft and applies a user-confirmed safe rewrite from its context menu", async () => {
+  it.each(["en", "ar"] as const)("keeps an unsafe math draft and applies a user-confirmed safe rewrite from its %s context menu", async (language) => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
-    const { parent, view } = mountEditor(source, { anchor: 0 });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [], undefined, { language });
     try {
       const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
       cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
@@ -4580,7 +4580,7 @@ describe("StructuralTableEditorController", () => {
       expect(editor.isConnected).toBe(true);
 
       editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-      const item = lastMenu?.items.find((candidate) => candidate.title === "Use \\lvert … \\rvert and save");
+      const item = lastMenu?.items.find((candidate) => candidate.title === createTranslator(language)("menu.useMathAbsoluteSuggestion"));
       expect(item).toBeDefined();
       item?.callback?.();
       await Promise.resolve();
@@ -4588,6 +4588,7 @@ describe("StructuralTableEditorController", () => {
       const parsed = parseEditableTables(view.state.doc.toString()).tables[0]!;
       expect(parsed.columnCount).toBe(2);
       expect(parsed.rows[1]!.cells[1]!.content).toBe(String.raw`$\lvert x\rvert$`);
+      expect(view.state.doc.toString()).not.toMatch(/\p{Bidi_Control}/u);
       expect(parent.querySelector(".structural-tables-cell-editor")).toBeNull();
     } finally { view.destroy(); }
   });

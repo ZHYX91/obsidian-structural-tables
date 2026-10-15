@@ -8,7 +8,8 @@ import { parseEditableTables } from "../../src/core/parser";
 import { NativeTableMenuBridge } from "../../src/editor/native-table-menu";
 import { StructuralTableEditorController } from "../../src/editor/table-live-preview";
 import { openEditorTableTranspose } from "../../src/editor/table-transpose-target";
-import { createTranslator } from "../../src/config/i18n";
+import { applyInterfaceLocale, createTranslator } from "../../src/config/i18n";
+import { appendDisplayPath, appendDisplayValue } from "../../src/config/interface-bidi";
 import { lastMenu, notices, TFile } from "../mocks/obsidian";
 import { NativeCellEditorWidget } from "../helpers/native-cell-editor";
 import { NativeTableWidget } from "../helpers/native-table-widget";
@@ -146,6 +147,24 @@ function switchFile(): void {
   if (currentView !== null) currentView.file = file as unknown as HostFile;
 }
 
+function interfaceBidi() {
+  const surface = document.body.createDiv(); applyInterfaceLocale(surface, "ar");
+  const label = surface.createEl("p"); label.textContent = createTranslator("ar")("menu.useMathAbsoluteSuggestion");
+  const text = label.firstChild!;
+  const characterLeft = (fragment: string): number => {
+    const start = label.textContent!.indexOf(fragment); const range = document.createRange();
+    range.setStart(text, start); range.setEnd(text, start + 1); return range.getBoundingClientRect().left;
+  };
+  const path = appendDisplayPath(surface.createEl("p"), "ملاحظات/تقارير/ملخص-2026.md");
+  const mapping = surface.createEl("p", { cls: "structural-tables-bidi-isolate" }); mapping.dir = "ltr";
+  const name = appendDisplayValue(mapping, "عنوان عربي"); mapping.append(" → "); const key = appendDisplayValue(mapping, "latinKey");
+  const code = surface.createEl("code", { text: String.raw`\lvert … \rvert` });
+  return { technicalLefts: [characterLeft(String.raw`\lvert`), characterLeft(String.raw`\rvert`)],
+    pathText: path.textContent, pathLefts: [...path.querySelectorAll("bdi")].map((part) => part.getBoundingClientRect().left),
+    mappingLefts: [name.getBoundingClientRect().left, key.getBoundingClientRect().left], mappingIsolation: getComputedStyle(mapping).unicodeBidi,
+    codeDirection: getComputedStyle(code).direction };
+}
+
 function result() {
   const source = cm!.state.doc.toString();
   const table = document.querySelector<HTMLTableElement>(".structural-tables-live-preview table");
@@ -170,4 +189,4 @@ function result() {
   };
 }
 
-(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result };
+(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, interfaceBidi };

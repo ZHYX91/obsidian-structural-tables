@@ -87,13 +87,20 @@
 .structural-tables-image-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 /* Interface language never changes source previews or a note's table direction. */
+.structural-tables-bidi-isolate { unicode-bidi: isolate; }
+
 [data-structural-interface] pre {
   direction: ltr;
   unicode-bidi: isolate;
   text-align: left;
 }
 
-[data-structural-interface] :is(code, .structural-tables-recovered-draft) {
+[data-structural-interface] code {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[data-structural-interface] .structural-tables-recovered-draft {
   unicode-bidi: isolate;
 }
 

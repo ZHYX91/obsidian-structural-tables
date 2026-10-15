@@ -10,6 +10,7 @@ import ja from "./locales/ja";
 import de from "./locales/de";
 import es from "./locales/es";
 import ar from "./locales/ar";
+import { arabicDisplayText } from "./interface-bidi";
 
 export type { TranslationKey } from "./locales/en";
 
@@ -22,8 +23,7 @@ export function createTranslator(language: InterfaceLanguage): Translate {
   const selected: TranslationCatalog = TRANSLATIONS[locale];
   return Object.assign((key: TranslationKey): string => {
     const text = selected[key];
-    // Isolate interpolated paths, numbers and code from surrounding RTL prose.
-    return locale === "ar" ? text.replace(/\{[a-zA-Z]+\}/gu, "\u2068$&\u2069") : text;
+    return locale === "ar" ? arabicDisplayText(key, text) : text;
   }, { locale });
 }
 

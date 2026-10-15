@@ -1,6 +1,7 @@
 import { App, Modal, Notice } from "obsidian";
 
 import { applyInterfaceLocale, createTranslator, type Translate } from "../config/i18n";
+import { appendDisplayPath } from "../config/interface-bidi";
 
 export interface RecoveredCellDraft {
   sourcePath: string;
@@ -59,7 +60,8 @@ class DraftRecoveryModal extends Modal {
     for (const draft of this.state.drafts) {
       const label = this.contentEl.createEl("label");
       label.textContent = this.t("editor.cell").replace("{row}", String(draft.row + 1))
-        .replace("{column}", String(draft.column + 1)) + " — " + draft.sourcePath;
+        .replace("{column}", String(draft.column + 1)) + " — ";
+      appendDisplayPath(label, draft.sourcePath);
       const text = label.createEl("textarea");
       text.className = "structural-tables-recovered-draft";
       text.readOnly = true;

@@ -250,6 +250,12 @@ try {
     assert.ok(Math.abs(state.scrollTop - before.scrollTop) < 2, JSON.stringify({ before: before.scrollTop, after: state.scrollTop }));
     results.push({ mode, sourcePreserved: true, stableGeometry: true, collapsedCaret: true });
   }
+  const bidi = await evaluate("window.transposeBrowser.interfaceBidi()");
+  assert.ok(bidi.technicalLefts[0] < bidi.technicalLefts[1], JSON.stringify(bidi));
+  assert.ok(bidi.pathLefts.every((left, index) => index === 0 || left > bidi.pathLefts[index - 1]), JSON.stringify(bidi));
+  assert.ok(bidi.mappingLefts[0] < bidi.mappingLefts[1], JSON.stringify(bidi));
+  assert.equal(bidi.pathText, "ملاحظات/تقارير/ملخص-2026.md"); assert.equal(bidi.codeDirection, "ltr"); assert.equal(bidi.mappingIsolation, "isolate");
+  results.push({ mode: "arabic-interface-bidi", technicalExpressions: true, pathOrder: true, mappingOrder: true });
   process.stdout.write(JSON.stringify({ status: "passed", browser: path.basename(browser), scenarios: results }) + "\n");
 } finally {
   socket?.close();

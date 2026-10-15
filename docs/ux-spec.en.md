@@ -62,6 +62,8 @@ The context menu keeps row actions next to column actions (including column alig
 
 Transposition preserves content and valid merged-cell topology, swaps column-header row counts with row-header column counts and swaps horizontal/vertical spans. It replaces source in a single undoable transaction isolated from surrounding typing, restoring original source and focus coordinate on undo. Uniform column alignment is preserved across new columns. Mixed alignments require explicit confirmation to reset the new columns to default. Ordinary GFM that becomes Structural Tables' `||` syntax also requires compatibility confirmation, including when alignment is uniform; transposition without either warning proceeds directly. Unsupported results such as an all-column-header table becoming all-row-header columns, invalid tables, and hidden overflow must not write. A menu or modal may clear transient visual grid selection. Revalidate the editor/view, file/path, exact target table and active draft after confirmation; reject stale targets.
 
+Before committing, reparse the complete note to ensure the transpose preserves the intended table's boundaries and transposed cell relationships. If adjacent pipe-separated text would join the result, preserve the note and ask the user to add blank lines around the table. A confirmation captured in one document cannot write after its editor moves to another window.
+
 <!-- section: interchange -->
 ## Paste and interchange
 

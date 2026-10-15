@@ -31,6 +31,10 @@ Locale checks compare every catalog's complete key set and interpolation placeho
 
 DOM emulation is useful for structure and most CSS contracts, but it does not replace real Obsidian geometry, scrolling, theme variables, or touch behavior. Critical writes cover pointerdown → focus changes → confirmation → revalidation of the original file and table → one write → undo/redo. Transient visual selection clearing when a menu or modal takes focus must preserve an unchanged whole-table target; actual target-source, file, editor/view or draft changes must cause zero writes. Real CodeMirror history tests cover the registered command, source menu and native menu, with typing immediately before and after transpose. PR CI also runs a real Chromium owned-menu → pointer modal → CodeMirror write/undo/redo smoke test, plus source/native entry and tall merged-table pointer-focus geometry/scroll checks; these do not replace actual Obsidian or Android acceptance. Multi-window fixtures use independent DOM realms, including existing non-Markdown windows that later open Markdown.
 
+Transpose regressions reparse the complete note and verify exact table boundaries, dimensions, header roles and merge owners, including adjacent pipe text in plain notes, quotes, Callouts and lists. Native menu fixtures use mapped CodeMirror widgets with inherited cell editors and nested panes. Stale callbacks must preserve the exact full source, real document-change transaction count and undo/redo depths, including when a connected editor is adopted into another document.
+
+Arabic display tests keep complete TeX expressions, dimensions, property mappings and paths in their intended visual order. Chromium checks actual character and path-component positions; DOM tests verify that copied drafts, prepared record contents and Markdown retain their original bytes. Registered command and source-menu PNG tests run the rendering pipeline through staging and rasterization, with opposing outer/editor/table directions and asynchronous inner-direction changes.
+
 <!-- section: parser-cases -->
 ## Parser cases
 

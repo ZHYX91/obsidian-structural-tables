@@ -8,6 +8,7 @@ import {
 } from "obsidian";
 
 import { createTranslator, diagnosticNotice, operationNotice, type Translate } from "../config/i18n";
+import { displayPathText } from "../config/interface-bidi";
 import {
   DEFAULT_SETTINGS,
   cloneSettings,
@@ -638,7 +639,7 @@ export class StructuralTablesPlugin extends Plugin {
         async (acceptance?: BasePromotionContentAcceptance) => {
           if (this.basePromotionService === null) throw new Error("Base promotion service is unavailable.");
           await this.basePromotionService.execute(editor, table, prepared, target, acceptance);
-          new Notice(t("notice.promoted").replace("{path}", prepared.manifestPath), 8000);
+          new Notice(t("notice.promoted").replace("{path}", displayPathText(prepared.manifestPath, t.locale)), 8000);
         },
         (error) => new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000),
       ).open();
@@ -748,7 +749,7 @@ export class StructuralTablesPlugin extends Plugin {
     }
     try {
       const created = await service.createRecord(sourceFile, metadata);
-      new Notice(t("notice.recordCreated").replace("{path}", created.path));
+      new Notice(t("notice.recordCreated").replace("{path}", displayPathText(created.path, t.locale)));
     } catch (error) {
       new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000);
     }

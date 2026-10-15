@@ -1,6 +1,7 @@
 import { App, Modal, Setting } from "obsidian";
 import { applyInterfaceLocale } from "../config/i18n";
 import type { LocaleId } from "../config/locale";
+import { appendDisplayPath, appendDisplayValue, appendInterfaceTemplate } from "../config/interface-bidi";
 
 import type {
   BasePromotionBlocker,
@@ -51,16 +52,15 @@ export class BasePromotionModal extends Modal {
     this.setTitle(this.labels.title);
     this.contentEl.classList.add("structural-tables-promotion-modal");
     this.contentEl.createEl("p", { text: this.labels.description });
-    this.contentEl.createEl("p", {
-      text: this.labels.target.replace("{path}", this.prepared.directoryPath),
-    });
+    appendInterfaceTemplate(this.contentEl.createEl("p"), this.labels.target, { path: this.prepared.directoryPath });
     this.contentEl.createEl("p", {
       text: this.labels.records.replace("{count}", String(this.prepared.records.length)),
     });
     this.contentEl.createEl("h3", { text: this.labels.columns });
     const mapping = this.contentEl.createEl("ul", { cls: "structural-tables-promotion-mapping" });
     for (const column of this.prepared.plan.columns) {
-      mapping.createEl("li", { text: `${column.displayName} → ${column.key}` });
+      const item = mapping.createEl("li", { cls: "structural-tables-bidi-isolate" }); item.dir = "ltr";
+      appendDisplayValue(item, column.displayName); item.append(" → "); appendDisplayValue(item, column.key);
     }
     for (const warning of this.prepared.plan.warnings) {
       this.contentEl.createDiv({
@@ -105,21 +105,15 @@ export class BasePromotionModal extends Modal {
         const targets = details.createEl("ul");
         for (const target of notice.targets) {
           if (target.type === "header") {
-            targets.createEl("li", {
-              text: this.labels.contentHeaderTarget
-                .replace("{column}", String(target.sourceColumn + 1))
-                .replace("{key}", target.key)
-                .replace("{displayName}", target.displayName),
+            appendInterfaceTemplate(targets.createEl("li"), this.labels.contentHeaderTarget, {
+              column: String(target.sourceColumn + 1), key: target.key, displayName: target.displayName,
             });
             continue;
           }
           const preparedRecord = this.prepared.records[target.recordIndex];
           const item = targets.createEl("li");
-          item.createDiv({
-            text: this.labels.contentRecordTarget
-              .replace("{record}", String(target.recordIndex + 1))
-              .replace("{path}", preparedRecord?.path ?? "")
-              .replace("{key}", target.key),
+          appendInterfaceTemplate(item.createDiv(), this.labels.contentRecordTarget, {
+            record: String(target.recordIndex + 1), path: preparedRecord?.path ?? "", key: target.key,
           });
           item.createEl("pre", {
             cls: "structural-tables-promotion-content-value",
@@ -133,7 +127,7 @@ export class BasePromotionModal extends Modal {
     const recordPreviews = this.contentEl.createDiv({ cls: "structural-tables-promotion-record-previews" });
     for (const record of this.prepared.records) {
       const details = recordPreviews.createEl("details");
-      details.createEl("summary", { text: record.path });
+      appendDisplayPath(details.createEl("summary"), record.path);
       details.createEl("pre", { text: record.content });
     }
 

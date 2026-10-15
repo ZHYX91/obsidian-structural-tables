@@ -9,6 +9,17 @@ import { LOCALES, resolveLocale, sanitizeInterfaceLanguage } from "../src/config
 afterEach(() => vi.restoreAllMocks());
 
 describe("i18n", () => {
+  it("isolates complete Arabic technical expressions only in translated display strings", () => {
+    const t = createTranslator("ar");
+    for (const [key, literal] of [
+      ["menu.useMathAbsoluteSuggestion", String.raw`\lvert … \rvert`], ["menu.useMathConditionalSuggestion", String.raw`\mid`],
+      ["operation.mathMultilineUnsafe", String.raw`\\`], ["operation.mathSyntaxUnsafe", String.raw`\$`],
+      ["modal.migrateBaseProperties.desc", "structural_table_ids"], ["modal.promoteBase.contentVisualBreak", "<br>"],
+      ["menu.copyWholeHtml", "Word / HTML"], ["settings.exportGuide.setup", "Windows/Linux"],
+    ] as const) expect(t(key)).toContain(`\u2066${literal}\u2069`);
+    expect(t("image.ready").replace("{width}", "640").replace("{height}", "1280")).toContain("\u2066\u2068640\u2069 × \u20681280\u2069\u2069");
+    for (const catalog of Object.values(TRANSLATIONS)) for (const text of Object.values(catalog)) expect(text).not.toMatch(/\p{Bidi_Control}/u);
+  });
   it.each([
     ["en-GB", "en"], ["zh", "zh-CN"], ["zh-CN", "zh-CN"], ["zh-SG", "zh-CN"],
     ["zh-TW", "zh-TW"], ["zh-HK", "zh-TW"], ["zh-MO", "zh-TW"], ["zh_Hant_HK", "zh-TW"],
@@ -48,7 +59,7 @@ describe("i18n", () => {
     expect(surface.getAttribute("lang")).toBe("ar"); expect(surface.getAttribute("dir")).toBe("rtl");
     expect(note.dir).toBe("ltr"); expect(table.hasAttribute("dir")).toBe(false);
     const path = "Folder/تقرير-ABC.md";
-    expect(createTranslator("ar")("image.saved").replace("{path}", path)).toContain(`\u2068${path}\u2069`);
+    expect(createTranslator("ar")("image.saved").replace("{path}", path)).toContain(`\u2066${path}\u2069`);
     applyInterfaceLocale(surface, createTranslator("en")); expect(surface.getAttribute("dir")).toBe("ltr");
     applyInterfaceLocale(surface, (key) => key); expect(surface.getAttribute("lang")).toBe("en");
   });

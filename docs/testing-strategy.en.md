@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-10
+last_synced: 2026-10-15
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -27,7 +27,7 @@ Reading-view regressions use the full note text and reported source-line ranges 
 
 Separate-window DOM regressions use independent jsdom realms and host helpers that close over their creation document. Check both `ownerDocument` and the constructors of plugin-owned wrappers, tables and cell containers; adoption alone must not satisfy the test. Native Markdown descendants may retain the host's constructors, but surrounding text, cell content and merge structure must remain intact. Cover native sections, Callouts, deferred block mapping, standalone exports and native comparisons.
 
-DOM emulation is useful for structure and most CSS contracts, but it does not replace real Obsidian geometry, scrolling, theme variables, or touch behavior. Critical writes must cover pointerdown → focus changes → confirmation → revalidation of the original file and table → one write → undo/redo, not just menu callback invocation. PR CI also runs a real Chromium transpose smoke test, which does not replace actual Obsidian or Android acceptance. Multi-window fixtures distinguish the target editor document from the main window, and changes to the file, view or draft during confirmation must cause zero writes.
+DOM emulation is useful for structure and most CSS contracts, but it does not replace real Obsidian geometry, scrolling, theme variables, or touch behavior. Critical writes cover pointerdown → focus changes → confirmation → revalidation of the original file and table → one write → undo/redo. Transient visual selection clearing when a menu or modal takes focus must preserve an unchanged whole-table target; actual target-source, file, editor/view or draft changes must cause zero writes. Real CodeMirror history tests cover the registered command, source menu and native menu, with typing immediately before and after transpose. PR CI also runs a real Chromium owned-menu → pointer modal → CodeMirror write/undo/redo smoke test, plus source/native entry and tall merged-table pointer-focus geometry/scroll checks; these do not replace actual Obsidian or Android acceptance. Multi-window fixtures use independent DOM realms, including existing non-Markdown windows that later open Markdown.
 
 <!-- section: parser-cases -->
 ## Parser cases

@@ -27,6 +27,7 @@ import {
   type MockModKey,
 } from "./mocks/obsidian";
 import { installSelectionChangeTasks } from "./mocks/selection-events";
+import { clickLikeUser } from "./helpers/host-gestures";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -4885,5 +4886,65 @@ describe("whole-table transpose from an owned grid", () => {
     } finally {
       view.destroy();
     }
+  });
+});
+
+
+describe("whole-table transpose confirmation and source revalidation", () => {
+  const tableSource = [
+    "| Region | Q1 | Q2 |",
+    "| :--- || ---: | :---: |",
+    "| North | 1 | 2 |",
+    "| South | 3 | 4 |",
+  ].join("\n");
+  const original = "Before\n\n" + tableSource + "\n\nAfter";
+
+  function openConfirmation(parent: HTMLElement): HTMLButtonElement {
+    const handle = parent.querySelector<HTMLElement>("[data-structural-row-handle='1']");
+    expect(handle).not.toBeNull();
+    handle!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    clickCurrentMenuItem("Transpose whole table (swap rows and columns)", true);
+    const button = [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .find((element) => element.textContent === "Transpose anyway");
+    expect(button).toBeDefined();
+    return button!;
+  }
+
+  it("allows pointerdown on a risk modal without expiring the whole-table write", () => {
+    const { parent, view } = mountEditor(original, { anchor: original.length }, [history()]);
+    try {
+      const button = openConfirmation(parent);
+      expect(view.state.doc.toString()).toBe(original);
+      clickLikeUser(button);
+      const source = view.state.doc.toString();
+      expect(source).not.toBe(original);
+      expect(source).toContain("Before\n\n");
+      expect(source).toContain("\n\nAfter");
+      const table = parseEditableTables(source).tables[0]!;
+      expect(table.valid).toBe(true);
+      expect(table.rows.length).toBe(3);
+      expect(table.columnCount).toBe(4);
+      expect(table.headerRowCount).toBe(1);
+      expect(table.rowHeaderColumnCount).toBe(1);
+      expect(table.alignments).toEqual(["default", "default", "default", "default"]);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(original);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("refuses a real source edit made while confirmation was open", () => {
+    const { parent, view } = mountEditor(original, { anchor: original.length }, [history()]);
+    try {
+      const button = openConfirmation(parent);
+      const start = view.state.doc.toString().indexOf("North");
+      view.dispatch({ changes: { from: start, to: start + "North".length, insert: "East" } });
+      const edited = view.state.doc.toString();
+      clickLikeUser(button);
+      expect(view.state.doc.toString()).toBe(edited);
+      expect(view.state.doc.toString()).toContain("East");
+      expect(view.state.doc.toString()).toContain("| :--- || ---: | :---: |");
+    } finally { view.destroy(); }
   });
 });

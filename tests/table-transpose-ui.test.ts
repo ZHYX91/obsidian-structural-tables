@@ -7,6 +7,7 @@ import { requestWholeTableTranspose } from "../src/app/table-transpose-modal";
 import { createTranslator } from "../src/config/i18n";
 import { parseEditableTables } from "../src/core/parser";
 import { notices } from "./mocks/obsidian";
+import { clickLikeUser } from "./helpers/host-gestures";
 
 const t = createTranslator("en");
 const safe = "| Region | Value |\n| --- || --- |\n| North | 1 |";
@@ -27,7 +28,7 @@ function app(): App {
 function clickButton(label: string): void {
   const button = [...document.querySelectorAll("button")].find((candidate) => candidate.textContent === label);
   expect(button).toBeDefined();
-  button!.click();
+  clickLikeUser(button!);
 }
 
 beforeAll(() => {

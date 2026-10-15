@@ -115,6 +115,7 @@ beforeAll(() => {
   HTMLElement.prototype.setCssProps = function setCssProps(props: Record<string, string>): void {
     for (const [name, value] of Object.entries(props)) this.style.setProperty(name, value);
   };
+  HTMLElement.prototype.empty = function empty(): void { this.replaceChildren(); };
 });
 
 let uninstallSelectionTasks: (() => void) | undefined;

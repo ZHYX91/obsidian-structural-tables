@@ -1,6 +1,7 @@
 import { App, Modal, Setting } from "obsidian";
 import { applyInterfaceLocale } from "../config/i18n";
 import type { LocaleId } from "../config/locale";
+import { displayPathText } from "../config/interface-bidi";
 
 import type { PreparedBasePropertyMigration } from "./base-property-migration-service";
 
@@ -31,7 +32,7 @@ export function basePropertyMigrationPreviewText(
         ? [removeLegacyRecordIds ? labels.retiredRecordIds : labels.retiredRecordIdCandidates]
         : []),
     ];
-    return `- ${candidate.path} — ${actions.join(", ")}`;
+    return `- ${displayPathText(candidate.path, labels.language)} — ${actions.join(", ")}`;
   }).join("\n");
   return [
     `${labels.membershipNotes}: ${prepared.membershipNoteCount}`,

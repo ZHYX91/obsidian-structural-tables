@@ -10,6 +10,8 @@ import { StructuralTableEditorController } from "../../src/editor/table-live-pre
 import { openEditorTableTranspose } from "../../src/editor/table-transpose-target";
 import { applyInterfaceLocale, createTranslator } from "../../src/config/i18n";
 import { appendDisplayPath, appendDisplayValue } from "../../src/config/interface-bidi";
+import { basePropertyMigrationPreviewText, type BasePropertyMigrationLabels } from "../../src/app/base-property-migration-modal";
+import type { PreparedBasePropertyMigration } from "../../src/app/base-property-migration-service";
 import { lastMenu, notices, TFile } from "../mocks/obsidian";
 import { NativeCellEditorWidget } from "../helpers/native-cell-editor";
 import { NativeTableWidget } from "../helpers/native-table-widget";
@@ -159,10 +161,29 @@ function interfaceBidi() {
   const mapping = surface.createEl("p", { cls: "structural-tables-bidi-isolate" }); mapping.dir = "ltr";
   const name = appendDisplayValue(mapping, "عنوان عربي"); mapping.append(" → "); const key = appendDisplayValue(mapping, "latinKey");
   const code = surface.createEl("code", { text: String.raw`\lvert … \rvert` });
+  const t = createTranslator("ar");
+  const labels: BasePropertyMigrationLabels = { language: "ar", title: t("modal.migrateBaseProperties.title"), description: t("modal.migrateBaseProperties.desc"),
+    membershipNotes: t("modal.migrateBaseProperties.membershipNotes"), promotedBases: t("modal.migrateBaseProperties.promotedBases"),
+    retiredRecordIdCandidates: t("modal.migrateBaseProperties.retiredRecordIdCandidates"), retiredRecordIds: t("modal.migrateBaseProperties.retiredRecordIds"),
+    removeRecordIds: t("modal.migrateBaseProperties.removeRecordIds"), removeRecordIdsDescription: t("modal.migrateBaseProperties.removeRecordIdsDesc"),
+    cancel: t("modal.cancel"), confirm: t("modal.migrateBaseProperties.confirm") };
+  const prepared: PreparedBasePropertyMigration = { membershipNoteCount: 1, legacyBaseCount: 2, legacyRecordIdCount: 1, files: [{
+    file: new TFile("ملاحظات/تقارير/ملخص-2026.md") as unknown as HostFile, path: "ملاحظات/تقارير/ملخص-2026.md", originalSource: "Original source",
+    migrateMembership: true, legacyBaseCount: 2, hasLegacyRecordId: true, membershipIds: ["stb_people"], currentMembershipPresent: false,
+    currentMembershipValue: undefined, legacyMembershipValue: ["stb_people"], legacyRecordIdValue: "str_alice",
+  }] };
+  const migrationPathLefts = [false, true].map((cleanup) => {
+    const preview = surface.createEl("pre", { text: basePropertyMigrationPreviewText(prepared, labels, cleanup) });
+    const pathStart = preview.textContent!.lastIndexOf("\n- ") + 3;
+    return ["ملاحظات", "تقارير", "ملخص-2026.md"].map((fragment) => {
+      const start = preview.textContent!.indexOf(fragment, pathStart); const range = document.createRange();
+      range.setStart(preview.firstChild!, start); range.setEnd(preview.firstChild!, start + fragment.length); return range.getBoundingClientRect().left;
+    });
+  });
   return { technicalLefts: [characterLeft(String.raw`\lvert`), characterLeft(String.raw`\rvert`)],
     pathText: path.textContent, pathLefts: [...path.querySelectorAll("bdi")].map((part) => part.getBoundingClientRect().left),
     mappingLefts: [name.getBoundingClientRect().left, key.getBoundingClientRect().left], mappingIsolation: getComputedStyle(mapping).unicodeBidi,
-    codeDirection: getComputedStyle(code).direction };
+    codeDirection: getComputedStyle(code).direction, migrationPathLefts };
 }
 
 function result() {

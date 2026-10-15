@@ -255,7 +255,9 @@ try {
   assert.ok(bidi.pathLefts.every((left, index) => index === 0 || left > bidi.pathLefts[index - 1]), JSON.stringify(bidi));
   assert.ok(bidi.mappingLefts[0] < bidi.mappingLefts[1], JSON.stringify(bidi));
   assert.equal(bidi.pathText, "ملاحظات/تقارير/ملخص-2026.md"); assert.equal(bidi.codeDirection, "ltr"); assert.equal(bidi.mappingIsolation, "isolate");
+  for (const positions of bidi.migrationPathLefts) assert.ok(positions.every((left, index) => index === 0 || left > positions[index - 1]), JSON.stringify(bidi));
   results.push({ mode: "arabic-interface-bidi", technicalExpressions: true, pathOrder: true, mappingOrder: true });
+  results.push({ mode: "arabic-migration-preview", initialPathOrder: true, togglePathOrder: true });
   process.stdout.write(JSON.stringify({ status: "passed", browser: path.basename(browser), scenarios: results }) + "\n");
 } finally {
   socket?.close();

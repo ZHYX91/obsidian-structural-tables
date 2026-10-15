@@ -352,7 +352,7 @@ export class StructuralTablesPlugin extends Plugin {
       addWholeTableTransposeMenuItem(menu, t, () => requestWholeTableTranspose(
         this.app, t, current.table,
         () => this.applyMenuOperation(editor, current.table, transposeTable),
-        info.containerEl.ownerDocument,
+        info instanceof MarkdownView ? info.containerEl.ownerDocument : undefined,
       ));
       addImageExportMenuItem(menu, t, () => this.exportImage(editor, () => info, current.table));
       addBasePromotionMenuItem(menu, t, current.table, () => {

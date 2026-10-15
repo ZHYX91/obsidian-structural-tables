@@ -268,6 +268,7 @@ class StructuralTableInteraction {
   private selectionHead: TableCellCoordinate | null = null;
   private touchRangeAnchor: TableCellCoordinate | null = null;
   private lastTouchTap: { coordinate: TableCellCoordinate; at: number } | null = null;
+  private touchPointerId: number | undefined;
   private pointerWindow: Window | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private host: HTMLElement | null = null;
@@ -374,7 +375,8 @@ class StructuralTableInteraction {
     this.releaseCellScope();
     this.releaseNavigationScope();
     this.pointerWindow?.removeEventListener("pointerup", this.endPointerSelection);
-    this.pointerWindow?.removeEventListener("pointercancel", this.endPointerSelection);
+    this.pointerWindow?.removeEventListener("pointercancel", this.cancelPointerSelection);
+    this.pointerWindow?.removeEventListener("blur", this.abortPointerSelection);
     this.pointerWindow = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
@@ -385,6 +387,7 @@ class StructuralTableInteraction {
     this.renderedTable = null;
     this.clickEditCandidate = null;
     this.lastTouchTap = null;
+    this.touchPointerId = undefined;
     this.component?.unload();
     this.component = null;
   }
@@ -449,11 +452,27 @@ class StructuralTableInteraction {
     this.installHandles(view, host, rendered);
     this.pointerWindow = rendered.ownerDocument.defaultView;
     this.pointerWindow?.addEventListener("pointerup", this.endPointerSelection);
-    this.pointerWindow?.addEventListener("pointercancel", this.endPointerSelection);
+    this.pointerWindow?.addEventListener("pointercancel", this.cancelPointerSelection);
+    this.pointerWindow?.addEventListener("blur", this.abortPointerSelection);
   }
 
-  private readonly endPointerSelection = (): void => {
+  private readonly endPointerSelection = (event: PointerEvent): void => {
     this.dragging = false;
+    if (event.pointerId === this.touchPointerId) this.touchPointerId = undefined;
+  };
+
+  private readonly cancelPointerSelection = (event: PointerEvent): void => {
+    this.dragging = false;
+    if (this.touchPointerId !== undefined && event.pointerId === this.touchPointerId) this.abortPointerSelection();
+  };
+
+  private readonly abortPointerSelection = (): void => {
+    this.dragging = false;
+    this.touchPointerId = undefined;
+    this.lastTouchTap = null;
+    // Keep the completed visual range available to its long-press menu, but a
+    // canceled pan must not become the first half of a later double tap.
+    this.touchRangeAnchor = null;
   };
 
   private registerGridClearScope(scope: Scope, view: EditorView): void {
@@ -730,6 +749,7 @@ class StructuralTableInteraction {
     this.axisSelection = null;
     this.touchAxisAnchor = null;
     if (event.pointerType === "touch") {
+      this.touchPointerId = event.pointerId;
       const previous = this.lastTouchTap;
       this.lastTouchTap = { coordinate, at: event.timeStamp };
       if (previous !== null

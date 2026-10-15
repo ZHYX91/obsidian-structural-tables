@@ -1,17 +1,20 @@
 // @vitest-environment happy-dom
 
 import { history, redo, undo, undoDepth } from "@codemirror/commands";
-import { EditorState, Transaction } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorState, StateEffect, Transaction } from "@codemirror/state";
+import { Decoration, EditorView } from "@codemirror/view";
 import type { App, Command, Editor, EditorPosition, TFile as HostFile } from "obsidian";
 import { Component, MarkdownView, editorInfoField } from "obsidian";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { StructuralTablesPlugin } from "../src/app/plugin";
 import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { NativeTableMenuBridge } from "../src/editor/native-table-menu";
 import { clickLikeUser } from "./helpers/host-gestures";
+import { NativeCellEditorWidget } from "./helpers/native-cell-editor";
+import { parseEditableTables } from "../src/core/parser";
 import { lastMenu, Menu, TFile } from "./mocks/obsidian";
+import { installSelectionChangeTasks } from "./mocks/selection-events";
 
 const ORIGINAL = "Intro stays.\n\n| Name | Value |\n| --- | --- |\n| North | 1 |\n\nOther prose.\n\n| Other | Table |\n| --- | --- |\n| Keep | 2 |\n\nTail stays.";
 
@@ -25,10 +28,12 @@ beforeAll(() => {
   HTMLElement.prototype.empty = function empty(): void { this.replaceChildren(); };
 });
 
-afterEach(() => { document.body.replaceChildren(); });
+let restoreSelection: () => void;
+beforeEach(() => { restoreSelection = installSelectionChangeTasks(document); });
+afterEach(() => { document.body.replaceChildren(); restoreSelection(); });
 
 describe("transpose editor entry history", () => {
-  it.each(["command", "source-menu", "native-menu"] as const)("isolates %s transpose from adjacent typing and later input", (entry) => {
+  it.each((["command", "source-menu", "native-menu"] as const).flatMap((entry) => [false, true].map((nativeChild) => ({ entry, nativeChild }))))("isolates $entry transpose with native child $nativeChild from adjacent typing and later input", ({ entry, nativeChild }) => {
     const containerEl = document.body.appendChild(document.createElement("div"));
     const file = new TFile("A.md");
     let cm: EditorView;
@@ -69,6 +74,16 @@ describe("transpose editor entry history", () => {
       const offset = ORIGINAL.indexOf("North") + "North".length;
       cm.dispatch({ changes: { from: offset, insert: "X" }, selection: { anchor: offset + 1 }, annotations: Transaction.userEvent.of("input.type") });
       const beforeTranspose = cm.state.doc.toString();
+      const childWidget = nativeChild ? new NativeCellEditorWidget("NorthX") : null;
+      if (childWidget !== null) {
+        const table = parseEditableTables(beforeTranspose).tables[0]!;
+        cm.dispatch({ effects: StateEffect.appendConfig.of(EditorView.decorations.of(Decoration.set([
+          Decoration.replace({ widget: childWidget, block: true }).range(table.range.from, table.range.to),
+        ]))) });
+        expect(childWidget.child!.state.field(editorInfoField).editor).toBe(editor);
+        expect(childWidget.child!.state.field(editorInfoField).file).toBe(file);
+        childWidget.child!.focus();
+      }
       if (entry === "command") {
         plugin.registerCommands();
         commands.find((command) => command.id === "transpose-current-table")!.editorCallback!(editor, view);
@@ -101,6 +116,7 @@ describe("transpose editor entry history", () => {
       expect(cm.state.doc.toString()).toBe(beforeTranspose);
       expect(redo(cm)).toBe(true);
       expect(cm.state.doc.toString()).toBe(transposed);
+      if (childWidget?.child !== null && childWidget?.child !== undefined) expect(childWidget.child.state.doc.toString()).toBe("NorthX");
       cm.dispatch({ changes: { from: cm.state.doc.length, insert: "!" }, annotations: Transaction.userEvent.of("input.type") });
       expect(undo(cm)).toBe(true);
       expect(cm.state.doc.toString()).toBe(transposed);

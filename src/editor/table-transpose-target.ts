@@ -27,13 +27,13 @@ export function captureEditorTransposeTarget(
   const path = file.path;
   const container = captured.containerEl;
   const ownerDocument = container.ownerDocument;
-  const codeMirror = codeMirrorForEditor(container, editor);
+  const codeMirror = codeMirrorForEditor(container, editor, file);
   if (codeMirror === null) return null;
   const isCurrent = (): boolean => {
     if (!isActive() || captured.file !== file || captured.editor !== editor
       || file.path !== path || !container.isConnected || container.ownerDocument !== ownerDocument
       || app.vault.getFileByPath(path) !== file) return false;
-    if (codeMirrorForEditor(container, editor) !== codeMirror
+    if (codeMirrorForEditor(container, editor, file) !== codeMirror
       || codeMirror.state.doc.toString() !== editor.getValue()) return false;
     let hasView = false;
     app.workspace.iterateAllLeaves((leaf) => {

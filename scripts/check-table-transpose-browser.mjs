@@ -115,9 +115,9 @@ try {
     await settle();
   };
   const results = [];
-  for (const mode of ["owned", "source", "native", "popout-source"]) {
+  for (const mode of ["owned", "source", "native", "native-child", "popout-source"]) {
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
-    if (mode === "source" || mode === "popout-source") await click(select("#transpose-source"));
+    if (mode === "source" || mode === "native-child" || mode === "popout-source") await click(select("#transpose-source"));
     else {
       await click(select(mode === "owned" ? "[data-structural-row='1'][data-structural-column='0']" : ".cm-table-widget td"), "right");
       await click(select("#transpose-menu-item"));

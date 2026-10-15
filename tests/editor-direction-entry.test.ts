@@ -11,6 +11,7 @@ import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { parseEditableTables } from "../src/core/parser";
 import * as clipboard from "../src/rendering/table-clipboard";
 import { Menu, TFile } from "./mocks/obsidian";
+import { NativeCellEditorWidget } from "./helpers/native-cell-editor";
 
 const SOURCE = "| Region | A | B | C |\n| --- || --- | --- | --- |\n| North | One | Two | Three |";
 const editors: EditorView[] = [];
@@ -85,6 +86,15 @@ describe("registered table entries use their exact editor direction", () => {
     const render = vi.spyOn(clipboard, "renderTableClipboard");
     for (const inner of ["rtl", "ltr"] as const) {
       const f = fixture(inner === "rtl" ? "ltr" : "rtl", inner, language);
+      const native = new NativeCellEditorWidget("One", inner === "rtl" ? "ltr" : "rtl");
+      f.cm.dispatch({ effects: StateEffect.appendConfig.of(EditorView.decorations.of(Decoration.set([
+        Decoration.replace({ widget: native, block: true }).range(0, SOURCE.length),
+      ]))) });
+      // The actual table follows the note; its nested cell CM can differ.
+      f.cm.dom.querySelector<HTMLTableElement>(".cm-table-widget table")!.style.direction = inner;
+      f.cm.contentDOM.style.direction = inner === "rtl" ? "ltr" : "rtl";
+      expect(native.child!.state.field(editorInfoField).editor).toBe(f.editor);
+      native.child!.focus();
       f.plugin.registerCommands();
       f.commands.find((command) => command.id === "copy-current-table-as-html")!.editorCallback!(f.editor, f.view);
       await vi.waitFor(() => expect(render).toHaveBeenCalled());

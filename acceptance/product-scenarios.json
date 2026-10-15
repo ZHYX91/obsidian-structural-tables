@@ -13,6 +13,85 @@
   },
   "scenarios": [
     {
+      "id": "transpose-confirm-history",
+      "title": "Whole-table transpose confirmation and host history",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open Transpose and history in Live Preview with ordinary-table takeover disabled. Record the initial source. Click or tap North in the native ordinary table, then use the on-screen command palette to invoke Transpose whole table (swap rows and columns). This deliberately starts with a native cell editor active; it must not report a stale table.",
+        "Inspect the mixed-alignment and Structural Tables syntax warnings. Cancel and compare the complete note source with the initial source. Open the same command again, confirm, and inspect the transposed first table, its header relationships and all values including 00123 and the Arabic text.",
+        "Use one host Undo action to restore the complete original first table and one host Redo action to restore the same transposed result. Do not depend on hardware shortcuts on Android; use Obsidian on-screen Undo/Redo controls.",
+        "Finish any cell edit in the owned merged table. Select a cell or partial range, open its context menu with right-click or Android long press, and choose whole-table transpose. Confirm the alignment warning, then undo and redo once. Inspect the merged region, all cell values, adjoining paragraphs and the other table."
+      ],
+      "expected": [
+        "The native-cell command reaches confirmation and writes nothing before confirmation; Cancel preserves the exact full note source.",
+        "Confirm transposes the intended whole table regardless of the transient cell/range selection, swaps header roles and merges, and retains every value. Other tables and surrounding prose are unchanged.",
+        "Each transpose is one host undo/redo operation. On desktop keyboard undo/redo works immediately after confirmation; Android proves the on-screen history path without requiring keyboard shortcuts."
+      ]
+    },
+    {
+      "id": "final-cell-focus",
+      "title": "Tall-table exit focus, touch pan and soft-keyboard geometry",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.drag",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open Final cell focus in Live Preview and record the source. On Android, start a real scroll/pan on a visible cell, then promptly tap that same cell once after the pan; it should select without opening an editor or keyboard. A fresh deliberate double tap must still edit. Finish that unchanged edit before continuing.",
+        "Scroll to the final cell last-24. Open it with a desktop click or Android double tap, keep its text unchanged, and inspect the merged table and current scroll position. On Android verify the soft keyboard is visible, dismiss it with the host Back action, reopen the unchanged editor if needed, and compare the table while the keyboard is shown and hidden.",
+        "Tap or click the After the table paragraph. Inspect the caret destination, complete merged table, final rows and local horizontal scrolling. Compare source bytes with the recorded source. On desktop repeat after explicitly canceling the final-cell editor with Escape; Android repeats the unchanged-edit/keyboard-dismiss path without requiring Escape.",
+        "On Android, select a rectangle with two taps and separately long-press inside it to open its range menu. Verify that its actions still target the complete selected range, then dismiss without writing. Record actual touch/keyboard behavior rather than a synthetic pointer-cancel event."
+      ],
+      "expected": [
+        "A canceled pan is not reused as the first tap of an edit gesture. One fresh tap does not unexpectedly open the editor or keyboard, and a valid fresh double tap still edits.",
+        "Leaving the unchanged final cell preserves Markdown, merged spans and complete rendering. The caret collapses in the paragraph below instead of selecting through the table or jumping to an earlier source position.",
+        "Soft-keyboard viewport resizing does not replace the table or lose the final rows, and the viewport remains near the intended target after accounting for that resize. A completed range remains available to its long-press menu."
+      ]
+    },
+    {
+      "id": "language-rtl",
+      "title": "Interface language independent of note direction and physical column actions",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open Language and RTL in Live Preview with Obsidian Editor Right-to-left (RTL) disabled. Record its source. Inspect all seven native language names in Structural Tables General settings, select Arabic, inspect the RTL settings/dialog text, then return to the note. The table must remain LTR even though one cell and the plugin UI use Arabic.",
+        "With the source still unchanged, enable the real Obsidian Editor Right-to-left (RTL) setting for the disposable Vault. Reopen the note if required by the host. Inspect North/Region in the first source column on the right, mixed Arabic/English text, parentheses, 00123 and Arabic digits; switch the plugin language back to English while retaining the host RTL note direction.",
+        "In the RTL table, select the English data-column cell ABC-123 and open its table menu. Insert a column left; verify that the blank column is physically left of that cell and that existing values keep their source order. Undo once. Insert a column right, verify the blank column on the physical right, then undo once.",
+        "Disable the host RTL setting and switch the plugin language again. Verify that only the intended inserted-column actions ever changed Markdown, their undo restored the initial source, and language/direction changes did not translate, reorder or rewrite any cell. Record an inaccessible host direction setting as an unverified scope rather than replacing it with DOM manipulation."
+      ],
+      "expected": [
+        "Native names list English, 简体中文, 繁體中文, 日本語, Deutsch, Español and العربية. Arabic plugin controls/dialogs use RTL independently of the note; other selected plugin languages use LTR.",
+        "The real RTL note places the first source column and row headers on the right. LTR notes containing Arabic stay LTR. UI language, cell content and direction switches preserve source order and the meanings of <, ^ and ||.",
+        "Left/right insert actions use physical table sides, preserve existing content and header relationships, and each undo restores the exact initial note. Mixed text and digits remain readable without source mutation."
+      ]
+    },
+    {
       "id": "reading-block-boundaries",
       "title": "Reading tables across native sections and adjoining prose",
       "surfaces": [

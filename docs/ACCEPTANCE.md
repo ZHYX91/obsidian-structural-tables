@@ -6,6 +6,8 @@ When one note contains multiple tables, verify in Reading View that every native
 
 For a full optional regression, test the packaged candidate in an explicitly named disposable Vault on the minimum supported Obsidian version and the current stable version. Select the modules affected by the change; a full regression covers the complete checklist.
 
+The product contract in `acceptance/product-scenarios.json` includes three focused desktop/Android scenarios: `transpose-confirm-history` uses `Transpose and history.md`; `final-cell-focus` uses `Final cell focus.md`; `language-rtl` uses `Language and RTL.md`. Android uses on-screen commands, touch menus and host Undo/Redo controls. Set note direction through Obsidian's **Editor → Right-to-left (RTL)** setting in the disposable Vault, independently of the plugin language. If the host lacks an accessible direction control, record that part as unverified; changing DOM direction is only a diagnostic and cannot satisfy host RTL acceptance. Record actual host/version, soft-keyboard state, fixture/candidate identity, results and remaining gaps for each selected scenario.
+
 ### Rendering and cell editing
 
 - [ ] Headerless tables with short and canonical delimiters, one or multiple data rows, row headers and merged cells render in both views and containers. Editing, insertion, header-role changes and undo/redo retain every data row and restore focus.
@@ -113,6 +115,7 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 - [ ] Paste pipes inside existing code spans and at escape boundaries, preserve fragment whitespace, and verify the committed Wiki-link source.
 - [ ] After horizontal scrolling, visible column handles keep a Tab entry; keyboard navigation reveals hidden columns. Edge dragging continues while the pointer rests and stops on cancellation.
 - [ ] In a tall merged table, focus the final cell with an unchanged draft, cancel its draft, then click a blank source line or paragraph below the table. The table stays mounted with unchanged spans/height/source; the caret collapses at the clicked destination without a page-scroll jump or a selection back through the table. Repeat in a popout. External-control focus return and explicit Edit table source retain their raw-source cursor/range contract.
+- [ ] After a real touch pan begins in a cell and the host cancels that pointer gesture, a subsequent single tap does not open a cell editor or soft keyboard; a fresh valid double tap still edits. Unrelated-pointer cancellation does not invalidate a completed tap, and a completed rectangular range remains available to its long-press menu. Repeat after the window loses focus. Distinguish automated pointer-cancel regression from an observed Android pan.
 - [ ] Invalid-table diagnostics.
 - [ ] Settings persistence.
 - [ ] Light and dark themes.

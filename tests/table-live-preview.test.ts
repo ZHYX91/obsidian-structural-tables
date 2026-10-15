@@ -4351,6 +4351,53 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it.each(["cancel", "blur"])("requires a fresh double tap after a touch gesture ends with %s", (ending) => {
+    const source = "| A | B |\n| --- || --- |\n| C | D |\n| E | F |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const tap = (id: number, at: number) => {
+        const event = new PointerEvent("pointerdown", { pointerType: "touch", pointerId: id, isPrimary: true, button: 0, bubbles: true, cancelable: true });
+        Object.defineProperty(event, "timeStamp", { value: at }); cell.dispatchEvent(event); return event;
+      };
+      tap(7, 1_000);
+      window.dispatchEvent(ending === "cancel" ? new PointerEvent("pointercancel", { pointerId: 7 }) : new Event("blur"));
+      expect(tap(8, 1_200).defaultPrevented).toBe(false);
+      expect(cell.querySelector("textarea")).toBeNull();
+      window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 8 }));
+      expect(tap(9, 1_400).defaultPrevented).toBe(true);
+      expect(cell.querySelector("textarea")).not.toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("ignores another pointer's cancellation and preserves a completed touch range for long press", () => {
+    const source = "| A | B |\n| --- || --- |\n| C | D |\n| E | F |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = (row: number, column: number) => parent.querySelector<HTMLElement>(`[data-structural-row='${row}'][data-structural-column='${column}']`)!;
+      const tap = (target: HTMLElement, id: number, at: number) => {
+        const event = new PointerEvent("pointerdown", { pointerType: "touch", pointerId: id, isPrimary: true, button: 0, bubbles: true, cancelable: true });
+        Object.defineProperty(event, "timeStamp", { value: at }); target.dispatchEvent(event); return event;
+      };
+      tap(cell(1, 0), 1, 1_000);
+      window.dispatchEvent(new PointerEvent("pointercancel", { pointerId: 99 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
+      expect(tap(cell(1, 0), 2, 1_300).defaultPrevented).toBe(true);
+      cell(1, 0).querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      tap(cell(1, 0), 3, 2_000); window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 3 }));
+      tap(cell(2, 1), 4, 3_000); window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 4 }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      tap(cell(2, 1), 5, 3_200); window.dispatchEvent(new PointerEvent("pointercancel", { pointerId: 5 }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      expect(tap(cell(2, 1), 6, 3_300).defaultPrevented).toBe(false);
+      expect(parent.querySelector("textarea")).toBeNull();
+      cell(2, 1).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(lastMenu?.items.map((item) => item.title)).toContain("Merge selected cells");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it("opens the cell editor after two touch taps on the same cell", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;

@@ -1,6 +1,6 @@
 import { history, historyKeymap, redo, undo, undoDepth } from "@codemirror/commands";
-import { EditorState, Transaction } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorState, StateEffect, Transaction } from "@codemirror/state";
+import { Decoration, EditorView, keymap } from "@codemirror/view";
 import { App, Component, MarkdownRenderer, MarkdownView, Menu, editorInfoField, editorLivePreviewField, type Editor, type EditorPosition, type TFile as HostFile } from "obsidian";
 
 import { DEFAULT_SETTINGS } from "../../src/config/settings";
@@ -10,6 +10,7 @@ import { StructuralTableEditorController } from "../../src/editor/table-live-pre
 import { openEditorTableTranspose } from "../../src/editor/table-transpose-target";
 import { createTranslator } from "../../src/config/i18n";
 import { lastMenu, notices, TFile } from "../mocks/obsidian";
+import { NativeCellEditorWidget } from "../helpers/native-cell-editor";
 
 type ElementOptions = { cls?: string; text?: string };
 HTMLElement.prototype.createEl = function createEl<K extends keyof HTMLElementTagNameMap>(tag: K, options?: ElementOptions): HTMLElementTagNameMap[K] {
@@ -63,7 +64,7 @@ document.addEventListener("contextmenu", () => {
   });
 }, true);
 
-function reset(mode: "owned" | "source" | "native" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled"): void {
+function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled"): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
   files = new Map(); component = new Component();
@@ -113,7 +114,15 @@ function reset(mode: "owned" | "source" | "native" | "popout-source" | "popout-d
     cm.dispatch({ changes: { from: offset, insert: "X" }, selection: { anchor: owned ? 0 : offset + 1 }, annotations: Transaction.userEvent.of("input.type") });
   }
   beforeTranspose = cm.state.doc.toString(); changes = 0;
-  if (mode === "source" || mode.startsWith("popout-")) {
+  if (mode === "native-child") {
+    const table = parseEditableTables(beforeTranspose).tables[0]!;
+    const widget = new NativeCellEditorWidget("NorthX");
+    cm.dispatch({ effects: StateEffect.appendConfig.of(EditorView.decorations.of(Decoration.set([
+      Decoration.replace({ widget, block: true }).range(table.range.from, table.range.to),
+    ]))) });
+    widget.child!.focus();
+  }
+  if (mode === "source" || mode === "native-child" || mode.startsWith("popout-")) {
     if (mode === "popout-draft") {
       const draft = containerEl.appendChild(doc.createElement("textarea")); draft.className = "structural-tables-cell-editor"; draft.value = "unsaved";
     }

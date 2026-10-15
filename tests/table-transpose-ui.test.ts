@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import type { App } from "obsidian";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { requestWholeTableTranspose } from "../src/app/table-transpose-modal";
 import { createTranslator } from "../src/config/i18n";
@@ -29,6 +29,19 @@ function clickButton(label: string): void {
   expect(button).toBeDefined();
   button!.click();
 }
+
+beforeAll(() => {
+  HTMLElement.prototype.createEl = function createEl<K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    options?: { text?: string },
+  ): HTMLElementTagNameMap[K] {
+    const element = this.ownerDocument.createElement(tag);
+    if (options?.text !== undefined) element.textContent = options.text;
+    this.appendChild(element);
+    return element;
+  };
+  HTMLElement.prototype.empty = function empty(): void { this.replaceChildren(); };
+});
 
 afterEach(() => {
   document.body.replaceChildren();

@@ -36,13 +36,31 @@ export function codeMirrorForEditor(container: HTMLElement, editor: Editor, file
   return owners.length === 1 ? owners[0]! : null;
 }
 
-/** Read presentation only from the attached editor that owns this table. */
-export function editorTableDirection(app: App, editor: Editor, table: StructuralTable, hint?: MarkdownView): "ltr" | "rtl" {
+export function attachedEditorContext(app: App, editor: Editor, hint?: MarkdownView) {
   const markdown = markdownViewForEditor(app, editor, hint);
-  if (!markdown?.containerEl?.isConnected) return "ltr";
-  const view = codeMirrorForEditor(markdown.containerEl, editor, markdown.file);
-  if (view === null || !view.dom.isConnected || view.state.field(editorInfoField, false)?.file !== markdown.file
-    || view.state.doc.toString() !== editor.getValue() || reparseUnchangedTable(editor.getValue(), table) === null) return "ltr";
+  if (markdown === null || markdown.file === null || !markdown.containerEl.isConnected) return null;
+  const container = markdown.containerEl;
+  const ownerDocument = container.ownerDocument;
+  const file = markdown.file;
+  const sourcePath = file.path;
+  const view = codeMirrorForEditor(container, editor, file);
+  if (view === null) return null;
+  const isCurrent = (): boolean => {
+    if (markdown.containerEl !== container || markdown.editor !== editor || markdown.file !== file || file.path !== sourcePath
+      || !container.isConnected || container.ownerDocument !== ownerDocument || view.dom.ownerDocument !== ownerDocument
+      || app.vault.getFileByPath(sourcePath) !== file || codeMirrorForEditor(container, editor, file) !== view) return false;
+    let attached = false;
+    app.workspace.iterateAllLeaves((leaf) => { if (leaf.view === markdown) attached = true; });
+    return attached;
+  };
+  return { markdown, view, file, sourcePath, ownerDocument, isCurrent };
+}
+
+/** Read presentation only from the attached editor that owns this table. */
+export function editorTableContext(app: App, editor: Editor, table: StructuralTable, hint?: MarkdownView) {
+  const context = attachedEditorContext(app, editor, hint);
+  if (context === null || reparseUnchangedTable(editor.getValue(), table) === null) return null;
+  const { view } = context;
 
   const rendered: HTMLTableElement[] = [];
   for (const host of view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview, .cm-table-widget")) {
@@ -59,6 +77,12 @@ export function editorTableDirection(app: App, editor: Editor, table: Structural
     const element = host.querySelector<HTMLTableElement>("table");
     if (matches && element !== null) rendered.push(element);
   }
-  const context = rendered.length === 1 ? rendered[0]! : view.contentDOM;
-  return context.ownerDocument.defaultView?.getComputedStyle(context).direction === "rtl" ? "rtl" : "ltr";
+  const element = rendered.length === 1 ? rendered[0]! : view.contentDOM;
+  return { ...context, element, isCurrent: () => context.isCurrent() && element.isConnected
+    && element.ownerDocument === context.ownerDocument && reparseUnchangedTable(editor.getValue(), table) !== null };
+}
+
+export function editorTableDirection(app: App, editor: Editor, table: StructuralTable, hint?: MarkdownView): "ltr" | "rtl" {
+  const element = editorTableContext(app, editor, table, hint)?.element;
+  return element?.ownerDocument.defaultView?.getComputedStyle(element).direction === "rtl" ? "rtl" : "ltr";
 }

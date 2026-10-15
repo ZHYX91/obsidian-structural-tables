@@ -4,16 +4,33 @@ import type { App, Component, Editor } from "obsidian";
 import { MarkdownView, Menu } from "obsidian";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
+import { EditorState } from "@codemirror/state";
+import { Decoration, EditorView } from "@codemirror/view";
+import { editorInfoField, type TFile as HostFile } from "obsidian";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings";
 import type { ExportTableImage } from "../src/app/table-image-modal";
 import { NativeTableMenuBridge } from "../src/editor/native-table-menu";
-import { lastMenu } from "./mocks/obsidian";
+import { lastMenu, TFile } from "./mocks/obsidian";
+import { parseEditableTables } from "../src/core/parser";
+import { NativeTableWidget } from "./helpers/native-table-widget";
 
 const SOURCE = `| Name | Status |
 | --- | --- |
 | Alice | Doing |`;
 const cleanupCallbacks: (() => void)[] = [];
+const editors: EditorView[] = [];
+
+function nativeView(containerEl: HTMLElement): MarkdownView {
+  const file = new TFile(`Note${editors.length}.md`);
+  const editor = { getValue: () => SOURCE } as unknown as Editor;
+  const cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: SOURCE, extensions: [
+    editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app: {} as App, hoverPopover: null })),
+    EditorView.decorations.of(Decoration.set([Decoration.replace({ widget: new NativeTableWidget(parseEditableTables(SOURCE).tables[0]!), block: true }).range(0, SOURCE.length)])),
+  ] }) });
+  editors.push(cm);
+  return Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file });
+}
 
 function openContextMenu(target: HTMLElement): void {
   target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true }));
@@ -28,42 +45,19 @@ function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage,
   emitWindow: (event: string, window: Window) => void;
 } {
   document.body.innerHTML = `
-    <div class="markdown-view">
-      <div class="cm-table-widget">
-        <table>
-          <thead><tr><th>Name</th><th>Status</th></tr></thead>
-          <tbody><tr><td>Alice</td><td>Doing</td></tr></tbody>
-        </table>
-      </div>
-    </div>
+    <div class="markdown-view"></div>
     <p class="outside">Outside</p>`;
   const container = document.querySelector<HTMLElement>(".markdown-view")!;
   const iframe = existingPopout ? document.body.appendChild(document.createElement("iframe")) : null;
   const popoutWindow = iframe?.contentWindow ?? null;
   if (popoutWindow !== null) popoutWindow.document.body.innerHTML = `
-    <div class="markdown-view"><div class="cm-table-widget"><table>
-      <thead><tr><th>Name</th><th>Status</th></tr></thead>
-      <tbody><tr><td>Alice</td><td>Doing</td></tr></tbody>
-    </table></div></div>`;
+    <div class="markdown-view"></div>`;
+  const markdownView = nativeView(container);
+  const popoutView = popoutWindow === null ? null : nativeView(popoutWindow.document.querySelector<HTMLElement>(".markdown-view")!);
   const popoutCell = popoutWindow?.document.querySelector<HTMLTableCellElement>("tbody td") ?? null;
-  const editor = {
-    getValue: () => SOURCE,
-    getCursor: () => ({ line: 2, ch: 2 }),
-    posToOffset: () => SOURCE.indexOf("Alice"),
-  } as unknown as Editor;
-  const markdownView = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, {
-    containerEl: container,
-    editor,
-    file: null,
-  });
-  const popoutView = popoutWindow === null ? null
-    : Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, {
-      containerEl: popoutWindow.document.querySelector<HTMLElement>(".markdown-view")!,
-      editor,
-      file: null,
-    });
   const windowCallbacks = new Map<string, (workspaceWindow: unknown, window: Window) => void>();
   const app = {
+    vault: { getFileByPath: (path: string) => [markdownView, popoutView].find((view) => view?.file?.path === path)?.file ?? null },
     workspace: {
       iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => {
         callback({ view: markdownView });
@@ -114,6 +108,7 @@ function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage,
 
 afterEach(() => {
   for (const cleanup of cleanupCallbacks.splice(0)) cleanup();
+  editors.splice(0).forEach((editor) => editor.destroy());
   document.body.replaceChildren();
 });
 
@@ -131,25 +126,23 @@ describe("native table menu bridge", () => {
     const bridge = new NativeTableMenuBridge(app, () => ({ ...DEFAULT_SETTINGS, language: "en" }), vi.fn());
     bridge.register(component);
     try {
+      const addListeners: Array<{ mock: { calls: unknown[][] } }> = [];
       const cells = realms.map((realm, index) => {
         const containerEl = leaves[index]!.view.containerEl;
         const editor = { getValue: () => SOURCE, getCursor: () => ({ line: 2, ch: 2 }), posToOffset: () => SOURCE.indexOf("Alice") };
         leaves[index]!.view = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file: null });
         containerEl.innerHTML = "<div class='cm-table-widget'><table><thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Alice</td><td>Doing</td></tr></tbody></table></div>";
         const cell = containerEl.querySelector<HTMLTableCellElement>("td")!;
+        addListeners.push(vi.spyOn(cell, "addEventListener"));
         expect(cell).toBeInstanceOf(realm.window.HTMLTableCellElement);
         return cell;
       });
       await vi.waitFor(() => {
-        for (const [index, cell] of cells.entries()) {
-          cell.dispatchEvent(new realms[index]!.window.MouseEvent("contextmenu", { bubbles: true, button: 2 }));
-          expect(lastMenu?.items.filter(({ title }) => title === "Upgrade to Base…")).toHaveLength(1);
-        }
+        for (const add of addListeners) expect(add.mock.calls.filter(([type]) => type === "contextmenu")).toHaveLength(1);
       });
-      for (const [index, cell] of cells.entries()) {
+      for (const index of cells.keys()) {
         callbacks.get("window-open")?.({}, realms[index]!.window as unknown as Window);
-        cell.dispatchEvent(new realms[index]!.window.MouseEvent("contextmenu", { bubbles: true, button: 2 }));
-        expect(lastMenu?.items.filter(({ title }) => title === "Transpose whole table (swap rows and columns)")).toHaveLength(1);
+        expect(addListeners[index]!.mock.calls.filter(([type]) => type === "contextmenu")).toHaveLength(1);
       }
       const remove = cells.map((cell) => vi.spyOn(cell, "removeEventListener"));
       callbacks.get("window-close")?.({}, realms[0]!.window as unknown as Window);

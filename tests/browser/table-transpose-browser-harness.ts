@@ -11,6 +11,7 @@ import { openEditorTableTranspose } from "../../src/editor/table-transpose-targe
 import { createTranslator } from "../../src/config/i18n";
 import { lastMenu, notices, TFile } from "../mocks/obsidian";
 import { NativeCellEditorWidget } from "../helpers/native-cell-editor";
+import { NativeTableWidget } from "../helpers/native-table-widget";
 
 type ElementOptions = { cls?: string; text?: string };
 HTMLElement.prototype.createEl = function createEl<K extends keyof HTMLElementTagNameMap>(tag: K, options?: ElementOptions): HTMLElementTagNameMap[K] {
@@ -129,8 +130,11 @@ function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-so
     const button = document.body.createEl("button", { text: "Transpose source table" }); button.id = "transpose-source";
     button.onclick = () => openEditorTableTranspose(app, editor, parseEditableTables(editor.getValue()).tables[0]!, createTranslator("en"), currentView!);
   } else if (mode === "native") {
-    const native = containerEl.createDiv({ cls: "cm-table-widget" });
-    native.innerHTML = "<table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>NorthX</td><td>1</td></tr></tbody></table>";
+    const table = parseEditableTables(beforeTranspose).tables[0]!;
+    cm.dispatch({ effects: StateEffect.appendConfig.of(EditorView.decorations.of(Decoration.set([
+      Decoration.replace({ widget: new NativeTableWidget(table, true), block: true }).range(table.range.from, table.range.to),
+    ]))) });
+    const native = cm.dom.querySelector<HTMLElement>(".cm-table-widget")!;
     native.addEventListener("contextmenu", (event) => { Menu.forEvent(event).addItem((item) => item.setTitle("Native action")); event.preventDefault(); });
     new NativeTableMenuBridge(app, () => settings, () => {}).register(component);
   }

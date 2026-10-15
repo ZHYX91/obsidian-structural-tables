@@ -3,7 +3,7 @@ import type { ExportTableImage } from "../app/table-image-modal";
 import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { captureEditorTransposeTarget } from "./table-transpose-target";
 import { EditorView } from "@codemirror/view";
-import { MarkdownView, Menu, Notice, type App, type Component, type Editor } from "obsidian";
+import { MarkdownView, Menu, Notice, editorInfoField, type App, type Component, type Editor } from "obsidian";
 
 import { createTranslator, operationNotice } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -22,6 +22,7 @@ import {
 } from "./table-menu";
 import { replaceTableSource } from "./table-replacement";
 import { structuralTableSelectionFromCoordinates } from "./table-selection";
+import { attachedEditorContext } from "./editor-view-context";
 
 export class NativeTableMenuBridge {
   private readonly contributedEvents = new WeakSet<Event>();
@@ -118,10 +119,10 @@ export class NativeTableMenuBridge {
     if (this.contributedEvents.has(event)) return;
     const domSelection = nativeTableDomSelection(event);
     if (domSelection === null) return;
-    const markdownView = this.markdownViewFor(domSelection.widget);
-    if (markdownView === null) return;
-    const table = this.tableForWidget(markdownView.editor, domSelection.widget);
-    if (table === null || !table.valid || domSelection.tableElement.rows.length !== table.rows.length) return;
+    const target = this.targetForWidget(domSelection.widget);
+    if (target === null) return;
+    const { markdown: markdownView, table } = target;
+    if (!table.valid || domSelection.tableElement.rows.length !== table.rows.length) return;
     const selection = structuralTableSelectionFromCoordinates(table, domSelection.coordinates);
     if (selection === null || !selection.rectangular) return;
     this.contributedEvents.add(event);
@@ -130,11 +131,11 @@ export class NativeTableMenuBridge {
     if (hasSelectionMenuItems(selection)) {
       addSelectionMenuItems(
         menu, t, selection,
-        (operation) => this.applyMenuOperation(markdownView.editor, table, operation),
+        (operation) => { if (target.isCurrent()) this.applyMenuOperation(markdownView.editor, table, operation); },
       );
     }
     const transposeTarget = captureEditorTransposeTarget(
-      this.app, markdownView.editor, table, t, markdownView, () => !this.disposed,
+      this.app, markdownView.editor, table, t, markdownView, () => !this.disposed && target.isCurrent(),
     );
     addWholeTableTransposeMenuItem(menu, t, () => {
       if (transposeTarget === null) { new Notice(t("notice.staleTable")); return; }
@@ -143,40 +144,37 @@ export class NativeTableMenuBridge {
     if (this.exportImage !== undefined) {
       const sourcePath = markdownView.file?.path ?? "";
       addImageExportMenuItem(menu, t, () => this.exportImage?.(table, sourcePath,
-        () => markdownView.containerEl.isConnected && markdownView.file?.path === sourcePath
+        () => !this.disposed && target.isCurrent()
           && reparseUnchangedTable(markdownView.editor.getValue(), table) !== null, domSelection.tableElement));
     }
-    addBasePromotionMenuItem(menu, t, table, () => this.promote(markdownView.editor, () => markdownView, table));
-  }
-
-  private markdownViewFor(target: Node): MarkdownView | null {
-    let found: MarkdownView | null = null;
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if (found === null && leaf.view instanceof MarkdownView && leaf.view.containerEl.contains(target)) {
-        found = leaf.view;
-      }
+    addBasePromotionMenuItem(menu, t, table, () => {
+      if (!this.disposed && target.isCurrent()) this.promote(markdownView.editor, () => markdownView, table);
     });
-    return found;
   }
 
-  private tableForWidget(editor: Editor, widget: HTMLElement): StructuralTable | null {
-    const source = editor.getValue();
-    const tables = parseEditableTables(source).tables;
-    const offsets: number[] = [];
-    const codeMirror = EditorView.findFromDOM(widget);
-    if (codeMirror !== null) {
-      try {
-        offsets.push(codeMirror.posAtDOM(widget, 0));
-      } catch {
-        // The cursor fallback below still identifies the table after native cell selection.
-      }
+  private targetForWidget(widget: HTMLElement) {
+    // Resolve the widget's parent editor, never its descendant native cell CM.
+    const root = widget.closest<HTMLElement>(".cm-editor");
+    const codeMirror = root === null ? null : EditorView.findFromDOM(root);
+    const info = codeMirror?.state.field(editorInfoField, false);
+    if (codeMirror === null || codeMirror.dom !== root || info?.editor === undefined || info.file == null) return null;
+    const matches: MarkdownView[] = [];
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.view instanceof MarkdownView && leaf.view.editor === info.editor && leaf.view.file === info.file
+        && leaf.view.containerEl.ownerDocument === widget.ownerDocument && leaf.view.containerEl.contains(root)) matches.push(leaf.view);
+    });
+    if (matches.length !== 1) return null;
+    const context = attachedEditorContext(this.app, info.editor, matches[0]);
+    if (context === null || context.view !== codeMirror) return null;
+    try {
+      const offset = codeMirror.posAtDOM(widget, 0);
+      const table = parseEditableTables(info.editor.getValue()).tables.find((candidate) => offset >= candidate.range.from && offset < candidate.range.to);
+      return table === undefined ? null : { ...context, table };
+    } catch {
+      // Without a mapped widget position, the current cursor proves nothing
+      // about which of several identical tables the user clicked.
+      return null;
     }
-    offsets.push(editor.posToOffset(editor.getCursor()));
-    for (const offset of offsets) {
-      const table = tables.find((candidate) => offset >= candidate.range.from && offset <= candidate.range.to);
-      if (table !== undefined) return table;
-    }
-    return null;
   }
 
   private applyMenuOperation(editor: Editor, expected: StructuralTable, operation: TableOperation): void {

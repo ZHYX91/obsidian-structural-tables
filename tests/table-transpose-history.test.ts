@@ -11,7 +11,7 @@ import { StructuralTablesPlugin } from "../src/app/plugin";
 import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { NativeTableMenuBridge } from "../src/editor/native-table-menu";
 import { clickLikeUser } from "./helpers/host-gestures";
-import { NativeCellEditorWidget } from "./helpers/native-cell-editor";
+import { NativeTableWidget } from "./helpers/native-table-widget";
 import { parseEditableTables } from "../src/core/parser";
 import { lastMenu, Menu, TFile } from "./mocks/obsidian";
 import { installSelectionChangeTasks } from "./mocks/selection-events";
@@ -74,15 +74,17 @@ describe("transpose editor entry history", () => {
       const offset = ORIGINAL.indexOf("North") + "North".length;
       cm.dispatch({ changes: { from: offset, insert: "X" }, selection: { anchor: offset + 1 }, annotations: Transaction.userEvent.of("input.type") });
       const beforeTranspose = cm.state.doc.toString();
-      const childWidget = nativeChild ? new NativeCellEditorWidget("NorthX") : null;
+      const childWidget = nativeChild || entry === "native-menu" ? new NativeTableWidget(parseEditableTables(beforeTranspose).tables[0]!, nativeChild) : null;
       if (childWidget !== null) {
         const table = parseEditableTables(beforeTranspose).tables[0]!;
         cm.dispatch({ effects: StateEffect.appendConfig.of(EditorView.decorations.of(Decoration.set([
           Decoration.replace({ widget: childWidget, block: true }).range(table.range.from, table.range.to),
         ]))) });
-        expect(childWidget.child!.state.field(editorInfoField).editor).toBe(editor);
-        expect(childWidget.child!.state.field(editorInfoField).file).toBe(file);
-        childWidget.child!.focus();
+        if (nativeChild) {
+          expect(childWidget.child!.state.field(editorInfoField).editor).toBe(editor);
+          expect(childWidget.child!.state.field(editorInfoField).file).toBe(file);
+          childWidget.child!.focus();
+        }
       }
       if (entry === "command") {
         plugin.registerCommands();
@@ -93,9 +95,7 @@ describe("transpose editor entry history", () => {
         editorMenu!(menu, editor, view);
         menu.items.find((item) => item.title === "Transpose whole table (swap rows and columns)")!.callback!();
       } else {
-        const native = containerEl.appendChild(document.createElement("div"));
-        native.className = "cm-table-widget";
-        native.innerHTML = "<table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>NorthX</td><td>1</td></tr></tbody></table>";
+        const native = cm.dom.querySelector<HTMLElement>(".cm-table-widget")!;
         new NativeTableMenuBridge(app, () => ({ ...DEFAULT_SETTINGS, language: "en" }), () => {}).register(component);
         native.querySelector("td")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2 }));
         lastMenu!.items.find((item) => item.title === "Transpose whole table (swap rows and columns)")!.callback!();

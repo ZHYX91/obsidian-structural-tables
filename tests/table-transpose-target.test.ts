@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import type { App, Editor } from "obsidian";
+import type { App, Editor, TFile as HostFile } from "obsidian";
 import { MarkdownView } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -85,7 +85,7 @@ describe("frozen transpose editor ownership", () => {
     const original = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
     const b = new TFile("B.md");
     f.files.set("B.md", b);
-    f.view.file = b;
+    f.view.file = b as unknown as HostFile;
     expect(original.isCurrent()).toBe(false);
     original.apply();
     expect(f.state.source()).toBe(SOURCE);
@@ -140,7 +140,7 @@ describe("frozen transpose editor ownership", () => {
     requestWholeTableTranspose(f.app, t, f.table, target);
     const b = new TFile("B.md");
     f.files.set(b.path, b);
-    f.view.file = b;
+    f.view.file = b as unknown as HostFile;
     const confirm = [...document.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent === "Transpose anyway");
     expect(confirm).toBeDefined();

@@ -1,6 +1,6 @@
-import { history, redo, undo, undoDepth } from "@codemirror/commands";
+import { history, historyKeymap, redo, undo, undoDepth } from "@codemirror/commands";
 import { EditorState, Transaction } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
 import { App, Component, MarkdownRenderer, MarkdownView, Menu, editorInfoField, editorLivePreviewField, type Editor, type EditorPosition, type TFile as HostFile } from "obsidian";
 
 import { DEFAULT_SETTINGS } from "../../src/config/settings";
@@ -38,6 +38,7 @@ let component: Component | null = null;
 let changes = 0;
 let pointers = 0;
 let beforeTranspose = "";
+let initialSource = "";
 let currentView: MarkdownView | null = null;
 let files = new Map<string, TFile>();
 
@@ -56,12 +57,12 @@ document.addEventListener("contextmenu", () => {
   });
 }, true);
 
-function reset(mode: "owned" | "source" | "native" | "popout-draft" | "focus" | "focus-after" | "focus-canceled"): void {
+function reset(mode: "owned" | "source" | "native" | "popout-source" | "popout-draft" | "focus" | "focus-after" | "focus-canceled"): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
   files = new Map(); component = new Component();
   const file = new TFile("A.md"); files.set(file.path, file);
-  const frame = mode === "popout-draft" ? document.body.appendChild(document.createElement("iframe")) : null;
+  const frame = mode.startsWith("popout-") ? document.body.appendChild(document.createElement("iframe")) : null;
   const doc = frame?.contentWindow?.document ?? document;
   const containerEl = doc.body.appendChild(doc.createElement("div")); containerEl.id = "target-note";
   const posToOffset = (position: EditorPosition): number => cm!.state.doc.line(position.line + 1).from + position.ch;
@@ -74,6 +75,7 @@ function reset(mode: "owned" | "source" | "native" | "popout-draft" | "focus" | 
     posToOffset, offsetToPos,
     replaceRange: (insert: string, from: EditorPosition, to: EditorPosition) => cm!.dispatch({ changes: { from: posToOffset(from), to: posToOffset(to), insert } }),
     setCursor: (position: EditorPosition) => cm!.dispatch({ selection: { anchor: posToOffset(position) } }),
+    undo: () => undo(cm!), redo: () => redo(cm!),
   } as unknown as Editor;
   const app = Object.assign(new App(), {
     vault: { getFileByPath: (path: string) => files.get(path) ?? null },
@@ -87,8 +89,9 @@ function reset(mode: "owned" | "source" | "native" | "popout-draft" | "focus" | 
   const settings = { ...DEFAULT_SETTINGS, language: "en" as const, takeOverOrdinaryTables: true };
   const controller = new StructuralTableEditorController(app, () => settings);
   const source = focus ? tall + (mode === "focus-after" ? "After the table." : "") : original;
+  initialSource = source;
   cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: source, extensions: [
-    history(), editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app, hoverPopover: null })), editorLivePreviewField.init(() => owned),
+    history(), keymap.of(historyKeymap), editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app, hoverPopover: null })), editorLivePreviewField.init(() => owned),
     controller.createExtension(), EditorView.updateListener.of((update) => { if (update.docChanged) changes += 1; }),
   ] }) });
   other = new EditorView({ parent: document.body.createDiv(), state: EditorState.create({ doc: "Other file stays.", extensions: [history()] }) });
@@ -99,7 +102,7 @@ function reset(mode: "owned" | "source" | "native" | "popout-draft" | "focus" | 
     cm.dispatch({ changes: { from: offset, insert: "X" }, selection: { anchor: owned ? 0 : offset + 1 }, annotations: Transaction.userEvent.of("input.type") });
   }
   beforeTranspose = cm.state.doc.toString(); changes = 0;
-  if (mode === "source" || mode === "popout-draft") {
+  if (mode === "source" || mode.startsWith("popout-")) {
     if (mode === "popout-draft") {
       const draft = containerEl.appendChild(doc.createElement("textarea")); draft.className = "structural-tables-cell-editor"; draft.value = "unsaved";
     }
@@ -123,7 +126,9 @@ function result() {
   const source = cm!.state.doc.toString();
   const table = document.querySelector<HTMLTableElement>(".structural-tables-live-preview table");
   return {
-    source, beforeTranspose, changes, pointers, undoDepth: undoDepth(cm!.state), otherSource: other!.state.doc.toString(),
+    source, initialSource, beforeTranspose, changes, pointers, undoDepth: undoDepth(cm!.state), otherSource: other!.state.doc.toString(),
+    editorFocused: cm!.dom.contains(cm!.dom.ownerDocument.activeElement),
+    contentFocused: cm!.dom.ownerDocument.activeElement === cm!.contentDOM,
     rowHeaders: parseEditableTables(source).tables[0]?.rowHeaderColumnCount ?? -1,
     confirmationVisible: [...document.querySelectorAll("button")].some((button) => button.textContent === "Transpose anyway"),
     selectedCells: document.querySelectorAll(".structural-tables-live-preview [aria-selected='true']").length,
@@ -134,4 +139,4 @@ function result() {
   };
 }
 
-(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, undo: () => undo(cm!), redo: () => redo(cm!) };
+(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result };

@@ -47,7 +47,7 @@ function editorState(initial = SOURCE) {
   };
 }
 
-function fixture(doc = document) {
+function fixture(doc = document, source = SOURCE) {
   const files = new Map<string, TFile>();
   const leaves: Array<{ view: MarkdownView }> = [];
   const app = {
@@ -61,14 +61,14 @@ function fixture(doc = document) {
   } as unknown as App;
   const file = new TFile("A.md");
   files.set(file.path, file);
-  const state = editorState();
+  const state = editorState(source);
   const containerEl = doc.body.appendChild(doc.createElement("div"));
   const view = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, {
     file, editor: state.editor, containerEl,
   });
   const cm = state.attach(containerEl, file);
   leaves.push({ view });
-  const table = parseEditableTables(SOURCE).tables[0]!;
+  const table = parseEditableTables(source).tables[0]!;
   return { app, file, files, leaves, state, view, table, containerEl, cm };
 }
 
@@ -99,11 +99,50 @@ describe("frozen transpose editor ownership", () => {
     clickLikeUser(confirm!);
     expect(f.state.writes()).toBe(1);
     expect(parseEditableTables(f.state.source()).tables[0]?.rowHeaderColumnCount).toBe(1);
+    expect(document.activeElement).toBe(f.cm.contentDOM);
+  });
+
+  it("restores focus to the captured editor in its own popout document", () => {
+    const frame = document.body.appendChild(document.createElement("iframe"));
+    const popup = frame.contentWindow!;
+    const f = fixture(popup.document);
+    const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
+    requestWholeTableTranspose(f.app, t, f.table, target);
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Transpose anyway")!;
+    clickLikeUser(confirm);
+    expect(f.state.writes()).toBe(1);
+    expect(popup.document.activeElement).toBe(f.cm.contentDOM);
+  });
+
+  it.each(["| --- |\n| one |", "| Name | Value |\n| --- | --- |"])("does not take focus for a no-op or refused transpose", (source) => {
+    const f = fixture(document, source);
+    const external = document.body.appendChild(document.createElement("button"));
+    external.focus();
+    const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
+    target.apply();
+    expect(f.state.writes()).toBe(0);
+    expect(f.state.source()).toBe(source);
+    expect(document.activeElement).toBe(external);
+  });
+
+  it("does not focus the captured editor when confirmation is canceled", () => {
+    const f = fixture();
+    const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
+    const focus = vi.spyOn(f.cm, "focus");
+    requestWholeTableTranspose(f.app, t, f.table, target);
+    const cancel = [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Cancel")!;
+    clickLikeUser(cancel);
+    expect(f.state.writes()).toBe(0);
+    expect(focus).not.toHaveBeenCalled();
   });
 
   it("rejects a view rebound to another file even when its Markdown bytes and offset are identical", () => {
     const f = fixture();
     const original = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
+    const external = document.body.appendChild(document.createElement("button"));
+    external.focus();
     const b = new TFile("B.md");
     f.files.set("B.md", b);
     f.view.file = b as unknown as HostFile;
@@ -111,6 +150,7 @@ describe("frozen transpose editor ownership", () => {
     original.apply();
     expect(f.state.source()).toBe(SOURCE);
     expect(f.state.replaceRange).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(external);
   });
 
   it("requires a verified CodeMirror editor and ignores byte-identical embedded decoys", () => {
@@ -172,6 +212,7 @@ describe("frozen transpose editor ownership", () => {
     const frame = document.body.appendChild(document.createElement("iframe"));
     const popup = frame.contentWindow!;
     const f = fixture(popup.document);
+    const focus = vi.spyOn(f.cm, "focus");
     const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
     expect(target.ownerDocument).toBe(popup.document);
     const draft = f.containerEl.appendChild(popup.document.createElement("textarea"));
@@ -181,10 +222,12 @@ describe("frozen transpose editor ownership", () => {
     expect(f.state.replaceRange).not.toHaveBeenCalled();
     expect(draft.value).toBe("unfinished");
     expect(notices[notices.length - 1]).toContain("active cell draft");
+    expect(focus).not.toHaveBeenCalled();
   });
 
   it("refuses a stale file after opening a modal, before the confirmation click", () => {
     const f = fixture();
+    const focus = vi.spyOn(f.cm, "focus");
     const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
     requestWholeTableTranspose(f.app, t, f.table, target);
     const b = new TFile("B.md");
@@ -197,5 +240,6 @@ describe("frozen transpose editor ownership", () => {
     expect(f.state.replaceRange).not.toHaveBeenCalled();
     expect(f.state.source()).toBe(SOURCE);
     expect(notices[notices.length - 1]).toContain("changed");
+    expect(focus).not.toHaveBeenCalled();
   });
 });

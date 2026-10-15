@@ -80,6 +80,9 @@ export function captureEditorTransposeTarget(
         // either side, even when confirmation follows the last keystroke.
         annotations: isolateHistory.of("full"),
       });
+      // The confirmation closes before applying and can leave focus on the
+      // document body. Return keyboard undo/redo to this verified editor.
+      codeMirror.focus();
     }
     new Notice(operationNotice(t, result.code));
   };

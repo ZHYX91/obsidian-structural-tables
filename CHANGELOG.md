@@ -3,7 +3,7 @@
 ## 0.7.0 - 2026-10-15
 
 - Add whole-table transpose to owned grids, source commands and menus, and native ordinary-table menus. Swap header roles and merged spans without losing content; confirm mixed-alignment resets and GFM compatibility changes, and refuse unrepresentable or stale targets and active drafts.
-- Keep each transpose separate from adjacent typing in host undo/redo history, including source and native menu entries.
+- Keep each transpose separate from adjacent typing in host undo/redo history, including source and native menu entries, and restore editor focus after confirmation so keyboard undo/redo works immediately.
 - Preserve merged-table rendering, source caret placement and scroll position when clicking below a focused or edited table.
 - Register native table menus in existing separate windows even when their initial view is not Markdown, and release listeners when cells, windows or the plugin close.
 

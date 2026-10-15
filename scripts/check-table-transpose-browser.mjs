@@ -101,10 +101,18 @@ try {
   };
   const select = (selector) => "document.querySelector(" + JSON.stringify(selector) + ")";
   const clickConfirm = () => click("Array.from(document.querySelectorAll('button')).find(x=>x.textContent==='Transpose anyway')");
+  const historyKey = async (redo = false) => {
+    const key = redo ? "y" : "z";
+    const code = redo ? "KeyY" : "KeyZ";
+    const windowsVirtualKeyCode = redo ? 89 : 90;
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode, modifiers: 2 });
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode, modifiers: 2 });
+    await settle();
+  };
   const results = [];
-  for (const mode of ["owned", "source", "native"]) {
+  for (const mode of ["owned", "source", "native", "popout-source"]) {
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
-    if (mode === "source") await click(select("#transpose-source"));
+    if (mode === "source" || mode === "popout-source") await click(select("#transpose-source"));
     else {
       await click(select(mode === "owned" ? "[data-structural-row='1'][data-structural-column='0']" : ".cm-table-widget td"), "right");
       await click(select("#transpose-menu-item"));
@@ -119,14 +127,20 @@ try {
     assert.equal(state.undoDepth, 2, JSON.stringify(state)); assert.equal(state.otherSource, "Other file stays.");
     assert.ok(state.source.startsWith("Before stays.\n\n") && state.source.endsWith("\n\nAfter stays."));
     assert.ok(state.pointers >= 2, "Real mouse input did not generate pointerdown");
+    assert.equal(state.editorFocused, true, JSON.stringify({ mode, ...state }));
+    if (mode !== "owned") assert.equal(state.contentFocused, true, JSON.stringify({ mode, ...state }));
     const transposed = state.source;
-    await evaluate("window.transposeBrowser.undo()"); await settle();
+    await historyKey();
+    state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, state.beforeTranspose, JSON.stringify({ mode, ...state }));
+    assert.equal(state.editorFocused, true, JSON.stringify(state));
+    if (mode !== "owned") assert.equal(state.contentFocused, true, JSON.stringify(state));
+    await historyKey();
+    state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, state.initialSource);
+    await historyKey(true);
     state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, state.beforeTranspose);
-    await evaluate("window.transposeBrowser.undo()"); await settle();
-    state = await evaluate("window.transposeBrowser.result()"); assert.ok(state.source.includes("North |"));
-    await evaluate("window.transposeBrowser.redo();window.transposeBrowser.redo()"); await settle();
+    await historyKey(true);
     state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, transposed);
-    results.push({ mode, writes: 1, undoRedo: true, pointerdowns: state.pointers });
+    results.push({ mode, writes: 1, keyboardUndoRedo: true, pointerdowns: state.pointers });
   }
 
   await evaluate("window.transposeBrowser.reset('source')"); await settle();
@@ -136,6 +150,7 @@ try {
   let state = await evaluate("window.transposeBrowser.result()");
   assert.equal(state.changes, 0, JSON.stringify(state));
   assert.equal(state.rowHeaders, 0, JSON.stringify(state));
+  assert.equal(state.editorFocused, false, JSON.stringify(state));
   assert.ok(state.notices.some((notice) => notice.includes("changed")), JSON.stringify(state));
   results.push({ mode: "rebound-file", writes: state.changes });
 

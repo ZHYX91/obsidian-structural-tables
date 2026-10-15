@@ -194,7 +194,12 @@ export class StructuralTablesPlugin extends Plugin {
       editorCallback: (editor, info) => {
         const current = this.currentTable(editor);
         if (current === null) return this.noTable();
-        if (!current.table.valid) { new Notice(current.table.diagnostics[0]?.message ?? "Invalid structural table."); return; }
+        if (!current.table.valid) {
+          const translator = createTranslator(this.settings.language);
+          const diagnostic = current.table.diagnostics[0];
+          new Notice(diagnostic === undefined ? translator("operation.tableInvalid") : diagnosticNotice(translator, diagnostic));
+          return;
+        }
         this.exportImage(editor, () => info, current.table);
       },
     }));
@@ -240,7 +245,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.localizedCommands.push(this.addCommand({
       id: "copy-current-table-as-html",
       name: t("command.copyHtml"),
-      editorCallback: (editor, context) => this.copyCurrentTable(editor, "HTML", context.file?.path ?? ""),
+      editorCallback: (editor, context) => this.copyCurrentTable(editor, "HTML", context.file?.path ?? "", context instanceof MarkdownView ? context.containerEl : undefined),
     }));
     this.localizedCommands.push(this.addCommand({
       id: "copy-current-table-as-plain-gfm",
@@ -350,6 +355,7 @@ export class StructuralTablesPlugin extends Plugin {
         addSelectionMenuItems(
           menu, t, selection,
           (operation) => this.applyMenuOperation(editor, selection.table, operation),
+          { direction: info instanceof MarkdownView && info.containerEl.ownerDocument.defaultView?.getComputedStyle(info.containerEl).direction === "rtl" ? "rtl" : "ltr" },
         );
       }
       if (current === null || !current.table.valid) return;
@@ -449,13 +455,13 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private formatCurrent(editor: Editor, sourceFile: TFile | null): void {
+    const t = createTranslator(this.settings.language);
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
     if (!current.table.valid) {
-      new Notice(current.table.diagnostics[0]?.message ?? "Invalid structural table.");
+      new Notice(current.table.diagnostics[0] === undefined ? t("operation.tableInvalid") : diagnosticNotice(t, current.table.diagnostics[0]));
       return;
     }
-    const t = createTranslator(this.settings.language);
     if (this.blockUnsafeTableWrite(current.table)) return;
     const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
     if (targetIsCurrent === null) {
@@ -464,6 +470,7 @@ export class StructuralTablesPlugin extends Plugin {
     }
     const source = serializeStructuralTable(current.table);
     new ConversionPreviewModal(this.app, {
+      language: t.locale ?? "en",
       title: t("modal.format.title"),
       description: t("modal.format.desc"),
       source,
@@ -485,13 +492,15 @@ export class StructuralTablesPlugin extends Plugin {
     }).open();
   }
 
-  private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = ""): void {
+  private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = "", contextElement?: HTMLElement): void {
+    const t = createTranslator(this.settings.language);
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
     if (!current.table.valid) {
-      new Notice(current.table.diagnostics[0]?.message ?? "Invalid structural table.");
+      new Notice(current.table.diagnostics[0] === undefined ? t("operation.tableInvalid") : diagnosticNotice(t, current.table.diagnostics[0]));
       return;
     }
+    const direction = contextElement?.ownerDocument.defaultView?.getComputedStyle(contextElement).direction === "rtl" ? "rtl" : "ltr";
     const write = Promise.resolve().then(async () => {
       if (format === "HTML") {
         const { html, text } = await renderTableClipboard(
@@ -499,6 +508,7 @@ export class StructuralTablesPlugin extends Plugin {
           current.table,
           sourcePath,
           this.settings.appearance,
+          direction,
         );
         return copyHtml(html, text);
       }
@@ -515,13 +525,13 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private previewPlainGfmConversion(editor: Editor, sourceFile: TFile | null): void {
+    const t = createTranslator(this.settings.language);
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
     if (!current.table.valid) {
-      new Notice(current.table.diagnostics[0]?.message ?? "Invalid structural table.");
+      new Notice(current.table.diagnostics[0] === undefined ? t("operation.tableInvalid") : diagnosticNotice(t, current.table.diagnostics[0]));
       return;
     }
-    const t = createTranslator(this.settings.language);
     if (this.blockUnsafeTableWrite(current.table)) return;
     const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
     if (targetIsCurrent === null) {
@@ -531,6 +541,7 @@ export class StructuralTablesPlugin extends Plugin {
     try {
       const source = withSourcePrefix(structuralTableToPlainGfm(current.table), current.table.sourcePrefix);
       new ConversionPreviewModal(this.app, {
+        language: t.locale ?? "en",
         title: t("modal.convertGfm.title"),
         description: t("modal.convertGfm.desc"),
         source,
@@ -608,6 +619,7 @@ export class StructuralTablesPlugin extends Plugin {
         this.app,
         prepared,
         {
+          language: t.locale ?? "en",
           title: t(expandsStructure ? "modal.promoteBase.structuralTitle" : "modal.promoteBase.title"),
           description: t(expandsStructure ? "modal.promoteBase.structuralDesc" : "modal.promoteBase.desc"),
           target: t("modal.promoteBase.target"),
@@ -654,6 +666,7 @@ export class StructuralTablesPlugin extends Plugin {
       const source = await service.restorationSource(metadata);
       target.assertCurrent();
       new ConversionPreviewModal(this.app, {
+        language: t.locale ?? "en",
         title: t("modal.restoreBase.title"),
         description: t("modal.restoreBase.desc"),
         source,
@@ -691,6 +704,7 @@ export class StructuralTablesPlugin extends Plugin {
         this.app,
         prepared,
         {
+          language: t.locale ?? "en",
           title: t("modal.migrateBaseProperties.title"),
           description: t("modal.migrateBaseProperties.desc"),
           membershipNotes: t("modal.migrateBaseProperties.membershipNotes"),

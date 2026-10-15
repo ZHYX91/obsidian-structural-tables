@@ -1117,7 +1117,8 @@ class StructuralTableInteraction {
     };
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
-    const menuOptions = { fullEditor: true, explicitRemoval: true } as const;
+    const direction = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl" ? "rtl" : "ltr";
+    const menuOptions = { fullEditor: true, explicitRemoval: true, direction } as const;
     const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => this.applyMenuOperation(
       view,
       operation,
@@ -1168,7 +1169,7 @@ class StructuralTableInteraction {
     menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }
-      void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance)
+      void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance, direction)
         .then(({ html, text }) => copyHtml(html, text))
         .then((mode) => { new Notice(mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", "HTML")); })
         .catch(() => { new Notice(t("notice.clipboardFailed")); });
@@ -1590,8 +1591,11 @@ class StructuralTableInteraction {
       const rtl = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl";
       const backwardKey = rtl ? "ArrowRight" : "ArrowLeft";
       const forwardKey = rtl ? "ArrowLeft" : "ArrowRight";
+      // Logical textarea offsets cannot establish a visual edge for mixed bidi
+      // runs. Keep native text navigation there; Tab still moves between cells.
+      const horizontalExit = !rtl && !/[\u0590-\u08ff\u200e-\u200f\u202a-\u202e\u2066-\u2069\ufb1d-\ufdff\ufe70-\ufeff]/u.test(editor.value);
 
-      if (noModifier && collapsed && event.key === backwardKey && editor.selectionStart === 0) {
+      if (horizontalExit && noModifier && collapsed && event.key === backwardKey && editor.selectionStart === 0) {
         const previous = this.adjacentCell(anchor, "backward");
         if (previous !== null) {
           event.preventDefault();
@@ -1600,7 +1604,7 @@ class StructuralTableInteraction {
         }
         return;
       }
-      if (noModifier && collapsed && event.key === forwardKey && editor.selectionEnd === editor.value.length) {
+      if (horizontalExit && noModifier && collapsed && event.key === forwardKey && editor.selectionEnd === editor.value.length) {
         const next = this.adjacentCell(anchor, "forward");
         if (next !== null) {
           event.preventDefault();

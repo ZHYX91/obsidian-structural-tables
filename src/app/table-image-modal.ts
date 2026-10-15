@@ -1,6 +1,6 @@
 import { App, Modal, Platform, type EventRef } from "obsidian";
 
-import type { Translate } from "../config/i18n";
+import { applyInterfaceLocale, type Translate } from "../config/i18n";
 import { renderTableImage, TableImageError, type TableImage, type TableImageRequest } from "../rendering/table-image";
 
 export interface TableImageModalOptions extends Omit<TableImageRequest, "document" | "signal"> {
@@ -47,6 +47,7 @@ export class TableImageModal extends Modal {
 
   override onOpen(): void {
     const { t } = this.options;
+    applyInterfaceLocale(this.modalEl ?? this.contentEl, t);
     this.setTitle(t("image.title"));
     this.contentEl.classList.add("structural-tables-image-modal");
     this.contentEl.createEl("p", { text: t("image.description") });

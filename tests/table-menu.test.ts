@@ -71,8 +71,8 @@ describe("table menus", () => {
   });
 
   it.each([
-    ["en", "Remove row-header columns from the whole table"],
-    ["zh-CN", "取消整表行标题列"],
+    ["en", "Stop using columns as row headers"],
+    ["zh-CN", "取消整张表格的行标题设置"],
   ] as const)("names whole-table row-header removal when a non-header column is selected (%s)", (language, title) => {
     const table = parseStructuralTables("| Region | Name | Qty |\n| --- || --- | --- |\n| West | A | 2 |").tables[0]!;
     const selection = structuralTableSelectionFromBounds(table, { row: 0, column: 2 }, { row: 1, column: 2 })!;

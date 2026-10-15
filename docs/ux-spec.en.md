@@ -15,7 +15,7 @@ translation_of: ux-spec.zh-CN.md
 <!-- section: principles -->
 ## Principles
 
-Source remains visible and recoverable; rendering interprets but never rewrites; unintended loss of unselected or hidden content is refused. Explicit clear/remove actions may discard the selected visible content, while guarded legacy operations keep their loss-prevention contract.
+Source remains visible and recoverable; rendering interprets but never rewrites; unintended loss of unselected or hidden content is refused. Explicit clear/remove actions may discard the selected visible content, while other editing operations continue to check for unintended content loss.
 
 <!-- section: live-preview -->
 ## Live Preview
@@ -157,9 +157,9 @@ Owned Live Preview menus group actions in this order: selected-cell Copy/Cut/Pas
 
 Column alignment shows a check only when all selected columns have that alignment; mixed alignment has no check. Header-role actions omit setting the current number of header rows or columns, while eligible header removal remains available. Opening a menu freezes the logical selection; activation revalidates it before acting.
 
-A rectangular multi-cell selection can merge; a single merged cell can split. Refuse a merge when non-top-left cells contain data, when the selection crosses roles, or when it includes only part of an existing merge.
+A rectangular multi-cell selection can merge; a single merged cell can split. Refuse a merge when cells other than the first in source order contain data, when the selection crosses roles, or when it includes only part of an existing merge.
 
-Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole left-side columns can set row-header roles. With a complete column selected, **Remove row-header columns from the whole table** removes all row-header roles while preserving every cell's content.
+Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole columns from the start of source-column order can become row headers. With a complete column selected, **Stop using columns as row headers** removes all row-header roles while preserving every cell's content.
 
 Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled; the plugin contributes its applicable items. Reading View keeps its brief whole-table PNG entry.
 
@@ -175,9 +175,13 @@ Use native Obsidian controls with **General**, **Views**, and **Appearance** tab
 
 ### General
 
-- language: Follow Obsidian, English, Simplified Chinese;
+- language: Follow Obsidian, English, 简体中文, 繁體中文, 日本語, Deutsch, Español, العربية;
 - HTML-table paste conversion;
 - warnings about overlapping table-plugin syntax.
+
+Resolve automatic language from Obsidian's language ID, distinguishing Simplified and Traditional Chinese; unsupported host languages use English. Keep saved `auto`, `en`, and `zh-CN` values compatible. Show native language names. Arabic plugin settings and dialogs use RTL while other supported plugin languages use LTR, independently of note direction. Isolate paths, numbers, and code inside translated RTL messages; keep source previews in source order.
+
+Tables inherit the note's direction. The first source columns are the row headers on the leading side: left in LTR, right in RTL. UI language and individual cell contents never reorder columns or reinterpret `<`, `^`, or `||`. Physical left/right menu actions and grid arrows follow the table's direction; explicit left/right alignment remains physical. Draft arrows stay native when bidirectional text makes visual edges uncertain; Tab and Shift+Tab still move between cells.
 
 ### Views
 

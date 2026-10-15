@@ -39,6 +39,7 @@ let changes = 0;
 let pointers = 0;
 let beforeTranspose = "";
 let initialSource = "";
+let interfaceLanguage: "en" | "ar" = "en";
 let currentView: MarkdownView | null = null;
 let files = new Map<string, TFile>();
 
@@ -49,15 +50,20 @@ document.addEventListener("contextmenu", () => {
   setTimeout(() => {
     document.querySelector("#host-menu")?.remove();
     const menu = lastMenu;
-    const item = menu?.items.find((candidate) => candidate.title === "Transpose whole table (swap rows and columns)");
-    if (item === undefined) return;
+    const t = createTranslator(interfaceLanguage);
+    const actions = [["transpose-menu-item", "menu.transposeTable"], ["menu-insert-left", "menu.insertColumnLeft"],
+      ["menu-insert-right", "menu.insertColumnRight"], ["menu-move-left", "menu.moveColumnsLeft"], ["menu-move-right", "menu.moveColumnsRight"]] as const;
     const wrapper = document.body.createDiv(); wrapper.id = "host-menu";
-    const button = wrapper.createEl("button", { text: item.title }); button.id = "transpose-menu-item";
-    button.onclick = () => { item.callback?.(); menu?.hide(); wrapper.remove(); };
+    for (const [id, key] of actions) {
+      const item = menu?.items.find((candidate) => candidate.title === t(key));
+      if (item === undefined) continue;
+      const button = wrapper.createEl("button", { text: item.title }); button.id = id; button.style.display = "block";
+      button.onclick = () => { item.callback?.(); menu?.hide(); wrapper.remove(); };
+    }
   });
 }, true);
 
-function reset(mode: "owned" | "source" | "native" | "popout-source" | "popout-draft" | "focus" | "focus-after" | "focus-canceled"): void {
+function reset(mode: "owned" | "source" | "native" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled"): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
   files = new Map(); component = new Component();
@@ -65,6 +71,9 @@ function reset(mode: "owned" | "source" | "native" | "popout-source" | "popout-d
   const frame = mode.startsWith("popout-") ? document.body.appendChild(document.createElement("iframe")) : null;
   const doc = frame?.contentWindow?.document ?? document;
   const containerEl = doc.body.appendChild(doc.createElement("div")); containerEl.id = "target-note";
+  const bidi = mode === "rtl" || mode.startsWith("ltr-") || mode === "rtl-ascii-draft";
+  containerEl.dir = mode.startsWith("rtl") ? "rtl" : "ltr";
+  interfaceLanguage = mode.startsWith("ltr-") ? "ar" : "en";
   const posToOffset = (position: EditorPosition): number => cm!.state.doc.line(position.line + 1).from + position.ch;
   const offsetToPos = (offset: number): EditorPosition => {
     const line = cm!.state.doc.lineAt(offset); return { line: line.number - 1, ch: offset - line.from };
@@ -84,11 +93,13 @@ function reset(mode: "owned" | "source" | "native" | "popout-source" | "popout-d
       on: () => ({}),
     },
   }) as unknown as App;
-  const owned = ["owned", "focus", "focus-after", "focus-canceled"].includes(mode);
+  const owned = bidi || ["owned", "focus", "focus-after", "focus-canceled"].includes(mode);
   const focus = mode.startsWith("focus");
-  const settings = { ...DEFAULT_SETTINGS, language: "en" as const, takeOverOrdinaryTables: true };
+  const settings = { ...DEFAULT_SETTINGS, language: interfaceLanguage, takeOverOrdinaryTables: true };
   const controller = new StructuralTableEditorController(app, () => settings);
-  const source = focus ? tall + (mode === "focus-after" ? "After the table." : "") : original;
+  const value = mode === "ltr-arabic-draft" || mode === "ltr-arabic" ? "مرحبا" : mode === "ltr-mixed-draft" ? "ABC مرحبا 123" : "ABC";
+  const source = focus ? tall + (mode === "focus-after" ? "After the table." : "") : bidi
+    ? `Before stays.\n\n| Region | A | B | C |\n| --- || --- | --- | --- |\n| North | ${value} | Two | Three |\n| South | Four | Five | Six |\n\nAfter stays.` : original;
   initialSource = source;
   cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: source, extensions: [
     history(), keymap.of(historyKeymap), editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app, hoverPopover: null })), editorLivePreviewField.init(() => owned),
@@ -125,11 +136,18 @@ function switchFile(): void {
 function result() {
   const source = cm!.state.doc.toString();
   const table = document.querySelector<HTMLTableElement>(".structural-tables-live-preview table");
+  const draft = document.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor");
+  const active = cm!.dom.ownerDocument.activeElement as HTMLElement | null;
   return {
     source, initialSource, beforeTranspose, changes, pointers, undoDepth: undoDepth(cm!.state), otherSource: other!.state.doc.toString(),
     editorFocused: cm!.dom.contains(cm!.dom.ownerDocument.activeElement),
     contentFocused: cm!.dom.ownerDocument.activeElement === cm!.contentDOM,
     rowHeaders: parseEditableTables(source).tables[0]?.rowHeaderColumnCount ?? -1,
+    tableDirection: table === null ? null : getComputedStyle(table).direction,
+    rowValues: parseEditableTables(source).tables[0]?.rows[1]?.cells.map((cell) => cell.content),
+    cellLefts: [0, 1, 2, 3].map((column) => table?.querySelector(`[data-structural-row="1"][data-structural-column="${column}"]`)?.getBoundingClientRect().left ?? null),
+    activeColumn: active?.dataset.structuralColumn ?? active?.closest<HTMLElement>("[data-structural-column]")?.dataset.structuralColumn,
+    draftStart: draft?.selectionStart, draftEnd: draft?.selectionEnd, draftValue: draft?.value,
     confirmationVisible: [...document.querySelectorAll("button")].some((button) => button.textContent === "Transpose anyway"),
     selectedCells: document.querySelectorAll(".structural-tables-live-preview [aria-selected='true']").length,
     draft: document.querySelector("textarea.structural-tables-cell-editor") !== null,

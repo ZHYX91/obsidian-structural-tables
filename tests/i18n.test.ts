@@ -1,8 +1,58 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment happy-dom
 
-import { createTranslator, operationNotice, withCount } from "../src/config/i18n";
+import * as host from "obsidian";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { applyInterfaceLocale, createTranslator, operationNotice, TRANSLATIONS, withCount } from "../src/config/i18n";
+import { LOCALES, resolveLocale, sanitizeInterfaceLanguage } from "../src/config/locale";
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("i18n", () => {
+  it.each([
+    ["en-GB", "en"], ["zh", "zh-CN"], ["zh-CN", "zh-CN"], ["zh-SG", "zh-CN"],
+    ["zh-TW", "zh-TW"], ["zh-HK", "zh-TW"], ["zh-MO", "zh-TW"], ["zh_Hant_HK", "zh-TW"],
+    ["zh-Hans-HK", "zh-CN"], ["ja-JP", "ja"], ["de-AT", "de"], ["es-419", "es"], ["ar-SA", "ar"],
+    ["", "en"], ["fr", "en"], ["arbitrary", "en"],
+  ] as const)("resolves Obsidian %s to %s", (input, expected) => {
+    vi.spyOn(host, "getLanguage").mockReturnValue(input);
+    expect(resolveLocale("auto", input)).toBe(expected);
+    expect(createTranslator("auto").locale).toBe(expected);
+    expect(createTranslator("auto")("transpose.confirmTitle")).toBe(createTranslator(expected)("transpose.confirmTitle"));
+    expect(resolveLocale("en", input)).toBe("en");
+  });
+
+  it("keeps every catalog complete with the same placeholders", () => {
+    const keys = Object.keys(TRANSLATIONS.en).sort();
+    const placeholders = (text: string): string[] => [...text.matchAll(/\{[a-zA-Z]+\}/gu)].map((match) => match[0]).sort();
+    expect(Object.keys(TRANSLATIONS).sort()).toEqual(LOCALES.map((locale) => locale.id).sort());
+    for (const catalog of Object.values(TRANSLATIONS)) {
+      expect(Object.keys(catalog).sort()).toEqual(keys);
+      for (const key of keys as Array<keyof typeof TRANSLATIONS.en>) {
+        expect(catalog[key].trim(), key).not.toBe("");
+        expect(placeholders(catalog[key]), key).toEqual(placeholders(TRANSLATIONS.en[key]));
+      }
+    }
+  });
+
+  it("accepts saved supported IDs and safely resets unrecognized settings to automatic", () => {
+    for (const locale of LOCALES) expect(sanitizeInterfaceLanguage(locale.id)).toBe(locale.id);
+    for (const value of ["auto", undefined, null, {}, "ar-SA", "fr", "zh"]) expect(sanitizeInterfaceLanguage(value)).toBe("auto");
+  });
+
+  it("localizes the interface independently of table direction and isolates RTL substitutions", () => {
+    const note = document.createElement("div"); note.dir = "ltr";
+    const table = note.appendChild(document.createElement("table")); table.textContent = "مرحبا ABC";
+    const surface = document.createElement("div");
+    applyInterfaceLocale(surface, createTranslator("ar"));
+    expect(surface.getAttribute("lang")).toBe("ar"); expect(surface.getAttribute("dir")).toBe("rtl");
+    expect(note.dir).toBe("ltr"); expect(table.hasAttribute("dir")).toBe(false);
+    const path = "Folder/تقرير-ABC.md";
+    expect(createTranslator("ar")("image.saved").replace("{path}", path)).toContain(`\u2068${path}\u2069`);
+    applyInterfaceLocale(surface, createTranslator("en")); expect(surface.getAttribute("dir")).toBe("ltr");
+    applyInterfaceLocale(surface, (key) => key); expect(surface.getAttribute("lang")).toBe("en");
+  });
+
   it("labels automatic language as following Obsidian", () => {
     expect(createTranslator("auto")("settings.language.auto")).toBe("Follow Obsidian");
     expect(createTranslator("zh-CN")("settings.language.auto")).toBe("跟随 Obsidian");

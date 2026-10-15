@@ -1,6 +1,6 @@
 import { App, Modal, Notice, Setting } from "obsidian";
 
-import { operationNotice, type Translate } from "../config/i18n";
+import { applyInterfaceLocale, operationNotice, type Translate } from "../config/i18n";
 import type { StructuralTable } from "../core/model";
 import { planTransposeTable, type TableTransposePlan } from "../core/operations";
 
@@ -16,6 +16,7 @@ export class TableTransposeModal extends Modal {
   }
 
   override onOpen(): void {
+    applyInterfaceLocale(this.modalEl ?? this.contentEl, this.t);
     this.setTitle(this.t("transpose.confirmTitle"));
     if (this.plan.resetsColumnAlignment) {
       this.contentEl.createEl("p", { text: this.t("transpose.alignmentWarning") });

@@ -86,6 +86,17 @@
 .structural-tables-image-preview img { display: block; max-width: 100%; height: auto; }
 .structural-tables-image-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
+/* Interface language never changes source previews or a note's table direction. */
+[data-structural-interface] pre {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+}
+
+[data-structural-interface] :is(code, .structural-tables-recovered-draft) {
+  unicode-bidi: isolate;
+}
+
 
 .structural-tables-live-preview {
   --structural-table-handle-gutter: 1.25rem;

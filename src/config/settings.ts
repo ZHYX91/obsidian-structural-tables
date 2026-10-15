@@ -1,4 +1,6 @@
-export type InterfaceLanguage = "auto" | "en" | "zh-CN";
+import { sanitizeInterfaceLanguage, type InterfaceLanguage } from "./locale";
+
+export type { InterfaceLanguage } from "./locale";
 export type TableDensity = "theme" | "comfortable" | "compact";
 export type TableLayout = "theme" | "content-left" | "content-center" | "pane";
 export type TableAppearance = "theme" | "grid" | "three-line";
@@ -71,7 +73,7 @@ function sanitizeLayout(source: Record<string, unknown>): TableLayout {
 export function sanitizeSettings(data: unknown): StructuralTablesSettings {
   const source = isRecord(data) ? data : {};
   return {
-    language: source.language === "en" || source.language === "zh-CN" ? source.language : "auto",
+    language: sanitizeInterfaceLanguage(source.language),
     convertHtmlTablePaste: source.convertHtmlTablePaste !== false,
     warnPluginConflicts: source.warnPluginConflicts !== false,
     enableReadingView: source.enableReadingView !== false,

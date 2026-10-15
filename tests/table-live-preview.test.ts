@@ -2875,6 +2875,29 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it.each([
+    ["rtl", "ABC"], ["ltr", "مرحبا"], ["ltr", "ABC مرحبا 123"],
+  ])("keeps horizontal %s draft navigation native for %s", (direction, content) => {
+    const source = `| H1 | H2 |\n| --- || --- |\n| North | ${content} |`;
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      parent.querySelector<HTMLTableElement>("table")!.style.direction = direction!;
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      for (const offset of [0, editor.value.length]) {
+        editor.setSelectionRange(offset, offset);
+        for (const key of ["ArrowLeft", "ArrowRight"]) {
+          const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+          editor.dispatchEvent(event);
+          expect(event.defaultPrevented).toBe(false);
+          expect(editor.isConnected).toBe(true);
+          expect(view.state.doc.toString()).toBe(source);
+        }
+      }
+    } finally { view.destroy(); }
+  });
+
   it("moves across horizontal draft boundaries but preserves internal caret and text selection", async () => {
     const source = "| H1 | H2 |\n| --- || --- |\n| North | South |";
     const { parent, view } = mountEditor(source, { anchor: source.length });

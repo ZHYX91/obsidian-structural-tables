@@ -109,6 +109,11 @@ try {
     await command("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode, modifiers: 2 });
     await settle();
   };
+  const key = async (name, code = name, windowsVirtualKeyCode = 0) => {
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: name, code, windowsVirtualKeyCode });
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code, windowsVirtualKeyCode });
+    await settle();
+  };
   const results = [];
   for (const mode of ["owned", "source", "native", "popout-source"]) {
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
@@ -161,6 +166,65 @@ try {
   assert.equal(state.confirmationVisible, false, JSON.stringify(state));
   assert.ok(state.notices.some((notice) => notice.includes("active cell draft")), JSON.stringify(state));
   results.push({ mode: "popout-draft", writes: state.changes });
+  for (const mode of ["rtl", "ltr-arabic"]) {
+    await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
+    state = await evaluate("window.transposeBrowser.result()");
+    assert.equal(state.tableDirection, mode === "rtl" ? "rtl" : "ltr", JSON.stringify(state));
+    assert.ok(mode === "rtl" ? state.cellLefts[0] > state.cellLefts[3] : state.cellLefts[0] < state.cellLefts[3], JSON.stringify(state));
+    assert.equal(state.rowHeaders, 1);
+    const before = state.source;
+    await click(select("[data-structural-row='1'][data-structural-column='1']"), "right");
+    await click(select("#menu-move-left"));
+    state = await evaluate("window.transposeBrowser.result()");
+    if (mode === "rtl") assert.deepEqual(state.rowValues.slice(1), ["Two", "ABC", "Three"]);
+    else assert.equal(state.source, before, "A physical left move cannot cross the row-header boundary");
+    if (mode === "rtl") {
+      await historyKey(); state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, before);
+      await key("ArrowLeft", "ArrowLeft", 37);
+      state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.activeColumn, "2", JSON.stringify(state));
+      await key("ArrowRight", "ArrowRight", 39);
+      state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.activeColumn, "1", JSON.stringify(state));
+    }
+    results.push({ mode, leadingHeaders: true, physicalMenu: true, sourcePreserved: true });
+  }
+  for (const [action, column, expected] of [
+    ["insert-left", 1, ["NorthX", "ABC", "", "Two", "Three"]],
+    ["insert-right", 1, ["NorthX", "", "ABC", "Two", "Three"]],
+    ["move-right", 2, ["NorthX", "Two", "ABC", "Three"]],
+  ]) {
+    await evaluate("window.transposeBrowser.reset('rtl')"); await settle();
+    const before = await evaluate("window.transposeBrowser.result().source");
+    await click(select("[data-structural-row='1'][data-structural-column='" + column + "']"), "right");
+    await click(select("#menu-" + action));
+    state = await evaluate("window.transposeBrowser.result()"); assert.deepEqual(state.rowValues, expected);
+    await historyKey(); state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, before);
+    results.push({ mode: "rtl-" + action, physicalMenu: true, keyboardUndo: true });
+  }
+  await evaluate("window.transposeBrowser.reset('rtl')"); await settle();
+  const beforeRtlTranspose = await evaluate("window.transposeBrowser.result().source");
+  await click(select("[data-structural-row='1'][data-structural-column='1']"), "right");
+  await click(select("#transpose-menu-item"));
+  const rtlTransposed = await evaluate("window.transposeBrowser.result().source");
+  assert.notEqual(rtlTransposed, beforeRtlTranspose);
+  await historyKey(); state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, beforeRtlTranspose);
+  await historyKey(true); state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.source, rtlTransposed);
+  results.push({ mode: "rtl-transpose", keyboardUndoRedo: true });
+  for (const mode of ["rtl-ascii-draft", "ltr-arabic-draft", "ltr-mixed-draft"]) {
+    await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
+    await evaluate("(function(){const table=document.querySelector('.structural-tables-table');const cell=table.querySelector('[data-structural-row=\"1\"][data-structural-column=\"1\"] .structural-tables-cell-content');const probe=document.createElement('textarea');probe.id='native-caret-probe';probe.value=cell.textContent;probe.dir=getComputedStyle(table).direction;document.body.append(probe);probe.focus();probe.setSelectionRange(0,0);})()");
+    await key("ArrowRight", "ArrowRight", 39);
+    const nativeCaret = await evaluate("(function(){const probe=document.querySelector('#native-caret-probe');const result=[probe.selectionStart,probe.selectionEnd];probe.remove();return result;})()");
+    await click(select("[data-structural-row='1'][data-structural-column='1']"));
+    await evaluate("document.querySelector('textarea.structural-tables-cell-editor').setSelectionRange(0,0)");
+    const before = await evaluate("window.transposeBrowser.result().source");
+    await key("ArrowRight", "ArrowRight", 39);
+    state = await evaluate("window.transposeBrowser.result()");
+    assert.equal(state.draft, true, JSON.stringify(state)); assert.equal(state.activeColumn, "1", JSON.stringify(state));
+    assert.deepEqual([state.draftStart, state.draftEnd], nativeCaret, JSON.stringify(state));
+    assert.equal(state.source, before); assert.equal(state.changes, 0);
+    await key("Escape", "Escape", 27);
+    results.push({ mode, nativeCaret: true, sourcePreserved: true });
+  }
   for (const mode of ["focus", "focus-after", "focus-canceled"]) {
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
     await click(select("[data-structural-row='22'][data-structural-column='4']"));

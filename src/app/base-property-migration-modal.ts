@@ -1,8 +1,11 @@
 import { App, Modal, Setting } from "obsidian";
+import { applyInterfaceLocale } from "../config/i18n";
+import type { LocaleId } from "../config/locale";
 
 import type { PreparedBasePropertyMigration } from "./base-property-migration-service";
 
 export interface BasePropertyMigrationLabels {
+  language?: LocaleId;
   title: string;
   description: string;
   membershipNotes: string;
@@ -52,6 +55,7 @@ export class BasePropertyMigrationModal extends Modal {
   }
 
   override onOpen(): void {
+    applyInterfaceLocale(this.modalEl ?? this.contentEl, this.labels.language);
     let removeLegacyRecordIds = false;
     this.setTitle(this.labels.title);
     this.contentEl.createEl("p", { text: this.labels.description });

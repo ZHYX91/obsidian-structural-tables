@@ -62,6 +62,8 @@ interface SelectionMenuState {
 }
 
 export interface SelectionMenuOptions {
+  /** Physical left/right actions follow the table, independently of UI locale. */
+  direction?: "ltr" | "rtl";
   fullEditor?: boolean;
   explicitRemoval?: boolean;
 }
@@ -130,6 +132,7 @@ export function addSelectionEditingMenuItems(
   options: SelectionMenuOptions = {},
 ): void {
   const state = selectionMenuState(selection, options);
+  const rtl = options.direction === "rtl";
   addSelectionStructureMenuItems(menu, t, selection, apply, state);
   if (state.fullEditor) {
     menu.addItem((item) => item
@@ -163,43 +166,46 @@ export function addSelectionEditingMenuItems(
 
     menu.addItem((item) => item
       .setSection("structural-tables-column")
-      .setIcon("arrow-left-to-line")
+      .setIcon("columns-3")
       .setTitle(t("menu.insertColumnLeft"))
-      .onClick(() => apply((current) => insertTableColumn(current, selection.minColumn, "before"))));
+      .onClick(() => apply((current) => insertTableColumn(current, rtl ? selection.maxColumn : selection.minColumn, rtl ? "after" : "before"))));
     menu.addItem((item) => item
       .setSection("structural-tables-column")
-      .setIcon("arrow-right-to-line")
+      .setIcon("columns-3")
       .setTitle(t("menu.insertColumnRight"))
-      .onClick(() => apply((current) => insertTableColumn(current, selection.maxColumn, "after"))));
+      .onClick(() => apply((current) => insertTableColumn(current, rtl ? selection.minColumn : selection.maxColumn, rtl ? "before" : "after"))));
     menu.addItem((item) => item
       .setSection("structural-tables-column")
-      .setIcon("arrow-left")
+      .setIcon("columns-3")
       .setTitle(t("menu.moveColumnsLeft"))
-      .onClick(() => apply((current) => moveTableColumns(current, selection.minColumn, selection.maxColumn, "backward"))));
+      .onClick(() => apply((current) => moveTableColumns(current, selection.minColumn, selection.maxColumn, rtl ? "forward" : "backward"))));
     menu.addItem((item) => item
       .setSection("structural-tables-column")
-      .setIcon("arrow-right")
+      .setIcon("columns-3")
       .setTitle(t("menu.moveColumnsRight"))
-      .onClick(() => apply((current) => moveTableColumns(current, selection.minColumn, selection.maxColumn, "forward"))));
+      .onClick(() => apply((current) => moveTableColumns(current, selection.minColumn, selection.maxColumn, rtl ? "backward" : "forward"))));
     const alignments = [
       ["default", "menu.alignDefault", "align-horizontal-space-around"],
-      ["left", "menu.alignLeft", "align-left"],
+      ["left", "menu.alignLeft", null],
       ["center", "menu.alignCenter", "align-center"],
-      ["right", "menu.alignRight", "align-right"],
+      ["right", "menu.alignRight", null],
     ] as const;
     const selectedAlignments = selection.table.alignments.slice(selection.minColumn, selection.maxColumn + 1);
     for (const [alignment, title, icon] of alignments) {
-      menu.addItem((item) => item
-        .setSection("structural-tables-column")
-        .setIcon(icon)
-        .setTitle(t(title))
-        .setChecked(selectedAlignments.every((current) => current === alignment))
-        .onClick(() => apply((current) => alignTableColumns(
-          current,
-          selection.minColumn,
-          selection.maxColumn,
-          alignment,
-        ))));
+      menu.addItem((item) => {
+        // Obsidian mirrors directional icons in RTL UI. Physical alignment
+        // labels keep their meaning regardless of the host interface direction.
+        if (icon !== null) item.setIcon(icon);
+        item.setSection("structural-tables-column")
+          .setTitle(t(title))
+          .setChecked(selectedAlignments.every((current) => current === alignment))
+          .onClick(() => apply((current) => alignTableColumns(
+            current,
+            selection.minColumn,
+            selection.maxColumn,
+            alignment,
+          )));
+      });
     }
 
     menu.addItem((item) => item

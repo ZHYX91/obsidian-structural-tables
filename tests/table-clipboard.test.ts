@@ -25,6 +25,17 @@ afterEach(() => {
 });
 
 describe("portable table clipboard", () => {
+  it("preserves RTL visual columns and explicit physical alignment while TSV stays in source order", async () => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => { element.textContent = text; });
+    const input = "| Region | Text | Number |\n| --- || :--- | ---: |\n| North | مرحبا ABC | 12 |";
+    const result = await renderTableClipboard(new App(), parseEditableTables(input).tables[0]!, "Note.md", "grid", "rtl");
+    const doc = new DOMParser().parseFromString(result.html, "text/html");
+    expect(doc.querySelector("table")?.dir).toBe("rtl");
+    const cells = [...doc.querySelectorAll<HTMLTableCellElement>("tbody tr > *")];
+    expect(cells.map((cell) => cell.textContent)).toEqual(["North", "مرحبا ABC", "12"]);
+    expect(cells.map((cell) => cell.style.textAlign)).toEqual(["right", "left", "right"]);
+    expect(result.text).toBe("Region\tText\tNumber\nNorth\tمرحبا ABC\t12");
+  });
   it("copies the real mobile TSV projection with sanitized cell whitespace and complete rows", async () => {
     Platform.isMobileApp = true;
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {

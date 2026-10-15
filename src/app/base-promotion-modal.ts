@@ -1,4 +1,6 @@
 import { App, Modal, Setting } from "obsidian";
+import { applyInterfaceLocale } from "../config/i18n";
+import type { LocaleId } from "../config/locale";
 
 import type {
   BasePromotionBlocker,
@@ -12,6 +14,7 @@ import {
 } from "./base-promotion-service";
 
 export interface BasePromotionLabels {
+  language?: LocaleId;
   title: string;
   description: string;
   target: string;
@@ -44,6 +47,7 @@ export class BasePromotionModal extends Modal {
   }
 
   override onOpen(): void {
+    applyInterfaceLocale(this.modalEl ?? this.contentEl, this.labels.language);
     this.setTitle(this.labels.title);
     this.contentEl.classList.add("structural-tables-promotion-modal");
     this.contentEl.createEl("p", { text: this.labels.description });

@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 
-import { createTranslator, type Translate } from "../config/i18n";
+import { applyInterfaceLocale, createTranslator, type Translate } from "../config/i18n";
+import { LOCALES, sanitizeInterfaceLanguage } from "../config/locale";
 import { moveSettingsTabIndex } from "./settings-tab-navigation";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import type { StructuralTablesPlugin } from "./plugin";
@@ -22,6 +23,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.statusCleanup = null;
     const { containerEl } = this;
     const t = createTranslator(this.structuralPlugin.settings.language);
+    applyInterfaceLocale(containerEl, t);
     containerEl.empty();
     containerEl.addClass("structural-tables-settings");
     const tabs = containerEl.createDiv({
@@ -78,15 +80,15 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       new Setting(panels)
         .setName(t("settings.language"))
         .setDesc(t("settings.language.desc"))
-        .addDropdown((dropdown) => dropdown
-          .addOption("auto", t("settings.language.auto"))
-          .addOption("en", t("settings.language.en"))
-          .addOption("zh-CN", t("settings.language.zh"))
-          .setValue(this.structuralPlugin.settings.language)
-          .onChange(async (value) => {
-            await this.structuralPlugin.updateSettings({ language: value === "zh-CN" ? "zh-CN" : value === "en" ? "en" : "auto" });
-            this.display();
-          }));
+        .addDropdown((dropdown) => {
+          dropdown.addOption("auto", t("settings.language.auto"));
+          for (const locale of LOCALES) dropdown.addOption(locale.id, locale.name);
+          dropdown.setValue(this.structuralPlugin.settings.language)
+            .onChange(async (value) => {
+              await this.structuralPlugin.updateSettings({ language: sanitizeInterfaceLanguage(value) });
+              this.display();
+            });
+        });
       new Setting(panels).setName(t("settings.htmlPaste")).setDesc(t("settings.htmlPaste.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.convertHtmlTablePaste)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ convertHtmlTablePaste: value })));

@@ -45,7 +45,7 @@ export function imageWork<T>(work: Promise<T>, signal: AbortSignal): Promise<T> 
 }
 
 const presentationProperties = ["color", "background-color", "background-image", "font-family", "font-size",
-  "font-weight", "font-style", "line-height", "text-align", "border-top-color", "border-top-style", "border-top-width",
+  "font-weight", "font-style", "line-height", "direction", "text-align", "border-top-color", "border-top-style", "border-top-width",
   "border-right-color", "border-right-style", "border-right-width", "border-bottom-color", "border-bottom-style", "border-bottom-width",
   "border-left-color", "border-left-style", "border-left-width", "padding", "content", "mask-image", "-webkit-mask-image"];
 

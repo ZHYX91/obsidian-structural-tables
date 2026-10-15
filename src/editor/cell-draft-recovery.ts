@@ -1,6 +1,6 @@
 import { App, Modal, Notice } from "obsidian";
 
-import { createTranslator, type Translate } from "../config/i18n";
+import { applyInterfaceLocale, createTranslator, type Translate } from "../config/i18n";
 
 export interface RecoveredCellDraft {
   sourcePath: string;
@@ -51,6 +51,7 @@ class DraftRecoveryModal extends Modal {
   override onOpen(): void { this.render(); }
 
   render(): void {
+    applyInterfaceLocale(this.modalEl ?? this.contentEl, this.t);
     this.setTitle(this.t("draft.title"));
     this.contentEl.replaceChildren();
     const description = this.contentEl.createEl("p");
@@ -62,6 +63,7 @@ class DraftRecoveryModal extends Modal {
       const text = label.createEl("textarea");
       text.className = "structural-tables-recovered-draft";
       text.readOnly = true;
+      text.dir = "auto";
       text.value = draft.text;
       text.rows = 6;
       const copy = this.contentEl.createEl("button");

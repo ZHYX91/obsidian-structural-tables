@@ -92,6 +92,7 @@ For a full optional regression, test the packaged candidate in an explicitly nam
 
 - [ ] Source mode preservation.
 - [ ] Every command.
+- [ ] All seven interface languages and native dropdown names; automatic host-language aliases and English fallback. Arabic plugin UI remains RTL with readable mixed paths/code while note/table direction stays independent. In RTL notes the first source columns and row headers display on the right; LTR tables containing Arabic retain column order. Verify physical left/right menus and arrows, native ASCII/Arabic/mixed draft navigation, source-preserving transpose undo/redo, RTL HTML copy and PNG direction-change refusal.
 - [ ] Ordinary-table native cell/row/column selections and menus while takeover is disabled.
 - [ ] Ordinary-table Live Preview and Reading view ownership, full menus, unchanged source, and immediate native restoration while the opt-in setting is toggled.
 - [ ] Theme-following, grid, and three-line styles with logical merged edges. Use `Theme corners and export.md` with a pinned rounded theme (for example Maple), Minimal and the built-in theme; inspect logical outer corners, fully covered final rows, internal row/header corners, light/dark changes and actual saved export images. Ordinary-table export ownership must follow its opt-in setting; rendering and export must preserve source bytes.

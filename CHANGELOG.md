@@ -2,8 +2,10 @@
 
 ## 0.7.0 - 2026-10-15
 
-- Add whole-table transpose to owned grids, source commands and menus, and native ordinary-table menus. Swap header roles and merged spans without losing content; confirm mixed-alignment resets and GFM compatibility changes, and refuse unrepresentable or stale targets and active drafts.
-- Keep each transpose separate from adjacent typing in host undo/redo history, including source and native menu entries, and restore editor focus after confirmation so keyboard undo/redo works immediately.
+- Add Traditional Chinese, Japanese, German, Spanish and Arabic alongside English and Simplified Chinese, with automatic Obsidian language detection and native language names.
+- Keep plugin language separate from note direction. RTL tables show the first source columns and row headers on the right, with matching left/right controls, native text navigation for bidirectional drafts, and direction preserved in whole-table HTML copies.
+- Add whole-table transpose to grid menus, source commands and menus, and native ordinary-table menus. Rows and columns swap along with their headers and merged cells. Confirm alignment resets or changes to Structural Tables syntax; leave the table unchanged if the result cannot be saved safely, the table changed, or a cell edit is still open.
+- Undo a transpose in one step, separately from nearby typing. Restore editor focus after confirmation so keyboard undo/redo works immediately, including source and native menu entries.
 - Preserve merged-table rendering, source caret placement and scroll position when clicking below a focused or edited table.
 - Register native table menus in existing separate windows even when their initial view is not Markdown, and release listeners when cells, windows or the plugin close.
 

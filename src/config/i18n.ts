@@ -213,6 +213,8 @@ const en = {
   "operation.splitUnsafe": "The split could not be represented safely.",
   "operation.tableDeleted": "Table deleted.",
   "operation.tableInvalid": "The table must be valid before changing its structure.",
+  "operation.tableTransposed": "Whole table transposed.",
+  "operation.transposeUnrepresentable": "The transposed table cannot be represented safely with the existing || row-header syntax. No changes were made.",
   "settings.appearance": "Appearance",
   "settings.behavior": "Views",
   "settings.density": "Table density",
@@ -470,6 +472,8 @@ const zh: Record<TranslationKey, string> = {
   "operation.splitUnsafe": "无法安全地表示拆分结果。",
   "operation.tableDeleted": "已删除表格。",
   "operation.tableInvalid": "请先修复表格错误，再修改其结构。",
+  "operation.tableTransposed": "已转置整张表格。",
+  "operation.transposeUnrepresentable": "转置后的表格无法使用现有行表头语法（||）安全表示，未修改内容。",
   "settings.appearance": "外观",
   "settings.behavior": "视图",
   "settings.density": "表格密度",
@@ -561,6 +565,8 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
   "split-unsafe": "operation.splitUnsafe",
   "table-deleted": "operation.tableDeleted",
   "table-invalid": "operation.tableInvalid",
+  "table-transposed": "operation.tableTransposed",
+  "transpose-unrepresentable": "operation.transposeUnrepresentable",
 };
 
 export function operationNotice(t: Translate, code: OperationCode): string {

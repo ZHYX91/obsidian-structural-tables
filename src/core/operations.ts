@@ -48,7 +48,9 @@ export type OperationCode =
   | "split"
   | "split-unsafe"
   | "table-deleted"
-  | "table-invalid";
+  | "table-invalid"
+  | "table-transposed"
+  | "transpose-unrepresentable";
 
 export interface OperationResult {
   changed: boolean;
@@ -204,6 +206,69 @@ function resultFromOwnedGrid(
     };
   }
   return { changed: true, code, message, source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }) };
+}
+
+
+/** A whole-table transpose uses logical cells, not Markdown delimiter rows or merge-marker text. */
+export interface TableTransposePlan {
+  result: OperationResult;
+  /** Different source-column alignments cannot become per-row alignments in Markdown. */
+  resetsColumnAlignment: boolean;
+  /** A GFM table would require Structural Tables' existing || row-header syntax. */
+  introducesStructuralSyntax: boolean;
+}
+
+export function planTransposeTable(table: StructuralTable): TableTransposePlan {
+  const blocked = unavailable(table);
+  const refuse = (code: OperationCode, message: string): OperationResult => ({
+    changed: false, code, message, source: table.source,
+  });
+  const failure = (result: OperationResult): TableTransposePlan => ({
+    result, resetsColumnAlignment: false, introducesStructuralSyntax: false,
+  });
+  if (blocked !== null) return failure(blocked);
+
+  // In the current || grammar, row headers must leave one non-header column.
+  // All-header-row tables would transpose into all-row-header-column tables.
+  if (table.headerRowCount === table.rows.length) {
+    return failure(refuse("transpose-unrepresentable",
+      "All rows are column headers. Their transpose would have only row-header columns, which the || syntax cannot represent."));
+  }
+  if (table.rows.length === 1 && table.columnCount === 1) {
+    return failure(refuse("table-transposed", "The one-cell table is unchanged by transposition."));
+  }
+
+  const grid = ownedGrid(table);
+  const transposed: OwnedGrid = {
+    contents: grid.contents,
+    owners: Array.from({ length: table.columnCount }, (_unused, oldColumn) => (
+      table.rows.map((_row, oldRow) => grid.owners[oldRow]![oldColumn]!)
+    )),
+  };
+  const uniformAlignment = table.alignments.every((value) => value === table.alignments[0]);
+  // Preserve a shared alignment, otherwise consciously reset rather than
+  // invent per-row alignment syntax or silently assign unrelated alignments.
+  const alignments = Array.from({ length: table.rows.length }, () => (
+    uniformAlignment ? table.alignments[0]! : "default"
+  ));
+  const result = resultFromOwnedGrid(
+    table, transposed, "table-transposed", "Whole table transposed.",
+    table.rowHeaderColumnCount, table.headerRowCount, alignments,
+  );
+  if (!result.changed) return failure(result);
+  // A verified ordinary GFM table has exactly one column-header row.
+  // Its transpose gains that many || row-header columns. Detect the dialect
+  // transition from logical roles rather than re-parsing the prefixed output:
+  // a list-continuation prefix can look like an indented code block by itself.
+  return {
+    result,
+    resetsColumnAlignment: !uniformAlignment,
+    introducesStructuralSyntax: !table.structural && table.headerRowCount > 0,
+  };
+}
+
+export function transposeTable(table: StructuralTable): OperationResult {
+  return planTransposeTable(table).result;
 }
 
 function unavailable(table: StructuralTable, row?: number, column?: number): OperationResult | null {

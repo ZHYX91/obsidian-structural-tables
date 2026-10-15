@@ -56,6 +56,12 @@ Render with `thead`, `tbody`, `th`, `td`, `rowspan`, `colspan`, and suitable `sc
 
 Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TSV/CSV, preview and flatten to plain GFM, migrate a Sheets Extended separator, and migrate legacy Structural Tables Base properties are available in the command palette. Formatting and flattening to GFM first show a scrollable, selectable result preview and reparse the unchanged source table when the user confirms; neither changes source before confirmation. A merge from a non-empty cell explains the refusal and preserves source.
 
+### Whole-table transposition
+
+The context menu keeps row actions next to column actions (including column alignment), followed by a separate "Transpose whole table (swap rows and columns)" group before whole-table copy/export. The action always targets the complete logical table, not the selected range. The command palette and the native ordinary-GFM table menu expose the same behavior. Active cell drafts block transposition; no edit may be silently committed or lost. Row-header syntax remains the existing `||` delimiter, without a special marker column.
+
+Transposition preserves content and valid merged-cell topology, swaps column-header row counts with row-header column counts and swaps horizontal/vertical spans. It replaces source in a single undoable transaction, restoring original source and focus coordinate on undo. Uniform column alignment is preserved across new columns. Mixed alignments require explicit confirmation to reset the new columns to default. Ordinary GFM that becomes Structural Tables' `||` syntax also requires compatibility confirmation; lossless transposition proceeds directly. Unsupported results such as an all-column-header table becoming all-row-header columns, invalid tables, and hidden overflow must not write. Revalidate the editor, path, and exact target table after confirmation; reject stale targets.
+
 <!-- section: interchange -->
 ## Paste and interchange
 

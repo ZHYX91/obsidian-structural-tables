@@ -9,6 +9,7 @@ import { parseEditableTables } from "../src/core/parser";
 import { captureEditorTransposeTarget } from "../src/editor/table-transpose-target";
 import { requestWholeTableTranspose } from "../src/app/table-transpose-modal";
 import { notices, TFile } from "./mocks/obsidian";
+import { clickLikeUser } from "./helpers/host-gestures";
 
 const t = createTranslator("en");
 const SOURCE = "| Name | Value |\n| --- | --- |\n| North | 1 |";
@@ -75,7 +76,7 @@ describe("frozen transpose editor ownership", () => {
     const confirm = [...document.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent === "Transpose anyway");
     expect(confirm).toBeDefined();
-    confirm!.click();
+    clickLikeUser(confirm!);
     expect(f.state.replaceRange).toHaveBeenCalledTimes(1);
     expect(parseEditableTables(f.state.source()).tables[0]?.rowHeaderColumnCount).toBe(1);
   });
@@ -144,7 +145,7 @@ describe("frozen transpose editor ownership", () => {
     const confirm = [...document.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent === "Transpose anyway");
     expect(confirm).toBeDefined();
-    confirm!.click();
+    clickLikeUser(confirm!);
     expect(f.state.replaceRange).not.toHaveBeenCalled();
     expect(f.state.source()).toBe(SOURCE);
     expect(notices[notices.length - 1]).toContain("changed");

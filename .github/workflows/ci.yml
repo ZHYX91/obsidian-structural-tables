@@ -40,6 +40,12 @@ jobs:
       - name: Run the canonical local gate
         run: npm run check
 
+      - name: Exercise real Chromium transpose interactions
+        run: |
+          BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium)"
+          test -n "$BROWSER"
+          node scripts/check-table-transpose-browser.mjs "$BROWSER"
+
       - name: Upload verified runtime assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

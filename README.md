@@ -32,6 +32,7 @@ Choose Follow theme, Grid, or Three-line table independently of table layout and
 - Merge cells with exact `<` and `^` marker cells.
 - Use multiple rows for column headers, mark left-side row-header columns with `||`, or create a table with no column header at all.
 - Render the same table structure in Reading view and Live Preview.
+- Transpose an entire table (swap rows and columns), exchanging column/row headers and merged-cell spans. Only the existing `||` row-header syntax is used; mixed alignment or dialect changes require confirmation.
 - Edit cells directly in Live Preview, add or reorder rows and columns, change alignment, merge or split selections, and change header roles without deleting their text.
 - Paste supported HTML tables from browsers, Excel, and Google Sheets while keeping row and column spans.
 - Copy tables as HTML, plain GFM, TSV, or CSV.

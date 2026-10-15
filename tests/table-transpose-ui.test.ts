@@ -51,14 +51,24 @@ afterEach(() => {
 describe("whole-table transpose consent and draft safety", () => {
   it("performs a lossless structural transpose without any confirmation modal", () => {
     const apply = vi.fn();
-    requestWholeTableTranspose(app(), t, table(safe), apply, document);
+    requestWholeTableTranspose(app(), t, table(safe), {
+      ownerDocument: document,
+      draftRoot: document.body,
+      isCurrent: () => true,
+      apply,
+    });
     expect(apply).toHaveBeenCalledOnce();
     expect(document.body.querySelector("button")).toBeNull();
   });
 
   it("warns about a GFM to || dialect transition and cancellation leaves source alone", () => {
     const apply = vi.fn();
-    requestWholeTableTranspose(app(), t, table(gfm), apply, document);
+    requestWholeTableTranspose(app(), t, table(gfm), {
+      ownerDocument: document,
+      draftRoot: document.body,
+      isCurrent: () => true,
+      apply,
+    });
     expect(apply).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain("Structural Tables syntax");
     clickButton("Cancel");
@@ -68,7 +78,12 @@ describe("whole-table transpose consent and draft safety", () => {
 
   it("confirms mixed alignment loss with a specific warning", () => {
     const apply = vi.fn();
-    requestWholeTableTranspose(app(), t, table(mixed), apply, document);
+    requestWholeTableTranspose(app(), t, table(mixed), {
+      ownerDocument: document,
+      draftRoot: document.body,
+      isCurrent: () => true,
+      apply,
+    });
     expect(apply).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain("different alignments");
     clickButton("Transpose anyway");
@@ -80,12 +95,22 @@ describe("whole-table transpose consent and draft safety", () => {
     const textarea = document.body.appendChild(document.createElement("textarea"));
     textarea.className = "structural-tables-cell-editor";
     textarea.value = "unfinished";
-    requestWholeTableTranspose(app(), t, table(safe), apply, document);
+    requestWholeTableTranspose(app(), t, table(safe), {
+      ownerDocument: document,
+      draftRoot: document.body,
+      isCurrent: () => true,
+      apply,
+    });
     expect(apply).not.toHaveBeenCalled();
     expect(notices[notices.length - 1]).toContain("active cell draft");
     expect(textarea.value).toBe("unfinished");
     textarea.remove();
-    requestWholeTableTranspose(app(), t, table(gfm), apply, document);
+    requestWholeTableTranspose(app(), t, table(gfm), {
+      ownerDocument: document,
+      draftRoot: document.body,
+      isCurrent: () => true,
+      apply,
+    });
     const interrupted = document.body.appendChild(document.createElement("textarea"));
     interrupted.className = "structural-tables-cell-editor";
     clickButton("Transpose anyway");
@@ -95,7 +120,12 @@ describe("whole-table transpose consent and draft safety", () => {
 
   it("refuses unrepresentable header-only transposition without a dialog or write", () => {
     const apply = vi.fn();
-    requestWholeTableTranspose(app(), t, table(headerOnly), apply, document);
+    requestWholeTableTranspose(app(), t, table(headerOnly), {
+      ownerDocument: document,
+      draftRoot: document.body,
+      isCurrent: () => true,
+      apply,
+    });
     expect(apply).not.toHaveBeenCalled();
     expect(document.body.querySelector("button")).toBeNull();
     expect(notices[notices.length - 1]).toContain("cannot be represented safely");

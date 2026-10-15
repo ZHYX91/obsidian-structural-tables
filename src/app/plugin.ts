@@ -19,7 +19,6 @@ import {
   cellColumnAt,
   mergeCell,
   splitCell,
-  transposeTable,
   type MergeDirection,
   type OperationResult,
 } from "../core/operations";
@@ -42,6 +41,7 @@ import {
 } from "../core/base-promotion";
 import type { BasePromotionContentKind } from "../core/base-promotion-content";
 import { NativeTableMenuBridge } from "../editor/native-table-menu";
+import { captureEditorTransposeTarget, openEditorTableTranspose } from "../editor/table-transpose-target";
 import { requestWholeTableTranspose } from "./table-transpose-modal";
 import { StructuralTableEditorController } from "../editor/table-live-preview";
 import {
@@ -116,8 +116,10 @@ export class StructuralTablesPlugin extends Plugin {
   private readonly localizedCommands: Command[] = [];
   private settingsPersistence: SettingsPersistenceSession | null = null;
   private imageExport: TableImageExportService | null = null;
+  private transposeRequestsActive = true;
 
   override async onload(): Promise<void> {
+    this.transposeRequestsActive = true;
     const loaded = normalizeStoredSettings(await this.loadData());
     this.settingsPersistence = new SettingsPersistenceSession(
       loaded,
@@ -153,6 +155,7 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   override onunload(): void {
+    this.transposeRequestsActive = false;
     void this.settingsPersistence?.flush().catch((error: unknown) => {
       console.error("Structural Tables: failed to flush settings", error);
     });
@@ -197,12 +200,13 @@ export class StructuralTablesPlugin extends Plugin {
     }));
     this.localizedCommands.push(this.addCommand({
       id: "transpose-current-table", name: t("command.transpose"),
-      editorCallback: (editor) => {
+      editorCallback: (editor, context) => {
         const current = this.currentTable(editor);
         if (current === null) return this.noTable();
         const translator = createTranslator(this.settings.language);
-        requestWholeTableTranspose(this.app, translator, current.table,
-          () => this.applyMenuOperation(editor, current.table, transposeTable));
+        openEditorTableTranspose(this.app, editor, current.table, translator,
+          context instanceof MarkdownView ? context : undefined,
+          () => this.transposeRequestsActive);
       },
     }));
     this.localizedCommands.push(this.addCommand({
@@ -349,11 +353,16 @@ export class StructuralTablesPlugin extends Plugin {
         );
       }
       if (current === null || !current.table.valid) return;
-      addWholeTableTransposeMenuItem(menu, t, () => requestWholeTableTranspose(
-        this.app, t, current.table,
-        () => this.applyMenuOperation(editor, current.table, transposeTable),
-        info instanceof MarkdownView ? info.containerEl.ownerDocument : undefined,
-      ));
+      // Capture editor/file ownership at menu creation; a later view rebind
+      // with byte-identical Markdown must not redirect this action.
+      const targetView = info instanceof MarkdownView ? info : undefined;
+      const transposeTarget = captureEditorTransposeTarget(
+        this.app, editor, current.table, t, targetView, () => this.transposeRequestsActive,
+      );
+      addWholeTableTransposeMenuItem(menu, t, () => {
+        if (transposeTarget === null) { new Notice(t("notice.staleTable")); return; }
+        requestWholeTableTranspose(this.app, t, current.table, transposeTarget);
+      });
       addImageExportMenuItem(menu, t, () => this.exportImage(editor, () => info, current.table));
       addBasePromotionMenuItem(menu, t, current.table, () => {
         this.previewBasePromotion(editor, () => info, current.table);

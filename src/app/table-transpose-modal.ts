@@ -38,16 +38,29 @@ export class TableTransposeModal extends Modal {
   }
 }
 
+export interface TableTransposeRequest {
+  /** The captured target's document, which may be a popout rather than the main window. */
+  ownerDocument: Document;
+  /** The original note or table container; drafts in other panes must not affect this table. */
+  draftRoot: ParentNode;
+  /** Must check the original file/editor/view and the unchanged table at confirmation time. */
+  isCurrent: () => boolean;
+  /** Must revalidate the target before writing, not just trust an old menu callback. */
+  apply: () => void;
+}
+
 export function requestWholeTableTranspose(
   app: App,
   t: Translate,
   expected: StructuralTable,
-  apply: () => void,
-  ownerDocument?: Document,
+  request: TableTransposeRequest,
 ): void {
-  const doc = ownerDocument ?? app.workspace.containerEl.ownerDocument;
   const hasActiveDraft = (): boolean =>
-    doc.querySelector("textarea.structural-tables-cell-editor") !== null;
+    request.draftRoot.querySelector("textarea.structural-tables-cell-editor") !== null;
+  if (!request.isCurrent()) {
+    new Notice(t("notice.staleTable"));
+    return;
+  }
   if (hasActiveDraft()) {
     new Notice(t("transpose.unsavedDraft"));
     return;
@@ -58,12 +71,15 @@ export function requestWholeTableTranspose(
     return;
   }
   const commit = (): void => {
+    if (!request.isCurrent()) {
+      new Notice(t("notice.staleTable"));
+      return;
+    }
     if (hasActiveDraft()) {
       new Notice(t("transpose.unsavedDraft"));
       return;
     }
-    // Every caller must reparse and compare its frozen table when committing.
-    apply();
+    request.apply();
   };
   if (plan.resetsColumnAlignment || plan.introducesStructuralSyntax) {
     new TableTransposeModal(app, t, plan, commit).open();

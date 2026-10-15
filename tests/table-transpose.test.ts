@@ -89,6 +89,33 @@ describe("whole-table structural transpose", () => {
     expect(parse(plan.result.source).alignments).toEqual(["default", "default"]);
   });
 
+  it.each([
+    ["list continuation", "- Item\n\n    | Name | Value |\n    | --- | --- |\n    | North | 1 |"],
+    ["nested list continuation", "- Outer\n  - Inner\n\n      | Name | Value |\n      | --- | --- |\n      | North | 1 |"],
+    ["blockquote", "> Context\n> | Name | Value |\n> | --- | --- |\n> | North | 1 |"],
+    ["nested blockquote", "> > | Name | Value |\n> > | --- | --- |\n> > | North | 1 |"],
+    ["callout", "> [!note]\n> | Name | Value |\n> | --- | --- |\n> | North | 1 |"],
+  ] as const)("flags the GFM to || transition inside a %s", (_name, source) => {
+    const before = parse(source);
+    expect(before.structural).toBe(false);
+    const plan = planTransposeTable(before);
+    expect(plan.result.changed).toBe(true);
+    expect(plan.resetsColumnAlignment).toBe(false);
+    expect(plan.introducesStructuralSyntax).toBe(true);
+    const fullAfter = source.slice(0, before.range.from) + plan.result.source + source.slice(before.range.to);
+    const after = parse(fullAfter);
+    expect(after.structural).toBe(true);
+    expect(after.rowHeaderColumnCount).toBe(1);
+    expectExactTranspose(before, after);
+  });
+
+  it("does not invent tables or dialect conversions inside protected indented or fenced code", () => {
+    for (const source of [
+      "    | Name | Value |\n    | --- | --- |\n    | North | 1 |",
+      "```md\n| Name | Value |\n| --- | --- |\n| North | 1 |\n```",
+    ]) expect(parseEditableTables(source).tables).toHaveLength(0);
+  });
+
   it("rejects header-only tables rather than inserting a fake data column", () => {
     const before = parse("| H1 | H2 |\n| Name | Value |\n| --- | --- |");
     const result = transposeTable(before);

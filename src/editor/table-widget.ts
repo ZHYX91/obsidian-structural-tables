@@ -1142,10 +1142,28 @@ class StructuralTableInteraction {
       .setTitle(t("menu.pasteSelection"))
       .onClick(() => activate(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); })));
     addSelectionEditingMenuItems(menu, t, selection, applySelectionOperation, menuOptions);
+    // Whole-table confirmation outlives the grid selection. Snapshot the
+    // editor/file/source, not its ephemeral selection epoch, for the modal.
+    const editorIdentity = info?.editor;
+    const fileIdentity = info?.file;
+    const tableIdentity = frozen.selection.table;
+    const transposeRequest = {
+      ownerDocument: frozen.host.ownerDocument,
+      draftRoot: frozen.host,
+      isCurrent: (): boolean => {
+        const currentInfo = view.state.field(editorInfoField, false);
+        return view.dom.isConnected && this.host === frozen.host && frozen.host.isConnected
+          && this.sourcePath === frozen.sourcePath
+          && currentInfo?.editor === editorIdentity && currentInfo?.file === fileIdentity
+          && currentInfo?.file?.path === frozen.sourcePath
+          && reparseUnchangedTable(view.state.doc.toString(), tableIdentity) !== null;
+      },
+      apply: (): void => this.applyMenuOperation(
+        view, transposeTable, undefined, undefined, "owned-grid", undefined, frozen.anchor,
+      ),
+    };
     addWholeTableTransposeMenuItem(menu, t, () => activate(() => requestWholeTableTranspose(
-      this.app, t, this.table,
-      () => this.applyMenuOperation(view, transposeTable, undefined, undefined, "owned-grid", frozen),
-      frozen.host.ownerDocument,
+      this.app, t, tableIdentity, transposeRequest,
     )));
     menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
@@ -2046,6 +2064,7 @@ class StructuralTableInteraction {
     axisSelection?: AxisSelection,
     intent: TableOperationIntent = "standard",
     frozen?: FrozenGridSelection,
+    wholeTableAnchor?: TableCellCoordinate,
   ): void {
     const t = createTranslator(this.getSettings().language);
     const expected = frozen?.selection.table ?? this.table;
@@ -2062,7 +2081,7 @@ class StructuralTableInteraction {
       return;
     }
     const selection = frozen?.selection ?? this.selection;
-    const selectionAnchor = frozen?.anchor ?? this.selectionAnchor;
+    const selectionAnchor = wholeTableAnchor ?? frozen?.anchor ?? this.selectionAnchor;
     const selectionHead = frozen?.head ?? this.selectionHead;
     const result = operation(current);
     if (!result.changed) {

@@ -256,11 +256,14 @@ export function planTransposeTable(table: StructuralTable): TableTransposePlan {
     table.rowHeaderColumnCount, table.headerRowCount, alignments,
   );
   if (!result.changed) return failure(result);
-  const parsed = parseEditableTables(result.source).tables[0];
+  // A verified ordinary GFM table has exactly one column-header row.
+  // Its transpose gains that many || row-header columns. Detect the dialect
+  // transition from logical roles rather than re-parsing the prefixed output:
+  // a list-continuation prefix can look like an indented code block by itself.
   return {
     result,
     resetsColumnAlignment: !uniformAlignment,
-    introducesStructuralSyntax: !table.structural && parsed?.structural === true,
+    introducesStructuralSyntax: !table.structural && table.headerRowCount > 0,
   };
 }
 

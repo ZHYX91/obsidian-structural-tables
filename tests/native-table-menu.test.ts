@@ -18,8 +18,10 @@ function openContextMenu(target: HTMLElement): void {
   target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true }));
 }
 
-function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage): {
+function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage, existingPopout = false): {
   cell: HTMLTableCellElement;
+  popoutCell: HTMLTableCellElement | null;
+  popoutWindow: Window | null;
   outside: HTMLElement;
   promote: ReturnType<typeof vi.fn>;
   emitWindow: (event: string, window: Window) => void;
@@ -35,6 +37,14 @@ function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage)
     </div>
     <p class="outside">Outside</p>`;
   const container = document.querySelector<HTMLElement>(".markdown-view")!;
+  const iframe = existingPopout ? document.body.appendChild(document.createElement("iframe")) : null;
+  const popoutWindow = iframe?.contentWindow ?? null;
+  if (popoutWindow !== null) popoutWindow.document.body.innerHTML = `
+    <div class="markdown-view"><div class="cm-table-widget"><table>
+      <thead><tr><th>Name</th><th>Status</th></tr></thead>
+      <tbody><tr><td>Alice</td><td>Doing</td></tr></tbody>
+    </table></div></div>`;
+  const popoutCell = popoutWindow?.document.querySelector<HTMLTableCellElement>("tbody td") ?? null;
   const editor = {
     getValue: () => SOURCE,
     getCursor: () => ({ line: 2, ch: 2 }),
@@ -45,10 +55,19 @@ function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage)
     editor,
     file: null,
   });
+  const popoutView = popoutWindow === null ? null
+    : Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, {
+      containerEl: popoutWindow.document.querySelector<HTMLElement>(".markdown-view")!,
+      editor,
+      file: null,
+    });
   const windowCallbacks = new Map<string, (workspaceWindow: unknown, window: Window) => void>();
   const app = {
     workspace: {
-      iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => callback({ view: markdownView }),
+      iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => {
+        callback({ view: markdownView });
+        if (popoutView !== null) callback({ view: popoutView });
+      },
       on: (event: string, callback: (workspaceWindow: unknown, window: Window) => void) => {
         windowCallbacks.set(event, callback);
         return {};
@@ -84,6 +103,8 @@ function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage)
   ).register(component);
   return {
     cell,
+    popoutCell,
+    popoutWindow,
     outside: document.querySelector<HTMLElement>(".outside")!,
     promote,
     emitWindow: (event, window) => windowCallbacks.get(event)?.({}, window),
@@ -127,6 +148,18 @@ describe("native table menu bridge", () => {
     lastMenu?.items.find(({ title }) => title === "Export whole table as image…")?.callback?.();
     expect(exportImage).toHaveBeenCalledOnce();
     expect(exportImage.mock.calls[0]![0].source).toBe(SOURCE);
+  });
+
+  it("installs native table actions in a popout that already existed when the plugin was enabled", () => {
+    const { popoutCell, popoutWindow, emitWindow } = fixture(false, undefined, true);
+    expect(popoutCell).not.toBeNull();
+    expect(popoutWindow).not.toBeNull();
+    openContextMenu(popoutCell!);
+    expect(lastMenu?.items.filter(({ title }) => title === "Transpose whole table (swap rows and columns)")).toHaveLength(1);
+    expect(lastMenu?.items.filter(({ title }) => title === "Upgrade to Base…")).toHaveLength(1);
+    emitWindow("window-open", popoutWindow!);
+    openContextMenu(popoutCell!);
+    expect(lastMenu?.items.filter(({ title }) => title === "Transpose whole table (swap rows and columns)")).toHaveLength(1);
   });
 
   it("releases a native cell listener when the host removes that cell", async () => {

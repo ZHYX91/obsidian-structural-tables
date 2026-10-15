@@ -45,9 +45,10 @@ export class NativeTableMenuBridge {
     });
     this.registerDocument(document);
     // A popout can predate plugin enable/re-enable: it will not emit a new
-    // window-open event. Install on the owner document of every existing view.
+    // window-open event. A canvas, PDF or empty leaf can later become Markdown,
+    // so observe every existing view's owner document before that transition.
     this.app.workspace.iterateAllLeaves((leaf) => {
-      if (leaf.view instanceof MarkdownView) this.registerDocument(leaf.view.containerEl.ownerDocument);
+      this.registerDocument(leaf.view.containerEl.ownerDocument);
     });
     component.registerEvent(this.app.workspace.on("window-open", (_workspaceWindow, window) => {
       this.registerDocument(window.document);

@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-10-10
+last_synced: 2026-10-15
 ---
 
 [English](testing-strategy.en.md)
@@ -26,7 +26,7 @@ Reading View 的回归必须使用完整笔记文本和真实源码行范围，�
 
 独立窗口的 DOM 回归使用彼此独立的 jsdom realm，并让宿主辅助方法绑定其创建文档。同时检查 `ownerDocument` 和插件拥有的容器、表格、单元格容器的构造器；仅接纳节点不能让测试通过。原生 Markdown 后代可以保留宿主的构造器，但前后正文、单元格内容和合并结构必须完整。覆盖原生 section、Callout、延迟区块映射、独立导出和原生渲染比较。
 
-DOM 模拟器适合验证结构和多数 CSS 规则，但不能替代真实 Obsidian 中的几何、滚动、主题变量和触摸行为。关键写入操作的验收不仅检查菜单回调，还需覆盖 pointerdown→焦点变化→确认→重新验证目标文件／表格→一次写入→撤销／重做的完整过程。PR 的 CI 会额外执行真实 Chromium 转置烟测；该烟测不等价于真实 Obsidian 宿主或 Android 验收。多窗口模拟应区分目标编辑器所属文档和主窗口，确认后文件、视图或草稿状态变化必须导致零写入。
+DOM 模拟器适合验证结构和多数 CSS 规则，但不能替代真实 Obsidian 中的几何、滚动、主题变量和触摸行为。关键写入操作需覆盖 pointerdown→焦点变化→确认→重新验证目标文件／表格→一次写入→撤销／重做的完整过程。菜单或确认框取得焦点时，短暂清除视觉选区不应使未变化的整表目标失效；实际目标源码、文件、编辑器／视图或草稿变化则必须导致零写入。真实 CodeMirror 历史测试覆盖已注册命令、源码菜单和原生菜单，并在转置前后紧接输入文字。PR 的 CI 还执行真实 Chromium 接管菜单→指针确认框→CodeMirror 写入／撤销／重做烟测，以及源码／原生入口和高合并表格的指针焦点几何／滚动检查；这些均不等价于真实 Obsidian 宿主或 Android 验收。多窗口模拟使用独立 DOM realm，并覆盖预先存在的非 Markdown 窗口之后打开 Markdown 的场景。
 
 <!-- section: parser-cases -->
 ## 解析用例

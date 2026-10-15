@@ -423,6 +423,74 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it.each(["focused", "draft", "canceled", "after"] as const)("keeps a tall merged table mounted while a source pointer resolves below its logical cell cursor (%s)", async (mode) => {
+    const source = [
+      "Before", "", "| Region | Sales | < | Q3 | Q4 |", "| --- | --- | --- | --- | --- |",
+      ...Array.from({ length: 22 }, (_, row) => `| ${row % 2 === 0 ? `Region ${row / 2}` : "^"} | ${row} | value | more | last |`),
+      "", mode === "after" ? "After the table." : "",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='22'][data-structural-column='4']")!;
+      dispatchPointerDown(cell, "mouse");
+      cell.focus();
+      if (mode !== "focused") {
+        cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+        const draft = parent.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor")!;
+        expect(draft).not.toBeNull();
+        if (mode === "canceled") draft.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      }
+      const host = parent.querySelector(".structural-tables-live-preview");
+      expect(view.state.selection.main.anchor).toBeLessThan(source.length - 2);
+      const lines = view.contentDOM.querySelectorAll<HTMLElement>(".cm-line");
+      const line = lines[lines.length - 1]!;
+      // Native pointer focus precedes CodeMirror's resolved pointer selection.
+      dispatchPointerDown(line, "mouse");
+      view.contentDOM.focus();
+      expect(parent.querySelector(".structural-tables-live-preview") === host).toBe(true);
+      view.dispatch({ selection: { anchor: source.length } });
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(parent.querySelector(".structural-tables-live-preview") === host).toBe(true);
+      expect(view.state.selection.main.anchor).toBe(source.length);
+      expect(parent.querySelectorAll("[rowspan='2']")).toHaveLength(11);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["focus-at-down", "focus-at-release", "cancel", "window-blur"] as const)("retains a held touch destination until release/cancel (%s)", async (end) => {
+    const source = "Before\n\n| Region | Sales | < |\n| --- | --- | --- |\n| North | 10 | 12 |\n\n";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.focus();
+      const host = parent.querySelector(".structural-tables-live-preview");
+      const lines = view.contentDOM.querySelectorAll<HTMLElement>(".cm-line");
+      const line = lines[lines.length - 1]!;
+      dispatchPointerDown(line, "touch");
+      if (end === "focus-at-down") view.contentDOM.focus();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(parent.querySelector(".structural-tables-live-preview") === host).toBe(true);
+      const unrelated = new Event("pointerup", { bubbles: true });
+      Object.defineProperty(unrelated, "pointerId", { value: 99 });
+      line.dispatchEvent(unrelated);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(parent.querySelector(".structural-tables-live-preview") === host).toBe(true);
+      if (end === "window-blur") window.dispatchEvent(new Event("blur"));
+      else line.dispatchEvent(new Event(end === "cancel" ? "pointercancel" : "pointerup", { bubbles: true }));
+      view.contentDOM.focus();
+      if (end === "focus-at-down" || end === "focus-at-release") {
+        expect(parent.querySelector(".structural-tables-live-preview") === host).toBe(true);
+        view.dispatch({ selection: { anchor: source.length } });
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        expect(parent.querySelector(".structural-tables-live-preview") === host).toBe(true);
+      } else {
+        expect(parent.querySelector(".structural-tables-live-preview")).toBeNull();
+        expect(view.state.selection.main.anchor).toBe(source.indexOf("10"));
+      }
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it("syncs the logical source cursor when keyboard focus enters a visual cell", () => {
     const source = [
       "Before",

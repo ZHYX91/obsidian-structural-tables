@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 
 import type { App, Editor, TFile as HostFile } from "obsidian";
-import { MarkdownView } from "obsidian";
+import { MarkdownView, editorInfoField } from "obsidian";
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createTranslator } from "../src/config/i18n";
@@ -13,19 +15,36 @@ import { clickLikeUser } from "./helpers/host-gestures";
 
 const t = createTranslator("en");
 const SOURCE = "| Name | Value |\n| --- | --- |\n| North | 1 |";
+const editors: EditorView[] = [];
 
 function editorState(initial = SOURCE) {
   let source = initial;
+  let cm: EditorView | undefined;
+  let writes = 0;
   const replaceRange = vi.fn((text: string, from: { ch: number }, to: { ch: number }) => {
     source = source.slice(0, from.ch) + text + source.slice(to.ch);
   });
   const editor = {
-    getValue: () => source,
+    getValue: () => cm?.state.doc.toString() ?? source,
     offsetToPos: (offset: number) => ({ line: 0, ch: offset }),
     replaceRange,
     setCursor: vi.fn(),
   } as unknown as Editor;
-  return { editor, replaceRange, source: () => source, setSource: (next: string) => { source = next; } };
+  return {
+    editor, replaceRange, source: () => cm?.state.doc.toString() ?? source, writes: () => writes,
+    setSource: (next: string) => {
+      source = next;
+      cm?.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: next } });
+    },
+    attach: (parent: HTMLElement, file: TFile): EditorView => {
+      cm = new EditorView({ parent, state: EditorState.create({ doc: source, extensions: [
+        editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app: {} as App, hoverPopover: null })),
+        EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; }),
+      ] }) });
+      editors.push(cm);
+      return cm;
+    },
+  };
 }
 
 function fixture(doc = document) {
@@ -47,9 +66,10 @@ function fixture(doc = document) {
   const view = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, {
     file, editor: state.editor, containerEl,
   });
+  const cm = state.attach(containerEl, file);
   leaves.push({ view });
   const table = parseEditableTables(SOURCE).tables[0]!;
-  return { app, file, files, leaves, state, view, table, containerEl };
+  return { app, file, files, leaves, state, view, table, containerEl, cm };
 }
 
 beforeAll(() => {
@@ -63,7 +83,7 @@ beforeAll(() => {
   };
   HTMLElement.prototype.empty = function empty(): void { this.replaceChildren(); };
 });
-afterEach(() => { document.body.replaceChildren(); notices.length = 0; });
+afterEach(() => { editors.splice(0).forEach((editor) => editor.destroy()); document.body.replaceChildren(); notices.length = 0; });
 
 describe("frozen transpose editor ownership", () => {
   it("writes once only to the original editor while its original file and source remain current", () => {
@@ -77,7 +97,7 @@ describe("frozen transpose editor ownership", () => {
       .find((button) => button.textContent === "Transpose anyway");
     expect(confirm).toBeDefined();
     clickLikeUser(confirm!);
-    expect(f.state.replaceRange).toHaveBeenCalledTimes(1);
+    expect(f.state.writes()).toBe(1);
     expect(parseEditableTables(f.state.source()).tables[0]?.rowHeaderColumnCount).toBe(1);
   });
 
@@ -89,6 +109,34 @@ describe("frozen transpose editor ownership", () => {
     f.view.file = b as unknown as HostFile;
     expect(original.isCurrent()).toBe(false);
     original.apply();
+    expect(f.state.source()).toBe(SOURCE);
+    expect(f.state.replaceRange).not.toHaveBeenCalled();
+  });
+
+  it("requires a verified CodeMirror editor and ignores byte-identical embedded decoys", () => {
+    const f = fixture();
+    const decoy = editorState();
+    const decoyParent = f.containerEl.insertBefore(document.createElement("div"), f.cm.dom);
+    decoy.attach(decoyParent, f.file);
+    const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
+    expect(target).not.toBeNull();
+    target.apply();
+    expect(f.state.writes()).toBe(1);
+    expect(decoy.writes()).toBe(0);
+    f.cm.dom.remove();
+    expect(captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)).toBeNull();
+  });
+
+  it.each(["missing", "detached", "recreated", "wrong-editor"] as const)("refuses an unverified %s CodeMirror target", (change) => {
+    const f = fixture();
+    const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
+    if (change === "missing") f.cm.destroy();
+    else if (change === "detached") f.cm.dom.remove();
+    else if (change === "recreated") { f.cm.destroy(); f.state.attach(f.containerEl, f.file); }
+    else f.cm.setState(EditorState.create({ doc: SOURCE, extensions: [editorInfoField] }));
+    expect(target.isCurrent()).toBe(false);
+    target.apply();
+    expect(f.state.writes()).toBe(0);
     expect(f.state.source()).toBe(SOURCE);
     expect(f.state.replaceRange).not.toHaveBeenCalled();
   });

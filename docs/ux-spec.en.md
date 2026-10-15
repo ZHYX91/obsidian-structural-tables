@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-10
+last_synced: 2026-10-15
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -60,7 +60,7 @@ Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TS
 
 The context menu keeps row actions next to column actions (including column alignment), followed by a separate "Transpose whole table (swap rows and columns)" group before whole-table copy/export. The action always targets the complete logical table, not the selected range. The command palette and the native ordinary-GFM table menu expose the same behavior. Active cell drafts block transposition; no edit may be silently committed or lost. Row-header syntax remains the existing `||` delimiter, without a special marker column.
 
-Transposition preserves content and valid merged-cell topology, swaps column-header row counts with row-header column counts and swaps horizontal/vertical spans. It replaces source in a single undoable transaction, restoring original source and focus coordinate on undo. Uniform column alignment is preserved across new columns. Mixed alignments require explicit confirmation to reset the new columns to default. Ordinary GFM that becomes Structural Tables' `||` syntax also requires compatibility confirmation; lossless transposition proceeds directly. Unsupported results such as an all-column-header table becoming all-row-header columns, invalid tables, and hidden overflow must not write. Revalidate the editor, path, and exact target table after confirmation; reject stale targets.
+Transposition preserves content and valid merged-cell topology, swaps column-header row counts with row-header column counts and swaps horizontal/vertical spans. It replaces source in a single undoable transaction isolated from surrounding typing, restoring original source and focus coordinate on undo. Uniform column alignment is preserved across new columns. Mixed alignments require explicit confirmation to reset the new columns to default. Ordinary GFM that becomes Structural Tables' `||` syntax also requires compatibility confirmation, including when alignment is uniform; transposition without either warning proceeds directly. Unsupported results such as an all-column-header table becoming all-row-header columns, invalid tables, and hidden overflow must not write. A menu or modal may clear transient visual grid selection. Revalidate the editor/view, file/path, exact target table and active draft after confirmation; reject stale targets.
 
 <!-- section: interchange -->
 ## Paste and interchange
@@ -153,7 +153,7 @@ Row/column reordering is a two-step interaction: first select handles, then drag
 
 ### Menu operations
 
-Owned Live Preview menus group actions in this order: selected-cell Copy/Cut/Paste; available Merge/Split and header roles; rows; columns; column alignment; whole-table Word/HTML copy and PNG export; source and Base; Clear selected cells; Delete table. Whole-table outputs share a group. Row and column deletion stays last in its respective group, while Delete table has its own final group and warning styling.
+Owned Live Preview menus group actions in this order: selected-cell Copy/Cut/Paste; available Merge/Split and header roles; rows; columns including column alignment; whole-table transpose; whole-table Word/HTML copy and PNG export; source and Base; Clear selected cells; Delete table. Whole-table outputs share a group. Row and column deletion stays last in its respective group, while Delete table has its own final group and warning styling.
 
 Column alignment shows a check only when all selected columns have that alignment; mixed alignment has no check. Header-role actions omit setting the current number of header rows or columns, while eligible header removal remains available. Opening a menu freezes the logical selection; activation revalidates it before acting.
 

@@ -182,6 +182,9 @@ export class StructuralTableEditorController {
     const viewTracker = ViewPlugin.fromClass(class {
       private readonly calloutTables: CalloutTables;
       private sourceFocusTimer: number | null = null;
+      private sourcePointerPending = false;
+      private sourcePointerHeld = false;
+      private sourcePointerId: number | undefined;
       private readonly setSourceFocus = (focused: boolean): void => {
         const current = this.view.state.field(decorationField).sourceFocused;
         if (current !== focused) this.view.dispatch({ effects: structuralTableSourceFocus.of(focused) });
@@ -192,6 +195,8 @@ export class StructuralTableEditorController {
         if (this.sourceFocusTimer !== null) win.clearTimeout(this.sourceFocusTimer);
         this.sourceFocusTimer = win.setTimeout(() => {
           this.sourceFocusTimer = null;
+          if (this.sourcePointerHeld) return;
+          this.sourcePointerPending = false;
           if (!this.view.dom.isConnected) return;
           const active = this.view.dom.ownerDocument.activeElement;
           const sourceOwned = active !== null
@@ -204,12 +209,44 @@ export class StructuralTableEditorController {
         }, 0);
       };
       private readonly sourceFocusIn = (): void => this.scheduleSourceFocus();
+      private readonly sourcePointerUp = (event: PointerEvent): void => {
+        if (!this.sourcePointerPending || event.pointerId !== this.sourcePointerId) return;
+        this.sourcePointerHeld = false;
+        this.scheduleSourceFocus();
+      };
+      private readonly sourcePointerCancel = (event: PointerEvent): void => {
+        if (event.pointerId !== this.sourcePointerId) return;
+        this.sourcePointerAbort();
+      };
+      private readonly sourcePointerAbort = (): void => {
+        if (!this.sourcePointerPending) return;
+        this.sourcePointerHeld = false;
+        this.sourcePointerPending = false;
+        this.sourcePointerId = undefined;
+        this.scheduleSourceFocus();
+      };
+      private readonly sourcePointerDown = (event: PointerEvent): void => {
+        if (!event.isPrimary || event.button !== 0) return;
+        const target = event.target;
+        if (!(target instanceof this.view.dom.ownerDocument.defaultView!.Node)
+          || !this.view.contentDOM.contains(target)) return;
+        const element = target.nodeType === 1 ? target as Element : target.parentElement;
+        if (element?.closest(".structural-tables-live-preview") !== null) return;
+        // Pointer focus arrives before the host resolves its destination. The
+        // logical cell cursor still points inside the replaced table here;
+        // revealing it would change the geometry under the pending click.
+        this.sourcePointerPending = true;
+        this.sourcePointerHeld = true;
+        this.sourcePointerId = event.pointerId;
+        this.scheduleSourceFocus();
+      };
       private readonly sourceFocusCapture = (event: FocusEvent): void => {
         const target = event.target;
         if (!(target instanceof this.view.dom.ownerDocument.defaultView!.Node)
           || !this.view.contentDOM.contains(target)) return;
         const element = target.nodeType === Node.ELEMENT_NODE ? target as Element : target.parentElement;
         if (element?.closest(".structural-tables-live-preview") !== null) return;
+        if (this.sourcePointerPending) return;
         // CodeMirror can relocate a caret whose range is currently replaced by
         // presentation decorations while focus is being restored. Reveal the
         // authoritative source synchronously in the capture phase, before the
@@ -242,6 +279,10 @@ export class StructuralTableEditorController {
         views.add(view);
         view.dom.addEventListener("focusin", this.sourceFocusCapture, true);
         view.dom.addEventListener("focusin", this.sourceFocusIn);
+        view.dom.addEventListener("pointerdown", this.sourcePointerDown, true);
+        view.dom.ownerDocument.addEventListener("pointerup", this.sourcePointerUp, true);
+        view.dom.ownerDocument.addEventListener("pointercancel", this.sourcePointerCancel, true);
+        view.dom.ownerDocument.defaultView?.addEventListener("blur", this.sourcePointerAbort);
         view.dom.addEventListener("pointerdown", this.clearOtherSelections, true);
         view.dom.addEventListener("focusin", this.clearOtherSelections, true);
       }
@@ -276,6 +317,10 @@ export class StructuralTableEditorController {
         this.sourceFocusTimer = null;
         this.view.dom.removeEventListener("focusin", this.sourceFocusCapture, true);
         this.view.dom.removeEventListener("focusin", this.sourceFocusIn);
+        this.view.dom.removeEventListener("pointerdown", this.sourcePointerDown, true);
+        this.view.dom.ownerDocument.removeEventListener("pointerup", this.sourcePointerUp, true);
+        this.view.dom.ownerDocument.removeEventListener("pointercancel", this.sourcePointerCancel, true);
+        this.view.dom.ownerDocument.defaultView?.removeEventListener("blur", this.sourcePointerAbort);
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
         this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);
         views.delete(this.view);

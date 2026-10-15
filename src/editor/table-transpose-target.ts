@@ -1,11 +1,24 @@
-import { MarkdownView, Notice, type App, type Editor, type TFile } from "obsidian";
+import { isolateHistory } from "@codemirror/commands";
+import { EditorView } from "@codemirror/view";
+import { MarkdownView, Notice, editorInfoField, type App, type Editor, type TFile } from "obsidian";
 
 import { operationNotice, type Translate } from "../config/i18n";
 import type { StructuralTable } from "../core/model";
 import { transposeTable } from "../core/operations";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { requestWholeTableTranspose, type TableTransposeRequest } from "../app/table-transpose-modal";
-import { replaceTableSource } from "./table-replacement";
+
+function codeMirrorForEditor(container: HTMLElement, editor: Editor): EditorView | null {
+  const roots = [...container.querySelectorAll<HTMLElement>(".cm-editor")];
+  if (container.matches(".cm-editor")) roots.unshift(container);
+  for (const root of roots) {
+    const view = EditorView.findFromDOM(root);
+    // Embedded editors can share the note container. Match the host's editor
+    // identity rather than choosing the first DOM editor or matching text.
+    if (view?.state.field(editorInfoField, false)?.editor === editor) return view;
+  }
+  return null;
+}
 
 /**
  * An editor, source offset, or matching Markdown alone does not prove file identity.
@@ -34,10 +47,14 @@ export function captureEditorTransposeTarget(
   const path = file.path;
   const container = captured.containerEl;
   const ownerDocument = container.ownerDocument;
+  const codeMirror = codeMirrorForEditor(container, editor);
+  if (codeMirror === null) return null;
   const isCurrent = (): boolean => {
     if (!isActive() || captured.file !== file || captured.editor !== editor
       || file.path !== path || !container.isConnected || container.ownerDocument !== ownerDocument
       || app.vault.getFileByPath(path) !== file) return false;
+    if (codeMirrorForEditor(container, editor) !== codeMirror
+      || codeMirror.state.doc.toString() !== editor.getValue()) return false;
     let hasView = false;
     app.workspace.iterateAllLeaves((leaf) => {
       if (leaf.view === captured) hasView = true;
@@ -55,7 +72,15 @@ export function captureEditorTransposeTarget(
       return;
     }
     const result = transposeTable(current);
-    if (result.changed) replaceTableSource(editor, current, result.source);
+    if (result.changed) {
+      codeMirror.dispatch({
+        changes: { from: current.range.from, to: current.range.to, insert: result.source },
+        selection: { anchor: current.range.from + result.source.length },
+        // A command is one host-history operation, separate from typing on
+        // either side, even when confirmation follows the last keystroke.
+        annotations: isolateHistory.of("full"),
+      });
+    }
     new Notice(operationNotice(t, result.code));
   };
   return { ownerDocument, draftRoot: container, isCurrent, apply };

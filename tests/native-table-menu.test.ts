@@ -3,6 +3,7 @@
 import type { App, Component, Editor } from "obsidian";
 import { MarkdownView, Menu } from "obsidian";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { JSDOM } from "jsdom";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings";
 import type { ExportTableImage } from "../src/app/table-image-modal";
@@ -117,6 +118,56 @@ afterEach(() => {
 });
 
 describe("native table menu bridge", () => {
+  it("observes independent existing non-Markdown windows before their later Markdown transition", async () => {
+    const realms = [new JSDOM("<body><div class='view'></div></body>"), new JSDOM("<body><div class='view'></div></body>")];
+    const leaves = realms.map((realm) => ({ view: { containerEl: realm.window.document.querySelector<HTMLElement>(".view")! } }));
+    const callbacks = new Map<string, (workspaceWindow: unknown, window: Window) => void>();
+    const app = { workspace: {
+      iterateAllLeaves: (callback: (leaf: typeof leaves[number]) => void) => leaves.forEach(callback),
+      on: (event: string, callback: (workspaceWindow: unknown, window: Window) => void) => { callbacks.set(event, callback); return {}; },
+    } } as unknown as App;
+    const cleanups: Array<() => void> = [];
+    const component = { register: (cleanup: () => void) => cleanups.push(cleanup), registerEvent: () => {} } as unknown as Component;
+    const bridge = new NativeTableMenuBridge(app, () => ({ ...DEFAULT_SETTINGS, language: "en" }), vi.fn());
+    bridge.register(component);
+    try {
+      const cells = realms.map((realm, index) => {
+        const containerEl = leaves[index]!.view.containerEl;
+        const editor = { getValue: () => SOURCE, getCursor: () => ({ line: 2, ch: 2 }), posToOffset: () => SOURCE.indexOf("Alice") };
+        leaves[index]!.view = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file: null });
+        containerEl.innerHTML = "<div class='cm-table-widget'><table><thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Alice</td><td>Doing</td></tr></tbody></table></div>";
+        const cell = containerEl.querySelector<HTMLTableCellElement>("td")!;
+        expect(cell).toBeInstanceOf(realm.window.HTMLTableCellElement);
+        return cell;
+      });
+      await vi.waitFor(() => {
+        for (const [index, cell] of cells.entries()) {
+          cell.dispatchEvent(new realms[index]!.window.MouseEvent("contextmenu", { bubbles: true, button: 2 }));
+          expect(lastMenu?.items.filter(({ title }) => title === "Upgrade to Base…")).toHaveLength(1);
+        }
+      });
+      for (const [index, cell] of cells.entries()) {
+        callbacks.get("window-open")?.({}, realms[index]!.window as unknown as Window);
+        cell.dispatchEvent(new realms[index]!.window.MouseEvent("contextmenu", { bubbles: true, button: 2 }));
+        expect(lastMenu?.items.filter(({ title }) => title === "Transpose whole table (swap rows and columns)")).toHaveLength(1);
+      }
+      const remove = cells.map((cell) => vi.spyOn(cell, "removeEventListener"));
+      callbacks.get("window-close")?.({}, realms[0]!.window as unknown as Window);
+      expect(remove[0]!.mock.calls.filter(([type]) => type === "contextmenu")).toHaveLength(1);
+      expect(remove[1]!.mock.calls).toHaveLength(0);
+      cleanups.splice(0).forEach((cleanup) => cleanup());
+      expect(remove[1]!.mock.calls.filter(([type]) => type === "contextmenu")).toHaveLength(1);
+      const late = realms[1]!.window.document.createElement("td");
+      const add = vi.spyOn(late, "addEventListener");
+      leaves[1]!.view.containerEl.append(late);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(add).not.toHaveBeenCalled();
+    } finally {
+      cleanups.splice(0).forEach((cleanup) => cleanup());
+      realms.forEach((realm) => realm.window.close());
+    }
+  });
+
   it("adds Base upgrade to the menu Obsidian builds before stopping the native cell event", () => {
     const { cell, promote } = fixture(false);
 

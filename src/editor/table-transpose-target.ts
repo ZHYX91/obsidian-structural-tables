@@ -3,7 +3,7 @@ import { Notice, type MarkdownView, type App, type Editor, type TFile } from "ob
 
 import { operationNotice, type Translate } from "../config/i18n";
 import type { StructuralTable } from "../core/model";
-import { transposeTable } from "../core/operations";
+import { transposeTableInDocument } from "../core/table-transpose-validation";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { requestWholeTableTranspose, type TableTransposeRequest } from "../app/table-transpose-modal";
 import { codeMirrorForEditor, markdownViewForEditor } from "./editor-view-context";
@@ -51,7 +51,7 @@ export function captureEditorTransposeTarget(
       new Notice(t("notice.staleTable"));
       return;
     }
-    const result = transposeTable(current);
+    const result = transposeTableInDocument(editor.getValue(), current);
     if (result.changed) {
       codeMirror.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },

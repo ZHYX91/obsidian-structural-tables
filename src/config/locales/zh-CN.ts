@@ -1,6 +1,7 @@
 import type { TranslationCatalog } from "./en";
 
 const zhCN = {
+  "operation.transposeBoundaryUnsafe": "转置后，表格的起止位置会变得不明确。请在表格前后各加一行空行，再重试。",
   "command.convertGfm": "将当前表格转换为普通 GFM",
   "command.createBaseRecord": "为当前 Base 新建记录",
   "command.copyCsv": "将当前表格复制为 CSV",

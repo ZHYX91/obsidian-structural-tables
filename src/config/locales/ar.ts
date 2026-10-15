@@ -1,6 +1,7 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "operation.transposeBoundaryUnsafe": "سيؤدي تبديل الصفوف والأعمدة إلى تغيير موضع بداية الجدول أو نهايته داخل الملاحظة. أضف سطرًا فارغًا قبل الجدول وآخر بعده، ثم أعد المحاولة.",
   "command.convertGfm": "تحويل الجدول الحالي إلى GFM عادي",
   "command.createBaseRecord": "إنشاء سجل في Base الحالي",
   "command.copyCsv": "نسخ الجدول الحالي بصيغة CSV",

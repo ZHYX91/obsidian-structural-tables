@@ -1,4 +1,5 @@
 const en = {
+  "operation.transposeBoundaryUnsafe": "This transpose would change where the table starts or ends. Add a blank line before and after the table, then try again.",
   "command.convertGfm": "Convert current table to plain GFM",
   "command.createBaseRecord": "Create record for current Base",
   "command.copyCsv": "Copy current table as CSV",

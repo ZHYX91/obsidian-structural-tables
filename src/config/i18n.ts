@@ -72,6 +72,7 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
   "table-deleted": "operation.tableDeleted",
   "table-invalid": "operation.tableInvalid",
   "table-transposed": "operation.tableTransposed",
+  "transpose-boundary-unsafe": "operation.transposeBoundaryUnsafe",
   "transpose-unrepresentable": "operation.transposeUnrepresentable",
 };
 

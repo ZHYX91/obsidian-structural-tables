@@ -116,6 +116,8 @@ Finish or cancel any open cell edit, then right-click the table and choose **Tra
 
 Rows become columns, column and row headers exchange roles, and merged cells turn with the table. A confirmation appears if different column alignments must be reset or an ordinary Markdown table needs Structural Tables syntax to keep its headers. Cancel leaves the table unchanged. After confirming, one Undo restores the whole table; typing before or after the transpose stays in a separate undo step.
 
+If nearby pipe-separated text would become part of the transposed table, the command leaves the note unchanged. Add a blank line before and after the table, then try again.
+
 ### Editing, line breaks, and math
 
 Shift+Enter, the cell-editor menu, and multiline paste can insert a visual line break. Ordinary text is saved with canonical `<br>`; hand-written `<br>`, `<br/>`, and `<br />` spellings are preserved when the table is only formatted.

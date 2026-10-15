@@ -8,6 +8,7 @@
 - Undo a transpose in one step, separately from nearby typing. Restore editor focus after confirmation so keyboard undo/redo works immediately, including source and native menu entries.
 - Preserve merged-table rendering, source caret placement and scroll position when clicking below a focused or edited table.
 - Keep native-cell commands bound to the complete note editor when Obsidian embeds a cell editor with inherited ownership information. Canceling a touch pan clears its unfinished double-tap sequence without discarding a completed selection.
+- Bind native table menus to the clicked editor and mapped table. Refuse transposes that would absorb nearby text or whose original editor has moved to another window, leaving source and undo history unchanged.
 - Register native table menus in existing separate windows even when their initial view is not Markdown, and release listeners when cells, windows or the plugin close.
 
 ## 0.6.2 - 2026-10-10

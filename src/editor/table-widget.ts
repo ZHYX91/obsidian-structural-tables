@@ -19,11 +19,11 @@ import {
   insertTableColumn,
   pasteTableRangeRaw,
   reorderTableAxis,
-  transposeTable,
   type TableAxis,
 } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+import { transposeTableInDocument } from "../core/table-transpose-validation";
 import { parseEditableTables } from "../core/parser";
 import { sourcePrefix } from "../core/source-lines";
 import {
@@ -1168,19 +1168,22 @@ class StructuralTableInteraction {
     const editorIdentity = info?.editor;
     const fileIdentity = info?.file;
     const tableIdentity = frozen.selection.table;
+    const ownerDocument = frozen.host.ownerDocument;
     const transposeRequest = {
-      ownerDocument: frozen.host.ownerDocument,
+      ownerDocument,
       draftRoot: frozen.host,
       isCurrent: (): boolean => {
         const currentInfo = view.state.field(editorInfoField, false);
         return view.dom.isConnected && this.host === frozen.host && frozen.host.isConnected
+          && frozen.host.ownerDocument === ownerDocument && view.dom.ownerDocument === ownerDocument
+          && view.contentDOM.ownerDocument === ownerDocument
           && this.sourcePath === frozen.sourcePath
           && currentInfo?.editor === editorIdentity && currentInfo?.file === fileIdentity
           && currentInfo?.file?.path === frozen.sourcePath
           && reparseUnchangedTable(view.state.doc.toString(), tableIdentity) !== null;
       },
       apply: (): void => this.applyMenuOperation(
-        view, transposeTable, undefined, undefined, "owned-grid", undefined, frozen.anchor,
+        view, (current) => transposeTableInDocument(view.state.doc.toString(), current), undefined, undefined, "owned-grid", undefined, frozen.anchor,
       ),
     };
     addWholeTableTransposeMenuItem(menu, t, () => activate(() => requestWholeTableTranspose(

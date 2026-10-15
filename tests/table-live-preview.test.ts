@@ -3,7 +3,7 @@ import type { ExportTableImage } from "../src/app/table-image-modal";
 // @vitest-environment happy-dom
 
 import { EditorState, Prec, StateField, Transaction, type Extension } from "@codemirror/state";
-import { history, historyKeymap, redo, undo } from "@codemirror/commands";
+import { history, historyKeymap, redo, undo, undoDepth } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
 import { App, MarkdownRenderer, Platform, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -5070,6 +5070,32 @@ describe("whole-table transpose confirmation and source revalidation", () => {
       expect(view.state.doc.toString()).toBe(original);
       expect(redo(view)).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("refuses the original owned confirmation after its connected editor is adopted into another document", () => {
+    let writes = 0;
+    const { parent, view } = mountEditor(original, { anchor: original.length }, [history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    try {
+      const button = openConfirmation(parent);
+      const undoBefore = undoDepth(view.state);
+      const frame = document.body.appendChild(document.createElement("iframe"));
+      frame.contentDocument!.body.appendChild(parent);
+      expect(parent.isConnected).toBe(true); expect(parent.ownerDocument).toBe(frame.contentDocument);
+      clickLikeUser(button);
+      expect(view.state.doc.toString()).toBe(original); expect(writes).toBe(0); expect(undoDepth(view.state)).toBe(undoBefore);
+    } finally { view.destroy(); }
+  });
+
+  it("refuses an owned transpose that would consume preceding pipe prose without a transaction", () => {
+    const source = "| P | Q | R |\n| H1 | H2 |\n| --- || --- |\n| A | B |\n| C | D |";
+    let writes = 0;
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+      clickCurrentMenuItem("Transpose whole table (swap rows and columns)", true);
+      expect(view.state.doc.toString()).toBe(source); expect(writes).toBe(0); expect(undoDepth(view.state)).toBe(0);
+      expect(notices[notices.length - 1]).toContain("blank line");
     } finally { view.destroy(); }
   });
 

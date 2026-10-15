@@ -33,7 +33,8 @@ beforeEach(() => { restoreSelection = installSelectionChangeTasks(document); });
 afterEach(() => { document.body.replaceChildren(); restoreSelection(); });
 
 describe("transpose editor entry history", () => {
-  it.each((["command", "source-menu", "native-menu"] as const).flatMap((entry) => [false, true].map((nativeChild) => ({ entry, nativeChild }))))("isolates $entry transpose with native child $nativeChild from adjacent typing and later input", ({ entry, nativeChild }) => {
+  it.each((["command", "source-menu", "native-menu"] as const).flatMap((entry) => [false, true].flatMap((nativeChild) => [false, true].map((unsafeBoundary) => ({ entry, nativeChild, unsafeBoundary })))))("isolates $entry transpose with native child $nativeChild, unsafe boundary $unsafeBoundary", ({ entry, nativeChild, unsafeBoundary }) => {
+    const initial = unsafeBoundary ? "| P | Q | R |\n| Name | Value |\n| --- | --- |\n| North | 1 |\n| South | 2 |" : ORIGINAL;
     const containerEl = document.body.appendChild(document.createElement("div"));
     const file = new TFile("A.md");
     let cm: EditorView;
@@ -52,7 +53,7 @@ describe("transpose editor entry history", () => {
       setCursor: (position: EditorPosition) => cm.dispatch({ selection: { anchor: posToOffset(position) } }),
     } as unknown as Editor;
     cm = new EditorView({ parent: containerEl, state: EditorState.create({
-      doc: ORIGINAL,
+      doc: initial,
       extensions: [history(), editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app: {} as App, hoverPopover: null }))],
     }) });
     const view = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file });
@@ -71,7 +72,7 @@ describe("transpose editor entry history", () => {
     }) as unknown as { registerCommands: () => void; registerEditorMenu: () => void };
     const component = new Component();
     try {
-      const offset = ORIGINAL.indexOf("North") + "North".length;
+      const offset = initial.indexOf("North") + "North".length;
       cm.dispatch({ changes: { from: offset, insert: "X" }, selection: { anchor: offset + 1 }, annotations: Transaction.userEvent.of("input.type") });
       const beforeTranspose = cm.state.doc.toString();
       const childWidget = nativeChild || entry === "native-menu" ? new NativeTableWidget(parseEditableTables(beforeTranspose).tables[0]!, nativeChild) : null;
@@ -102,7 +103,14 @@ describe("transpose editor entry history", () => {
       }
       const confirm = [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Transpose anyway")!;
       expect(confirm).toBeDefined();
+      let extraWrites = 0;
+      cm.dispatch({ effects: StateEffect.appendConfig.of(EditorView.updateListener.of((update) => { if (update.docChanged) extraWrites += 1; })) });
+      const historyBefore = undoDepth(cm.state);
       clickLikeUser(confirm);
+      if (unsafeBoundary) {
+        expect(cm.state.doc.toString()).toBe(beforeTranspose); expect(extraWrites).toBe(0); expect(undoDepth(cm.state)).toBe(historyBefore);
+        return;
+      }
       const transposed = cm.state.doc.toString();
       expect(transposed).toContain("NorthX");
       expect(transposed).toContain("||");

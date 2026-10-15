@@ -1,6 +1,7 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "operation.transposeBoundaryUnsafe": "Al transponer, cambiaría dónde empieza o termina la tabla. Añade una línea en blanco antes y otra después de la tabla e inténtalo de nuevo.",
   "command.convertGfm": "Convertir la tabla actual a GFM simple",
   "command.createBaseRecord": "Crear un registro para la Base actual",
   "command.copyCsv": "Copiar la tabla actual como CSV",

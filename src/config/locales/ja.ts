@@ -1,6 +1,7 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "operation.transposeBoundaryUnsafe": "転置すると、テーブルの開始位置や終了位置を正しく認識できなくなります。テーブルの前後に空行を 1 行ずつ追加して、もう一度お試しください。",
   "command.convertGfm": "現在のテーブルを標準 GFM に変換",
   "command.createBaseRecord": "現在の Base にレコードを作成",
   "command.copyCsv": "現在のテーブルを CSV としてコピー",

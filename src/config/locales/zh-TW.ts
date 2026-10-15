@@ -1,6 +1,7 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "operation.transposeBoundaryUnsafe": "轉置後，將無法正確辨識表格的起訖位置。請在表格前後各加一個空白行，再試一次。",
   "command.convertGfm": "將目前表格轉換為一般 GFM",
   "command.createBaseRecord": "為目前的 Base 建立記錄",
   "command.copyCsv": "將目前表格複製為 CSV",

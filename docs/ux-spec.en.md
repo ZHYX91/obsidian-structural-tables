@@ -42,6 +42,8 @@ Source-position changes, edits elsewhere in the note, or table-index shifts shou
 
 After undo/redo, restore focus to the corresponding visible cell when possible. Callout tables follow the same rule and must not expose the whole source block merely because the host rerenders it.
 
+Tapping the paragraph below a source-rendered table keeps its local horizontal position in both LTR and RTL notes. An unchanged cell leaves the same table mounted. A changed cell commits once and may replace its rendered table; preserve that table's horizontal position only for this exact replacement, after its contents finish rendering. New input, scrolling, source changes, another editor or a changed direction cancel any pending restoration. Native text selection, including deliberate double taps and long presses, remains native.
+
 ### Ordinary GFM tables
 
 Obsidian's native table UI remains the default. With **Take over ordinary Markdown tables** enabled, ordinary GFM uses the same rendering and editing controls as structural tables while its source stays standard GFM. Turning the setting off restores the native UI immediately.

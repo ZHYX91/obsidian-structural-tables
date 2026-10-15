@@ -17,7 +17,7 @@ import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
 import { renderTableSignatures } from "../rendering/native-table-mapping";
 import { structuralTableViewMode } from "./table-view-state";
-import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
+import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
 import type { ExportTableImage } from "../app/table-image-modal";
 
 export const refreshStructuralTables = StateEffect.define<void>();
@@ -37,6 +37,18 @@ interface StructuralTableDecorationState {
 }
 
 const structuralTableComposition = StateEffect.define<boolean>();
+
+function isCellBlurCommit(transaction: Transaction): boolean {
+  const commit = transaction.effects.find((effect) => effect.is(structuralTableCellBlurCommit))?.value;
+  if (commit === undefined || transaction.startState.field(editorInfoField, false)?.file?.path !== commit.sourcePath
+    || transaction.state.field(editorInfoField, false)?.file?.path !== commit.sourcePath
+    || transaction.startState.doc.sliceString(commit.from, commit.from + commit.before.length) !== commit.before) return false;
+  let count = 0; let matches = false;
+  transaction.changes.iterChanges((from, to, _fromB, _toB, inserted) => {
+    count += 1; matches = from === commit.from && to === from + commit.before.length && inserted.toString() === commit.after;
+  });
+  return count === 1 && matches;
+}
 
 export class StructuralTableEditorController {
   private readonly views = new Set<EditorView>();
@@ -181,23 +193,34 @@ export class StructuralTableEditorController {
     });
     const viewTracker = ViewPlugin.fromClass(class {
       private readonly calloutTables: CalloutTables;
+      private readonly eventDocument: Document;
+      private readonly eventWindow: Document["defaultView"];
       private sourceFocusTimer: number | null = null;
       private sourcePointerPending = false;
       private sourcePointerHeld = false;
+      private sourcePointerResolved = false;
       private sourcePointerId: number | undefined;
+      private readonly resetSourcePointer = (): void => {
+        const win = this.eventWindow;
+        if (this.sourceFocusTimer !== null && win !== null) win.clearTimeout(this.sourceFocusTimer);
+        this.sourceFocusTimer = null;
+        this.sourcePointerPending = false;
+        this.sourcePointerHeld = false;
+        this.sourcePointerResolved = false;
+        this.sourcePointerId = undefined;
+      };
       private readonly setSourceFocus = (focused: boolean): void => {
         const current = this.view.state.field(decorationField).sourceFocused;
         if (current !== focused) this.view.dispatch({ effects: structuralTableSourceFocus.of(focused) });
       };
       private readonly scheduleSourceFocus = (): void => {
-        const win = this.view.dom.ownerDocument.defaultView;
-        if (win === null) return;
+        const win = this.eventWindow;
+        if (win === null || this.view.dom.ownerDocument !== this.eventDocument) return;
         if (this.sourceFocusTimer !== null) win.clearTimeout(this.sourceFocusTimer);
         this.sourceFocusTimer = win.setTimeout(() => {
           this.sourceFocusTimer = null;
           if (this.sourcePointerHeld) return;
-          this.sourcePointerPending = false;
-          if (!this.view.dom.isConnected) return;
+          if (!this.view.dom.isConnected || this.view.dom.ownerDocument !== this.eventDocument) return;
           const active = this.view.dom.ownerDocument.activeElement;
           const sourceOwned = active !== null
             && this.view.contentDOM.contains(active)
@@ -205,7 +228,14 @@ export class StructuralTableEditorController {
           // External controls do not end a source-editing session. Suppressing
           // its range on blur would make CodeMirror relocate the native caret
           // when focus returns. Only a visual-cell interaction yields ownership.
-          if (sourceOwned) this.setSourceFocus(true);
+          if (!sourceOwned) return;
+          // Touch compatibility focus can arrive after pointerup's task but
+          // before CodeMirror resolves the native selection. Revealing the old
+          // logical cell here would unmount and recreate its scrolled table.
+          if (this.sourcePointerPending && !this.sourcePointerResolved
+            && !this.view.state.field(decorationField).sourceFocused) return;
+          this.resetSourcePointer();
+          this.setSourceFocus(true);
         }, 0);
       };
       private readonly sourceFocusIn = (): void => this.scheduleSourceFocus();
@@ -220,13 +250,34 @@ export class StructuralTableEditorController {
       };
       private readonly sourcePointerAbort = (): void => {
         if (!this.sourcePointerPending) return;
-        this.sourcePointerHeld = false;
-        this.sourcePointerPending = false;
-        this.sourcePointerId = undefined;
+        this.resetSourcePointer();
         this.scheduleSourceFocus();
+      };
+      private readonly outsidePointerDown = (event: PointerEvent): void => {
+        const target = event.target;
+        if (this.eventWindow === null || !(target instanceof this.eventWindow.Node) || !this.view.dom.contains(target)
+          || this.view.dom.ownerDocument !== this.eventDocument) this.resetSourcePointer();
+      };
+      private readonly sourceFocusOut = (event: FocusEvent): void => {
+        const next = event.relatedTarget;
+        if (next instanceof this.view.dom.ownerDocument.defaultView!.Node && !this.view.dom.contains(next)) this.resetSourcePointer();
+      };
+      private readonly sourceKeyboardIntent = (event: Event): void => {
+        if (event.type === "keydown") {
+          const key = event as KeyboardEvent;
+          if (key.ctrlKey || key.metaKey || key.altKey
+            || (key.key.length !== 1 && !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Backspace", "Delete", "Enter"].includes(key.key))) return;
+        }
+        const target = event.target;
+        if (!(target instanceof this.view.dom.ownerDocument.defaultView!.Node) || !this.view.contentDOM.contains(target)) return;
+        const element = target.nodeType === 1 ? target as Element : target.parentElement;
+        if (element?.closest(".structural-tables-live-preview") !== null) return;
+        this.resetSourcePointer();
+        this.setSourceFocus(true);
       };
       private readonly sourcePointerDown = (event: PointerEvent): void => {
         if (!event.isPrimary || event.button !== 0) return;
+        this.resetSourcePointer();
         const target = event.target;
         if (!(target instanceof this.view.dom.ownerDocument.defaultView!.Node)
           || !this.view.contentDOM.contains(target)) return;
@@ -237,6 +288,7 @@ export class StructuralTableEditorController {
         // revealing it would change the geometry under the pending click.
         this.sourcePointerPending = true;
         this.sourcePointerHeld = true;
+        this.sourcePointerResolved = this.view.state.field(decorationField).sourceFocused;
         this.sourcePointerId = event.pointerId;
         this.scheduleSourceFocus();
       };
@@ -246,6 +298,10 @@ export class StructuralTableEditorController {
           || !this.view.contentDOM.contains(target)) return;
         const element = target.nodeType === Node.ELEMENT_NODE ? target as Element : target.parentElement;
         if (element?.closest(".structural-tables-live-preview") !== null) return;
+        // A later return from an external control ends an unresolved gesture,
+        // even if the earlier focusout went through BODY with no relatedTarget.
+        if (this.eventWindow !== null && event.relatedTarget instanceof this.eventWindow.Node && event.relatedTarget.isConnected
+          && !this.view.dom.contains(event.relatedTarget)) this.resetSourcePointer();
         if (this.sourcePointerPending) return;
         // CodeMirror can relocate a caret whose range is currently replaced by
         // presentation decorations while focus is being restored. Reveal the
@@ -263,6 +319,10 @@ export class StructuralTableEditorController {
       };
 
       constructor(private readonly view: EditorView) {
+        // Remove listeners from their original realm even if an old view is
+        // adopted into another document before it is destroyed.
+        this.eventDocument = view.dom.ownerDocument;
+        this.eventWindow = this.eventDocument.defaultView;
         this.calloutTables = new CalloutTables(view, () => {
           const value = view.state.field(decorationField);
           const settings = settingsProvider();
@@ -279,15 +339,25 @@ export class StructuralTableEditorController {
         views.add(view);
         view.dom.addEventListener("focusin", this.sourceFocusCapture, true);
         view.dom.addEventListener("focusin", this.sourceFocusIn);
+        view.dom.addEventListener("focusout", this.sourceFocusOut);
+        view.dom.addEventListener("keydown", this.sourceKeyboardIntent, true);
+        view.dom.addEventListener("beforeinput", this.sourceKeyboardIntent, true);
         view.dom.addEventListener("pointerdown", this.sourcePointerDown, true);
-        view.dom.ownerDocument.addEventListener("pointerup", this.sourcePointerUp, true);
-        view.dom.ownerDocument.addEventListener("pointercancel", this.sourcePointerCancel, true);
-        view.dom.ownerDocument.defaultView?.addEventListener("blur", this.sourcePointerAbort);
+        this.eventDocument.addEventListener("pointerdown", this.outsidePointerDown, true);
+        this.eventDocument.addEventListener("pointerup", this.sourcePointerUp, true);
+        this.eventDocument.addEventListener("pointercancel", this.sourcePointerCancel, true);
+        this.eventWindow?.addEventListener("blur", this.sourcePointerAbort);
         view.dom.addEventListener("pointerdown", this.clearOtherSelections, true);
         view.dom.addEventListener("focusin", this.clearOtherSelections, true);
       }
 
       update(update: ViewUpdate): void {
+        if ((update.docChanged && !update.transactions.every((transaction) => !transaction.docChanged || isCellBlurCommit(transaction)))
+          || update.startState.field(editorInfoField, false)?.file !== update.state.field(editorInfoField, false)?.file
+          || update.startState.field(editorInfoField, false)?.editor !== update.state.field(editorInfoField, false)?.editor
+          || !settingsProvider().enableLivePreview || !update.state.field(editorLivePreviewField, false)
+          || update.startState.field(editorLivePreviewField, false) !== update.state.field(editorLivePreviewField, false)
+          || update.transactions.some((transaction) => transaction.effects.some((effect) => effect.is(structuralTableLogicalCursorSync)))) this.resetSourcePointer();
         if (update.docChanged) {
           this.calloutTables.mapChanges(update.changes);
           mapPendingTableFocus(update.view, update.changes);
@@ -304,6 +374,10 @@ export class StructuralTableEditorController {
           transaction.selection !== undefined
           && !transaction.effects.some((effect) => effect.is(structuralTableLogicalCursorSync)));
         if (!externalSelectionChanged) return;
+        if (this.sourcePointerPending) {
+          this.sourcePointerResolved = true;
+          this.scheduleSourceFocus();
+        }
         for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
           clearTableWidgetSelection(host);
         }
@@ -312,15 +386,17 @@ export class StructuralTableEditorController {
       destroy(): void {
         cancelPendingTableFocus(this.view);
         this.calloutTables.destroy();
-        const win = this.view.dom.ownerDocument.defaultView;
-        if (this.sourceFocusTimer !== null && win !== null) win.clearTimeout(this.sourceFocusTimer);
-        this.sourceFocusTimer = null;
+        this.resetSourcePointer();
         this.view.dom.removeEventListener("focusin", this.sourceFocusCapture, true);
         this.view.dom.removeEventListener("focusin", this.sourceFocusIn);
+        this.view.dom.removeEventListener("focusout", this.sourceFocusOut);
+        this.view.dom.removeEventListener("keydown", this.sourceKeyboardIntent, true);
+        this.view.dom.removeEventListener("beforeinput", this.sourceKeyboardIntent, true);
         this.view.dom.removeEventListener("pointerdown", this.sourcePointerDown, true);
-        this.view.dom.ownerDocument.removeEventListener("pointerup", this.sourcePointerUp, true);
-        this.view.dom.ownerDocument.removeEventListener("pointercancel", this.sourcePointerCancel, true);
-        this.view.dom.ownerDocument.defaultView?.removeEventListener("blur", this.sourcePointerAbort);
+        this.eventDocument.removeEventListener("pointerdown", this.outsidePointerDown, true);
+        this.eventDocument.removeEventListener("pointerup", this.sourcePointerUp, true);
+        this.eventDocument.removeEventListener("pointercancel", this.sourcePointerCancel, true);
+        this.eventWindow?.removeEventListener("blur", this.sourcePointerAbort);
         this.view.dom.removeEventListener("pointerdown", this.clearOtherSelections, true);
         this.view.dom.removeEventListener("focusin", this.clearOtherSelections, true);
         views.delete(this.view);

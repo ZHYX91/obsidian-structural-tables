@@ -3,7 +3,7 @@ import type { ExportTableImage } from "../app/table-image-modal";
 import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
-import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor } from "obsidian";
+import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -31,7 +31,7 @@ import {
   tableRangePayload,
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
-import { renderStructuralTable } from "../rendering/table-renderer";
+import { renderStructuralTable, tableRenderingComplete } from "../rendering/table-renderer";
 import { renderTableClipboard } from "../rendering/table-clipboard";
 import { cellClipboardText, copyHtml } from "./table-interchange";
 import {
@@ -58,7 +58,7 @@ import {
 
 import { retainCellDraft } from "./cell-draft-recovery";
 import { tableCellSourceOffset } from "./table-source-binding";
-import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
+import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
@@ -75,6 +75,19 @@ interface PendingCellFocus {
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
 const activeCellEditors = new WeakMap<Document, HTMLTextAreaElement>();
+
+interface CellCommitViewport {
+  document: Document;
+  editor: Editor | undefined;
+  file: TFile | null | undefined;
+  from: number;
+  source: string;
+  sourcePath: string;
+  index: number;
+  left: number;
+  direction: string;
+  doc: EditorView["state"]["doc"];
+}
 
 type CellEditEntryIntent = "select-all" | { caretOffset: number };
 
@@ -290,6 +303,42 @@ class StructuralTableInteraction {
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
   ) {}
+
+  restoreCellCommitViewport(view: EditorView, snapshot: CellCommitViewport): void {
+    const host = this.host; const rendered = this.renderedTable;
+    const scroller = rendered?.closest<HTMLElement>(".structural-tables-container");
+    if (host === null || rendered === null || scroller == null || this.component === null) return;
+    let active = true;
+    const cleanup = (): void => {
+      active = false;
+      for (const type of ["pointerdown", "keydown", "beforeinput", "wheel"]) snapshot.document.removeEventListener(type, cleanup, true);
+      scroller.removeEventListener("scroll", cleanup);
+    };
+    const isCurrent = (): boolean => {
+      const info = view.state.field(editorInfoField, false);
+      return active && this.host === host && host.isConnected && view.dom.isConnected
+        && view.dom.ownerDocument === snapshot.document && view.contentDOM.ownerDocument === snapshot.document && host.ownerDocument === snapshot.document
+        && view.contentDOM.contains(host) && host.closest(".cm-editor") === view.dom
+        && rendered.isConnected && scroller.isConnected && host.contains(scroller) && scroller.contains(rendered)
+        && view.state.doc === snapshot.doc && info?.editor === snapshot.editor && info?.file === snapshot.file
+        && info?.file?.path === snapshot.sourcePath && this.sourcePath === snapshot.sourcePath
+        && this.table.range.from === snapshot.from && this.table.source === snapshot.source && this.table.sourceTableIndex === snapshot.index
+        && scroller.ownerDocument.defaultView?.getComputedStyle(scroller).direction === snapshot.direction;
+    };
+    if (!isCurrent()) return;
+    this.component.register(cleanup);
+    for (const type of ["pointerdown", "keydown", "beforeinput", "wheel"]) snapshot.document.addEventListener(type, cleanup, true);
+    scroller.addEventListener("scroll", cleanup);
+    // A cell commit replaces its widget. Restore only this exact replacement,
+    // after asynchronous cell rendering has supplied its real scroll width.
+    void tableRenderingComplete(rendered).then(() => {
+      if (!isCurrent()) { cleanup(); return; }
+      view.requestMeasure({ read: isCurrent, write: (current) => {
+        if (!current || !isCurrent()) { cleanup(); return; }
+        cleanup(); scroller.scrollLeft = snapshot.left;
+      } });
+    }).catch(cleanup);
+  }
 
   rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
     if (this.table.source !== table.source || this.sourcePath !== sourcePath
@@ -1569,15 +1618,33 @@ class StructuralTableInteraction {
         return;
       }
       const nativeCallout = this.host?.closest(".callout") != null;
+      const scroller = element.closest<HTMLElement>(".structural-tables-container");
+      const info = view.state.field(editorInfoField, false);
+      const viewport = !focus && next === null && !nativeCallout && scroller !== null ? {
+        document: element.ownerDocument, editor: info?.editor, file: info?.file, from: current.range.from,
+        source: result.source, sourcePath: this.sourcePath, index: current.sourceTableIndex, left: scroller.scrollLeft,
+        direction: element.ownerDocument.defaultView?.getComputedStyle(scroller).direction ?? "ltr",
+      } : null;
       const target: PendingCellFocus = {
         from: current.range.from, source: result.source, sourcePath: this.sourcePath,
         coordinate: next ?? anchor, edit: next !== null,
       };
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
+        // Only source replacement widgets yield to source focus. Native Callout
+        // tables keep their own mounting and history-target effects.
+        ...(!focus && next === null && !nativeCallout ? { effects: structuralTableCellBlurCommit.of({ from: current.range.from, before: current.source, after: result.source, sourcePath: this.sourcePath }) } : {}),
         ...(nativeCallout ? tableWriteHistory(current, result.source, this.sourcePath, anchor) : {}),
         ...(focus && !nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
+      if (viewport !== null) {
+        const snapshot = { ...viewport, doc: view.state.doc };
+        queueMicrotask(() => {
+          const hosts = [...view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")]
+            .filter((host) => host.closest(".cm-editor") === view.dom && host.dataset.structuralSourceTableIndex === String(snapshot.index));
+          if (hosts.length === 1) interactions.get(hosts[0]!)?.restoreCellCommitViewport(view, snapshot);
+        });
+      }
       if (nativeCallout && (focus || next !== null)) {
         this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null, false, target.from);
       } else if (next !== null || focus) requestTableFocus(view, target);

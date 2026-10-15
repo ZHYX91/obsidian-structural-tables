@@ -6,7 +6,7 @@
 - Keep plugin language separate from note direction. RTL tables show the first source columns and row headers on the right, with matching left/right controls, native text navigation for bidirectional drafts, and direction preserved in whole-table HTML copies.
 - Add whole-table transpose to grid menus, source commands and menus, and native ordinary-table menus. Rows and columns swap along with their headers and merged cells. Confirm alignment resets or changes to Structural Tables syntax; leave the table unchanged if the result cannot be saved safely, the table changed, or a cell edit is still open.
 - Undo a transpose in one step, separately from nearby typing. Restore editor focus after confirmation so keyboard undo/redo works immediately, including source and native menu entries.
-- Preserve merged-table rendering, source caret placement and scroll position when clicking below a focused or edited table.
+- Preserve merged-table rendering, source caret placement and local horizontal scroll when clicking or tapping below a focused table, including after saving a changed cell.
 - Allow transpose while editing an ordinary table cell. After scrolling by touch, a single tap no longer unexpectedly starts editing; completed selections remain available for the context menu.
 - Apply native table menu actions to the table you clicked, including in nested panes. Leave the note and undo history unchanged if transposing would absorb nearby text or the original editor moved to another window.
 - Preserve the source table's direction in PNG exports from commands and source menus, reject direction changes during generation, and make image export available in owned Callout table menus.

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { history, undoDepth } from "@codemirror/commands";
+import { history, redo, undo, undoDepth } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import { Component, MarkdownView, editorInfoField, type App, type Editor, type EditorPosition, type TFile as HostFile } from "obsidian";
@@ -68,6 +68,22 @@ function transposeCell(cell: HTMLElement): boolean {
 }
 
 describe("native table exact target", () => {
+  it("transposes only the second of two identical mapped tables while the source cursor stays in the first, with exact undo/redo", () => {
+    const source = `Intro stays.\n\n${SOURCE}\n\nBetween stays.\n\n${SOURCE}\n\nAfter stays.`;
+    const a = note(document.body, source); bridge([a]);
+    const [first, second] = parseEditableTables(source).tables;
+    a.cm.dispatch({ selection: { anchor: first!.range.from + 2 } });
+    const secondWidget = a.cm.dom.querySelectorAll<HTMLElement>(".cm-table-widget")[1]!;
+    expect(transposeCell(secondWidget.querySelector<HTMLElement>("td")!)).toBe(true);
+    const transposed = a.cm.state.doc.toString(); const tables = parseEditableTables(transposed).tables;
+    expect(a.writes()).toBe(1); expect(undoDepth(a.cm.state)).toBe(1);
+    expect(tables[0]!.source).toBe(SOURCE); expect(tables[1]!.rowHeaderColumnCount).toBe(1);
+    expect(transposed.slice(0, second!.range.from)).toBe(source.slice(0, second!.range.from));
+    expect(transposed.slice(tables[1]!.range.to)).toBe(source.slice(second!.range.to));
+    expect(undo(a.cm)).toBe(true); expect(a.cm.state.doc.toString()).toBe(source); expect(undoDepth(a.cm.state)).toBe(0);
+    expect(redo(a.cm)).toBe(true); expect(a.cm.state.doc.toString()).toBe(transposed); expect(undoDepth(a.cm.state)).toBe(1);
+  });
+
   it("writes only the clicked nested leaf's full-note CM, even when the outer leaf has identical source and offsets", () => {
     const a = note(document.body); const b = note(a.view.containerEl);
     bridge([a, b]);

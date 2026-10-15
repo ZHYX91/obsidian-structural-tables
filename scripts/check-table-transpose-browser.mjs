@@ -100,6 +100,11 @@ try {
     await settle();
   };
   const select = (selector) => "document.querySelector(" + JSON.stringify(selector) + ")";
+  const tap = async (expression) => {
+    const bounds = await evaluate("(function(){const b=" + expression + ";b.scrollIntoView({block:'nearest'});const r=b.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()");
+    await command("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: bounds.x, y: bounds.y }] });
+    await command("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); await settle();
+  };
   const clickConfirm = () => click("Array.from(document.querySelectorAll('button')).find(x=>x.textContent==='Transpose anyway')");
   const historyKey = async (redo = false) => {
     const key = redo ? "y" : "z";
@@ -227,10 +232,17 @@ try {
       results.push({ mode, arrow, nativeCaret: true, sourcePreserved: true });
     }
   }
-  for (const mode of ["focus", "focus-after", "focus-canceled"]) {
+  for (const mode of ["focus", "focus-after", "focus-canceled", "focus-wide", "focus-wide-rtl", "focus-wide-edited", "focus-wide-edited-rtl"]) {
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
     await click(select("[data-structural-row='22'][data-structural-column='4']"));
     state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.draft, true, JSON.stringify(state));
+    const initialTableHeight = state.tableHeight;
+    const edited = mode.includes("edited");
+    if (edited) {
+      await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select()");
+      await command("Input.insertText", { text: "last-cell-final-longx" }); await settle();
+      state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.draftValue, "last-cell-final-longx");
+    }
     if (mode === "focus-canceled") {
       await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
       await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
@@ -238,17 +250,38 @@ try {
     }
     await evaluate("window.savedTable=document.querySelector('.structural-tables-live-preview table')");
     const before = state;
+    if (mode.startsWith("focus-wide")) {
+      assert.ok(before.horizontalOverflow > 100, JSON.stringify(before));
+      assert.ok(Math.abs(before.horizontalScroll) > 10, JSON.stringify(before));
+      // Opening a draft and tapping another location are separate actions.
+      // Do not accidentally request native multi-click word/paragraph selection.
+      await evaluate("new Promise(r=>setTimeout(r,600))");
+    }
     // Real mousedown/focus/mouseup lets CodeMirror place the source caret; the
     // harness does not dispatch a replacement selection for this regression.
-    await click("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
+    if (mode.startsWith("focus-wide")) await tap("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
+    else await click("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
     state = await evaluate("window.transposeBrowser.result()");
-    assert.equal(state.source, before.source); assert.equal(state.changes, 0); assert.equal(state.draft, false);
+    if (edited) { assert.equal(state.changes, 1); assert.equal(state.lastValue, "last-cell-final-longx"); assert.equal(state.source, state.expectedEditedSource); }
+    else { assert.equal(state.source, before.source); assert.equal(state.changes, 0); }
+    assert.equal(state.draft, false);
     assert.equal(state.anchor, state.head, JSON.stringify(state));
     assert.ok(state.anchor >= state.source.lastIndexOf("\n"), JSON.stringify(state));
-    assert.equal(await evaluate("window.savedTable===document.querySelector('.structural-tables-live-preview table')"), true);
-    assert.equal(state.spans, 11); assert.ok(Math.abs(state.tableHeight - before.tableHeight) < 1, JSON.stringify(state));
-    assert.ok(Math.abs(state.scrollTop - before.scrollTop) < 2, JSON.stringify({ before: before.scrollTop, after: state.scrollTop }));
-    results.push({ mode, sourcePreserved: true, stableGeometry: true, collapsedCaret: true });
+    assert.equal(await evaluate("window.savedTable===document.querySelector('.structural-tables-live-preview table')"), !edited,
+      JSON.stringify({ mode, beforeHorizontal: before.horizontalScroll, afterHorizontal: state.horizontalScroll, beforeVertical: before.scrollTop, afterVertical: state.scrollTop, sourcePreserved: before.source === state.source, anchor: state.anchor, head: state.head, trace: state.focusTrace }));
+    assert.equal(state.spans, 11); assert.ok(Math.abs(state.tableHeight - initialTableHeight) < 1, JSON.stringify({ mode, initialTableHeight, beforeHeight: before.tableHeight, afterHeight: state.tableHeight }));
+    assert.ok(Math.abs(state.scrollTop - before.scrollTop) < (edited ? 5 : 2), JSON.stringify({ before: before.scrollTop, after: state.scrollTop }));
+    if (mode.startsWith("focus-wide")) {
+      assert.equal(state.lastClickDetail, 1, JSON.stringify({ mode, trace: state.focusTrace }));
+      assert.ok(Math.abs(state.horizontalScroll - before.horizontalScroll) < 1, JSON.stringify({ mode, before, after: state }));
+    }
+    if (edited) {
+      const committed = state.source;
+      await historyKey(); assert.equal((await evaluate("window.transposeBrowser.result()")).source, before.source);
+      await historyKey(true); assert.equal((await evaluate("window.transposeBrowser.result()")).source, committed);
+    }
+    results.push({ mode, sourcePreserved: !edited, cellCommitted: edited, stableGeometry: true, collapsedCaret: true,
+      ...(mode.startsWith("focus-wide") ? { realTouch: true, localHorizontalScroll: true } : {}) });
   }
   const bidi = await evaluate("window.transposeBrowser.interfaceBidi()");
   assert.ok(bidi.technicalLefts[0] < bidi.technicalLefts[1], JSON.stringify(bidi));

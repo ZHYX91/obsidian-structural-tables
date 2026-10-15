@@ -1,5 +1,7 @@
 # Final cell focus
 
+<!-- structural-tables-final-cell-focus-fixture -->
+
 Before the table.
 
 | Region | Sales | < | Q3 | Q4 |

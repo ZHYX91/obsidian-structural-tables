@@ -5,6 +5,7 @@ import { App, Component, MarkdownRenderer, MarkdownView, Menu, editorInfoField, 
 
 import { DEFAULT_SETTINGS } from "../../src/config/settings";
 import { parseEditableTables } from "../../src/core/parser";
+import { editCellContent } from "../../src/core/operations";
 import { NativeTableMenuBridge } from "../../src/editor/native-table-menu";
 import { StructuralTableEditorController } from "../../src/editor/table-live-preview";
 import { openEditorTableTranspose } from "../../src/editor/table-transpose-target";
@@ -12,6 +13,7 @@ import { applyInterfaceLocale, createTranslator } from "../../src/config/i18n";
 import { appendDisplayPath, appendDisplayValue } from "../../src/config/interface-bidi";
 import { basePropertyMigrationPreviewText, type BasePropertyMigrationLabels } from "../../src/app/base-property-migration-modal";
 import type { PreparedBasePropertyMigration } from "../../src/app/base-property-migration-service";
+import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "../../src/editor/table-source-focus";
 import { lastMenu, notices, TFile } from "../mocks/obsidian";
 import { NativeCellEditorWidget } from "../helpers/native-cell-editor";
 import { NativeTableWidget } from "../helpers/native-table-widget";
@@ -47,6 +49,13 @@ let initialSource = "";
 let interfaceLanguage: "en" | "ar" = "en";
 let currentView: MarkdownView | null = null;
 let files = new Map<string, TFile>();
+const focusTrace: string[] = [];
+let traceFocus = false;
+for (const type of ["pointerdown", "pointerup", "touchstart", "touchend", "focusin", "mousedown", "click", "dblclick", "selectionchange"]) document.addEventListener(type, (event) => {
+  if (traceFocus && cm !== null) focusTrace.push(type + ":" + (event.target as HTMLElement).tagName + ":" + cm.state.selection.main.head
+    + ":" + document.querySelectorAll(".structural-tables-live-preview").length + ":detail=" + (event as MouseEvent).detail
+    + ":native=" + document.getSelection()?.anchorOffset + "," + document.getSelection()?.focusOffset);
+}, true);
 
 document.addEventListener("pointerdown", () => { pointers += 1; }, { capture: true });
 // The host mock contributes real menu buttons while product code still builds
@@ -68,16 +77,18 @@ document.addEventListener("contextmenu", () => {
   });
 }, true);
 
-function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled"): void {
+function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | "focus-wide" | "focus-wide-rtl" | "focus-wide-edited" | "focus-wide-edited-rtl"): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
+  focusTrace.length = 0; traceFocus = mode.startsWith("focus-wide");
   files = new Map(); component = new Component();
   const file = new TFile("A.md"); files.set(file.path, file);
   const frame = mode.startsWith("popout-") ? document.body.appendChild(document.createElement("iframe")) : null;
   const doc = frame?.contentWindow?.document ?? document;
   const containerEl = doc.body.appendChild(doc.createElement("div")); containerEl.id = "target-note";
   const bidi = mode === "rtl" || mode.startsWith("ltr-") || mode === "rtl-ascii-draft";
-  containerEl.dir = mode.startsWith("rtl") ? "rtl" : "ltr";
+  containerEl.dir = mode.startsWith("rtl") || mode.endsWith("-rtl") ? "rtl" : "ltr";
+  if (mode.startsWith("focus-wide")) containerEl.style.width = "340px";
   interfaceLanguage = mode.startsWith("ltr-") ? "ar" : "en";
   const posToOffset = (position: EditorPosition): number => cm!.state.doc.line(position.line + 1).from + position.ch;
   const offsetToPos = (offset: number): EditorPosition => {
@@ -98,18 +109,25 @@ function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-so
       on: () => ({}),
     },
   }) as unknown as App;
-  const owned = bidi || ["owned", "focus", "focus-after", "focus-canceled"].includes(mode);
+  const owned = bidi || mode === "owned" || mode.startsWith("focus");
   const focus = mode.startsWith("focus");
   const settings = { ...DEFAULT_SETTINGS, language: interfaceLanguage, takeOverOrdinaryTables: true };
   const controller = new StructuralTableEditorController(app, () => settings);
   const value = mode === "ltr-arabic-draft" || mode === "ltr-arabic" ? "مرحبا" : mode === "ltr-mixed-draft" ? "ABC مرحبا 123" : "ABC";
-  const source = focus ? tall + (mode === "focus-after" ? "After the table." : "") : bidi
+  const source = focus ? (mode.startsWith("focus-wide") ? tall.replace(/more/gu, "middle-value-long").replace(/last/gu, "last-cell-final-long") : tall)
+    + (mode === "focus-after" || mode.startsWith("focus-wide") ? "After the table." : "") : bidi
     ? `Before stays.\n\n| Region | A | B | C |\n| --- || --- | --- | --- |\n| North | ${value} | Two | Three |\n| South | Four | Five | Six |\n\nAfter stays.` : original;
   initialSource = source;
   cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: source, extensions: [
     history(), keymap.of(historyKeymap), editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app, hoverPopover: null })), editorLivePreviewField.init(() => owned),
-    controller.createExtension(), EditorView.updateListener.of((update) => { if (update.docChanged) changes += 1; }),
+    controller.createExtension(), EditorView.updateListener.of((update) => {
+      if (update.docChanged) changes += 1;
+      if (traceFocus) for (const tr of update.transactions) focusTrace.push("update:" + tr.state.selection.main.head + ":" + tr.effects.map((effect) =>
+        effect.is(structuralTableSourceFocus) ? "source=" + effect.value : effect.is(structuralTableLogicalCursorSync) ? "logical" : "other").join(",")
+        + ":hosts=" + update.view.dom.querySelectorAll(".structural-tables-live-preview").length);
+    }),
   ] }) });
+  if (mode.startsWith("focus-wide")) { cm.contentDOM.style.minWidth = "0"; cm.contentDOM.style.width = "100%"; }
   other = new EditorView({ parent: document.body.createDiv(), state: EditorState.create({ doc: "Other file stays.", extensions: [history()] }) });
   other.dom.style.display = "none";
   currentView = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file });
@@ -188,16 +206,21 @@ function interfaceBidi() {
 
 function result() {
   const source = cm!.state.doc.toString();
+  const initialTable = parseEditableTables(initialSource).tables[0]!;
+  const cellEdit = traceFocus ? editCellContent(initialTable, 22, 4, "last-cell-final-longx") : null;
   const table = document.querySelector<HTMLTableElement>(".structural-tables-live-preview table");
   const draft = document.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor");
   const active = cm!.dom.ownerDocument.activeElement as HTMLElement | null;
   return {
     source, initialSource, beforeTranspose, changes, pointers, undoDepth: undoDepth(cm!.state), otherSource: other!.state.doc.toString(),
+    expectedEditedSource: cellEdit === null ? null : initialSource.slice(0, initialTable.range.from) + cellEdit.source + initialSource.slice(initialTable.range.to),
+    lastClickDetail: traceFocus ? Number(focusTrace.filter((entry) => entry.startsWith("click:")).slice(-1)[0]?.match(/:detail=(\d+)/u)?.[1]) : null,
     editorFocused: cm!.dom.contains(cm!.dom.ownerDocument.activeElement),
     contentFocused: cm!.dom.ownerDocument.activeElement === cm!.contentDOM,
     rowHeaders: parseEditableTables(source).tables[0]?.rowHeaderColumnCount ?? -1,
     tableDirection: table === null ? null : getComputedStyle(table).direction,
     rowValues: parseEditableTables(source).tables[0]?.rows[1]?.cells.map((cell) => cell.content),
+    lastValue: parseEditableTables(source).tables[0]?.rows[22]?.cells[4]?.content,
     cellLefts: [0, 1, 2, 3].map((column) => table?.querySelector(`[data-structural-row="1"][data-structural-column="${column}"]`)?.getBoundingClientRect().left ?? null),
     activeColumn: active?.dataset.structuralColumn ?? active?.closest<HTMLElement>("[data-structural-column]")?.dataset.structuralColumn,
     draftStart: draft?.selectionStart, draftEnd: draft?.selectionEnd, draftValue: draft?.value,
@@ -206,6 +229,9 @@ function result() {
     draft: document.querySelector("textarea.structural-tables-cell-editor") !== null,
     tableHeight: table?.getBoundingClientRect().height ?? 0, spans: table?.querySelectorAll("[rowspan='2']").length ?? 0,
     scrollTop: cm!.scrollDOM.scrollTop, anchor: cm!.state.selection.main.anchor, head: cm!.state.selection.main.head,
+    horizontalScroll: table?.parentElement?.scrollLeft ?? 0,
+    horizontalOverflow: (table?.parentElement?.scrollWidth ?? 0) - (table?.parentElement?.clientWidth ?? 0),
+    focusTrace: [...focusTrace],
     notices: [...notices],
   };
 }

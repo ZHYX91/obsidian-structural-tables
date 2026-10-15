@@ -381,13 +381,15 @@ class StructuralTableInteraction {
       // Empty asynchronous cells must not collapse the note while a native
       // pointer selection is being resolved. Release only after real content.
       void tableRenderingComplete(rendered).then(() => {
-        if (current()) view.requestMeasure({ read: current, write: (valid) => {
-          if (!valid || !current()) return;
+        const release = (): void => {
+          if (this.component !== component || this.host !== host) return;
           host.style.removeProperty("min-height");
           // Re-measure after releasing a larger draft's temporary height. The
           // widget's style mutation alone is ignored by CodeMirror's observer.
           queueMicrotask(() => { if (current()) view.requestMeasure(); });
-        } });
+        };
+        if (current()) view.requestMeasure({ read: current, write: release });
+        else release();
       });
     }
     const gutter = rendered.createCaption();
@@ -1360,6 +1362,7 @@ class StructuralTableInteraction {
 
     const editor = element.ownerDocument.createElement("textarea");
     editor.className = "structural-tables-cell-editor";
+    editor.dir = "auto";
     editor.cols = 1;
     editor.rows = 1;
     editor.value = anchor.raw.trim();

@@ -562,7 +562,7 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); frame.remove(); }
   });
 
-  it("keeps replacement height through delayed rendering even when a new gesture cancels horizontal restoration", async () => {
+  it.each(["pointer", "detach"] as const)("releases its own replacement height after rendering despite %s", async (change) => {
     let finish: (() => void) | undefined;
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
       if (markdown === "changed-final") await new Promise<void>((resolve) => { finish = resolve; });
@@ -578,8 +578,29 @@ describe("StructuralTableEditorController", () => {
       const replacement = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;
       expect(replacement).not.toBe(host); expect(replacement.style.minHeight).toBe("480px");
       await vi.waitFor(() => expect(finish).toBeDefined());
-      dispatchPointerDown(replacement, "touch"); expect(replacement.style.minHeight).toBe("480px");
+      if (change === "pointer") dispatchPointerDown(replacement, "touch"); else parent.remove();
+      expect(replacement.style.minHeight).toBe("480px");
       finish!(); await vi.waitFor(() => expect(replacement.style.minHeight).toBe(""));
+      if (change === "detach") { document.body.append(parent); view.requestMeasure(); expect(parent.querySelector(".structural-tables-live-preview")).toBe(replacement); }
+    } finally { view.destroy(); }
+  });
+
+  it.each(["mouse", "touch"] as const)("keeps a fresh %s source gesture after an external control takes focus", async (pointer) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const host = parent.querySelector(".structural-tables-live-preview");
+      const outside = document.body.appendChild(document.createElement("button")); outside.focus();
+      const line = [...view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")].slice(-1)[0]!;
+      dispatchPointerDown(line, pointer);
+      if (pointer === "touch") { line.dispatchEvent(new Event("pointerup", { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)); }
+      view.contentDOM.focus();
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      view.dispatch({ selection: { anchor: source.length } });
+      if (pointer === "mouse") line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host); expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
   });
 

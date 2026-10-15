@@ -490,6 +490,7 @@
   color: var(--text-normal);
   font: inherit;
   line-height: inherit;
+  text-align: inherit;
 }
 
 .structural-tables-live-preview .structural-tables-table.is-interactive :is(th, td) {

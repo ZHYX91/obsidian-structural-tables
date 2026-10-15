@@ -33,8 +33,13 @@ HTMLElement.prototype.setCssProps = function setCssProps(props: Record<string, s
   for (const [name, value] of Object.entries(props)) this.style.setProperty(name, value);
 };
 MarkdownRenderer.render = async (_app, source, target) => {
+  if (holdCommitRendering && changes > 0) await new Promise<void>((resolve) => heldRenders.push(resolve));
   if (delayedCommitRendering && changes > 0) await new Promise((resolve) => setTimeout(resolve, 60));
-  target.textContent = source;
+  if (alignmentCase === null) target.textContent = source;
+  else {
+    const paragraph = target.createEl("p", { text: source === alignmentCase.raw ? alignmentCase.visible : source });
+    paragraph.dir = "auto"; paragraph.style.unicodeBidi = "plaintext";
+  }
 };
 
 const original = "Before stays.\n\n| Name | Value |\n| --- | --- |\n| North | 1 |\n\nAfter stays.";
@@ -61,6 +66,11 @@ const commitGeometry: Array<{ height: number; scrollTop: number; empty: boolean 
 let traceFocus = false;
 let delayedCommitRendering = false;
 let replacementDraft = "last-cell-final-longx";
+let holdCommitRendering = false;
+const heldRenders: Array<() => void> = [];
+let detachedParent: HTMLElement | null = null;
+interface AlignmentCase { direction: "ltr" | "rtl"; raw: string; visible: string; alignment: "default" | "left" | "center" | "right"; role: "body" | "column" | "row" }
+let alignmentCase: AlignmentCase | null = null;
 new MutationObserver(() => {
   if (!traceFocus || changes !== 1 || cm === null) return;
   const host = document.querySelector<HTMLElement>(".structural-tables-live-preview");
@@ -99,6 +109,8 @@ document.addEventListener("contextmenu", () => {
 function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | `focus-wide${string}`): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
+  alignmentCase = null;
+  holdCommitRendering = false; heldRenders.splice(0).forEach((resolve) => resolve()); detachedParent = null;
   focusTrace.length = 0; traceFocus = mode.startsWith("focus-wide");
   commitGeometry.length = 0;
   delayedCommitRendering = mode.includes("blank") || mode.includes("mouse");
@@ -270,6 +282,41 @@ function result() {
   };
 }
 
-(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, interfaceBidi,
+function setupAlignment(input: AlignmentCase): void {
+  reset(input.direction === "rtl" ? "rtl" : "ltr-arabic"); alignmentCase = input;
+  const delimiter = { default: "---", left: ":---", center: ":---:", right: "---:" }[input.alignment];
+  const header = input.role === "column" ? input.raw : "Column";
+  const row = input.role === "row" ? input.raw : "Row";
+  const value = input.role === "body" ? input.raw : "Value";
+  const source = `Before.\n\n| Header | ${header} |\n| ${delimiter} || ${delimiter} |\n| ${row} | ${value} |\n\nAfter.`;
+  initialSource = source;
+  cm!.dom.parentElement!.classList.add("alignment-surface"); cm!.dom.parentElement!.style.width = "640px";
+  cm!.dom.style.setProperty("--table-width", "560px");
+  cm!.dispatch({ changes: { from: 0, to: cm!.state.doc.length, insert: source }, selection: { anchor: 0 }, effects: structuralTableSourceFocus.of(false) });
+  changes = 0;
+}
+
+function alignmentState() {
+  const row = alignmentCase!.role === "column" ? 0 : 1; const column = alignmentCase!.role === "row" ? 0 : 1;
+  const cell = cm!.dom.querySelector<HTMLElement>(`[data-structural-row="${row}"][data-structural-column="${column}"]`)!;
+  const paragraph = cell.querySelector("p")!; const range = document.createRange(); range.selectNodeContents(paragraph);
+  const rect = range.getBoundingClientRect(); const editor = cell.querySelector<HTMLTextAreaElement>("textarea");
+  const bounds = editor?.getBoundingClientRect();
+  let nativeDirection: string | null = null;
+  if (editor !== null) {
+    const native = document.body.appendChild(document.createElement("textarea")); native.dir = "auto"; native.value = editor.value;
+    nativeDirection = getComputedStyle(native).direction; native.remove();
+  }
+  return { row, column, source: cm!.state.doc.toString(), changes, rendered: { left: rect.left, right: rect.right, direction: getComputedStyle(paragraph).direction },
+    editor: editor === null ? null : { direction: getComputedStyle(editor).direction, nativeDirection, align: getComputedStyle(editor).textAlign, dir: editor.dir, value: editor.value,
+      bounds: { x: bounds!.left + 2, y: bounds!.top + 2, width: bounds!.width - 4, height: bounds!.height - 4, scale: 1 } } };
+}
+
+(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, interfaceBidi, setupAlignment, alignmentState,
   refresh: () => cm!.dispatch({ effects: structuralTableSourceFocus.of(true) }),
-  rendered: () => { const table = document.querySelector<HTMLTableElement>(".structural-tables-live-preview table"); return table === null ? Promise.resolve() : tableRenderingComplete(table); } };
+  holdRendering: () => { holdCommitRendering = true; },
+  releaseRendering: () => { holdCommitRendering = false; heldRenders.splice(0).forEach((resolve) => resolve()); },
+  detach: () => { detachedParent = cm!.dom.parentElement!; detachedParent.remove(); },
+  detachedStyle: () => cm!.dom.querySelector<HTMLElement>(".structural-tables-live-preview")?.style.minHeight ?? null,
+  reattach: () => { document.body.prepend(detachedParent!); detachedParent = null; },
+  rendered: () => { const table = cm!.dom.querySelector<HTMLTableElement>(".structural-tables-live-preview table"); return table === null ? Promise.resolve() : tableRenderingComplete(table); } };

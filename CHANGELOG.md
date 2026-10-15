@@ -8,6 +8,7 @@
 - Undo a transpose in one step, separately from nearby typing. Restore editor focus after confirmation so keyboard undo/redo works immediately, including source and native menu entries.
 - Preserve merged-table rendering, source caret placement and local horizontal scroll when clicking or tapping below a focused table, including after saving a changed cell.
 - Keep clicks above or below a changed long table at their intended text position while cells finish rendering, without a temporary jump or unintended selection. Preserve native word selection and dragging.
+- Let cell drafts follow their text direction while keeping the column's left, center or right alignment. Keep a fresh source click stable after using an external control, and remove temporary blank height when a hidden table finishes rendering.
 - Allow transpose while editing an ordinary table cell. After scrolling by touch, a single tap no longer unexpectedly starts editing; completed selections remain available for the context menu.
 - Apply native table menu actions to the table you clicked, including in nested panes. Leave the note and undo history unchanged if transposing would absorb nearby text or the original editor moved to another window.
 - Preserve the source table's direction in PNG exports from commands and source menus, reject direction changes during generation, and make image export available in owned Callout table menus.

@@ -265,6 +265,9 @@ export class StructuralTableEditorController {
       private readonly sourceFocusOut = (event: FocusEvent): void => {
         if (this.isExternalFocusTarget(event.relatedTarget)) this.resetSourcePointer();
       };
+      private readonly outsideFocusIn = (event: FocusEvent): void => {
+        if (this.isExternalFocusTarget(event.target)) this.resetSourcePointer();
+      };
       private readonly isExternalFocusTarget = (target: EventTarget | null): boolean => this.eventWindow !== null
         && target instanceof this.eventWindow.Node && target.isConnected
         && target !== this.eventDocument.body && target !== this.eventDocument.documentElement
@@ -306,9 +309,8 @@ export class StructuralTableEditorController {
           || !this.view.contentDOM.contains(target)) return;
         const element = target.nodeType === Node.ELEMENT_NODE ? target as Element : target.parentElement;
         if (element?.closest(".structural-tables-live-preview") !== null) return;
-        // A later return from an external control ends an unresolved gesture,
-        // even if the earlier focusout went through BODY with no relatedTarget.
-        if (this.isExternalFocusTarget(event.relatedTarget)) this.resetSourcePointer();
+        // Outside focus clears an older gesture when it happens. A new source
+        // pointer must survive returning focus from that same external control.
         if (this.sourcePointerPending) return;
         // CodeMirror can relocate a caret whose range is currently replaced by
         // presentation decorations while focus is being restored. Reveal the
@@ -351,6 +353,7 @@ export class StructuralTableEditorController {
         view.dom.addEventListener("beforeinput", this.sourceKeyboardIntent, true);
         view.dom.addEventListener("pointerdown", this.sourcePointerDown, true);
         this.eventDocument.addEventListener("pointerdown", this.outsidePointerDown, true);
+        this.eventDocument.addEventListener("focusin", this.outsideFocusIn, true);
         this.eventDocument.addEventListener("pointerup", this.sourcePointerUp, true);
         this.eventDocument.addEventListener("pointercancel", this.sourcePointerCancel, true);
         this.eventWindow?.addEventListener("blur", this.sourcePointerAbort);
@@ -401,6 +404,7 @@ export class StructuralTableEditorController {
         this.view.dom.removeEventListener("beforeinput", this.sourceKeyboardIntent, true);
         this.view.dom.removeEventListener("pointerdown", this.sourcePointerDown, true);
         this.eventDocument.removeEventListener("pointerdown", this.outsidePointerDown, true);
+        this.eventDocument.removeEventListener("focusin", this.outsideFocusIn, true);
         this.eventDocument.removeEventListener("pointerup", this.sourcePointerUp, true);
         this.eventDocument.removeEventListener("pointercancel", this.sourcePointerCancel, true);
         this.eventWindow?.removeEventListener("blur", this.sourcePointerAbort);

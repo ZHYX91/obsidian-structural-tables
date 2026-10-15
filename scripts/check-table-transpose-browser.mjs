@@ -18,6 +18,7 @@ const bundle = await build({
 const styles = await readFile("styles.css", "utf8");
 const page = '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/styles.css">'
   + '<style>body{margin:24px;font:16px sans-serif}.host-box-sizing *{box-sizing:border-box}.host-box-sizing .markdown-rendered{white-space:normal}.host-box-sizing .structural-tables-table{table-layout:fixed}.cm-editor{height:520px;border:1px solid #bbb}.cm-scroller{overflow:auto}.cm-content{padding-bottom:80px}td,th{padding:10px;border:1px solid #999}#host-menu{position:fixed;top:12px;right:12px;background:white;z-index:20}button{padding:12px}</style>'
+  + '<style>.alignment-surface{--text-normal:#000;--table-selection:transparent}.alignment-surface .markdown-rendered{font:24px/32px Arial;white-space:normal}.alignment-surface .structural-tables-table{table-layout:fixed}.alignment-surface textarea{caret-color:transparent;background:#fff!important;color:#000!important}</style>'
   + '</head><body><script src="/bundle.js"></script></body></html>';
 const server = createServer((request, response) => {
   if (request.url === "/bundle.js") {
@@ -120,6 +121,7 @@ try {
     await settle();
   };
   const results = [];
+  if (process.argv[3] !== "alignment") {
   for (const mode of ["owned", "source", "native", "native-child", "popout-source"]) {
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
     if (mode === "source" || mode === "native-child" || mode === "popout-source") await click(select("#transpose-source"));
@@ -217,7 +219,7 @@ try {
   for (const mode of ["rtl-ascii-draft", "ltr-arabic-draft", "ltr-mixed-draft"]) {
     for (const arrow of ["ArrowLeft", "ArrowRight"]) {
       await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
-      await evaluate("(function(){const table=document.querySelector('.structural-tables-table');const cell=table.querySelector('[data-structural-row=\"1\"][data-structural-column=\"1\"] .structural-tables-cell-content');const probe=document.createElement('textarea');probe.id='native-caret-probe';probe.value=cell.textContent;probe.dir=getComputedStyle(table).direction;document.body.append(probe);probe.focus();probe.setSelectionRange(0,0);})()");
+      await evaluate("(function(){const table=document.querySelector('.structural-tables-table');const cell=table.querySelector('[data-structural-row=\"1\"][data-structural-column=\"1\"] .structural-tables-cell-content');const probe=document.createElement('textarea');probe.id='native-caret-probe';probe.value=cell.textContent;probe.dir='auto';document.body.append(probe);probe.focus();probe.setSelectionRange(0,0);})()");
       await key(arrow, arrow, arrow === "ArrowLeft" ? 37 : 39);
       const nativeCaret = await evaluate("(function(){const probe=document.querySelector('#native-caret-probe');const result=[probe.selectionStart,probe.selectionEnd];probe.remove();return result;})()");
       await click(select("[data-structural-row='1'][data-structural-column='1']"));
@@ -232,7 +234,7 @@ try {
       results.push({ mode, arrow, nativeCaret: true, sourcePreserved: true });
     }
   }
-  for (const mode of ["focus", "focus-after", "focus-canceled", "focus-wide", "focus-wide-rtl", "focus-wide-edited", "focus-wide-edited-rtl", "focus-wide-edited-blank", "focus-wide-edited-blank-rtl", "focus-wide-edited-mouse", "focus-wide-edited-mouse-rtl", "focus-wide-edited-mouse-double", "focus-wide-edited-mouse-drag", "focus-wide-edited-mouse-shrink",
+  for (const mode of ["focus", "focus-after", "focus-canceled", "focus-wide", "focus-wide-rtl", "focus-wide-edited", "focus-wide-edited-rtl", "focus-wide-edited-blank", "focus-wide-edited-blank-rtl", "focus-wide-edited-mouse", "focus-wide-edited-mouse-rtl", "focus-wide-edited-mouse-double", "focus-wide-edited-mouse-drag", "focus-wide-edited-mouse-shrink", "focus-wide-mouse-external", "focus-wide-mouse-external-rtl", "focus-wide-edited-mouse-shrink-detach",
     ...["mouse-above", "mouse-above-blank", "edited-mouse-above", "edited-mouse-above-blank"].flatMap((suffix) => ["focus-wide-" + suffix, "focus-wide-" + suffix + "-rtl"])]) {
     const asyncMouse = mode.includes("blank") || mode.includes("mouse");
     const nativeRange = mode.includes("double") || mode.includes("drag");
@@ -253,6 +255,10 @@ try {
       await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
       await settle(); state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.draft, false);
     }
+    if (mode.includes("external")) {
+      await evaluate("(function(){const button=document.body.appendChild(document.createElement('button'));button.id='outside-control';button.textContent='External';button.style.cssText='position:fixed;right:12px;top:150px';})()");
+      await click(select("#outside-control")); state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.draft, false);
+    }
     await evaluate("window.savedTable=document.querySelector('.structural-tables-live-preview table')");
     if (asyncMouse) { await evaluate("document.querySelector('#target-note .cm-scroller').scrollTop=" + (above ? "0" : "100000") + ";document.querySelector('.structural-tables-container').scrollLeft=" + (mode.endsWith("rtl") ? "-100" : "100")); await settle(); }
     const pointer = asyncMouse ? await evaluate(mode.includes("blank")
@@ -271,14 +277,23 @@ try {
     // harness does not dispatch a replacement selection for this regression.
     if (pointer !== null) {
       const clickCount = mode.includes("double") ? 2 : 1;
+      if (mode.includes("detach")) await evaluate("window.transposeBrowser.holdRendering()");
       await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: pointer.x, y: pointer.y });
       await command("Input.dispatchMouseEvent", { type: "mousePressed", x: pointer.x, y: pointer.y, button: "left", clickCount });
       const duringPress = await evaluate("window.transposeBrowser.result()");
       assert.ok(Math.abs(duringPress.scrollTop - before.scrollTop) < 5 + Math.max(0, before.tableHeight - initialTableHeight), JSON.stringify({mode,stage:"during-mousedown",before:before.scrollTop,after:duringPress.scrollTop,geometry:duringPress.commitGeometry,changes:duringPress.changes,draft:duringPress.draft,anchor:duringPress.anchor,head:duringPress.head,trace:duringPress.focusTrace,notices:duringPress.notices}));
+      if (mode.includes("detach")) {
+        await evaluate("window.transposeBrowser.detach();window.transposeBrowser.releaseRendering()"); await evaluate("window.transposeBrowser.rendered()");
+        assert.equal(await evaluate("window.transposeBrowser.detachedStyle()"), "");
+        await evaluate("window.transposeBrowser.reattach()"); await settle(); await settle(); await settle();
+        const reattached = await evaluate("window.transposeBrowser.result()");
+        assert.equal(reattached.reservedHeight, ""); assert.ok(Math.abs(reattached.blockHeight - reattached.hostHeight) < 1, JSON.stringify({mode,block:reattached.blockHeight,host:reattached.hostHeight}));
+      }
       await evaluate("new Promise(r=>setTimeout(r,100))");
       const end = mode.includes("drag") ? pointer.end : pointer;
       if (mode.includes("drag")) await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: end.x, y: end.y, button: "left", buttons: 1 });
       await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: end.x, y: end.y, button: "left", clickCount }); await settle();
+      if (mode.includes("detach")) await click("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
       await evaluate("window.transposeBrowser.rendered()"); await settle();
     } else if (mode.startsWith("focus-wide")) await tap("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
     else await click("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
@@ -313,7 +328,7 @@ try {
     }
     if (mode.startsWith("focus-wide")) {
       assert.equal(state.lastClickDetail, mode.includes("double") ? 2 : 1, JSON.stringify({ mode, trace: state.focusTrace }));
-      assert.ok(Math.abs(state.horizontalScroll - before.horizontalScroll) < 1, JSON.stringify({ mode, before, after: state }));
+      if (!mode.includes("detach")) assert.ok(Math.abs(state.horizontalScroll - before.horizontalScroll) < 1, JSON.stringify({ mode, before, after: state }));
     }
     if (edited) {
       const committed = state.source;
@@ -322,8 +337,9 @@ try {
       await historyKey(true); assert.equal((await evaluate("window.transposeBrowser.result()")).source, committed);
       if (asyncMouse) { await evaluate("window.transposeBrowser.rendered()"); await settle(); assert.ok(["", null].includes((await evaluate("window.transposeBrowser.result()")).reservedHeight)); }
     }
-    results.push({ mode, sourcePreserved: !edited, cellCommitted: edited, stableGeometry: true, collapsedCaret: !nativeRange,
-      ...(mode.startsWith("focus-wide") ? { ...(asyncMouse ? { realMouse: true, asynchronousRendering: true } : { realTouch: true }), localHorizontalScroll: true } : {}) });
+    results.push({ mode, sourcePreserved: !edited, cellCommitted: edited, stableGeometry: !mode.includes("detach"), collapsedCaret: !nativeRange,
+      ...(mode.includes("detach") ? { naturalHeightOnReconnect: true } : {}),
+      ...(mode.startsWith("focus-wide") ? { ...(asyncMouse ? { realMouse: true, asynchronousRendering: true } : { realTouch: true }), localHorizontalScroll: !mode.includes("detach") } : {}) });
   }
   const bidi = await evaluate("window.transposeBrowser.interfaceBidi()");
   assert.ok(bidi.technicalLefts[0] < bidi.technicalLefts[1], JSON.stringify(bidi));
@@ -333,6 +349,46 @@ try {
   for (const positions of bidi.migrationPathLefts) assert.ok(positions.every((left, index) => index === 0 || left > positions[index - 1]), JSON.stringify(bidi));
   results.push({ mode: "arabic-interface-bidi", technicalExpressions: true, pathOrder: true, mappingOrder: true });
   results.push({ mode: "arabic-migration-preview", initialPathOrder: true, togglePathOrder: true });
+  }
+  const alignmentCases = [];
+  for (const direction of ["rtl", "ltr"]) {
+    for (const alignment of ["default", "left", "center", "right"]) {
+      for (const raw of ["North", "مرحبا"]) alignmentCases.push({ direction, alignment, raw, visible: raw, role: "body", geometry: true });
+    }
+    for (const role of ["column", "row"]) for (const alignment of ["default", "left", "center", "right"]) {
+      for (const raw of ["North", "مرحبا"]) alignmentCases.push({ direction, alignment, raw, visible: raw, role, geometry: true });
+    }
+    for (const raw of ["ABC مرحبا 123", "مرحبا ABC 123"]) alignmentCases.push({ direction, alignment: "default", raw, visible: raw, role: "body", geometry: true });
+    for (const raw of ["00123", ""]) alignmentCases.push({ direction, alignment: "default", raw, visible: raw, role: "body", geometry: false, typing: true });
+    alignmentCases.push({ direction, alignment: "default", raw: "[123](EnglishTarget) مرحبا", visible: "123 مرحبا", role: "body", geometry: false });
+    alignmentCases.push({ direction, alignment: "default", raw: "**مرحبا**", visible: "مرحبا", role: "body", geometry: false });
+  }
+  for (const input of alignmentCases) {
+    await evaluate("window.transposeBrowser.setupAlignment(" + JSON.stringify(input) + ")"); await evaluate("window.transposeBrowser.rendered()"); await settle();
+    const before = await evaluate("window.transposeBrowser.alignmentState()");
+    await click(select("[data-structural-row='" + before.row + "'][data-structural-column='" + before.column + "']"));
+    await evaluate("(function(){const e=document.querySelector('textarea.structural-tables-cell-editor');e.setSelectionRange(e.value.length,e.value.length);})()"); await settle();
+    const after = await evaluate("window.transposeBrowser.alignmentState()");
+    if (input.geometry) {
+      const screenshot = await command("Page.captureScreenshot", { format: "png", clip: after.editor.bounds });
+      const ink = await evaluate("(async function(){const image=new Image();image.src='data:image/png;base64,'+" + JSON.stringify(screenshot.data) + ";await image.decode();const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);const pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;let left=canvas.width,right=-1;for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++){const i=(y*canvas.width+x)*4;if(pixels[i]<100&&pixels[i+1]<100&&pixels[i+2]<100){left=Math.min(left,x);right=Math.max(right,x);}}return {left,right};})()");
+      assert.ok(ink.right > ink.left, JSON.stringify({ input, ink }));
+      const physical = after.editor.bounds.x + (ink.left + ink.right) / 2;
+      const rendered = (before.rendered.left + before.rendered.right) / 2;
+      assert.ok(Math.abs(physical - rendered) < 4, JSON.stringify({ input, physical, rendered, editor: after.editor, ink }));
+    }
+    assert.equal(after.editor.dir, "auto"); assert.equal(after.editor.direction, after.editor.nativeDirection, JSON.stringify({ input, after }));
+    assert.equal(after.source, before.source); assert.equal(after.changes, 0);
+    if (input.typing) for (const text of ["English", "العربية", "ABC\nمرحبا", "مرحبا\nABC"]) {
+      await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select()");
+      await command("Input.insertText", { text }); await settle();
+      const typed = await evaluate("window.transposeBrowser.alignmentState()");
+      assert.equal(typed.editor.direction, typed.editor.nativeDirection); assert.equal(typed.source, before.source); assert.equal(typed.changes, 0);
+    }
+    await key("Escape", "Escape", 27);
+    assert.equal((await evaluate("window.transposeBrowser.alignmentState()")).source, before.source);
+  }
+  results.push({ mode: "cell-draft-alignment", cases: alignmentCases.length, actualTextPixels: true, nativeDirection: true, explicitAlignment: true, sourcePreserved: true });
   process.stdout.write(JSON.stringify({ status: "passed", browser: path.basename(browser), scenarios: results }) + "\n");
 } finally {
   socket?.close();

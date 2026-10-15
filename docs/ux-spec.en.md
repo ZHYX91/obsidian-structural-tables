@@ -46,6 +46,8 @@ Tapping the paragraph below a source-rendered table keeps its local horizontal p
 
 Clicking prose or editor whitespace above or below a long table must let the native pointer handler choose its destination without committing a changed draft in the middle of that handler. Keep the replacement's height stable from CodeMirror's initial height estimate through asynchronous cell rendering, then release it to the actual content size. A shorter result may naturally reduce the document height; do not retain an artificial height or force a collapsed selection to hide pointer conflicts.
 
+Cell drafts use the browser's automatic direction for their current raw text and inherit the cell's alignment, including explicit left, center and right alignment. Markdown link addresses and other syntax visible in the draft can influence its direction even when the rendered cell hides them. Plugin language and note/table direction remain separate. Focusing an external control ends the old pointer intent; a fresh source click retains its own intent through the return of focus. Temporary height belongs to its original rendered table and is removed when rendering completes, even while that table is disconnected.
+
 ### Ordinary GFM tables
 
 Obsidian's native table UI remains the default. With **Take over ordinary Markdown tables** enabled, ordinary GFM uses the same rendering and editing controls as structural tables while its source stays standard GFM. Turning the setting off restores the native UI immediately.

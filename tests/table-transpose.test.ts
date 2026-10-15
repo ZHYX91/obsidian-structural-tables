@@ -50,7 +50,7 @@ describe("whole-table structural transpose", () => {
   ] as const)("transposes %s with every logical cell and role", (_name, source, headerRows, rowHeaders) => {
     // A single || is required by the actual grammar, even for multiple row-header columns.
     const corrected = source.replace("| --- || --- || --- | --- |", "| --- | --- || --- | --- |");
-    const before = parse(corrected.replaceAll("\\\\n", "\\n"));
+    const before = parse(corrected.replace(/\\\\n/gu, "\\n"));
     expect(before.headerRowCount).toBe(headerRows);
     expect(before.rowHeaderColumnCount).toBe(rowHeaders);
     const result = transposeTable(before);
@@ -61,14 +61,14 @@ describe("whole-table structural transpose", () => {
 
   it("exchanges horizontal, vertical and two-dimensional merge geometry without treating literal markers as merges", () => {
     const before = parse(
-      "| H1 | H2 | < |\\n| --- || --- | --- |\\n| Group | A | B |\\n| ^ | C | D |".replaceAll("\\\\n", "\\n"),
+      "| H1 | H2 | < |\\n| --- || --- | --- |\\n| Group | A | B |\\n| ^ | C | D |".replace(/\\\\n/gu, "\\n"),
     );
     const outcome = transposeTable(before);
     expect(outcome.changed).toBe(true);
     expectExactTranspose(before, parse(outcome.source));
 
     const complex = parse(
-      "| --- | --- | --- |\\n| One | < | \\< |\\n| ^ | < | \\^ |".replaceAll("\\\\n", "\\n"),
+      "| --- | --- | --- |\\n| One | < | \\< |\\n| ^ | < | \\^ |".replace(/\\\\n/gu, "\\n"),
     );
     const result = transposeTable(complex);
     expect(result.changed).toBe(true);
@@ -79,12 +79,12 @@ describe("whole-table structural transpose", () => {
   });
 
   it("leaves uniformly aligned columns aligned and flags mixed alignment loss", () => {
-    const uniform = parse("| A | B |\\n| :---: | :---: |\\n| x | y |".replaceAll("\\\\n", "\\n"));
+    const uniform = parse("| A | B |\\n| :---: | :---: |\\n| x | y |".replace(/\\\\n/gu, "\\n"));
     const preserved = planTransposeTable(uniform);
     expect(preserved.resetsColumnAlignment).toBe(false);
     expect(preserved.introducesStructuralSyntax).toBe(true);
     expect(parse(preserved.result.source).alignments).toEqual(["center", "center"]);
-    const mixed = parse("| A | B |\\n| :--- | ---: |\\n| x | y |".replaceAll("\\\\n", "\\n"));
+    const mixed = parse("| A | B |\\n| :--- | ---: |\\n| x | y |".replace(/\\\\n/gu, "\\n"));
     const plan = planTransposeTable(mixed);
     expect(plan.resetsColumnAlignment).toBe(true);
     expect(plan.result.changed).toBe(true);
@@ -92,7 +92,7 @@ describe("whole-table structural transpose", () => {
   });
 
   it("rejects header-only tables rather than inserting a fake data column", () => {
-    const before = parse("| H1 | H2 |\\n| Name | Value |\\n| --- | --- |".replaceAll("\\\\n", "\\n"));
+    const before = parse("| H1 | H2 |\\n| Name | Value |\\n| --- | --- |".replace(/\\\\n/gu, "\\n"));
     const result = transposeTable(before);
     expect(result).toMatchObject({
       changed: false, code: "transpose-unrepresentable", source: before.source,
@@ -100,19 +100,19 @@ describe("whole-table structural transpose", () => {
   });
 
   it("treats a 1x1 headerless table as no-op without formatting the source", () => {
-    const before = parse("| --- |\\n| one |".replaceAll("\\\\n", "\\n"));
+    const before = parse("| --- |\\n| one |".replace(/\\\\n/gu, "\\n"));
     expect(transposeTable(before)).toMatchObject({ changed: false, code: "table-transposed", source: before.source });
   });
 
   it("refuses hidden GFM overflow, malformed structural tables and delimiter-like false positives", () => {
-    const overflow = parse("| A | B |\\n| --- | --- |\\n| x | y | hidden |".replaceAll("\\\\n", "\\n"));
+    const overflow = parse("| A | B |\\n| --- | --- |\\n| x | y | hidden |".replace(/\\\\n/gu, "\\n"));
     expect(transposeTable(overflow).changed).toBe(false);
-    const invalid = parseEditableTables("| A | B |\\n| --- || --- |\\n| x | < |".replaceAll("\\\\n", "\\n")).tables[0]!;
+    const invalid = parseEditableTables("| A | B |\\n| --- || --- |\\n| x | < |".replace(/\\\\n/gu, "\\n")).tables[0]!;
     expect(transposeTable(invalid).changed).toBe(false);
   });
 
   it("keeps ordinary GFM ownership semantics and restores the logical table by transposing twice", () => {
-    const ordinary = parse("| Name | Number |\\n| --- | --- |\\n| A | 1 |\\n| B | 2 |".replaceAll("\\\\n", "\\n"));
+    const ordinary = parse("| Name | Number |\\n| --- | --- |\\n| A | 1 |\\n| B | 2 |".replace(/\\\\n/gu, "\\n"));
     const first = planTransposeTable(ordinary);
     expect(first.introducesStructuralSyntax).toBe(true);
     const second = transposeTable(parse(first.result.source));
@@ -125,7 +125,7 @@ describe("whole-table structural transpose", () => {
   });
 
   it("preserves nested blockquote prefix and CRLF line endings", () => {
-    const before = parse("> | A | B |\\r\\n> | --- | --- |\\r\\n> | 1 | 2 |".replaceAll("\\\\r\\\\n", "\\r\\n"));
+    const before = parse("> | A | B |\\r\\n> | --- | --- |\\r\\n> | 1 | 2 |".replace(/\\\\r\\\\n/gu, "\\r\\n"));
     const result = transposeTable(before);
     expect(result.changed).toBe(true);
     expect(result.source).toContain("\\r\\n> ");

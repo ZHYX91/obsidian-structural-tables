@@ -46,7 +46,7 @@ describe("whole-table structural transpose", () => {
     ["row headers only", "| --- || --- | --- |\\n| A | 1 | 2 |\\n| B | 3 | 4 |", 0, 1],
     ["column headers only", "| Name | Q1 | Q2 |\\n| --- | --- | --- |\\n| A | 1 | 2 |\\n| B | 3 | 4 |", 1, 0],
     ["both header axes", "| Region | Q1 | Q2 |\\n| --- || --- | --- |\\n| A | 1 | 2 |\\n| B | 3 | 4 |", 1, 1],
-    ["multiple header layers", "| Corner | Category | < | Data |\\n| Name | Q1 | Q2 | Q3 |\\n| --- || --- || --- | --- |\\n| A | 1 | 2 | 3 |\\n| B | 4 | 5 | 6 |", 2, 2],
+    ["multiple header layers", "| Corner | Group | Value | < |\\n| Name | Q1 | Q2 | Q3 |\\n| --- || --- || --- | --- |\\n| A | 1 | 2 | 3 |\\n| B | 4 | 5 | 6 |", 2, 2],
   ] as const)("transposes %s with every logical cell and role", (_name, source, headerRows, rowHeaders) => {
     // A single || is required by the actual grammar, even for multiple row-header columns.
     const corrected = source.replace("| --- || --- || --- | --- |", "| --- | --- || --- | --- |");
@@ -105,7 +105,7 @@ describe("whole-table structural transpose", () => {
   });
 
   it("refuses hidden GFM overflow, malformed structural tables and delimiter-like false positives", () => {
-    const overflow = parse("| A | B |\\n| x | y | hidden |".replaceAll("\\\\n", "\\n"));
+    const overflow = parse("| A | B |\\n| --- | --- |\\n| x | y | hidden |".replaceAll("\\\\n", "\\n"));
     expect(transposeTable(overflow).changed).toBe(false);
     const invalid = parseEditableTables("| A | B |\\n| --- || --- |\\n| x | < |".replaceAll("\\\\n", "\\n")).tables[0]!;
     expect(transposeTable(invalid).changed).toBe(false);

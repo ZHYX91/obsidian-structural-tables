@@ -126,7 +126,13 @@ try {
   }) + "\n");
 } finally {
   socket?.close();
-  child?.kill();
+  if (child !== undefined && child.exitCode === null && child.signalCode === null) {
+    const stopped = new Promise((resolve) => child.once("exit", resolve));
+    child.kill();
+    await stopped;
+  }
   await new Promise((resolve) => server.close(resolve));
-  await rm(dir, { recursive: true, force: true });
+  // Chromium writes its profile asynchronously. Wait for process exit and
+  // allow the OS to finish releasing child profile files before cleanup.
+  await rm(dir, { recursive: true, force: true, maxRetries: 12, retryDelay: 150 });
 }

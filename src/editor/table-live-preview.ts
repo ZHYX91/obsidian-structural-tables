@@ -17,7 +17,7 @@ import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
 import { renderTableSignatures } from "../rendering/native-table-mapping";
 import { structuralTableViewMode } from "./table-view-state";
-import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
+import { setTableSourcePointerPending, structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus, type CellBlurCommit } from "./table-source-focus";
 import type { ExportTableImage } from "../app/table-image-modal";
 
 export const refreshStructuralTables = StateEffect.define<void>();
@@ -76,6 +76,7 @@ export class StructuralTableEditorController {
       callouts: readonly { from: number; to: number }[],
       sourceFocused: boolean,
       restoredTarget?: { from: number; source: string; sourcePath: string },
+      cellCommit?: CellBlurCommit,
     ): DecorationSet => {
       const settings = settingsProvider();
       const livePreview = state.field(editorLivePreviewField, false) ?? false;
@@ -98,7 +99,8 @@ export class StructuralTableEditorController {
             from: table.range.from,
             to: table.range.from,
             decoration: Decoration.widget({
-              widget: new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote, exportImage),
+              widget: new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote, exportImage,
+                cellCommit?.from === table.range.from && cellCommit.after === table.source && cellCommit.sourcePath === sourcePath ? cellCommit : undefined),
               block: true,
               side: -1,
             }),
@@ -186,6 +188,7 @@ export class StructuralTableEditorController {
               callouts,
               sourceFocused,
               restoredTarget,
+              isCellBlurCommit(transaction) ? transaction.effects.find((effect) => effect.is(structuralTableCellBlurCommit))?.value : undefined,
             ),
         };
       },
@@ -205,6 +208,7 @@ export class StructuralTableEditorController {
         if (this.sourceFocusTimer !== null && win !== null) win.clearTimeout(this.sourceFocusTimer);
         this.sourceFocusTimer = null;
         this.sourcePointerPending = false;
+        setTableSourcePointerPending(this.view, false);
         this.sourcePointerHeld = false;
         this.sourcePointerResolved = false;
         this.sourcePointerId = undefined;
@@ -290,6 +294,7 @@ export class StructuralTableEditorController {
         // logical cell cursor still points inside the replaced table here;
         // revealing it would change the geometry under the pending click.
         this.sourcePointerPending = true;
+        setTableSourcePointerPending(this.view, true);
         this.sourcePointerHeld = true;
         this.sourcePointerResolved = this.view.state.field(decorationField).sourceFocused;
         this.sourcePointerId = event.pointerId;

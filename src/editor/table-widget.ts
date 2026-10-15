@@ -58,7 +58,7 @@ import {
 
 import { retainCellDraft } from "./cell-draft-recovery";
 import { tableCellSourceOffset } from "./table-source-binding";
-import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
+import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus, tableSourcePointerPending } from "./table-source-focus";
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
@@ -236,7 +236,13 @@ export class StructuralTableWidget extends WidgetType {
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
+    private readonly cellCommitGeometry?: { height: number; minHeight: number },
   ) { super(); }
+
+  override get estimatedHeight(): number {
+    const height = this.cellCommitGeometry?.height;
+    return height !== undefined && Number.isFinite(height) && height > 0 ? height : -1;
+  }
 
   override eq(other: StructuralTableWidget): boolean {
     return this.table.source === other.table.source
@@ -250,7 +256,7 @@ export class StructuralTableWidget extends WidgetType {
     const interaction = new StructuralTableInteraction(
       this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage,
     );
-    const host = interaction.mount(view);
+    const host = interaction.mount(view, this.cellCommitGeometry?.minHeight);
     interactions.set(host, interaction);
     return host;
   }
@@ -352,10 +358,11 @@ class StructuralTableInteraction {
     return true;
   }
 
-  mount(view: EditorView): HTMLElement {
+  mount(view: EditorView, cellCommitHeight?: number): HTMLElement {
     this.component = new Component();
     this.component.load();
     const host = view.dom.ownerDocument.createElement("div");
+    if (cellCommitHeight !== undefined && Number.isFinite(cellCommitHeight) && cellCommitHeight > 0) host.style.minHeight = `${cellCommitHeight}px`;
     host.className = "structural-tables-live-preview";
     host.dataset.layout = this.settings.layout;
     host.dataset.appearance = this.settings.appearance;
@@ -365,6 +372,24 @@ class StructuralTableInteraction {
     host.dataset.structuralSourceTableIndex = String(this.table.sourceTableIndex);
     this.host = host;
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
+    if (host.style.minHeight !== "") {
+      const component = this.component; const document = host.ownerDocument;
+      const current = (): boolean => this.component === component && this.host === host && host.isConnected
+        && host.ownerDocument === document && view.dom.ownerDocument === document && view.contentDOM.contains(host)
+        && host.closest(".cm-editor") === view.dom;
+      component.register(() => host.style.removeProperty("min-height"));
+      // Empty asynchronous cells must not collapse the note while a native
+      // pointer selection is being resolved. Release only after real content.
+      void tableRenderingComplete(rendered).then(() => {
+        if (current()) view.requestMeasure({ read: current, write: (valid) => {
+          if (!valid || !current()) return;
+          host.style.removeProperty("min-height");
+          // Re-measure after releasing a larger draft's temporary height. The
+          // widget's style mutation alone is ignored by CodeMirror's observer.
+          queueMicrotask(() => { if (current()) view.requestMeasure(); });
+        } });
+      });
+    }
     const gutter = rendered.createCaption();
     gutter.className = "structural-tables-control-gutter";
     gutter.setAttribute("aria-hidden", "true");
@@ -1620,6 +1645,11 @@ class StructuralTableInteraction {
       const nativeCallout = this.host?.closest(".callout") != null;
       const scroller = element.closest<HTMLElement>(".structural-tables-container");
       const info = view.state.field(editorInfoField, false);
+      const hostStyle = this.host === null ? null : this.host.ownerDocument.defaultView?.getComputedStyle(this.host);
+      const height = this.host?.getBoundingClientRect().height ?? 0;
+      const minHeight = height
+        - (hostStyle === null || hostStyle === undefined || hostStyle.boxSizing === "border-box" ? 0
+          : [hostStyle.paddingTop, hostStyle.paddingBottom, hostStyle.borderTopWidth, hostStyle.borderBottomWidth].reduce((sum, value) => sum + (Number.parseFloat(value) || 0), 0));
       const viewport = !focus && next === null && !nativeCallout && scroller !== null ? {
         document: element.ownerDocument, editor: info?.editor, file: info?.file, from: current.range.from,
         source: result.source, sourcePath: this.sourcePath, index: current.sourceTableIndex, left: scroller.scrollLeft,
@@ -1633,7 +1663,7 @@ class StructuralTableInteraction {
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
         // Only source replacement widgets yield to source focus. Native Callout
         // tables keep their own mounting and history-target effects.
-        ...(!focus && next === null && !nativeCallout ? { effects: structuralTableCellBlurCommit.of({ from: current.range.from, before: current.source, after: result.source, sourcePath: this.sourcePath }) } : {}),
+        ...(!focus && next === null && !nativeCallout ? { effects: structuralTableCellBlurCommit.of({ from: current.range.from, before: current.source, after: result.source, sourcePath: this.sourcePath, height, minHeight }) } : {}),
         ...(nativeCallout ? tableWriteHistory(current, result.source, this.sourcePath, anchor) : {}),
         ...(focus && !nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
@@ -1894,7 +1924,27 @@ class StructuralTableInteraction {
     editor.addEventListener("blur", () => {
       if (!contextMenuOpen) releaseCellEditorFocus(editor);
       if (!composing && !contextMenuOpen && lastRejectedDraft !== editor.value) {
-        finish(true, null, false);
+        // Let the native pointer handler finish choosing its source destination
+        // before a whole-table replacement maps the old logical cell cursor.
+        if (tableSourcePointerPending(view)) {
+          const document = editor.ownerDocument; const doc = view.state.doc;
+          const host = this.host;
+          const info = view.state.field(editorInfoField, false); const file = info?.file;
+          const editorIdentity = info?.editor;
+          const sourcePath = file?.path;
+          queueMicrotask(() => {
+            if (settled) return;
+            const current = view.state.field(editorInfoField, false);
+            if (view.state.doc !== doc || !view.dom.isConnected || view.dom.ownerDocument !== document
+              || view.contentDOM.ownerDocument !== document || editor.ownerDocument !== document
+              || host === null || this.host !== host || !view.contentDOM.contains(host) || host.closest(".cm-editor") !== view.dom || !host.contains(editor)
+              || current?.editor !== editorIdentity || current?.file !== file || file?.path !== sourcePath || sourcePath !== this.sourcePath) {
+              if (editor.value !== anchor.raw.trim()) retainCellDraft(this.app, { sourcePath: this.sourcePath, row: anchor.row, column: anchor.column, text: editor.value }, t);
+              settle(); restore(false); return;
+            }
+            finish(true, null, false);
+          });
+        } else finish(true, null, false);
       }
       this.releaseCellScope(scope);
     });

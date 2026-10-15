@@ -44,6 +44,8 @@ After undo/redo, restore focus to the corresponding visible cell when possible. 
 
 Tapping the paragraph below a source-rendered table keeps its local horizontal position in both LTR and RTL notes. An unchanged cell leaves the same table mounted. A changed cell commits once and may replace its rendered table; preserve that table's horizontal position only for this exact replacement, after its contents finish rendering. New input, scrolling, source changes, another editor or a changed direction cancel any pending restoration. Native text selection, including deliberate double taps and long presses, remains native.
 
+Clicking prose or editor whitespace above or below a long table must let the native pointer handler choose its destination without committing a changed draft in the middle of that handler. Keep the replacement's height stable from CodeMirror's initial height estimate through asynchronous cell rendering, then release it to the actual content size. A shorter result may naturally reduce the document height; do not retain an artificial height or force a collapsed selection to hide pointer conflicts.
+
 ### Ordinary GFM tables
 
 Obsidian's native table UI remains the default. With **Take over ordinary Markdown tables** enabled, ordinary GFM uses the same rendering and editing controls as structural tables while its source stays standard GFM. Turning the setting off restores the native UI immediately.

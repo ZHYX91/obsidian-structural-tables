@@ -6,6 +6,7 @@ import { App, Component, MarkdownRenderer, MarkdownView, Menu, editorInfoField, 
 import { DEFAULT_SETTINGS } from "../../src/config/settings";
 import { parseEditableTables } from "../../src/core/parser";
 import { editCellContent } from "../../src/core/operations";
+import { tableRenderingComplete } from "../../src/rendering/table-renderer";
 import { NativeTableMenuBridge } from "../../src/editor/native-table-menu";
 import { StructuralTableEditorController } from "../../src/editor/table-live-preview";
 import { openEditorTableTranspose } from "../../src/editor/table-transpose-target";
@@ -31,7 +32,10 @@ HTMLElement.prototype.empty = function empty(): void { this.replaceChildren(); }
 HTMLElement.prototype.setCssProps = function setCssProps(props: Record<string, string>): void {
   for (const [name, value] of Object.entries(props)) this.style.setProperty(name, value);
 };
-MarkdownRenderer.render = async (_app, source, target) => { target.textContent = source; };
+MarkdownRenderer.render = async (_app, source, target) => {
+  if (delayedCommitRendering && changes > 0) await new Promise((resolve) => setTimeout(resolve, 60));
+  target.textContent = source;
+};
 
 const original = "Before stays.\n\n| Name | Value |\n| --- | --- |\n| North | 1 |\n\nAfter stays.";
 const tall = [
@@ -39,6 +43,9 @@ const tall = [
   ...Array.from({ length: 22 }, (_, row) => `| ${row % 2 === 0 ? `Region ${row / 2}` : "^"} | ${row} | value | more | last |`),
   "", "",
 ].join("\n");
+const wrapped = ["Before stays.", "", "| Day | Group | Main | Side | Notes |", "| --- || --- | --- | --- | --- |",
+  ...Array.from({ length: 7 }, (_, index) => [`| Day ${index + 1} | Meal A | Long seasonal vegetable and grain combination ${index + 1} | Fresh greens | Reviewed |`,
+    `| ^ | Meal B | Roasted vegetables with rice ${index + 1} | Beans | ^ |`, `| ^ | ^ | Stir fried peppers ${index + 1} | ^ | Garden salad |`]).flat(), "", ""].join("\n");
 let cm: EditorView | null = null;
 let other: EditorView | null = null;
 let component: Component | null = null;
@@ -50,7 +57,19 @@ let interfaceLanguage: "en" | "ar" = "en";
 let currentView: MarkdownView | null = null;
 let files = new Map<string, TFile>();
 const focusTrace: string[] = [];
+const commitGeometry: Array<{ height: number; scrollTop: number; empty: boolean }> = [];
 let traceFocus = false;
+let delayedCommitRendering = false;
+let replacementDraft = "last-cell-final-longx";
+new MutationObserver(() => {
+  if (!traceFocus || changes !== 1 || cm === null) return;
+  const host = document.querySelector<HTMLElement>(".structural-tables-live-preview");
+  if (host !== null) {
+    const sample = { height: host.getBoundingClientRect().height, scrollTop: cm.scrollDOM.scrollTop,
+      empty: [...host.querySelectorAll(".structural-tables-cell-content")].every((cell) => cell.textContent === "") };
+    if (JSON.stringify(sample) !== JSON.stringify(commitGeometry[commitGeometry.length - 1])) commitGeometry.push(sample);
+  }
+}).observe(document.body, { childList: true, subtree: true });
 for (const type of ["pointerdown", "pointerup", "touchstart", "touchend", "focusin", "mousedown", "click", "dblclick", "selectionchange"]) document.addEventListener(type, (event) => {
   if (traceFocus && cm !== null) focusTrace.push(type + ":" + (event.target as HTMLElement).tagName + ":" + cm.state.selection.main.head
     + ":" + document.querySelectorAll(".structural-tables-live-preview").length + ":detail=" + (event as MouseEvent).detail
@@ -77,10 +96,13 @@ document.addEventListener("contextmenu", () => {
   });
 }, true);
 
-function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | "focus-wide" | "focus-wide-rtl" | "focus-wide-edited" | "focus-wide-edited-rtl"): void {
+function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | `focus-wide${string}`): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
   focusTrace.length = 0; traceFocus = mode.startsWith("focus-wide");
+  commitGeometry.length = 0;
+  delayedCommitRendering = mode.includes("blank") || mode.includes("mouse");
+  replacementDraft = mode.includes("shrink") ? "QA" : delayedCommitRendering ? "Stir fried peppers 7 QA" : "last-cell-final-longx";
   files = new Map(); component = new Component();
   const file = new TFile("A.md"); files.set(file.path, file);
   const frame = mode.startsWith("popout-") ? document.body.appendChild(document.createElement("iframe")) : null;
@@ -89,6 +111,7 @@ function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-so
   const bidi = mode === "rtl" || mode.startsWith("ltr-") || mode === "rtl-ascii-draft";
   containerEl.dir = mode.startsWith("rtl") || mode.endsWith("-rtl") ? "rtl" : "ltr";
   if (mode.startsWith("focus-wide")) containerEl.style.width = "340px";
+  if (delayedCommitRendering) containerEl.classList.add("host-box-sizing");
   interfaceLanguage = mode.startsWith("ltr-") ? "ar" : "en";
   const posToOffset = (position: EditorPosition): number => cm!.state.doc.line(position.line + 1).from + position.ch;
   const offsetToPos = (offset: number): EditorPosition => {
@@ -114,11 +137,14 @@ function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-so
   const settings = { ...DEFAULT_SETTINGS, language: interfaceLanguage, takeOverOrdinaryTables: true };
   const controller = new StructuralTableEditorController(app, () => settings);
   const value = mode === "ltr-arabic-draft" || mode === "ltr-arabic" ? "مرحبا" : mode === "ltr-mixed-draft" ? "ABC مرحبا 123" : "ABC";
-  const source = focus ? (mode.startsWith("focus-wide") ? tall.replace(/more/gu, "middle-value-long").replace(/last/gu, "last-cell-final-long") : tall)
+  const focusTable = delayedCommitRendering ? wrapped
+    : mode.startsWith("focus-wide") ? tall.replace(/more/gu, "middle-value-long").replace(/last/gu, "last-cell-final-long") : tall;
+  const source = focus ? focusTable
     + (mode === "focus-after" || mode.startsWith("focus-wide") ? "After the table." : "") : bidi
     ? `Before stays.\n\n| Region | A | B | C |\n| --- || --- | --- | --- |\n| North | ${value} | Two | Three |\n| South | Four | Five | Six |\n\nAfter stays.` : original;
   initialSource = source;
   cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: source, extensions: [
+    ...(delayedCommitRendering ? [EditorView.lineWrapping] : []),
     history(), keymap.of(historyKeymap), editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app, hoverPopover: null })), editorLivePreviewField.init(() => owned),
     controller.createExtension(), EditorView.updateListener.of((update) => {
       if (update.docChanged) changes += 1;
@@ -128,6 +154,8 @@ function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-so
     }),
   ] }) });
   if (mode.startsWith("focus-wide")) { cm.contentDOM.style.minWidth = "0"; cm.contentDOM.style.width = "100%"; }
+  if (delayedCommitRendering) { cm.contentDOM.style.paddingBottom = "100px"; cm.dom.style.setProperty("--table-width", "404px"); }
+  if (mode.includes("above")) cm.contentDOM.style.paddingTop = "100px";
   other = new EditorView({ parent: document.body.createDiv(), state: EditorState.create({ doc: "Other file stays.", extensions: [history()] }) });
   other.dom.style.display = "none";
   currentView = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file });
@@ -207,7 +235,7 @@ function interfaceBidi() {
 function result() {
   const source = cm!.state.doc.toString();
   const initialTable = parseEditableTables(initialSource).tables[0]!;
-  const cellEdit = traceFocus ? editCellContent(initialTable, 22, 4, "last-cell-final-longx") : null;
+  const cellEdit = traceFocus ? editCellContent(initialTable, initialTable.rows.length - 1, delayedCommitRendering ? 2 : 4, replacementDraft) : null;
   const table = document.querySelector<HTMLTableElement>(".structural-tables-live-preview table");
   const draft = document.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor");
   const active = cm!.dom.ownerDocument.activeElement as HTMLElement | null;
@@ -220,7 +248,7 @@ function result() {
     rowHeaders: parseEditableTables(source).tables[0]?.rowHeaderColumnCount ?? -1,
     tableDirection: table === null ? null : getComputedStyle(table).direction,
     rowValues: parseEditableTables(source).tables[0]?.rows[1]?.cells.map((cell) => cell.content),
-    lastValue: parseEditableTables(source).tables[0]?.rows[22]?.cells[4]?.content,
+    lastValue: parseEditableTables(source).tables[0]?.rows.slice(-1)[0]?.cells[delayedCommitRendering ? 2 : 4]?.content,
     cellLefts: [0, 1, 2, 3].map((column) => table?.querySelector(`[data-structural-row="1"][data-structural-column="${column}"]`)?.getBoundingClientRect().left ?? null),
     activeColumn: active?.dataset.structuralColumn ?? active?.closest<HTMLElement>("[data-structural-column]")?.dataset.structuralColumn,
     draftStart: draft?.selectionStart, draftEnd: draft?.selectionEnd, draftValue: draft?.value,
@@ -228,12 +256,20 @@ function result() {
     selectedCells: document.querySelectorAll(".structural-tables-live-preview [aria-selected='true']").length,
     draft: document.querySelector("textarea.structural-tables-cell-editor") !== null,
     tableHeight: table?.getBoundingClientRect().height ?? 0, spans: table?.querySelectorAll("[rowspan='2']").length ?? 0,
+    hostHeight: table?.closest(".structural-tables-live-preview")?.getBoundingClientRect().height ?? 0,
+    reservedHeight: table?.closest<HTMLElement>(".structural-tables-live-preview")?.style.minHeight ?? null,
+    blockHeight: cm!.lineBlockAt(initialTable.range.from).height,
+    tableStyle: table === null ? null : { width: table.getBoundingClientRect().width, layout: getComputedStyle(table).tableLayout,
+      whiteSpace: getComputedStyle(table.querySelector(".structural-tables-cell-content")!).whiteSpace, parentClass: table.closest("#target-note")?.className },
     scrollTop: cm!.scrollDOM.scrollTop, anchor: cm!.state.selection.main.anchor, head: cm!.state.selection.main.head,
     horizontalScroll: table?.parentElement?.scrollLeft ?? 0,
     horizontalOverflow: (table?.parentElement?.scrollWidth ?? 0) - (table?.parentElement?.clientWidth ?? 0),
     focusTrace: [...focusTrace],
+    commitGeometry: [...commitGeometry],
     notices: [...notices],
   };
 }
 
-(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, interfaceBidi };
+(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, interfaceBidi,
+  refresh: () => cm!.dispatch({ effects: structuralTableSourceFocus.of(true) }),
+  rendered: () => { const table = document.querySelector<HTMLTableElement>(".structural-tables-live-preview table"); return table === null ? Promise.resolve() : tableRenderingComplete(table); } };

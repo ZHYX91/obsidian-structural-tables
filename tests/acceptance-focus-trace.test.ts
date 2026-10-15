@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 import * as host from "obsidian";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TFile } from "./mocks/obsidian";
+import { parseEditableTables } from "../src/core/parser";
 
 const script = readFileSync("acceptance/fixtures/.obsidian/plugins/structural-tables-acceptance-provider/main.js", "utf8");
 const fixtureSource = readFileSync("acceptance/fixtures/Final cell focus.md", "utf8");
@@ -20,7 +21,7 @@ function fixture(path = "Final cell focus.md") {
   const source = fixtureSource;
   const replaceRange = vi.fn();
   const view = Object.assign(Object.create(host.MarkdownView.prototype) as host.MarkdownView, { containerEl, file: new TFile(path),
-    editor: { getValue: () => source, replaceRange } });
+    editor: { getValue: () => source, replaceRange, cm: { state: { selection: { main: { anchor: 4, head: 9, from: 4, to: 9 } } } } } });
   const writes: Array<{ path: string; source: string }> = [];
   const commands = new Map<string, () => unknown>();
   provider.app = { workspace: { getActiveViewOfType: () => view }, vault: { adapter: { write: async (path: string, source: string) => { writes.push({ path, source }); } } } } as unknown as host.App;
@@ -32,6 +33,13 @@ function fixture(path = "Final cell focus.md") {
 afterEach(() => { cleanups.splice(0).forEach((cleanup) => cleanup()); document.body.replaceChildren(); vi.restoreAllMocks(); });
 
 describe("fixture-only passive focus trace", () => {
+  it("keeps a valid long-content merged fixture with the same final-cell and paragraph targets", () => {
+    const tables = parseEditableTables(fixtureSource).tables;
+    expect(tables).toHaveLength(1); expect(tables[0]!.valid).toBe(true); expect(tables[0]!.rows).toHaveLength(25);
+    expect(tables[0]!.rows[1]!.cells[0]!.rowSpan).toBe(2);
+    expect(tables[0]!.rows[24]!.cells[2]!.content).toBe("Long seasonal vegetable and grain combination 24");
+    expect(tables[0]!.rows[24]!.cells[4]!.content).toBe("last-24"); expect(fixtureSource).toContain("After the table. Tap this paragraph");
+  });
   it("records attributed pointer cancellation and bounded snapshots without operating the editor, then stops completely", async () => {
     const f = fixture(); const cell = f.containerEl.querySelector<HTMLElement>("td")!;
     const focus = vi.spyOn(cell, "focus");
@@ -47,6 +55,8 @@ describe("fixture-only passive focus trace", () => {
     expect(output.path).toBe("_structural-tables-focus-trace.json");
     const report = JSON.parse(output.source) as { entries: unknown[]; criticalEntries: Array<{ type: string; target: { row: string; column: string; hostId: number }; event: { pointerId: number; pointerType: string; timeStamp: number; isTrusted: boolean; isPrimary: boolean } }> };
     expect(report.entries.length).toBeLessThanOrEqual(512);
+    expect(report.entries[0]).toMatchObject({ sourceSelection: { anchor: 4, head: 9, from: 4, to: 9 },
+      tables: [{ hostRect: { height: 0, width: 0 }, scrollerRect: { top: 0, bottom: 0 }, tableRect: { height: 0 } }] });
     const events = report.criticalEntries.filter((entry) => entry.type.startsWith("pointer"));
     expect(events.map((entry) => entry.type)).toEqual(["pointerdown", "pointercancel", "pointerdown"]);
     expect(events.map((entry) => entry.event.pointerId)).toEqual([7, 7, 7]);

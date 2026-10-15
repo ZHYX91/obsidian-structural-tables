@@ -17,7 +17,7 @@ const bundle = await build({
 });
 const styles = await readFile("styles.css", "utf8");
 const page = '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/styles.css">'
-  + '<style>body{margin:24px;font:16px sans-serif}.cm-editor{height:520px;border:1px solid #bbb}.cm-scroller{overflow:auto}.cm-content{padding-bottom:80px}td,th{padding:10px;border:1px solid #999}#host-menu{position:fixed;top:12px;right:12px;background:white;z-index:20}button{padding:12px}</style>'
+  + '<style>body{margin:24px;font:16px sans-serif}.host-box-sizing *{box-sizing:border-box}.host-box-sizing .markdown-rendered{white-space:normal}.host-box-sizing .structural-tables-table{table-layout:fixed}.cm-editor{height:520px;border:1px solid #bbb}.cm-scroller{overflow:auto}.cm-content{padding-bottom:80px}td,th{padding:10px;border:1px solid #999}#host-menu{position:fixed;top:12px;right:12px;background:white;z-index:20}button{padding:12px}</style>'
   + '</head><body><script src="/bundle.js"></script></body></html>';
 const server = createServer((request, response) => {
   if (request.url === "/bundle.js") {
@@ -232,16 +232,21 @@ try {
       results.push({ mode, arrow, nativeCaret: true, sourcePreserved: true });
     }
   }
-  for (const mode of ["focus", "focus-after", "focus-canceled", "focus-wide", "focus-wide-rtl", "focus-wide-edited", "focus-wide-edited-rtl"]) {
+  for (const mode of ["focus", "focus-after", "focus-canceled", "focus-wide", "focus-wide-rtl", "focus-wide-edited", "focus-wide-edited-rtl", "focus-wide-edited-blank", "focus-wide-edited-blank-rtl", "focus-wide-edited-mouse", "focus-wide-edited-mouse-rtl", "focus-wide-edited-mouse-double", "focus-wide-edited-mouse-drag", "focus-wide-edited-mouse-shrink",
+    ...["mouse-above", "mouse-above-blank", "edited-mouse-above", "edited-mouse-above-blank"].flatMap((suffix) => ["focus-wide-" + suffix, "focus-wide-" + suffix + "-rtl"])]) {
+    const asyncMouse = mode.includes("blank") || mode.includes("mouse");
+    const nativeRange = mode.includes("double") || mode.includes("drag");
+    const above = mode.includes("above");
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
-    await click(select("[data-structural-row='22'][data-structural-column='4']"));
+    const initial = await evaluate("window.transposeBrowser.result()"); const initialTableHeight = initial.tableHeight;
+    await click(select("[data-structural-row='" + (asyncMouse ? "21" : "22") + "'][data-structural-column='" + (asyncMouse ? "2" : "4") + "']"));
     state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.draft, true, JSON.stringify(state));
-    const initialTableHeight = state.tableHeight;
     const edited = mode.includes("edited");
+    const editedValue = mode.includes("shrink") ? "QA" : asyncMouse ? "Stir fried peppers 7 QA" : "last-cell-final-longx";
     if (edited) {
       await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select()");
-      await command("Input.insertText", { text: "last-cell-final-longx" }); await settle();
-      state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.draftValue, "last-cell-final-longx");
+      await command("Input.insertText", { text: editedValue }); await settle();
+      state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.draftValue, editedValue);
     }
     if (mode === "focus-canceled") {
       await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
@@ -249,6 +254,11 @@ try {
       await settle(); state = await evaluate("window.transposeBrowser.result()"); assert.equal(state.draft, false);
     }
     await evaluate("window.savedTable=document.querySelector('.structural-tables-live-preview table')");
+    if (asyncMouse) { await evaluate("document.querySelector('#target-note .cm-scroller').scrollTop=" + (above ? "0" : "100000") + ";document.querySelector('.structural-tables-container').scrollLeft=" + (mode.endsWith("rtl") ? "-100" : "100")); await settle(); }
+    const pointer = asyncMouse ? await evaluate(mode.includes("blank")
+      ? "(function(){const r=document.querySelector('#target-note .cm-content').getBoundingClientRect();const x=r.left+r.width/2,y=" + (above ? "r.top+24" : "r.bottom-24") + ";return {x,y,target:document.elementFromPoint(x,y)?.className};})()"
+      : "(function(){const line=Array.from(document.querySelectorAll('#target-note .cm-line'))" + (above ? "[0]" : ".at(-1)") + ";function point(offset){const range=document.createRange();range.setStart(line.firstChild,offset);range.setEnd(line.firstChild,offset+1);const r=range.getBoundingClientRect();return {x:r.left+1,y:r.top+r.height/2};}const start=point(7),end=point(Math.min(13,line.firstChild.length-1));return {...start,end,target:document.elementFromPoint(start.x,start.y)?.className};})()") : null;
+    if (pointer !== null) { assert.match(pointer.target, mode.includes("blank") ? /cm-content/u : /cm-line/u, JSON.stringify(pointer)); state = await evaluate("window.transposeBrowser.result()"); }
     const before = state;
     if (mode.startsWith("focus-wide")) {
       assert.ok(before.horizontalOverflow > 100, JSON.stringify(before));
@@ -259,29 +269,61 @@ try {
     }
     // Real mousedown/focus/mouseup lets CodeMirror place the source caret; the
     // harness does not dispatch a replacement selection for this regression.
-    if (mode.startsWith("focus-wide")) await tap("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
+    if (pointer !== null) {
+      const clickCount = mode.includes("double") ? 2 : 1;
+      await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: pointer.x, y: pointer.y });
+      await command("Input.dispatchMouseEvent", { type: "mousePressed", x: pointer.x, y: pointer.y, button: "left", clickCount });
+      const duringPress = await evaluate("window.transposeBrowser.result()");
+      assert.ok(Math.abs(duringPress.scrollTop - before.scrollTop) < 5 + Math.max(0, before.tableHeight - initialTableHeight), JSON.stringify({mode,stage:"during-mousedown",before:before.scrollTop,after:duringPress.scrollTop,geometry:duringPress.commitGeometry,changes:duringPress.changes,draft:duringPress.draft,anchor:duringPress.anchor,head:duringPress.head,trace:duringPress.focusTrace,notices:duringPress.notices}));
+      await evaluate("new Promise(r=>setTimeout(r,100))");
+      const end = mode.includes("drag") ? pointer.end : pointer;
+      if (mode.includes("drag")) await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: end.x, y: end.y, button: "left", buttons: 1 });
+      await command("Input.dispatchMouseEvent", { type: "mouseReleased", x: end.x, y: end.y, button: "left", clickCount }); await settle();
+      await evaluate("window.transposeBrowser.rendered()"); await settle();
+    } else if (mode.startsWith("focus-wide")) await tap("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
     else await click("Array.from(document.querySelectorAll('#target-note .cm-line')).at(-1)");
     state = await evaluate("window.transposeBrowser.result()");
-    if (edited) { assert.equal(state.changes, 1); assert.equal(state.lastValue, "last-cell-final-longx"); assert.equal(state.source, state.expectedEditedSource); }
+    if (edited) { assert.equal(state.changes, 1); assert.equal(state.lastValue, editedValue); assert.equal(state.source, state.expectedEditedSource); }
     else { assert.equal(state.source, before.source); assert.equal(state.changes, 0); }
     assert.equal(state.draft, false);
-    assert.equal(state.anchor, state.head, JSON.stringify(state));
-    assert.ok(state.anchor >= state.source.lastIndexOf("\n"), JSON.stringify(state));
+    assert.equal(state.anchor === state.head, !nativeRange, JSON.stringify(state));
+    if (above) assert.ok(Math.max(state.anchor,state.head) <= state.source.indexOf("\n"), JSON.stringify(state));
+    else assert.ok(Math.min(state.anchor,state.head) >= state.source.lastIndexOf("\n"), JSON.stringify(state));
+    if (nativeRange) assert.equal(state.source.slice(Math.min(state.anchor,state.head),Math.max(state.anchor,state.head)), mode.includes("double") ? "the" : "he tab");
     assert.equal(await evaluate("window.savedTable===document.querySelector('.structural-tables-live-preview table')"), !edited,
       JSON.stringify({ mode, beforeHorizontal: before.horizontalScroll, afterHorizontal: state.horizontalScroll, beforeVertical: before.scrollTop, afterVertical: state.scrollTop, sourcePreserved: before.source === state.source, anchor: state.anchor, head: state.head, trace: state.focusTrace }));
-    assert.equal(state.spans, 11); assert.ok(Math.abs(state.tableHeight - initialTableHeight) < 1, JSON.stringify({ mode, initialTableHeight, beforeHeight: before.tableHeight, afterHeight: state.tableHeight }));
-    assert.ok(Math.abs(state.scrollTop - before.scrollTop) < (edited ? 5 : 2), JSON.stringify({ before: before.scrollTop, after: state.scrollTop }));
+    assert.equal(state.spans, initial.spans);
+    if (mode.includes("shrink")) {
+      assert.ok(state.hostHeight < before.hostHeight, JSON.stringify({ mode, before: before.hostHeight, after: state.hostHeight }));
+      assert.ok(Math.abs(state.blockHeight - state.hostHeight) < 1, JSON.stringify({ mode, blockHeight: state.blockHeight, hostHeight: state.hostHeight }));
+    } else {
+      assert.ok(Math.abs(state.tableHeight - initialTableHeight) < 1, JSON.stringify({ mode, initialTableHeight, beforeHeight: before.tableHeight, afterHeight: state.tableHeight }));
+      assert.ok(Math.abs(state.scrollTop - before.scrollTop) < (edited ? 5 + Math.max(0, before.tableHeight - initialTableHeight) : 2), JSON.stringify({ mode, before: before.scrollTop, after: state.scrollTop, geometry:state.commitGeometry, trace:state.focusTrace }));
+    }
+    if (pointer !== null) {
+      assert.equal(state.reservedHeight, "");
+      if (edited) {
+        const empty = state.commitGeometry.filter((sample) => sample.empty); assert.ok(empty.length > 0, JSON.stringify(state.commitGeometry));
+        for (const sample of empty) assert.ok(sample.height >= before.hostHeight - 1 && Math.abs(sample.scrollTop - before.scrollTop) < 2, JSON.stringify({mode,beforeHeight:before.hostHeight,beforeScroll:before.scrollTop,sample}));
+      }
+      await evaluate("window.readyTable=document.querySelector('.structural-tables-live-preview table');window.transposeBrowser.refresh()"); await settle();
+      const refreshed = await evaluate("window.transposeBrowser.result()");
+      assert.equal(await evaluate("window.readyTable===document.querySelector('.structural-tables-live-preview table')"), true);
+      assert.equal(refreshed.reservedHeight, ""); assert.ok(Math.abs(refreshed.scrollTop - state.scrollTop) < 1);
+    }
     if (mode.startsWith("focus-wide")) {
-      assert.equal(state.lastClickDetail, 1, JSON.stringify({ mode, trace: state.focusTrace }));
+      assert.equal(state.lastClickDetail, mode.includes("double") ? 2 : 1, JSON.stringify({ mode, trace: state.focusTrace }));
       assert.ok(Math.abs(state.horizontalScroll - before.horizontalScroll) < 1, JSON.stringify({ mode, before, after: state }));
     }
     if (edited) {
       const committed = state.source;
       await historyKey(); assert.equal((await evaluate("window.transposeBrowser.result()")).source, before.source);
+      if (asyncMouse) { await evaluate("window.transposeBrowser.rendered()"); await settle(); assert.ok(["", null].includes((await evaluate("window.transposeBrowser.result()")).reservedHeight)); }
       await historyKey(true); assert.equal((await evaluate("window.transposeBrowser.result()")).source, committed);
+      if (asyncMouse) { await evaluate("window.transposeBrowser.rendered()"); await settle(); assert.ok(["", null].includes((await evaluate("window.transposeBrowser.result()")).reservedHeight)); }
     }
-    results.push({ mode, sourcePreserved: !edited, cellCommitted: edited, stableGeometry: true, collapsedCaret: true,
-      ...(mode.startsWith("focus-wide") ? { realTouch: true, localHorizontalScroll: true } : {}) });
+    results.push({ mode, sourcePreserved: !edited, cellCommitted: edited, stableGeometry: true, collapsedCaret: !nativeRange,
+      ...(mode.startsWith("focus-wide") ? { ...(asyncMouse ? { realMouse: true, asynchronousRendering: true } : { realTouch: true }), localHorizontalScroll: true } : {}) });
   }
   const bidi = await evaluate("window.transposeBrowser.interfaceBidi()");
   assert.ok(bidi.technicalLefts[0] < bidi.technicalLefts[1], JSON.stringify(bidi));

@@ -529,6 +529,60 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it.each(["selection", "source", "rename", "file", "editor", "document"] as const)("defers pointer blur until the native source selection and rejects a changed context (%s)", async (change) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter";
+    let writes = 0;
+    const { app, parent, view } = mountEditor(source, { anchor: 0 }, [history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    const frame = document.body.appendChild(document.createElement("iframe"));
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "changed-final";
+      const line = [...view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")].slice(-1)[0]!;
+      dispatchPointerDown(line, "mouse"); view.contentDOM.focus();
+      expect(view.state.doc.toString()).toBe(source); expect(undoDepth(view.state)).toBe(0);
+      const info = view.state.field(editorInfoField);
+      let expected = source;
+      if (change === "selection") view.dispatch({ selection: { anchor: source.length } });
+      else if (change === "source") { expected = "External\n" + source; view.dispatch({ changes: { from: 0, insert: "External\n" } }); }
+      else if (change === "rename") info.file!.path = "Other.md";
+      else if (change === "file") Object.assign(info, { file: { ...info.file! } });
+      else if (change === "editor") info.editor = Object.create(info.editor ?? null) as Editor;
+      else frame.contentDocument!.body.append(parent);
+      await Promise.resolve(); await Promise.resolve();
+      if (change === "selection") {
+        expect(view.state.doc.toString()).toContain("changed-final"); expect(view.state.selection.main.head).toBe(view.state.doc.length);
+        expect(writes).toBe(1);
+        expect(view.state.selection.main.empty).toBe(true); expect(undoDepth(view.state)).toBe(1);
+        expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      } else {
+        expect(view.state.doc.toString()).toBe(expected); expect(undoDepth(view.state)).toBe(change === "source" ? 1 : 0);
+        expect(writes).toBe(change === "source" ? 1 : 0);
+        expect(recoveredCellDrafts(app).map((draft) => draft.text)).toContain("changed-final");
+      }
+    } finally { view.destroy(); frame.remove(); }
+  });
+
+  it("keeps replacement height through delayed rendering even when a new gesture cancels horizontal restoration", async () => {
+    let finish: (() => void) | undefined;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
+      if (markdown === "changed-final") await new Promise<void>((resolve) => { finish = resolve; });
+      target.textContent = markdown;
+    });
+    const { parent, view } = mountEditor("Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter", { anchor: 0 });
+    try {
+      const host = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!; host.style.boxSizing = "border-box";
+      vi.spyOn(host, "getBoundingClientRect").mockReturnValue({ height: 480 } as DOMRect);
+      host.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "changed-final";
+      document.body.appendChild(document.createElement("button")).focus();
+      const replacement = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;
+      expect(replacement).not.toBe(host); expect(replacement.style.minHeight).toBe("480px");
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      dispatchPointerDown(replacement, "touch"); expect(replacement.style.minHeight).toBe("480px");
+      finish!(); await vi.waitFor(() => expect(replacement.style.minHeight).toBe(""));
+    } finally { view.destroy(); }
+  });
+
   it.each(["complete-ltr", "complete-rtl", "pointer", "wheel", "scroll", "key", "undo", "rename", "other-editor", "direction", "new-source", "destroy"] as const)("restores only the exact cell-commit viewport after delayed rendering (%s)", async (interference) => {
     let finish: (() => void) | undefined;
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {

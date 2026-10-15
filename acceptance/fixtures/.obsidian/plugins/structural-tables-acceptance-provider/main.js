@@ -107,9 +107,12 @@ module.exports = class extends Plugin {
         hostId: id(element.closest(".structural-tables-live-preview")) };
     };
     const entries = []; const criticalEntries = []; let total = 0; let active = true; let timer = null; let task = null; let frame = null;
+    const rect = (element) => { if (!element) return null; const bounds = element.getBoundingClientRect(); return { top: bounds.top, bottom: bounds.bottom, left: bounds.left, width: bounds.width, height: bounds.height }; };
     const snapshot = () => {
       const selection = document.getSelection();
+      const sourceSelection = view.editor.cm?.state?.selection?.main;
       return { active: describe(document.activeElement), sourceLength: view.editor.getValue().length,
+        sourceSelection: sourceSelection ? { anchor: sourceSelection.anchor, head: sourceSelection.head, from: sourceSelection.from, to: sourceSelection.to } : null,
         draftCount: view.containerEl.querySelectorAll("textarea.structural-tables-cell-editor").length,
         viewportHeight: window.innerHeight, verticalScroll: view.containerEl.querySelector(".cm-scroller")?.scrollTop ?? null,
         selection: { anchor: describe(selection?.anchorNode), anchorOffset: selection?.anchorOffset ?? null,
@@ -117,6 +120,7 @@ module.exports = class extends Plugin {
         tables: [...view.containerEl.querySelectorAll(".structural-tables-live-preview")].slice(0, 12).map((host) => {
           const scroller = host.querySelector(".structural-tables-container");
           return { hostId: id(host), scrollerId: id(scroller), tableIndex: host.getAttribute("data-structural-source-table-index"),
+            hostRect: rect(host), scrollerRect: rect(scroller), tableRect: rect(host.querySelector("table")),
             connected: host.isConnected, scrollLeft: scroller?.scrollLeft ?? null, scrollWidth: scroller?.scrollWidth ?? null,
             clientWidth: scroller?.clientWidth ?? null, direction: scroller ? window.getComputedStyle(scroller).direction : null };
         }) };

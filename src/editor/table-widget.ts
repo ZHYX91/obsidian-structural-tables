@@ -3,7 +3,7 @@ import type { ExportTableImage } from "../app/table-image-modal";
 import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
-import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor } from "obsidian";
+import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -19,11 +19,11 @@ import {
   insertTableColumn,
   pasteTableRangeRaw,
   reorderTableAxis,
-  transposeTable,
   type TableAxis,
 } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+import { transposeTableInDocument } from "../core/table-transpose-validation";
 import { parseEditableTables } from "../core/parser";
 import { sourcePrefix } from "../core/source-lines";
 import {
@@ -31,7 +31,7 @@ import {
   tableRangePayload,
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
-import { renderStructuralTable } from "../rendering/table-renderer";
+import { renderStructuralTable, tableRenderingComplete } from "../rendering/table-renderer";
 import { renderTableClipboard } from "../rendering/table-clipboard";
 import { cellClipboardText, copyHtml } from "./table-interchange";
 import {
@@ -58,7 +58,7 @@ import {
 
 import { retainCellDraft } from "./cell-draft-recovery";
 import { tableCellSourceOffset } from "./table-source-binding";
-import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "./table-source-focus";
+import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus, tableSourcePointerPending } from "./table-source-focus";
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
@@ -75,6 +75,19 @@ interface PendingCellFocus {
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
 const activeCellEditors = new WeakMap<Document, HTMLTextAreaElement>();
+
+interface CellCommitViewport {
+  document: Document;
+  editor: Editor | undefined;
+  file: TFile | null | undefined;
+  from: number;
+  source: string;
+  sourcePath: string;
+  index: number;
+  left: number;
+  direction: string;
+  doc: EditorView["state"]["doc"];
+}
 
 type CellEditEntryIntent = "select-all" | { caretOffset: number };
 
@@ -223,7 +236,13 @@ export class StructuralTableWidget extends WidgetType {
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
+    private readonly cellCommitGeometry?: { height: number; minHeight: number },
   ) { super(); }
+
+  override get estimatedHeight(): number {
+    const height = this.cellCommitGeometry?.height;
+    return height !== undefined && Number.isFinite(height) && height > 0 ? height : -1;
+  }
 
   override eq(other: StructuralTableWidget): boolean {
     return this.table.source === other.table.source
@@ -237,7 +256,7 @@ export class StructuralTableWidget extends WidgetType {
     const interaction = new StructuralTableInteraction(
       this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage,
     );
-    const host = interaction.mount(view);
+    const host = interaction.mount(view, this.cellCommitGeometry?.minHeight);
     interactions.set(host, interaction);
     return host;
   }
@@ -268,6 +287,7 @@ class StructuralTableInteraction {
   private selectionHead: TableCellCoordinate | null = null;
   private touchRangeAnchor: TableCellCoordinate | null = null;
   private lastTouchTap: { coordinate: TableCellCoordinate; at: number } | null = null;
+  private touchPointerId: number | undefined;
   private pointerWindow: Window | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private host: HTMLElement | null = null;
@@ -290,6 +310,42 @@ class StructuralTableInteraction {
     private readonly exportImage?: ExportTableImage,
   ) {}
 
+  restoreCellCommitViewport(view: EditorView, snapshot: CellCommitViewport): void {
+    const host = this.host; const rendered = this.renderedTable;
+    const scroller = rendered?.closest<HTMLElement>(".structural-tables-container");
+    if (host === null || rendered === null || scroller == null || this.component === null) return;
+    let active = true;
+    const cleanup = (): void => {
+      active = false;
+      for (const type of ["pointerdown", "keydown", "beforeinput", "wheel"]) snapshot.document.removeEventListener(type, cleanup, true);
+      scroller.removeEventListener("scroll", cleanup);
+    };
+    const isCurrent = (): boolean => {
+      const info = view.state.field(editorInfoField, false);
+      return active && this.host === host && host.isConnected && view.dom.isConnected
+        && view.dom.ownerDocument === snapshot.document && view.contentDOM.ownerDocument === snapshot.document && host.ownerDocument === snapshot.document
+        && view.contentDOM.contains(host) && host.closest(".cm-editor") === view.dom
+        && rendered.isConnected && scroller.isConnected && host.contains(scroller) && scroller.contains(rendered)
+        && view.state.doc === snapshot.doc && info?.editor === snapshot.editor && info?.file === snapshot.file
+        && info?.file?.path === snapshot.sourcePath && this.sourcePath === snapshot.sourcePath
+        && this.table.range.from === snapshot.from && this.table.source === snapshot.source && this.table.sourceTableIndex === snapshot.index
+        && scroller.ownerDocument.defaultView?.getComputedStyle(scroller).direction === snapshot.direction;
+    };
+    if (!isCurrent()) return;
+    this.component.register(cleanup);
+    for (const type of ["pointerdown", "keydown", "beforeinput", "wheel"]) snapshot.document.addEventListener(type, cleanup, true);
+    scroller.addEventListener("scroll", cleanup);
+    // A cell commit replaces its widget. Restore only this exact replacement,
+    // after asynchronous cell rendering has supplied its real scroll width.
+    void tableRenderingComplete(rendered).then(() => {
+      if (!isCurrent()) { cleanup(); return; }
+      view.requestMeasure({ read: isCurrent, write: (current) => {
+        if (!current || !isCurrent()) { cleanup(); return; }
+        cleanup(); scroller.scrollLeft = snapshot.left;
+      } });
+    }).catch(cleanup);
+  }
+
   rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
     if (this.table.source !== table.source || this.sourcePath !== sourcePath
       || !samePresentation(this.settings, settings)) return false;
@@ -302,10 +358,11 @@ class StructuralTableInteraction {
     return true;
   }
 
-  mount(view: EditorView): HTMLElement {
+  mount(view: EditorView, cellCommitHeight?: number): HTMLElement {
     this.component = new Component();
     this.component.load();
     const host = view.dom.ownerDocument.createElement("div");
+    if (cellCommitHeight !== undefined && Number.isFinite(cellCommitHeight) && cellCommitHeight > 0) host.style.minHeight = `${cellCommitHeight}px`;
     host.className = "structural-tables-live-preview";
     host.dataset.layout = this.settings.layout;
     host.dataset.appearance = this.settings.appearance;
@@ -315,6 +372,26 @@ class StructuralTableInteraction {
     host.dataset.structuralSourceTableIndex = String(this.table.sourceTableIndex);
     this.host = host;
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
+    if (host.style.minHeight !== "") {
+      const component = this.component; const document = host.ownerDocument;
+      const current = (): boolean => this.component === component && this.host === host && host.isConnected
+        && host.ownerDocument === document && view.dom.ownerDocument === document && view.contentDOM.contains(host)
+        && host.closest(".cm-editor") === view.dom;
+      component.register(() => host.style.removeProperty("min-height"));
+      // Empty asynchronous cells must not collapse the note while a native
+      // pointer selection is being resolved. Release only after real content.
+      void tableRenderingComplete(rendered).then(() => {
+        const release = (): void => {
+          if (this.component !== component || this.host !== host) return;
+          host.style.removeProperty("min-height");
+          // Re-measure after releasing a larger draft's temporary height. The
+          // widget's style mutation alone is ignored by CodeMirror's observer.
+          queueMicrotask(() => { if (current()) view.requestMeasure(); });
+        };
+        if (current()) view.requestMeasure({ read: current, write: release });
+        else release();
+      });
+    }
     const gutter = rendered.createCaption();
     gutter.className = "structural-tables-control-gutter";
     gutter.setAttribute("aria-hidden", "true");
@@ -374,7 +451,8 @@ class StructuralTableInteraction {
     this.releaseCellScope();
     this.releaseNavigationScope();
     this.pointerWindow?.removeEventListener("pointerup", this.endPointerSelection);
-    this.pointerWindow?.removeEventListener("pointercancel", this.endPointerSelection);
+    this.pointerWindow?.removeEventListener("pointercancel", this.cancelPointerSelection);
+    this.pointerWindow?.removeEventListener("blur", this.abortPointerSelection);
     this.pointerWindow = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
@@ -385,6 +463,7 @@ class StructuralTableInteraction {
     this.renderedTable = null;
     this.clickEditCandidate = null;
     this.lastTouchTap = null;
+    this.touchPointerId = undefined;
     this.component?.unload();
     this.component = null;
   }
@@ -449,11 +528,27 @@ class StructuralTableInteraction {
     this.installHandles(view, host, rendered);
     this.pointerWindow = rendered.ownerDocument.defaultView;
     this.pointerWindow?.addEventListener("pointerup", this.endPointerSelection);
-    this.pointerWindow?.addEventListener("pointercancel", this.endPointerSelection);
+    this.pointerWindow?.addEventListener("pointercancel", this.cancelPointerSelection);
+    this.pointerWindow?.addEventListener("blur", this.abortPointerSelection);
   }
 
-  private readonly endPointerSelection = (): void => {
+  private readonly endPointerSelection = (event: PointerEvent): void => {
     this.dragging = false;
+    if (event.pointerId === this.touchPointerId) this.touchPointerId = undefined;
+  };
+
+  private readonly cancelPointerSelection = (event: PointerEvent): void => {
+    this.dragging = false;
+    if (this.touchPointerId !== undefined && event.pointerId === this.touchPointerId) this.abortPointerSelection();
+  };
+
+  private readonly abortPointerSelection = (): void => {
+    this.dragging = false;
+    this.touchPointerId = undefined;
+    this.lastTouchTap = null;
+    // Keep the completed visual range available to its long-press menu, but a
+    // canceled pan must not become the first half of a later double tap.
+    this.touchRangeAnchor = null;
   };
 
   private registerGridClearScope(scope: Scope, view: EditorView): void {
@@ -730,6 +825,7 @@ class StructuralTableInteraction {
     this.axisSelection = null;
     this.touchAxisAnchor = null;
     if (event.pointerType === "touch") {
+      this.touchPointerId = event.pointerId;
       const previous = this.lastTouchTap;
       this.lastTouchTap = { coordinate, at: event.timeStamp };
       if (previous !== null
@@ -1117,7 +1213,8 @@ class StructuralTableInteraction {
     };
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
-    const menuOptions = { fullEditor: true, explicitRemoval: true } as const;
+    const direction = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl" ? "rtl" : "ltr";
+    const menuOptions = { fullEditor: true, explicitRemoval: true, direction } as const;
     const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => this.applyMenuOperation(
       view,
       operation,
@@ -1147,19 +1244,22 @@ class StructuralTableInteraction {
     const editorIdentity = info?.editor;
     const fileIdentity = info?.file;
     const tableIdentity = frozen.selection.table;
+    const ownerDocument = frozen.host.ownerDocument;
     const transposeRequest = {
-      ownerDocument: frozen.host.ownerDocument,
+      ownerDocument,
       draftRoot: frozen.host,
       isCurrent: (): boolean => {
         const currentInfo = view.state.field(editorInfoField, false);
         return view.dom.isConnected && this.host === frozen.host && frozen.host.isConnected
+          && frozen.host.ownerDocument === ownerDocument && view.dom.ownerDocument === ownerDocument
+          && view.contentDOM.ownerDocument === ownerDocument
           && this.sourcePath === frozen.sourcePath
           && currentInfo?.editor === editorIdentity && currentInfo?.file === fileIdentity
           && currentInfo?.file?.path === frozen.sourcePath
           && reparseUnchangedTable(view.state.doc.toString(), tableIdentity) !== null;
       },
       apply: (): void => this.applyMenuOperation(
-        view, transposeTable, undefined, undefined, "owned-grid", undefined, frozen.anchor,
+        view, (current) => transposeTableInDocument(view.state.doc.toString(), current), undefined, undefined, "owned-grid", undefined, frozen.anchor,
       ),
     };
     addWholeTableTransposeMenuItem(menu, t, () => activate(() => requestWholeTableTranspose(
@@ -1168,7 +1268,7 @@ class StructuralTableInteraction {
     menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }
-      void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance)
+      void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance, direction)
         .then(({ html, text }) => copyHtml(html, text))
         .then((mode) => { new Notice(mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", "HTML")); })
         .catch(() => { new Notice(t("notice.clipboardFailed")); });
@@ -1262,6 +1362,7 @@ class StructuralTableInteraction {
 
     const editor = element.ownerDocument.createElement("textarea");
     editor.className = "structural-tables-cell-editor";
+    editor.dir = "auto";
     editor.cols = 1;
     editor.rows = 1;
     editor.value = anchor.raw.trim();
@@ -1545,15 +1646,38 @@ class StructuralTableInteraction {
         return;
       }
       const nativeCallout = this.host?.closest(".callout") != null;
+      const scroller = element.closest<HTMLElement>(".structural-tables-container");
+      const info = view.state.field(editorInfoField, false);
+      const hostStyle = this.host === null ? null : this.host.ownerDocument.defaultView?.getComputedStyle(this.host);
+      const height = this.host?.getBoundingClientRect().height ?? 0;
+      const minHeight = height
+        - (hostStyle === null || hostStyle === undefined || hostStyle.boxSizing === "border-box" ? 0
+          : [hostStyle.paddingTop, hostStyle.paddingBottom, hostStyle.borderTopWidth, hostStyle.borderBottomWidth].reduce((sum, value) => sum + (Number.parseFloat(value) || 0), 0));
+      const viewport = !focus && next === null && !nativeCallout && scroller !== null ? {
+        document: element.ownerDocument, editor: info?.editor, file: info?.file, from: current.range.from,
+        source: result.source, sourcePath: this.sourcePath, index: current.sourceTableIndex, left: scroller.scrollLeft,
+        direction: element.ownerDocument.defaultView?.getComputedStyle(scroller).direction ?? "ltr",
+      } : null;
       const target: PendingCellFocus = {
         from: current.range.from, source: result.source, sourcePath: this.sourcePath,
         coordinate: next ?? anchor, edit: next !== null,
       };
       view.dispatch({
         changes: { from: current.range.from, to: current.range.to, insert: result.source },
+        // Only source replacement widgets yield to source focus. Native Callout
+        // tables keep their own mounting and history-target effects.
+        ...(!focus && next === null && !nativeCallout ? { effects: structuralTableCellBlurCommit.of({ from: current.range.from, before: current.source, after: result.source, sourcePath: this.sourcePath, height, minHeight }) } : {}),
         ...(nativeCallout ? tableWriteHistory(current, result.source, this.sourcePath, anchor) : {}),
         ...(focus && !nativeCallout ? { selection: { anchor: current.range.from + result.source.length } } : {}),
       });
+      if (viewport !== null) {
+        const snapshot = { ...viewport, doc: view.state.doc };
+        queueMicrotask(() => {
+          const hosts = [...view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")]
+            .filter((host) => host.closest(".cm-editor") === view.dom && host.dataset.structuralSourceTableIndex === String(snapshot.index));
+          if (hosts.length === 1) interactions.get(hosts[0]!)?.restoreCellCommitViewport(view, snapshot);
+        });
+      }
       if (nativeCallout && (focus || next !== null)) {
         this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null, false, target.from);
       } else if (next !== null || focus) requestTableFocus(view, target);
@@ -1590,8 +1714,11 @@ class StructuralTableInteraction {
       const rtl = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl";
       const backwardKey = rtl ? "ArrowRight" : "ArrowLeft";
       const forwardKey = rtl ? "ArrowLeft" : "ArrowRight";
+      // Logical textarea offsets cannot establish a visual edge for mixed bidi
+      // runs. Keep native text navigation there; Tab still moves between cells.
+      const horizontalExit = !rtl && !/[\u0590-\u08ff\u200e-\u200f\u202a-\u202e\u2066-\u2069\ufb1d-\ufdff\ufe70-\ufeff]/u.test(editor.value);
 
-      if (noModifier && collapsed && event.key === backwardKey && editor.selectionStart === 0) {
+      if (horizontalExit && noModifier && collapsed && event.key === backwardKey && editor.selectionStart === 0) {
         const previous = this.adjacentCell(anchor, "backward");
         if (previous !== null) {
           event.preventDefault();
@@ -1600,7 +1727,7 @@ class StructuralTableInteraction {
         }
         return;
       }
-      if (noModifier && collapsed && event.key === forwardKey && editor.selectionEnd === editor.value.length) {
+      if (horizontalExit && noModifier && collapsed && event.key === forwardKey && editor.selectionEnd === editor.value.length) {
         const next = this.adjacentCell(anchor, "forward");
         if (next !== null) {
           event.preventDefault();
@@ -1800,7 +1927,27 @@ class StructuralTableInteraction {
     editor.addEventListener("blur", () => {
       if (!contextMenuOpen) releaseCellEditorFocus(editor);
       if (!composing && !contextMenuOpen && lastRejectedDraft !== editor.value) {
-        finish(true, null, false);
+        // Let the native pointer handler finish choosing its source destination
+        // before a whole-table replacement maps the old logical cell cursor.
+        if (tableSourcePointerPending(view)) {
+          const document = editor.ownerDocument; const doc = view.state.doc;
+          const host = this.host;
+          const info = view.state.field(editorInfoField, false); const file = info?.file;
+          const editorIdentity = info?.editor;
+          const sourcePath = file?.path;
+          queueMicrotask(() => {
+            if (settled) return;
+            const current = view.state.field(editorInfoField, false);
+            if (view.state.doc !== doc || !view.dom.isConnected || view.dom.ownerDocument !== document
+              || view.contentDOM.ownerDocument !== document || editor.ownerDocument !== document
+              || host === null || this.host !== host || !view.contentDOM.contains(host) || host.closest(".cm-editor") !== view.dom || !host.contains(editor)
+              || current?.editor !== editorIdentity || current?.file !== file || file?.path !== sourcePath || sourcePath !== this.sourcePath) {
+              if (editor.value !== anchor.raw.trim()) retainCellDraft(this.app, { sourcePath: this.sourcePath, row: anchor.row, column: anchor.column, text: editor.value }, t);
+              settle(); restore(false); return;
+            }
+            finish(true, null, false);
+          });
+        } else finish(true, null, false);
       }
       this.releaseCellScope(scope);
     });

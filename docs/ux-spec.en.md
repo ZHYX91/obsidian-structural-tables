@@ -15,7 +15,7 @@ translation_of: ux-spec.zh-CN.md
 <!-- section: principles -->
 ## Principles
 
-Source remains visible and recoverable; rendering interprets but never rewrites; unintended loss of unselected or hidden content is refused. Explicit clear/remove actions may discard the selected visible content, while guarded legacy operations keep their loss-prevention contract.
+Source remains visible and recoverable; rendering interprets but never rewrites; unintended loss of unselected or hidden content is refused. Explicit clear/remove actions may discard the selected visible content, while other editing operations continue to check for unintended content loss.
 
 <!-- section: live-preview -->
 ## Live Preview
@@ -42,6 +42,12 @@ Source-position changes, edits elsewhere in the note, or table-index shifts shou
 
 After undo/redo, restore focus to the corresponding visible cell when possible. Callout tables follow the same rule and must not expose the whole source block merely because the host rerenders it.
 
+Tapping the paragraph below a source-rendered table keeps its local horizontal position in both LTR and RTL notes. An unchanged cell leaves the same table mounted. A changed cell commits once and may replace its rendered table; preserve that table's horizontal position only for this exact replacement, after its contents finish rendering. New input, scrolling, source changes, another editor or a changed direction cancel any pending restoration. Native text selection, including deliberate double taps and long presses, remains native.
+
+Clicking prose or editor whitespace above or below a long table must let the native pointer handler choose its destination without committing a changed draft in the middle of that handler. Keep the replacement's height stable from CodeMirror's initial height estimate through asynchronous cell rendering, then release it to the actual content size. A shorter result may naturally reduce the document height; do not retain an artificial height or force a collapsed selection to hide pointer conflicts.
+
+Cell drafts use the browser's automatic direction for their current raw text and inherit the cell's alignment, including explicit left, center and right alignment. Markdown link addresses and other syntax visible in the draft can influence its direction even when the rendered cell hides them. Plugin language and note/table direction remain separate. Focusing an external control ends the old pointer intent; a fresh source click retains its own intent through the return of focus. Temporary height belongs to its original rendered table and is removed when rendering completes, even while that table is disconnected.
+
 ### Ordinary GFM tables
 
 Obsidian's native table UI remains the default. With **Take over ordinary Markdown tables** enabled, ordinary GFM uses the same rendering and editing controls as structural tables while its source stays standard GFM. Turning the setting off restores the native UI immediately.
@@ -61,6 +67,8 @@ Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TS
 The context menu keeps row actions next to column actions (including column alignment), followed by a separate "Transpose whole table (swap rows and columns)" group before whole-table copy/export. The action always targets the complete logical table, not the selected range. The command palette and the native ordinary-GFM table menu expose the same behavior. Active cell drafts block transposition; no edit may be silently committed or lost. Row-header syntax remains the existing `||` delimiter, without a special marker column.
 
 Transposition preserves content and valid merged-cell topology, swaps column-header row counts with row-header column counts and swaps horizontal/vertical spans. It replaces source in a single undoable transaction isolated from surrounding typing, restoring original source and focus coordinate on undo. Uniform column alignment is preserved across new columns. Mixed alignments require explicit confirmation to reset the new columns to default. Ordinary GFM that becomes Structural Tables' `||` syntax also requires compatibility confirmation, including when alignment is uniform; transposition without either warning proceeds directly. Unsupported results such as an all-column-header table becoming all-row-header columns, invalid tables, and hidden overflow must not write. A menu or modal may clear transient visual grid selection. Revalidate the editor/view, file/path, exact target table and active draft after confirmation; reject stale targets.
+
+Before committing, reparse the complete note to ensure the transpose preserves the intended table's boundaries and transposed cell relationships. If adjacent pipe-separated text would join the result, preserve the note and ask the user to add blank lines around the table. A confirmation captured in one document cannot write after its editor moves to another window.
 
 <!-- section: interchange -->
 ## Paste and interchange
@@ -157,9 +165,9 @@ Owned Live Preview menus group actions in this order: selected-cell Copy/Cut/Pas
 
 Column alignment shows a check only when all selected columns have that alignment; mixed alignment has no check. Header-role actions omit setting the current number of header rows or columns, while eligible header removal remains available. Opening a menu freezes the logical selection; activation revalidates it before acting.
 
-A rectangular multi-cell selection can merge; a single merged cell can split. Refuse a merge when non-top-left cells contain data, when the selection crosses roles, or when it includes only part of an existing merge.
+A rectangular multi-cell selection can merge; a single merged cell can split. Refuse a merge when cells other than the first in source order contain data, when the selection crosses roles, or when it includes only part of an existing merge.
 
-Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole left-side columns can set row-header roles. With a complete column selected, **Remove row-header columns from the whole table** removes all row-header roles while preserving every cell's content.
+Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole columns from the start of source-column order can become row headers. With a complete column selected, **Stop using columns as row headers** removes all row-header roles while preserving every cell's content.
 
 Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled; the plugin contributes its applicable items. Reading View keeps its brief whole-table PNG entry.
 
@@ -175,9 +183,13 @@ Use native Obsidian controls with **General**, **Views**, and **Appearance** tab
 
 ### General
 
-- language: Follow Obsidian, English, Simplified Chinese;
+- language: Follow Obsidian, English, 简体中文, 繁體中文, 日本語, Deutsch, Español, العربية;
 - HTML-table paste conversion;
 - warnings about overlapping table-plugin syntax.
+
+Resolve automatic language from Obsidian's language ID, distinguishing Simplified and Traditional Chinese; unsupported host languages use English. Keep saved `auto`, `en`, and `zh-CN` values compatible. Show native language names. Arabic plugin settings and dialogs use RTL while other supported plugin languages use LTR, independently of note direction. Isolate paths, numbers, and code inside translated RTL messages; keep source previews in source order.
+
+Tables inherit the note's direction. The first source columns are the row headers on the leading side: left in LTR, right in RTL. UI language and individual cell contents never reorder columns or reinterpret `<`, `^`, or `||`. Physical left/right menu actions and grid arrows follow the table's direction; explicit left/right alignment remains physical. Draft arrows stay native when bidirectional text makes visual edges uncertain; Tab and Shift+Tab still move between cells.
 
 ### Views
 

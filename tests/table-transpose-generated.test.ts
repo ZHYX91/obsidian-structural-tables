@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { planTransposeTable, transposeTable } from "../src/core/operations";
 import { parseEditableTables } from "../src/core/parser";
 import type { StructuralTable } from "../src/core/model";
+import { transposeTableInDocument } from "../src/core/table-transpose-validation";
 
 const tick = String.fromCharCode(96);
 const contents = ["", "北方😀", "\\<", "\\^", "a\\|b", tick + "a|b" + tick,
@@ -67,6 +68,7 @@ describe("deterministic transpose property regressions", () => {
       expect(before?.valid, "seed=" + seed + " input=" + source).toBe(true);
       const first = planTransposeTable(before!);
       expect(first.result.changed, "seed=" + seed + " code=" + first.result.code).toBe(true);
+      expect(transposeTableInDocument(source, before!)).toEqual(first.result);
       const output = source.slice(0, before!.range.from) + first.result.source + source.slice(before!.range.to);
       const after = parseEditableTables(output).tables[0];
       expect(after?.valid, "seed=" + seed + " output=" + output).toBe(true);

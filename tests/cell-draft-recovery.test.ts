@@ -14,6 +14,18 @@ beforeAll(() => {
 afterEach(() => { vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 describe("cell draft recovery", () => {
+  it.each(["Notes/ملخص-2026.md", "ملاحظات/تقارير/ملخص-2026.md"])("isolates the display of %s while copying the exact original draft", async (sourcePath) => {
+    const app = new App(); const write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    const draft = { sourcePath, row: 1, column: 2, text: "مرحبا ABC-123 $P(A\\mid B)$" };
+    const t = createTranslator("ar"); retainCellDraft(app, draft, t); await Promise.resolve();
+    const label = document.querySelector("label")!; const path = label.querySelector<HTMLElement>("bdi")!;
+    expect(path.dir).toBe("ltr"); expect(path.textContent).toBe(sourcePath);
+    expect([...path.querySelectorAll("bdi")].map((part) => part.textContent)).toEqual(sourcePath.split("/"));
+    expect(label.querySelector<HTMLTextAreaElement>("textarea")!.dir).toBe("auto");
+    [...document.querySelectorAll("button")].find((button) => button.textContent === t("draft.copy"))!.click();
+    expect(write).toHaveBeenCalledWith(draft.text); expect(recoveredCellDrafts(app)).toEqual([draft]);
+    expect(JSON.stringify(recoveredCellDrafts(app))).not.toMatch(/\p{Bidi_Control}/u);
+  });
   it("keeps dismissed drafts available and discards only the explicitly selected draft", async () => {
     const app = new App();
     const opened = vi.spyOn(Modal.prototype, "open");

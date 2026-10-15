@@ -2,8 +2,9 @@
 
 import type { App, Editor, TFile as HostFile } from "obsidian";
 import { MarkdownView, editorInfoField } from "obsidian";
-import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorState, StateEffect } from "@codemirror/state";
+import { Decoration, EditorView } from "@codemirror/view";
+import { history, undoDepth, redoDepth } from "@codemirror/commands";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createTranslator } from "../src/config/i18n";
@@ -12,6 +13,7 @@ import { captureEditorTransposeTarget } from "../src/editor/table-transpose-targ
 import { requestWholeTableTranspose } from "../src/app/table-transpose-modal";
 import { notices, TFile } from "./mocks/obsidian";
 import { clickLikeUser } from "./helpers/host-gestures";
+import { NativeCellEditorWidget } from "./helpers/native-cell-editor";
 
 const t = createTranslator("en");
 const SOURCE = "| Name | Value |\n| --- | --- |\n| North | 1 |";
@@ -38,6 +40,7 @@ function editorState(initial = SOURCE) {
     },
     attach: (parent: HTMLElement, file: TFile): EditorView => {
       cm = new EditorView({ parent, state: EditorState.create({ doc: source, extensions: [
+        history(),
         editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app: {} as App, hoverPopover: null })),
         EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; }),
       ] }) });
@@ -149,6 +152,8 @@ describe("frozen transpose editor ownership", () => {
     expect(original.isCurrent()).toBe(false);
     original.apply();
     expect(f.state.source()).toBe(SOURCE);
+    expect(f.state.writes()).toBe(0);
+    expect(undoDepth(f.cm.state)).toBe(0);
     expect(f.state.replaceRange).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(external);
   });
@@ -165,6 +170,29 @@ describe("frozen transpose editor ownership", () => {
     expect(decoy.writes()).toBe(0);
     f.cm.dom.remove();
     expect(captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)).toBeNull();
+  });
+
+  it("selects the full-note ancestor even when a nested editor inherits identical info and Markdown", () => {
+    const f = fixture();
+    const native = new NativeCellEditorWidget(SOURCE);
+    f.cm.dispatch({ effects: StateEffect.appendConfig.of(EditorView.decorations.of(Decoration.set([
+      Decoration.replace({ widget: native, block: true }).range(0, SOURCE.length),
+    ]))) });
+    const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
+    expect(target).not.toBeNull();
+    target.apply();
+    expect(f.state.writes()).toBe(1);
+    expect(native.child?.state.doc.toString()).toBe(SOURCE);
+  });
+
+  it("refuses peer full-note editors with identical inherited ownership instead of choosing the first", () => {
+    const f = fixture();
+    const peer = new EditorView({ parent: f.containerEl, state: EditorState.create({ doc: SOURCE, extensions: [
+      editorInfoField.init(() => f.cm.state.field(editorInfoField)),
+    ] }) });
+    editors.push(peer);
+    expect(captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)).toBeNull();
+    expect(f.state.writes()).toBe(0);
   });
 
   it.each(["missing", "detached", "recreated", "wrong-editor"] as const)("refuses an unverified %s CodeMirror target", (change) => {
@@ -201,11 +229,15 @@ describe("frozen transpose editor ownership", () => {
 
   it("rejects an obsolete table after edits while preserving unrelated notes", () => {
     const f = fixture();
+    const other = fixture();
     const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
     f.state.setSource(SOURCE.replace("North", "South"));
+    const snapshot = f.state.source(); const writes = f.state.writes();
+    const undo = undoDepth(f.cm.state); const redo = redoDepth(f.cm.state);
     target.apply();
-    expect(f.state.source()).toContain("South");
-    expect(f.state.replaceRange).not.toHaveBeenCalled();
+    expect(f.state.source()).toBe(snapshot); expect(f.state.writes()).toBe(writes);
+    expect(undoDepth(f.cm.state)).toBe(undo); expect(redoDepth(f.cm.state)).toBe(redo);
+    expect(other.state.source()).toBe(SOURCE); expect(other.state.writes()).toBe(0); expect(undoDepth(other.cm.state)).toBe(0);
   });
 
   it("checks drafts in the target popout document, not the main window", () => {
@@ -239,6 +271,7 @@ describe("frozen transpose editor ownership", () => {
     clickLikeUser(confirm!);
     expect(f.state.replaceRange).not.toHaveBeenCalled();
     expect(f.state.source()).toBe(SOURCE);
+    expect(f.state.writes()).toBe(0); expect(undoDepth(f.cm.state)).toBe(0);
     expect(notices[notices.length - 1]).toContain("changed");
     expect(focus).not.toHaveBeenCalled();
   });

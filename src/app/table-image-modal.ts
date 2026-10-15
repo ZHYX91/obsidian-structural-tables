@@ -1,6 +1,7 @@
 import { App, Modal, Platform, type EventRef } from "obsidian";
 
-import type { Translate } from "../config/i18n";
+import { applyInterfaceLocale, type Translate } from "../config/i18n";
+import { appendInterfaceTemplate } from "../config/interface-bidi";
 import { renderTableImage, TableImageError, type TableImage, type TableImageRequest } from "../rendering/table-image";
 
 export interface TableImageModalOptions extends Omit<TableImageRequest, "document" | "signal"> {
@@ -47,6 +48,7 @@ export class TableImageModal extends Modal {
 
   override onOpen(): void {
     const { t } = this.options;
+    applyInterfaceLocale(this.modalEl ?? this.contentEl, t);
     this.setTitle(t("image.title"));
     this.contentEl.classList.add("structural-tables-image-modal");
     this.contentEl.createEl("p", { text: t("image.description") });
@@ -111,7 +113,9 @@ export class TableImageModal extends Modal {
     this.copy.disabled = true;
     try {
       const path = await saveTableImage(this.app, this.image, this.options.sourcePath, this.controller.signal);
-      if (!this.closed) this.status.textContent = this.options.t("image.saved").replace("{path}", path);
+      if (!this.closed) {
+        this.status.replaceChildren(); appendInterfaceTemplate(this.status, this.options.t("image.saved"), { path });
+      }
     } catch {
       if (!this.closed) this.status.textContent = this.options.t("image.saveFailed");
     } finally { this.busy = false; if (!this.closed) { this.copy.disabled = !this.copyAvailable; this.save.disabled = false; } }

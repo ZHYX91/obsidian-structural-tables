@@ -41,6 +41,15 @@ function prepared(): PreparedBasePropertyMigration {
 }
 
 describe("Base property migration preview", () => {
+  it.each([false, true])("isolates Arabic path components in the real preview without changing migration data (cleanup=%s)", (cleanup) => {
+    const value = prepared(); value.files[0]!.path = "ملاحظات/تقارير/ملخص-2026.md";
+    const original = JSON.stringify(value);
+    const preview = basePropertyMigrationPreviewText(value, { ...labels, language: "ar" }, cleanup);
+    expect(preview).toContain("- \u2066\u2066ملاحظات\u2069/\u2066تقارير\u2069/\u2066ملخص-2026.md\u2069\u2069 — ");
+    expect(preview.replace(/\p{Bidi_Control}/gu, "")).toContain(`- ${value.files[0]!.path} — `);
+    expect(JSON.stringify(value)).toBe(original); expect(JSON.stringify(value)).not.toMatch(/\p{Bidi_Control}/u);
+  });
+
   it("shows cleanup as an optional candidate while the toggle is off", () => {
     const preview = basePropertyMigrationPreviewText(prepared(), labels, false);
 

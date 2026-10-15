@@ -1,8 +1,12 @@
 import { App, Modal, Setting } from "obsidian";
+import { applyInterfaceLocale } from "../config/i18n";
+import type { LocaleId } from "../config/locale";
+import { displayPathText } from "../config/interface-bidi";
 
 import type { PreparedBasePropertyMigration } from "./base-property-migration-service";
 
 export interface BasePropertyMigrationLabels {
+  language?: LocaleId;
   title: string;
   description: string;
   membershipNotes: string;
@@ -28,7 +32,7 @@ export function basePropertyMigrationPreviewText(
         ? [removeLegacyRecordIds ? labels.retiredRecordIds : labels.retiredRecordIdCandidates]
         : []),
     ];
-    return `- ${candidate.path} — ${actions.join(", ")}`;
+    return `- ${displayPathText(candidate.path, labels.language)} — ${actions.join(", ")}`;
   }).join("\n");
   return [
     `${labels.membershipNotes}: ${prepared.membershipNoteCount}`,
@@ -52,6 +56,7 @@ export class BasePropertyMigrationModal extends Modal {
   }
 
   override onOpen(): void {
+    applyInterfaceLocale(this.modalEl ?? this.contentEl, this.labels.language);
     let removeLegacyRecordIds = false;
     this.setTitle(this.labels.title);
     this.contentEl.createEl("p", { text: this.labels.description });

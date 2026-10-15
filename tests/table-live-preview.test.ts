@@ -3,7 +3,7 @@ import type { ExportTableImage } from "../src/app/table-image-modal";
 // @vitest-environment happy-dom
 
 import { EditorState, Prec, StateField, Transaction, type Extension } from "@codemirror/state";
-import { history, historyKeymap, redo, undo } from "@codemirror/commands";
+import { history, historyKeymap, redo, undo, undoDepth } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
 import { App, MarkdownRenderer, Platform, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -455,6 +455,201 @@ describe("StructuralTableEditorController", () => {
       expect(parent.querySelectorAll("[rowspan='2']")).toHaveLength(11);
       expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
+  });
+
+  it.each(["ltr", "rtl"] as const)("keeps the same %s table and local horizontal scroll through touch release, delayed focus and native selection", async (direction) => {
+    const source = "Before\n\n| Region | Sales | < | Q3 | Q4 |\n| --- | --- | --- | --- | --- |\n| North | 10 | 12 | 13 | final-cell |\n\nAfter the table.";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]); parent.dir = direction;
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='4']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const host = parent.querySelector(".structural-tables-live-preview");
+      const scroller = parent.querySelector<HTMLElement>(".structural-tables-container")!;
+      scroller.scrollLeft = direction === "rtl" ? -120 : 120;
+      const horizontal = scroller.scrollLeft;
+      const lines = view.contentDOM.querySelectorAll<HTMLElement>(".cm-line"); const line = lines[lines.length - 1]!;
+      dispatchPointerDown(line, "touch"); line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      view.contentDOM.focus();
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      view.dispatch({ selection: { anchor: source.length } });
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      expect(parent.querySelector(".structural-tables-container")).toBe(scroller); expect(scroller.scrollLeft).toBe(horizontal);
+      expect(view.state.doc.toString()).toBe(source); expect(undoDepth(view.state)).toBe(0); expect(view.state.selection.main.empty).toBe(true);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["table-pointer", "outside-pointer", "external-focus", "body-then-external-focus", "keydown", "beforeinput", "disable-preview"] as const)("releases an unresolved touch source intent on %s without trapping later keyboard source focus", async (exit) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter";
+    const { parent, view, updateSettings } = mountEditor(source, { anchor: 0 });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const host = parent.querySelector(".structural-tables-live-preview");
+      const lines = view.contentDOM.querySelectorAll<HTMLElement>(".cm-line"); const line = lines[lines.length - 1]!;
+      dispatchPointerDown(line, "touch"); line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      view.contentDOM.focus(); await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      const outside = document.body.appendChild(document.createElement("button"));
+      if (exit === "table-pointer") dispatchPointerDown(cell, "touch");
+      else if (exit === "outside-pointer") dispatchPointerDown(outside, "touch");
+      else if (exit === "external-focus") outside.focus();
+      else if (exit === "body-then-external-focus") { view.contentDOM.blur(); outside.focus(); }
+      else if (exit === "keydown") view.contentDOM.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+      else if (exit === "beforeinput") view.contentDOM.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: "x", bubbles: true }));
+      else { updateSettings({ enableLivePreview: false }); updateSettings({ enableLivePreview: true }); }
+      if (exit !== "keydown" && exit !== "beforeinput") { outside.focus(); view.contentDOM.focus(); }
+      expect(parent.querySelector(".structural-tables-live-preview")).toBeNull(); expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("keeps a pending touch destination intact for modifier keys, Escape and an external-control shortcut", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const host = parent.querySelector(".structural-tables-live-preview");
+      const lines = view.contentDOM.querySelectorAll<HTMLElement>(".cm-line"); const line = lines[lines.length - 1]!;
+      dispatchPointerDown(line, "touch"); line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 20)); view.contentDOM.focus();
+      for (const relatedTarget of [document.body, document.documentElement]) {
+        view.contentDOM.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget }));
+        view.contentDOM.dispatchEvent(new FocusEvent("focusin", { bubbles: true, relatedTarget }));
+        expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      }
+      for (const options of [{ key: "Shift" }, { key: "Control", ctrlKey: true }, { key: "Alt", altKey: true }, { key: "Escape" }, { key: "p", ctrlKey: true }]) {
+        view.contentDOM.dispatchEvent(new KeyboardEvent("keydown", { ...options, bubbles: true }));
+        expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      }
+      view.dispatch({ selection: { anchor: source.length } }); await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host); expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["selection", "source", "rename", "file", "editor", "document"] as const)("defers pointer blur until the native source selection and rejects a changed context (%s)", async (change) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter";
+    let writes = 0;
+    const { app, parent, view } = mountEditor(source, { anchor: 0 }, [history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    const frame = document.body.appendChild(document.createElement("iframe"));
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "changed-final";
+      const line = [...view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")].slice(-1)[0]!;
+      dispatchPointerDown(line, "mouse"); view.contentDOM.focus();
+      expect(view.state.doc.toString()).toBe(source); expect(undoDepth(view.state)).toBe(0);
+      const info = view.state.field(editorInfoField);
+      let expected = source;
+      if (change === "selection") view.dispatch({ selection: { anchor: source.length } });
+      else if (change === "source") { expected = "External\n" + source; view.dispatch({ changes: { from: 0, insert: "External\n" } }); }
+      else if (change === "rename") info.file!.path = "Other.md";
+      else if (change === "file") Object.assign(info, { file: { ...info.file! } });
+      else if (change === "editor") info.editor = Object.create(info.editor ?? null) as Editor;
+      else frame.contentDocument!.body.append(parent);
+      await Promise.resolve(); await Promise.resolve();
+      if (change === "selection") {
+        expect(view.state.doc.toString()).toContain("changed-final"); expect(view.state.selection.main.head).toBe(view.state.doc.length);
+        expect(writes).toBe(1);
+        expect(view.state.selection.main.empty).toBe(true); expect(undoDepth(view.state)).toBe(1);
+        expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      } else {
+        expect(view.state.doc.toString()).toBe(expected); expect(undoDepth(view.state)).toBe(change === "source" ? 1 : 0);
+        expect(writes).toBe(change === "source" ? 1 : 0);
+        expect(recoveredCellDrafts(app).map((draft) => draft.text)).toContain("changed-final");
+      }
+    } finally { view.destroy(); frame.remove(); }
+  });
+
+  it.each(["pointer", "detach"] as const)("releases its own replacement height after rendering despite %s", async (change) => {
+    let finish: (() => void) | undefined;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
+      if (markdown === "changed-final") await new Promise<void>((resolve) => { finish = resolve; });
+      target.textContent = markdown;
+    });
+    const { parent, view } = mountEditor("Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter", { anchor: 0 });
+    try {
+      const host = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!; host.style.boxSizing = "border-box";
+      vi.spyOn(host, "getBoundingClientRect").mockReturnValue({ height: 480 } as DOMRect);
+      host.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "changed-final";
+      document.body.appendChild(document.createElement("button")).focus();
+      const replacement = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;
+      expect(replacement).not.toBe(host); expect(replacement.style.minHeight).toBe("480px");
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      if (change === "pointer") dispatchPointerDown(replacement, "touch"); else parent.remove();
+      expect(replacement.style.minHeight).toBe("480px");
+      finish!(); await vi.waitFor(() => expect(replacement.style.minHeight).toBe(""));
+      if (change === "detach") { document.body.append(parent); view.requestMeasure(); expect(parent.querySelector(".structural-tables-live-preview")).toBe(replacement); }
+    } finally { view.destroy(); }
+  });
+
+  it.each(["mouse", "touch"] as const)("keeps a fresh %s source gesture after an external control takes focus", async (pointer) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const host = parent.querySelector(".structural-tables-live-preview");
+      const outside = document.body.appendChild(document.createElement("button")); outside.focus();
+      const line = [...view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")].slice(-1)[0]!;
+      dispatchPointerDown(line, pointer);
+      if (pointer === "touch") { line.dispatchEvent(new Event("pointerup", { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 20)); }
+      view.contentDOM.focus();
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      view.dispatch({ selection: { anchor: source.length } });
+      if (pointer === "mouse") line.dispatchEvent(new Event("pointerup", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(parent.querySelector(".structural-tables-live-preview")).toBe(host); expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["complete-ltr", "complete-rtl", "pointer", "wheel", "scroll", "key", "undo", "rename", "other-editor", "direction", "new-source", "destroy"] as const)("restores only the exact cell-commit viewport after delayed rendering (%s)", async (interference) => {
+    let finish: (() => void) | undefined;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
+      if (markdown === "changed-final") await new Promise<void>((resolve) => { finish = resolve; });
+      target.textContent = markdown;
+    });
+    const table = "| H | V |\n| --- || --- |\n| A | final-cell |";
+    const source = `Before\n\n${table}\n\nBetween\n\n${table}\n\nAfter`;
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    parent.dir = interference === "complete-rtl" ? "rtl" : "ltr";
+    let other: EditorView | undefined;
+    try {
+      const original = parent.querySelectorAll<HTMLElement>(".structural-tables-container");
+      const first = original[0]!; const second = original[1]!;
+      first.scrollLeft = 40; second.scrollLeft = interference === "complete-rtl" ? -120 : 120;
+      const expected = second.scrollLeft;
+      second.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "changed-final";
+      const outside = document.body.appendChild(document.createElement("button")); outside.focus();
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      const replacement = parent.querySelectorAll<HTMLElement>(".structural-tables-container")[1]!;
+      expect(replacement).not.toBe(second); expect(first.scrollLeft).toBe(40);
+      if (!interference.startsWith("complete")) {
+        replacement.scrollLeft = 20;
+        if (interference === "pointer") dispatchPointerDown(replacement, "touch");
+        else if (interference === "wheel") replacement.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+        else if (interference === "scroll") replacement.dispatchEvent(new Event("scroll"));
+        else if (interference === "key") outside.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+        else if (interference === "undo") { expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source); }
+        else if (interference === "rename") view.state.field(editorInfoField).file!.path = "Other.md";
+        else if (interference === "other-editor") {
+          other = new EditorView({ parent: document.body, state: EditorState.create({ doc: source }) });
+          other.dom.append(replacement.parentElement!);
+          view.dom.remove();
+        } else if (interference === "direction") replacement.style.direction = "rtl";
+        else if (interference === "new-source") view.dispatch({ changes: { from: view.state.doc.length, insert: "\nExternal" } });
+        else view.destroy();
+      }
+      finish!(); await new Promise((resolve) => setTimeout(resolve, 70));
+      expect(replacement.scrollLeft).toBe(interference.startsWith("complete") ? expected : 20);
+      expect(first.scrollLeft).toBe(40);
+      if (interference.startsWith("complete")) {
+        expect(undoDepth(view.state)).toBe(1); expect(parseEditableTables(view.state.doc.toString()).tables[0]!.source).toBe(table);
+        expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      }
+    } finally { if (interference !== "destroy") view.destroy(); other?.destroy(); }
   });
 
   it.each(["focus-at-down", "focus-at-release", "cancel", "window-blur"] as const)("retains a held touch destination until release/cancel (%s)", async (end) => {
@@ -1019,6 +1214,31 @@ describe("StructuralTableEditorController", () => {
     } finally {
       view.destroy();
     }
+  });
+
+  it("exports the exact owned Callout table through its real context menu", async () => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, container) => {
+      if (container.className !== "structural-tables-container") return;
+      const table = nativeTableForSource(markdown, container.ownerDocument); if (table !== null) container.replaceChildren(table);
+    });
+    const source = "Before\n\n> [!note]\n> | H | V |\n> | --- || --- |\n> | A | 1 |\n\nEnd";
+    const native = EditorView.decorations.of(Decoration.set([
+      Decoration.replace({ widget: new SourceCalloutWidget(source), block: true }).range(source.indexOf("> [!note]"), source.indexOf("\n\nEnd")),
+    ]));
+    const exportImage = vi.fn<ExportTableImage>();
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native], undefined, { language: "en" }, exportImage);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      const host = parent.querySelector<HTMLElement>(".callout .structural-tables-live-preview")!;
+      host.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+      const action = lastMenu?.items.find((item) => item.title === "Export whole table as image…");
+      expect(action).toBeDefined(); action!.callback!();
+      expect(exportImage).toHaveBeenCalledOnce();
+      const [table, path, isCurrent, context] = exportImage.mock.calls[0]!;
+      expect(table).toEqual(parseEditableTables(source).tables[0]); expect(path).toBe("Test.md"); expect(isCurrent()).toBe(true);
+      expect(context).toBe(host.querySelector("table")); expect(context?.closest(".callout")).not.toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
   });
 
   it.each([
@@ -2875,6 +3095,29 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it.each([
+    ["rtl", "ABC"], ["ltr", "مرحبا"], ["ltr", "ABC مرحبا 123"],
+  ])("keeps horizontal %s draft navigation native for %s", (direction, content) => {
+    const source = `| H1 | H2 |\n| --- || --- |\n| North | ${content} |`;
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      parent.querySelector<HTMLTableElement>("table")!.style.direction = direction!;
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      for (const offset of [0, editor.value.length]) {
+        editor.setSelectionRange(offset, offset);
+        for (const key of ["ArrowLeft", "ArrowRight"]) {
+          const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+          editor.dispatchEvent(event);
+          expect(event.defaultPrevented).toBe(false);
+          expect(editor.isConnected).toBe(true);
+          expect(view.state.doc.toString()).toBe(source);
+        }
+      }
+    } finally { view.destroy(); }
+  });
+
   it("moves across horizontal draft boundaries but preserves internal caret and text selection", async () => {
     const source = "| H1 | H2 |\n| --- || --- |\n| North | South |";
     const { parent, view } = mountEditor(source, { anchor: source.length });
@@ -4328,6 +4571,53 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it.each(["cancel", "blur"])("requires a fresh double tap after a touch gesture ends with %s", (ending) => {
+    const source = "| A | B |\n| --- || --- |\n| C | D |\n| E | F |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const tap = (id: number, at: number) => {
+        const event = new PointerEvent("pointerdown", { pointerType: "touch", pointerId: id, isPrimary: true, button: 0, bubbles: true, cancelable: true });
+        Object.defineProperty(event, "timeStamp", { value: at }); cell.dispatchEvent(event); return event;
+      };
+      tap(7, 1_000);
+      window.dispatchEvent(ending === "cancel" ? new PointerEvent("pointercancel", { pointerId: 7 }) : new Event("blur"));
+      expect(tap(8, 1_200).defaultPrevented).toBe(false);
+      expect(cell.querySelector("textarea")).toBeNull();
+      window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 8 }));
+      expect(tap(9, 1_400).defaultPrevented).toBe(true);
+      expect(cell.querySelector("textarea")).not.toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("ignores another pointer's cancellation and preserves a completed touch range for long press", () => {
+    const source = "| A | B |\n| --- || --- |\n| C | D |\n| E | F |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = (row: number, column: number) => parent.querySelector<HTMLElement>(`[data-structural-row='${row}'][data-structural-column='${column}']`)!;
+      const tap = (target: HTMLElement, id: number, at: number) => {
+        const event = new PointerEvent("pointerdown", { pointerType: "touch", pointerId: id, isPrimary: true, button: 0, bubbles: true, cancelable: true });
+        Object.defineProperty(event, "timeStamp", { value: at }); target.dispatchEvent(event); return event;
+      };
+      tap(cell(1, 0), 1, 1_000);
+      window.dispatchEvent(new PointerEvent("pointercancel", { pointerId: 99 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
+      expect(tap(cell(1, 0), 2, 1_300).defaultPrevented).toBe(true);
+      cell(1, 0).querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      tap(cell(1, 0), 3, 2_000); window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 3 }));
+      tap(cell(2, 1), 4, 3_000); window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 4 }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      tap(cell(2, 1), 5, 3_200); window.dispatchEvent(new PointerEvent("pointercancel", { pointerId: 5 }));
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      expect(tap(cell(2, 1), 6, 3_300).defaultPrevented).toBe(false);
+      expect(parent.querySelector("textarea")).toBeNull();
+      cell(2, 1).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(lastMenu?.items.map((item) => item.title)).toContain("Merge selected cells");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it("opens the cell editor after two touch taps on the same cell", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!;
@@ -4471,9 +4761,9 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
-  it("keeps an unsafe math draft and applies a user-confirmed safe rewrite from its context menu", async () => {
+  it.each(["en", "ar"] as const)("keeps an unsafe math draft and applies a user-confirmed safe rewrite from its %s context menu", async (language) => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
-    const { parent, view } = mountEditor(source, { anchor: 0 });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [], undefined, { language });
     try {
       const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
       cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
@@ -4485,7 +4775,7 @@ describe("StructuralTableEditorController", () => {
       expect(editor.isConnected).toBe(true);
 
       editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-      const item = lastMenu?.items.find((candidate) => candidate.title === "Use \\lvert … \\rvert and save");
+      const item = lastMenu?.items.find((candidate) => candidate.title === createTranslator(language)("menu.useMathAbsoluteSuggestion"));
       expect(item).toBeDefined();
       item?.callback?.();
       await Promise.resolve();
@@ -4493,6 +4783,7 @@ describe("StructuralTableEditorController", () => {
       const parsed = parseEditableTables(view.state.doc.toString()).tables[0]!;
       expect(parsed.columnCount).toBe(2);
       expect(parsed.rows[1]!.cells[1]!.content).toBe(String.raw`$\lvert x\rvert$`);
+      expect(view.state.doc.toString()).not.toMatch(/\p{Bidi_Control}/u);
       expect(parent.querySelector(".structural-tables-cell-editor")).toBeNull();
     } finally { view.destroy(); }
   });
@@ -5000,6 +5291,32 @@ describe("whole-table transpose confirmation and source revalidation", () => {
       expect(view.state.doc.toString()).toBe(original);
       expect(redo(view)).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("refuses the original owned confirmation after its connected editor is adopted into another document", () => {
+    let writes = 0;
+    const { parent, view } = mountEditor(original, { anchor: original.length }, [history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    try {
+      const button = openConfirmation(parent);
+      const undoBefore = undoDepth(view.state);
+      const frame = document.body.appendChild(document.createElement("iframe"));
+      frame.contentDocument!.body.appendChild(parent);
+      expect(parent.isConnected).toBe(true); expect(parent.ownerDocument).toBe(frame.contentDocument);
+      clickLikeUser(button);
+      expect(view.state.doc.toString()).toBe(original); expect(writes).toBe(0); expect(undoDepth(view.state)).toBe(undoBefore);
+    } finally { view.destroy(); }
+  });
+
+  it("refuses an owned transpose that would consume preceding pipe prose without a transaction", () => {
+    const source = "| P | Q | R |\n| H1 | H2 |\n| --- || --- |\n| A | B |\n| C | D |";
+    let writes = 0;
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+      clickCurrentMenuItem("Transpose whole table (swap rows and columns)", true);
+      expect(view.state.doc.toString()).toBe(source); expect(writes).toBe(0); expect(undoDepth(view.state)).toBe(0);
+      expect(notices[notices.length - 1]).toContain("blank line");
     } finally { view.destroy(); }
   });
 

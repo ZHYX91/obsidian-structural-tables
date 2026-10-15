@@ -120,6 +120,25 @@ afterEach(() => {
 });
 
 describe("whole-table HTML command notices", () => {
+  it.each(["zh-TW", "ja", "de", "es", "ar"] as const)("localizes invalid-table command diagnostics in %s without writes", (language) => {
+    const source = "| A | B |\n| --- || --- |\n| x | < |";
+    const editor = editorHarness(source);
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+    harness.plugin.settings.language = language;
+    for (const run of [
+      () => harness.plugin.formatCurrent(editor.editor, file as unknown as TFile),
+      () => harness.plugin.previewPlainGfmConversion(editor.editor, file as unknown as TFile),
+      () => harness.plugin.copyCurrentTable(editor.editor, "HTML"),
+    ]) {
+      notices.length = 0;
+      run();
+      expect(notices).toEqual([createTranslator(language)("diagnostic.mergeBoundary")]);
+      expect(editor.replaceRange).not.toHaveBeenCalled();
+      expect(editor.source()).toBe(source);
+    }
+  });
+
   it.each(["en", "zh-CN"] as const)("reports flattened plain text on mobile in %s", async (language) => {
     const editor = editorHarness();
     const harness = pluginHarness(editor.editor, new MockTFile("A.md"));

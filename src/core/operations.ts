@@ -50,6 +50,7 @@ export type OperationCode =
   | "table-deleted"
   | "table-invalid"
   | "table-transposed"
+  | "transpose-boundary-unsafe"
   | "transpose-unrepresentable";
 
 export interface OperationResult {

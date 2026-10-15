@@ -51,9 +51,14 @@ class MockElement {
 }
 
 class MockInput {
-  addOption(): this { return this; }
-  setValue(): this { return this; }
-  onChange(): this { return this; }
+  static created: MockInput[] = [];
+  readonly options = new Map<string, string>();
+  value = "";
+  change: ((value: string) => Promise<void>) | undefined;
+  constructor() { MockInput.created.push(this); }
+  addOption(value: string, label: string): this { this.options.set(value, label); return this; }
+  setValue(value: string): this { this.value = value; return this; }
+  onChange(callback: (value: string) => Promise<void>): this { this.change = callback; return this; }
 }
 
 vi.mock("obsidian", () => ({
@@ -73,6 +78,32 @@ vi.mock("obsidian", () => ({
 }));
 
 describe("Structural Tables settings export guide", () => {
+  it("offers native language names and changes the RTL surface without changing note data", async () => {
+    MockInput.created.length = 0;
+    const { StructuralTablesSettingTab } = await import("../src/app/settings-tab");
+    const { DEFAULT_SETTINGS } = await import("../src/config/settings");
+    const plugin = {
+      settings: { ...DEFAULT_SETTINGS, language: "ar" },
+      settingsSaveStatus: () => ({ state: "saved", error: null }),
+      subscribeSettingsSaveStatus: () => () => undefined,
+      updateSettings: vi.fn(async (update: { language: string }) => { Object.assign(plugin.settings, update); }),
+    };
+    const tab = new StructuralTablesSettingTab({} as never, plugin as never);
+    tab.display();
+    const dropdown = MockInput.created[0]!;
+    expect([...dropdown.options.entries()].slice(1)).toEqual([
+      ["en", "English"], ["zh-CN", "简体中文"], ["zh-TW", "繁體中文"], ["ja", "日本語"],
+      ["de", "Deutsch"], ["es", "Español"], ["ar", "العربية"],
+    ]);
+    expect(dropdown.value).toBe("ar");
+    const container = tab.containerEl as unknown as MockElement;
+    expect(container.attributes.get("dir")).toBe("rtl");
+    await dropdown.change!("ja");
+    expect(plugin.updateSettings).toHaveBeenCalledWith({ language: "ja" });
+    expect(container.attributes.get("dir")).toBe("ltr");
+    expect(container.attributes.get("lang")).toBe("ja");
+  });
+
   it("renders a safe community link in General and does not repeat it on Views", async () => {
     const { StructuralTablesSettingTab } = await import("../src/app/settings-tab");
     const { DEFAULT_SETTINGS } = await import("../src/config/settings");

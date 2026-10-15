@@ -70,6 +70,15 @@ afterEach(() => { document.body.replaceChildren(); document.body.removeAttribute
   Object.defineProperty(window, "FontFace", { configurable: true, value: originalFontFace }); vi.restoreAllMocks(); });
 
 describe("complete table PNG", () => {
+  it("refuses a direction-only change while the PNG is being rendered", async () => {
+    const context = document.body.appendChild(document.createElement("div"));
+    context.style.direction = "ltr";
+    raster.toSvg.mockImplementation(async () => {
+      context.style.direction = "rtl";
+      return "data:image/svg+xml,%3Csvg%2F%3E";
+    });
+    await expect(render({ contextElement: context })).rejects.toMatchObject({ code: "stale" });
+  });
   it("renders the reconstructed five-column owner model, completed rich cells and explicit alignment without controls", async () => {
     expect(meal.columnCount).toBe(5);
     expect(meal.valid).toBe(true);

@@ -2,9 +2,17 @@
 
 ## 0.7.0 - 2026-10-15
 
-- Add whole-table transpose to owned grids, source commands and menus, and native ordinary-table menus. Swap header roles and merged spans without losing content; confirm mixed-alignment resets and GFM compatibility changes, and refuse unrepresentable or stale targets and active drafts.
-- Keep each transpose separate from adjacent typing in host undo/redo history, including source and native menu entries, and restore editor focus after confirmation so keyboard undo/redo works immediately.
-- Preserve merged-table rendering, source caret placement and scroll position when clicking below a focused or edited table.
+- Add Traditional Chinese, Japanese, German, Spanish and Arabic alongside English and Simplified Chinese, with automatic Obsidian language detection and native language names.
+- Keep plugin language separate from note direction. RTL tables show the first source columns and row headers on the right, with matching left/right controls, native text navigation for bidirectional drafts, and direction preserved in whole-table HTML copies.
+- Add whole-table transpose to grid menus, source commands and menus, and native ordinary-table menus. Rows and columns swap along with their headers and merged cells. Confirm alignment resets or changes to Structural Tables syntax; leave the table unchanged if the result cannot be saved safely, the table changed, or a cell edit is still open.
+- Undo a transpose in one step, separately from nearby typing. Restore editor focus after confirmation so keyboard undo/redo works immediately, including source and native menu entries.
+- Preserve merged-table rendering, source caret placement and local horizontal scroll when clicking or tapping below a focused table, including after saving a changed cell.
+- Keep clicks above or below a changed long table at their intended text position while cells finish rendering, without a temporary jump or unintended selection. Preserve native word selection and dragging.
+- Let cell drafts follow their text direction while keeping the column's left, center or right alignment. Keep a fresh source click stable after using an external control, and remove temporary blank height when a hidden table finishes rendering.
+- Allow transpose while editing an ordinary table cell. After scrolling by touch, a single tap no longer unexpectedly starts editing; completed selections remain available for the context menu.
+- Apply native table menu actions to the table you clicked, including in nested panes. Leave the note and undo history unchanged if transposing would absorb nearby text or the original editor moved to another window.
+- Preserve the source table's direction in PNG exports from commands and source menus, reject direction changes during generation, and make image export available in owned Callout table menus.
+- Keep technical syntax, Base property mappings and mixed-language paths readable in Arabic dialogs and menus, while preserving original source, generated files and copied draft text.
 - Register native table menus in existing separate windows even when their initial view is not Markdown, and release listeners when cells, windows or the plugin close.
 
 ## 0.6.2 - 2026-10-10

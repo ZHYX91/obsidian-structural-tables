@@ -1,6 +1,9 @@
 import { App, Modal, Setting } from "obsidian";
+import { applyInterfaceLocale } from "../config/i18n";
+import type { LocaleId } from "../config/locale";
 
 export interface ConversionPreviewOptions {
+  language?: LocaleId;
   title: string;
   description: string;
   source: string;
@@ -15,6 +18,7 @@ export class ConversionPreviewModal extends Modal {
   }
 
   override onOpen(): void {
+    applyInterfaceLocale(this.modalEl ?? this.contentEl, this.options.language);
     this.setTitle(this.options.title);
     this.contentEl.createEl("p", { text: this.options.description });
     this.contentEl.createEl("pre", {

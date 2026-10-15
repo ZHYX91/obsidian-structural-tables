@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { BasePromotionModal, type BasePromotionLabels } from "../src/app/base-promotion-modal";
 import type { BasePromotionContentAcceptance, PreparedBasePromotion } from "../src/app/base-promotion-service";
+import { createTranslator } from "../src/config/i18n";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -101,6 +102,22 @@ function button(modal: BasePromotionModal, text: string): HTMLButtonElement {
 }
 
 describe("BasePromotionModal content acceptance", () => {
+  it.each([["عنوان عربي", "latinKey"], ["Latin title", "مفتاح"], ["عنوان", "مفتاح"]])("keeps the %s to %s mapping and Arabic paths isolated without modifying prepared bytes", (displayName, key) => {
+    const value = prepared(); value.plan.columns[0] = { sourceColumn: 0, displayName: displayName!, key: key! };
+    value.directoryPath = "ملاحظات/تقارير/ملخص-2026"; value.records[0]!.path = `${value.directoryPath}/سجل-ABC.md`;
+    const original = JSON.stringify(value); const t = createTranslator("ar");
+    const modal = new BasePromotionModal(new App(), value, { ...labels, language: "ar", target: t("modal.promoteBase.target"),
+      contentHeaderTarget: t("modal.promoteBase.contentHeaderTarget"), contentRecordTarget: t("modal.promoteBase.contentRecordTarget") }, vi.fn(async () => {}), vi.fn());
+    modal.open();
+    const mapping = modal.contentEl.querySelector<HTMLElement>(".structural-tables-promotion-mapping li")!;
+    expect(mapping.dir).toBe("ltr"); expect(mapping.classList.contains("structural-tables-bidi-isolate")).toBe(true);
+    expect([...mapping.querySelectorAll("bdi")].map((node) => [node.dir, node.textContent])).toEqual([["auto", displayName], ["auto", key]]);
+    const path = modal.contentEl.querySelector<HTMLElement>(".structural-tables-promotion-record-previews summary > bdi")!;
+    expect(path.dir).toBe("ltr"); expect(path.textContent).toBe(value.records[0]!.path);
+    expect([...path.querySelectorAll("bdi")].map((node) => node.textContent)).toEqual(["ملاحظات", "تقارير", "ملخص-2026", "سجل-ABC.md"]);
+    expect(modal.contentEl.querySelector(".structural-tables-conversion-preview")!.textContent).toBe(value.replacementSource);
+    expect(JSON.stringify(value)).toBe(original); expect(JSON.stringify(value)).not.toMatch(/\p{Bidi_Control}/u); modal.close();
+  });
   it("renders source and generated files as text, requires explicit acceptance, and cancels without confirmation", () => {
     const onConfirm = vi.fn(async () => undefined);
     const modal = new BasePromotionModal(new App(), prepared(), labels, onConfirm, vi.fn());

@@ -43,9 +43,11 @@ export async function renderTableClipboard(
   table: StructuralTable,
   sourcePath: string,
   appearance: TableAppearance,
+  direction: "ltr" | "rtl" = "ltr",
 ): Promise<{ html: string; text: string }> {
   const document = new DOMParser().parseFromString(structuralTableToHtml(table, `st-${crypto.randomUUID()}`), "text/html");
   const output = document.querySelector("table")!;
+  output.dir = direction;
   output.setCssStyles({ borderCollapse: "collapse", color: "#000000", maxWidth: "100%" });
   const textTable: StructuralTable = { ...table, rows: table.rows.map((row) => ({
     ...row, cells: row.cells.map((cell) => ({ ...cell })),
@@ -75,7 +77,7 @@ export async function renderTableClipboard(
         const styles: Partial<CSSStyleDeclaration> = {
           padding: "4pt 6pt",
           verticalAlign: "middle",
-          textAlign: element.style.textAlign || "left",
+          textAlign: element.style.textAlign || (direction === "rtl" ? "right" : "left"),
           border: appearance === "grid" ? "0.5pt solid #808080" : "none",
         };
         if (appearance === "three-line") {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { planTransposeTable, transposeTable } from "../src/core/operations";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
+import { transposeTableInDocument } from "../src/core/table-transpose-validation";
 
 function parse(source: string): StructuralTable {
   const table = parseEditableTables(source).tables[0];
@@ -41,6 +42,26 @@ function expectExactTranspose(before: StructuralTable, after: StructuralTable): 
 }
 
 describe("whole-table structural transpose", () => {
+  it.each([
+    ["plain", "", ""], ["blockquote", "> ", ""], ["callout", "> ", "> [!note]\n"], ["list", "    ", "- Item\n\n"],
+  ])("refuses a %s transpose that would absorb an adjacent pipe line in the full note", (_name, prefix, context) => {
+    const source = context + ["| P | Q | R |", "| H1 | H2 |", "| --- | --- |", "| A | B |", "| C | D |"].map((line) => prefix + line).join("\n");
+    const table = parse(source);
+    expect(table.rows.length).toBe(3); expect(table.columnCount).toBe(2);
+    const result = transposeTableInDocument(source, table);
+    expect(result.changed).toBe(false);
+    expect(result.code).toBe("transpose-boundary-unsafe");
+    expect(result.source).toBe(table.source);
+  });
+
+  it("allows a separated transpose without changing preceding or following tables and prose", () => {
+    const source = "| P | Q | R |\n\n| H1 | H2 |\n| --- | --- |\n| A | B |\n| C | D |\n\nAfter.\n\n| Keep | This |\n| --- | --- |\n| x | y |";
+    const table = parse(source); const result = transposeTableInDocument(source, table);
+    expect(result.changed).toBe(true);
+    const updated = source.slice(0, table.range.from) + result.source + source.slice(table.range.to);
+    expectExactTranspose(table, parse(updated));
+    expect(updated.slice(updated.indexOf("\n\nAfter."))).toBe(source.slice(source.indexOf("\n\nAfter.")));
+  });
   it.each([
     ["headerless", "| --- | --- | --- |\n| A | 1 | 2 |\n| B | 3 | 4 |", 0, 0],
     ["row headers only", "| --- || --- | --- |\n| A | 1 | 2 |\n| B | 3 | 4 |", 0, 1],

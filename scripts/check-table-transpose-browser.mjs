@@ -43,7 +43,7 @@ try {
     } catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
   }
   assert.ok(port, "Chromium did not start its debugging endpoint");
-  const tabs = await (await fetch("http://127.0.0.1:" + port + "/json/list")).json();
+  const tabs = await (await globalThis.fetch("http://127.0.0.1:" + port + "/json/list")).json();
   const tab = tabs.find((item) => item.type === "page");
   assert.ok(tab, "Chromium page is missing");
   socket = new WebSocket(tab.webSocketDebuggerUrl);

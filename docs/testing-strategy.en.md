@@ -27,7 +27,7 @@ Reading-view regressions use the full note text and reported source-line ranges 
 
 Separate-window DOM regressions use independent jsdom realms and host helpers that close over their creation document. Check both `ownerDocument` and the constructors of plugin-owned wrappers, tables and cell containers; adoption alone must not satisfy the test. Native Markdown descendants may retain the host's constructors, but surrounding text, cell content and merge structure must remain intact. Cover native sections, Callouts, deferred block mapping, standalone exports and native comparisons.
 
-DOM emulation is useful for structure and most CSS contracts, but it does not replace real Obsidian geometry, scrolling, theme variables, or touch behavior.
+DOM emulation is useful for structure and most CSS contracts, but it does not replace real Obsidian geometry, scrolling, theme variables, or touch behavior. Critical writes must cover pointerdown → focus changes → confirmation → revalidation of the original file and table → one write → undo/redo, not just menu callback invocation. PR CI also runs a real Chromium transpose smoke test, which does not replace actual Obsidian or Android acceptance. Multi-window fixtures distinguish the target editor document from the main window, and changes to the file, view or draft during confirmation must cause zero writes.
 
 <!-- section: parser-cases -->
 ## Parser cases

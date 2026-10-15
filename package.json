@@ -15,6 +15,7 @@
     "lint": "eslint main.ts src tests scripts esbuild.config.mjs eslint.config.mjs vitest.config.mts --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:browser-transpose": "node scripts/check-table-transpose-browser.mjs",
     "test:coverage": "vitest run --coverage",
     "clean": "node scripts/clean.mjs",
     "clean:deps": "node scripts/clean.mjs --deps",

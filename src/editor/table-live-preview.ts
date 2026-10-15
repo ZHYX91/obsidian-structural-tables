@@ -259,9 +259,12 @@ export class StructuralTableEditorController {
           || this.view.dom.ownerDocument !== this.eventDocument) this.resetSourcePointer();
       };
       private readonly sourceFocusOut = (event: FocusEvent): void => {
-        const next = event.relatedTarget;
-        if (next instanceof this.view.dom.ownerDocument.defaultView!.Node && !this.view.dom.contains(next)) this.resetSourcePointer();
+        if (this.isExternalFocusTarget(event.relatedTarget)) this.resetSourcePointer();
       };
+      private readonly isExternalFocusTarget = (target: EventTarget | null): boolean => this.eventWindow !== null
+        && target instanceof this.eventWindow.Node && target.isConnected
+        && target !== this.eventDocument.body && target !== this.eventDocument.documentElement
+        && !this.view.dom.contains(target);
       private readonly sourceKeyboardIntent = (event: Event): void => {
         if (event.type === "keydown") {
           const key = event as KeyboardEvent;
@@ -300,8 +303,7 @@ export class StructuralTableEditorController {
         if (element?.closest(".structural-tables-live-preview") !== null) return;
         // A later return from an external control ends an unresolved gesture,
         // even if the earlier focusout went through BODY with no relatedTarget.
-        if (this.eventWindow !== null && event.relatedTarget instanceof this.eventWindow.Node && event.relatedTarget.isConnected
-          && !this.view.dom.contains(event.relatedTarget)) this.resetSourcePointer();
+        if (this.isExternalFocusTarget(event.relatedTarget)) this.resetSourcePointer();
         if (this.sourcePointerPending) return;
         // CodeMirror can relocate a caret whose range is currently replaced by
         // presentation decorations while focus is being restored. Reveal the

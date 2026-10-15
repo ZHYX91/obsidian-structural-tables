@@ -515,6 +515,11 @@ describe("StructuralTableEditorController", () => {
       const lines = view.contentDOM.querySelectorAll<HTMLElement>(".cm-line"); const line = lines[lines.length - 1]!;
       dispatchPointerDown(line, "touch"); line.dispatchEvent(new Event("pointerup", { bubbles: true }));
       await new Promise((resolve) => setTimeout(resolve, 20)); view.contentDOM.focus();
+      for (const relatedTarget of [document.body, document.documentElement]) {
+        view.contentDOM.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget }));
+        view.contentDOM.dispatchEvent(new FocusEvent("focusin", { bubbles: true, relatedTarget }));
+        expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);
+      }
       for (const options of [{ key: "Shift" }, { key: "Control", ctrlKey: true }, { key: "Alt", altKey: true }, { key: "Escape" }, { key: "p", ctrlKey: true }]) {
         view.contentDOM.dispatchEvent(new KeyboardEvent("keydown", { ...options, bubbles: true }));
         expect(parent.querySelector(".structural-tables-live-preview")).toBe(host);

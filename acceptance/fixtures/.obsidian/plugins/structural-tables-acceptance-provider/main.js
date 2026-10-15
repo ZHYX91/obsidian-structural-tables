@@ -147,7 +147,7 @@ module.exports = class extends Plugin {
     const listener = (event) => {
       record(event.type, { event: { isTrusted: event.isTrusted, timeStamp: event.timeStamp, pointerId: event.pointerId ?? null,
         pointerType: event.pointerType ?? null, isPrimary: event.isPrimary ?? null, detail: event.detail ?? null,
-        clientX: event.clientX ?? null, clientY: event.clientY ?? null }, target: describe(event.target) });
+        clientX: event.clientX ?? null, clientY: event.clientY ?? null }, target: describe(event.target), relatedTarget: describe(event.relatedTarget) });
       sampleLater();
     };
     const events = ["pointerdown", "pointermove", "pointercancel", "pointerup", "touchstart", "touchmove", "touchcancel", "touchend", "mousedown", "click", "dblclick", "focusin", "focusout", "selectionchange", "scroll"];

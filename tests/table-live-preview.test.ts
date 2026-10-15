@@ -4849,3 +4849,41 @@ it("third-party DOM mutation keeps a detached ordinary-table widget stable", asy
     expect(view.state.doc.toString()).toBe(source);
   } finally { view.destroy(); }
 });
+
+
+describe("whole-table transpose from an owned grid", () => {
+  it("targets the full table from a row handle and isolates its undo/redo transaction", () => {
+    const original = [
+      "| Region | Q1 | Q2 |",
+      "| --- || --- | --- |",
+      "| North | 1 | 2 |",
+      "| South | 3 | 4 |",
+      "| East | 5 | 6 |",
+    ].join("\n");
+    const source = "Before\n\n" + original + "\n\nAfter";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      const handle = parent.querySelector<HTMLElement>("[data-structural-row-handle='1']");
+      expect(handle).not.toBeNull();
+      handle!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const transpose = lastMenu?.items.find((item) => item.title === "Transpose whole table (swap rows and columns)");
+      expect(transpose?.section).toBe("structural-tables-transform");
+      clickCurrentMenuItem("Transpose whole table (swap rows and columns)", true);
+      const modified = view.state.doc.toString();
+      expect(modified).not.toBe(source);
+      const table = parseEditableTables(modified).tables[0]!;
+      expect(table.valid).toBe(true);
+      expect(table.rows.length).toBe(3);
+      expect(table.columnCount).toBe(4);
+      expect(table.headerRowCount).toBe(1);
+      expect(table.rowHeaderColumnCount).toBe(1);
+      expect(table.rows[1]!.cells[2]!.content).toBe("3");
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(modified);
+    } finally {
+      view.destroy();
+    }
+  });
+});

@@ -1,5 +1,7 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import type { ExportTableImage } from "../app/table-image-modal";
+import { requestWholeTableTranspose } from "../app/table-transpose-modal";
+import { captureEditorTransposeTarget } from "./table-transpose-target";
 import { EditorView } from "@codemirror/view";
 import { MarkdownView, Menu, Notice, type App, type Component, type Editor } from "obsidian";
 
@@ -8,11 +10,13 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+
 import { nativeTableDomSelection } from "./native-table-selection";
 import {
   addBasePromotionMenuItem,
   addImageExportMenuItem,
   addSelectionMenuItems,
+  addWholeTableTransposeMenuItem,
   hasSelectionMenuItems,
   type TableOperation,
 } from "./table-menu";
@@ -21,6 +25,7 @@ import { structuralTableSelectionFromCoordinates } from "./table-selection";
 
 export class NativeTableMenuBridge {
   private readonly contributedEvents = new WeakSet<Event>();
+  private disposed = false;
   private readonly documentCleanups = new Map<Document, () => void>();
   private readonly registeredTargets = new WeakSet<HTMLElement>();
   private readonly targetCleanups = new Map<HTMLElement, () => void>();
@@ -33,10 +38,17 @@ export class NativeTableMenuBridge {
   ) {}
 
   register(component: Component): void {
+    this.disposed = false;
     component.register(() => {
+      this.disposed = true;
       for (const cleanup of [...this.documentCleanups.values()]) cleanup();
     });
     this.registerDocument(document);
+    // A popout can predate plugin enable/re-enable: it will not emit a new
+    // window-open event. Install on the owner document of every existing view.
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.view instanceof MarkdownView) this.registerDocument(leaf.view.containerEl.ownerDocument);
+    });
     component.registerEvent(this.app.workspace.on("window-open", (_workspaceWindow, window) => {
       this.registerDocument(window.document);
     }));
@@ -114,6 +126,19 @@ export class NativeTableMenuBridge {
     this.contributedEvents.add(event);
     const menu = Menu.forEvent(event);
     const t = createTranslator(this.getSettings().language);
+    if (hasSelectionMenuItems(selection)) {
+      addSelectionMenuItems(
+        menu, t, selection,
+        (operation) => this.applyMenuOperation(markdownView.editor, table, operation),
+      );
+    }
+    const transposeTarget = captureEditorTransposeTarget(
+      this.app, markdownView.editor, table, t, markdownView, () => !this.disposed,
+    );
+    addWholeTableTransposeMenuItem(menu, t, () => {
+      if (transposeTarget === null) { new Notice(t("notice.staleTable")); return; }
+      requestWholeTableTranspose(this.app, t, table, transposeTarget);
+    });
     if (this.exportImage !== undefined) {
       const sourcePath = markdownView.file?.path ?? "";
       addImageExportMenuItem(menu, t, () => this.exportImage?.(table, sourcePath,
@@ -121,14 +146,6 @@ export class NativeTableMenuBridge {
           && reparseUnchangedTable(markdownView.editor.getValue(), table) !== null, domSelection.tableElement));
     }
     addBasePromotionMenuItem(menu, t, table, () => this.promote(markdownView.editor, () => markdownView, table));
-    if (hasSelectionMenuItems(selection)) {
-      addSelectionMenuItems(
-        menu,
-        t,
-        selection,
-        (operation) => this.applyMenuOperation(markdownView.editor, table, operation),
-      );
-    }
   }
 
   private markdownViewFor(target: Node): MarkdownView | null {

@@ -10,6 +10,7 @@ export interface TableHistoryTarget {
   before: string;
   after: string;
   coordinate: TableCellCoordinate;
+  undoCoordinate?: TableCellCoordinate;
   restorePresentation?: boolean;
 }
 
@@ -22,6 +23,8 @@ export const tableHistory = invertedEffects.of((transaction) => transaction.effe
   .filter((effect) => effect.is(tableHistoryTarget))
   .map((effect) => tableHistoryTarget.of({
     ...effect.value, before: effect.value.after, after: effect.value.before,
+    coordinate: effect.value.undoCoordinate ?? effect.value.coordinate,
+    ...(effect.value.undoCoordinate === undefined ? {} : { undoCoordinate: effect.value.coordinate }),
   })));
 
 export function tableWriteHistory(
@@ -29,7 +32,7 @@ export function tableWriteHistory(
   after: string,
   sourcePath: string,
   coordinate: TableCellCoordinate,
-  options: { restorePresentation?: boolean } = {},
+  options: { restorePresentation?: boolean; undoCoordinate?: TableCellCoordinate } = {},
 ) {
   return {
     effects: tableHistoryTarget.of({
@@ -38,6 +41,7 @@ export function tableWriteHistory(
       after,
       sourcePath,
       coordinate,
+      ...(options.undoCoordinate === undefined ? {} : { undoCoordinate: options.undoCoordinate }),
       ...(options.restorePresentation === true ? { restorePresentation: true } : {}),
     }),
     annotations: isolateHistory.of("full"),

@@ -30,6 +30,14 @@ export function addImageExportMenuItem(menu: Menu, t: Translate, exportImage: ()
     .setIcon("image").setTitle(t("menu.exportImage")).onClick(exportImage));
 }
 
+export function addWholeTableTransposeMenuItem(menu: Menu, t: Translate, transpose: () => void): void {
+  menu.addItem((item) => item
+    .setSection("structural-tables-transform")
+    .setIcon("arrow-left-right")
+    .setTitle(t("menu.transposeTable"))
+    .onClick(transpose));
+}
+
 export function addBasePromotionMenuItem(
   menu: Menu,
   t: Translate,
@@ -173,15 +181,6 @@ export function addSelectionEditingMenuItems(
       .setIcon("arrow-right")
       .setTitle(t("menu.moveColumnsRight"))
       .onClick(() => apply((current) => moveTableColumns(current, selection.minColumn, selection.maxColumn, "forward"))));
-    menu.addItem((item) => item
-      .setSection("structural-tables-column")
-      .setIcon("trash-2")
-      .setTitle(t("menu.deleteColumns"))
-      .setWarning(true)
-      .onClick(() => options.explicitRemoval === true
-        ? apply((current) => removeTableAxis(current, "column", selection.minColumn, selection.maxColumn), "owned-grid")
-        : apply((current) => deleteTableColumns(current, selection.minColumn, selection.maxColumn))));
-
     const alignments = [
       ["default", "menu.alignDefault", "align-horizontal-space-around"],
       ["left", "menu.alignLeft", "align-left"],
@@ -191,7 +190,7 @@ export function addSelectionEditingMenuItems(
     const selectedAlignments = selection.table.alignments.slice(selection.minColumn, selection.maxColumn + 1);
     for (const [alignment, title, icon] of alignments) {
       menu.addItem((item) => item
-        .setSection("structural-tables-alignment")
+        .setSection("structural-tables-column")
         .setIcon(icon)
         .setTitle(t(title))
         .setChecked(selectedAlignments.every((current) => current === alignment))
@@ -202,6 +201,15 @@ export function addSelectionEditingMenuItems(
           alignment,
         ))));
     }
+
+    menu.addItem((item) => item
+      .setSection("structural-tables-column")
+      .setIcon("trash-2")
+      .setTitle(t("menu.deleteColumns"))
+      .setWarning(true)
+      .onClick(() => options.explicitRemoval === true
+        ? apply((current) => removeTableAxis(current, "column", selection.minColumn, selection.maxColumn), "owned-grid")
+        : apply((current) => deleteTableColumns(current, selection.minColumn, selection.maxColumn))));
   }
 }
 

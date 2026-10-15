@@ -73,6 +73,24 @@ describe("table history targets", () => {
     });
   });
 
+  it("restores each side of a transpose to its own logical coordinate on undo and redo", () => {
+    let state = EditorState.create({ doc: source, extensions: [history(), tableHistory] });
+    const table = parseEditableTables(source).tables[0]!;
+    const updated = table.source.replace("x |", "changed |");
+    const oldCoordinate = { row: 1, column: 0 };
+    const newCoordinate = { row: 0, column: 1 };
+    state = state.update({
+      changes: { from: table.range.from, to: table.range.to, insert: updated },
+      ...tableWriteHistory(table, updated, "Test.md", newCoordinate, { undoCoordinate: oldCoordinate }),
+    }).state;
+    let latest: EditorTransaction | undefined;
+    const dispatch = (transaction: EditorTransaction): void => { latest = transaction; state = transaction.state; };
+    expect(undo({ state, dispatch })).toBe(true);
+    expect(latest!.effects.find((effect) => effect.is(tableHistoryTarget))?.value.coordinate).toEqual(oldCoordinate);
+    expect(redo({ state, dispatch })).toBe(true);
+    expect(latest!.effects.find((effect) => effect.is(tableHistoryTarget))?.value.coordinate).toEqual(newCoordinate);
+  });
+
   it("keeps unrelated prose undo separate from the table focus target", () => {
     let state = EditorState.create({ doc: source, extensions: [history(), tableHistory] });
     const table = parseEditableTables(source).tables[0]!;

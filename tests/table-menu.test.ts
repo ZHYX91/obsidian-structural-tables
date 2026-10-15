@@ -120,7 +120,7 @@ describe("table menus", () => {
     const menu = new MockMenu();
     const operations: TableOperation[] = [];
     addSelectionMenuItems(menu as unknown as Menu, t, selection, (operation) => { operations.push(operation); });
-    const alignmentItems = menu.items.filter((item) => item.section === "structural-tables-alignment");
+    const alignmentItems = menu.items.filter((item) => item.title.startsWith("menu.align"));
     expect(alignmentItems).toHaveLength(4);
     expect(alignmentItems.filter((item) => item.checked).map((item) => item.title)).toEqual(checked === null ? [] : [checked]);
     alignmentItems.find((item) => item.title === "menu.alignRight")?.callback?.();

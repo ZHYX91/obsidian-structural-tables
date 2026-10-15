@@ -57,7 +57,7 @@ import { copyHtml, copyText, replaceSelectionFromClipboardTable } from "../edito
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
 import { renderTableClipboard } from "../rendering/table-clipboard";
-import { editorTableDirection } from "../editor/editor-view-context";
+import { editorTableContext, editorTableDirection } from "../editor/editor-view-context";
 import { StructuralTablesSettingTab } from "./settings-tab";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import { SettingsPersistenceSession } from "./settings-persistence-session";
@@ -416,14 +416,9 @@ export class StructuralTablesPlugin extends Plugin {
     const info = getInfo();
     const sourcePath = info?.file?.path;
     if (sourcePath === undefined) { new Notice(createTranslator(this.settings.language)("notice.noFile")); return; }
-    let contextElement: HTMLElement | undefined;
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if (leaf.view instanceof MarkdownView && leaf.view.editor === editor) {
-        contextElement = leaf.view.containerEl.querySelector<HTMLElement>(".markdown-source-view, .markdown-preview-view") ?? leaf.view.containerEl;
-      }
-    });
-    this.imageExport?.open(table, sourcePath, () => getInfo()?.file?.path === sourcePath
-      && reparseUnchangedTable(editor.getValue(), table) !== null, contextElement);
+    const context = editorTableContext(this.app, editor, table);
+    if (context === null || context.file !== info?.file) { new Notice(createTranslator(this.settings.language)("notice.staleTable")); return; }
+    this.imageExport?.open(table, sourcePath, () => getInfo()?.file === context.file && context.isCurrent(), context.element);
   }
 
   private replaceTable(editor: Editor, table: StructuralTable, source: string): void {

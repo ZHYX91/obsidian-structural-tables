@@ -38,7 +38,7 @@ export function codeMirrorForEditor(container: HTMLElement, editor: Editor, file
 
 export function attachedEditorContext(app: App, editor: Editor, hint?: MarkdownView) {
   const markdown = markdownViewForEditor(app, editor, hint);
-  if (markdown === null || markdown.file === null || !markdown.containerEl.isConnected) return null;
+  if (markdown === null || markdown.file === null || !markdown.containerEl?.isConnected) return null;
   const container = markdown.containerEl;
   const ownerDocument = container.ownerDocument;
   const file = markdown.file;

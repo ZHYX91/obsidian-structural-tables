@@ -525,6 +525,11 @@ export async function renderTableImage(app: App, request: TableImageRequest): Pr
     };
     current();
     const rendered = renderStructuralTable(app, table, scope, request.sourcePath, owner);
+    // A table can override its editor's direction. It is intentionally omitted
+    // from the cloned scope chain, so carry its effective direction explicitly.
+    if (request.contextElement !== undefined) {
+      rendered.style.direction = request.contextElement.ownerDocument.defaultView!.getComputedStyle(request.contextElement).direction;
+    }
     const root = rendered.parentElement!;
     root.classList.add("structural-tables-image-snapshot");
     Object.assign(root.dataset, { appearance: table.structural || settings.takeOverOrdinaryTables ? settings.appearance : "theme", density: settings.density,

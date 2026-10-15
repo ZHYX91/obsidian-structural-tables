@@ -9,6 +9,7 @@
 - Preserve merged-table rendering, source caret placement and scroll position when clicking below a focused or edited table.
 - Keep native-cell commands bound to the complete note editor when Obsidian embeds a cell editor with inherited ownership information. Canceling a touch pan clears its unfinished double-tap sequence without discarding a completed selection.
 - Bind native table menus to the clicked editor and mapped table. Refuse transposes that would absorb nearby text or whose original editor has moved to another window, leaving source and undo history unchanged.
+- Preserve the source table's direction in PNG exports from commands and source menus, reject direction changes during generation, and make image export available in owned Callout table menus.
 - Register native table menus in existing separate windows even when their initial view is not Markdown, and release listeners when cells, windows or the plugin close.
 
 ## 0.6.2 - 2026-10-10

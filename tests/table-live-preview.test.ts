@@ -1021,6 +1021,31 @@ describe("StructuralTableEditorController", () => {
     }
   });
 
+  it("exports the exact owned Callout table through its real context menu", async () => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, container) => {
+      if (container.className !== "structural-tables-container") return;
+      const table = nativeTableForSource(markdown, container.ownerDocument); if (table !== null) container.replaceChildren(table);
+    });
+    const source = "Before\n\n> [!note]\n> | H | V |\n> | --- || --- |\n> | A | 1 |\n\nEnd";
+    const native = EditorView.decorations.of(Decoration.set([
+      Decoration.replace({ widget: new SourceCalloutWidget(source), block: true }).range(source.indexOf("> [!note]"), source.indexOf("\n\nEnd")),
+    ]));
+    const exportImage = vi.fn<ExportTableImage>();
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native], undefined, { language: "en" }, exportImage);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      const host = parent.querySelector<HTMLElement>(".callout .structural-tables-live-preview")!;
+      host.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+      const action = lastMenu?.items.find((item) => item.title === "Export whole table as image…");
+      expect(action).toBeDefined(); action!.callback!();
+      expect(exportImage).toHaveBeenCalledOnce();
+      const [table, path, isCurrent, context] = exportImage.mock.calls[0]!;
+      expect(table).toEqual(parseEditableTables(source).tables[0]); expect(path).toBe("Test.md"); expect(isCurrent()).toBe(true);
+      expect(context).toBe(host.querySelector("table")); expect(context?.closest(".callout")).not.toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it.each([
     ["clear", "Clear selected cells"],
     ["row", "Delete selected rows"],

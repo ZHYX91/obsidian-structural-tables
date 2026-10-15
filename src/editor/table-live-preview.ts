@@ -273,7 +273,7 @@ export class StructuralTableEditorController {
             owns: (table) => !value.composing && settings.enableLivePreview
               && Boolean(view.state.field(editorLivePreviewField, false))
               && table.valid && (table.structural || settings.takeOverOrdinaryTables),
-            widget: (table) => new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote),
+            widget: (table) => new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote, exportImage),
           };
         });
         views.add(view);

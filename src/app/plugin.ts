@@ -42,6 +42,7 @@ import {
 } from "../core/base-promotion";
 import type { BasePromotionContentKind } from "../core/base-promotion-content";
 import { NativeTableMenuBridge } from "../editor/native-table-menu";
+import { registerTableMenuIcons } from "../editor/table-menu-icons";
 import { captureEditorTransposeTarget, openEditorTableTranspose } from "../editor/table-transpose-target";
 import { requestWholeTableTranspose } from "./table-transpose-modal";
 import { StructuralTableEditorController } from "../editor/table-live-preview";
@@ -122,6 +123,7 @@ export class StructuralTablesPlugin extends Plugin {
 
   override async onload(): Promise<void> {
     this.transposeRequestsActive = true;
+    registerTableMenuIcons(this);
     const loaded = normalizeStoredSettings(await this.loadData());
     this.settingsPersistence = new SettingsPersistenceSession(
       loaded,

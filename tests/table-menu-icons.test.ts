@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as obsidian from "obsidian";
 
@@ -8,6 +9,32 @@ import { Component } from "./mocks/obsidian";
 afterEach(() => vi.restoreAllMocks());
 
 describe("physical table menu icons", () => {
+  it("keeps physical menu directions while preserving native RTL icon mirroring", () => {
+    const style = document.createElement("style");
+    style.textContent = ".mod-rtl svg.svg-icon:not(.check-small, .lucide-check) { transform: scale(-1, 1); }"
+      + readFileSync("styles.css", "utf8");
+    document.head.appendChild(style);
+    const root = document.createElement("div");
+    root.className = "mod-rtl";
+    const menu = document.createElement("div");
+    menu.className = "menu";
+    root.appendChild(menu);
+    document.body.appendChild(root);
+    try {
+      for (const name of ["arrow-left-to-line", "arrow-right-to-line", "arrow-left", "arrow-right", "align-left", "align-right"]) {
+        for (const owned of [false, true]) {
+          const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          icon.setAttribute("class", `svg-icon ${owned ? "structural-tables-physical" : "lucide"}-${name}`);
+          menu.appendChild(icon);
+          expect(getComputedStyle(icon).transform).toBe(owned ? "none" : "scale(-1, 1)");
+        }
+      }
+    } finally {
+      root.remove();
+      style.remove();
+    }
+  });
+
   it("preserves native geometry without the host's RTL icon class and releases owned icons", () => {
     const source = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     source.setAttribute("class", "svg-icon lucide-arrow-left");

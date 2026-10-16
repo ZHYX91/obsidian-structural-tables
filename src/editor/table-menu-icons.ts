@@ -8,7 +8,7 @@ type PhysicalIcon = typeof physicalIcons[number];
 const registered = new Set<PhysicalIcon>();
 const ownedId = (icon: PhysicalIcon): string => `structural-tables-physical-${icon}`;
 
-/** Physical left/right must not follow the host's RTL Lucide mirroring rules. */
+/** Owned IDs let our menu CSS opt physical directions out of host RTL mirroring. */
 export function registerTableMenuIcons(component: Component): void {
   for (const name of physicalIcons) {
     const source = getIcon(name);

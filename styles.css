@@ -769,6 +769,18 @@
 
 .structural-tables-cell-editor.is-measuring { height: 0; }
 
+/* These menu actions mean physical left/right even in an RTL interface. */
+.mod-rtl .menu svg.svg-icon:is(
+  .structural-tables-physical-arrow-left-to-line,
+  .structural-tables-physical-arrow-right-to-line,
+  .structural-tables-physical-arrow-left,
+  .structural-tables-physical-arrow-right,
+  .structural-tables-physical-align-left,
+  .structural-tables-physical-align-right
+) {
+  transform: none;
+}
+
 /* Offscreen, non-interactive typography mirror for verified textarea arrow exits. */
 .structural-tables-visual-text-measure {
   position: fixed;

@@ -47,7 +47,7 @@ function visualProbe(editor: HTMLTextAreaElement): Probe | null {
   });
   const measure = (offset: number): { top: number; x: number } | null => {
     if (offset < 0 || offset > editor.value.length) return null;
-    const mark = mirror.createEl("span", { cls: "structural-tables-visual-text-caret" });
+    const mark = mirror.createDiv({ cls: "structural-tables-visual-text-caret" });
     mark.textContent = "\u200b";
     mirror.replaceChildren(
       owner.createTextNode(editor.value.slice(0, offset)),

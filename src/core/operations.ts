@@ -562,7 +562,7 @@ export function pasteTableRangeRaw(
       if (anchored) {
         const owner = "paste-owner:" + payloadOwner;
         grid.owners[tableRow]![tableColumn] = owner;
-        grid.contents.set(owner, payload.rawByOwner[payloadOwner]!);
+        grid.contents.set(owner, payload.rawByOwner[payloadOwner]);
       } else {
         const previous = targetOwnerByPayload.get(payloadOwner);
         if (previous !== undefined && previous !== targetOwner) {

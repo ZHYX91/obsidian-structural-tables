@@ -146,7 +146,7 @@ const catalog = {
   "handle.row": "選取第 {count} 列",
   "handle.addRow": "新增列",
   "handle.addColumn": "新增欄",
-  "handle.dragHint": "按住列或列的控制柄即可直接拖曳移動；單按只會選取。按住 Shift 點擊或點選另一個控制柄可擴展範圍。",
+  "handle.dragHint": "按住行或列的控制柄即可直接拖曳移動；單按只會選取。按住 Shift 點擊或點選另一個控制柄可擴展範圍。",
   "editor.cell": "編輯第 {row} 列、第 {column} 欄",
   "menu.mergeSelection": "合併所選儲存格",
   "menu.editSource": "編輯表格原始碼",

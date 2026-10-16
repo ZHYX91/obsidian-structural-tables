@@ -1371,13 +1371,10 @@ class StructuralTableInteraction {
     if (anchor === undefined || content === null) return null;
     const owner = content.ownerDocument as Document & {
       caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
-      caretRangeFromPoint?: (x: number, y: number) => Range | null;
     };
     const position = owner.caretPositionFromPoint?.(event.clientX, event.clientY);
-    const fallback = position === null || position === undefined
-      ? owner.caretRangeFromPoint?.(event.clientX, event.clientY) : null;
-    const node = position?.offsetNode ?? fallback?.startContainer;
-    const offset = position?.offset ?? fallback?.startOffset;
+    const node = position?.offsetNode;
+    const offset = position?.offset;
     if (node === undefined || node.nodeType !== 3 || !content.contains(node)
       || offset === undefined) return null;
     const text = (node as Text).data;

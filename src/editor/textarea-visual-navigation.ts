@@ -26,42 +26,29 @@ function visualProbe(editor: HTMLTextAreaElement): Probe | null {
   const lineHeight = Number.parseFloat(style.lineHeight);
   const rect = editor.getBoundingClientRect();
   if (!Number.isFinite(lineHeight) || lineHeight <= 0 || rect.width <= 0) return null;
-  const mirror = owner.createElement("div");
+  const mirror = owner.body.createDiv({ cls: "structural-tables-visual-text-measure" });
   mirror.setAttribute("aria-hidden", "true");
   mirror.dir = editor.dir;
-  mirror.style.position = "absolute";
-  mirror.style.visibility = "hidden";
-  mirror.style.pointerEvents = "none";
-  mirror.style.top = "0";
-  mirror.style.left = "-10000px";
-  mirror.style.width = rect.width + "px";
-  mirror.style.height = "auto";
-  mirror.style.boxSizing = "border-box";
-  mirror.style.whiteSpace = "pre-wrap";
-  mirror.style.overflowWrap = "break-word";
-  mirror.style.wordBreak = style.wordBreak;
-  mirror.style.fontFamily = style.fontFamily;
-  mirror.style.fontSize = style.fontSize;
-  mirror.style.fontWeight = style.fontWeight;
-  mirror.style.fontStyle = style.fontStyle;
-  mirror.style.lineHeight = style.lineHeight;
-  mirror.style.letterSpacing = style.letterSpacing;
-  mirror.style.wordSpacing = style.wordSpacing;
-  mirror.style.textAlign = style.textAlign;
-  mirror.style.tabSize = style.tabSize;
-  mirror.style.padding = style.padding;
-  mirror.style.border = style.border;
-  mirror.style.direction = style.direction;
-  owner.body.appendChild(mirror);
+  mirror.setCssProps({
+    "--structural-visual-width": rect.width + "px",
+    "--structural-visual-word-break": style.wordBreak,
+    "--structural-visual-font-family": style.fontFamily,
+    "--structural-visual-font-size": style.fontSize,
+    "--structural-visual-font-weight": style.fontWeight,
+    "--structural-visual-font-style": style.fontStyle,
+    "--structural-visual-line-height": style.lineHeight,
+    "--structural-visual-letter-spacing": style.letterSpacing,
+    "--structural-visual-word-spacing": style.wordSpacing,
+    "--structural-visual-text-align": style.textAlign,
+    "--structural-visual-tab-size": style.tabSize,
+    "--structural-visual-padding": style.padding,
+    "--structural-visual-border": style.border,
+    "--structural-visual-direction": style.direction,
+  });
   const measure = (offset: number): { top: number; x: number } | null => {
     if (offset < 0 || offset > editor.value.length) return null;
-    const mark = owner.createElement("span");
+    const mark = mirror.createEl("span", { cls: "structural-tables-visual-text-caret" });
     mark.textContent = "\u200b";
-    mark.style.display = "inline-block";
-    mark.style.width = "0";
-    mark.style.height = "1em";
-    mark.style.padding = "0";
-    mark.style.border = "0";
     mirror.replaceChildren(
       owner.createTextNode(editor.value.slice(0, offset)),
       mark,

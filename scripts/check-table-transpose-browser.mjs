@@ -19,6 +19,7 @@ const styles = await readFile("styles.css", "utf8");
 const page = '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/styles.css">'
   + '<style>body{margin:24px;font:16px sans-serif}.host-box-sizing *{box-sizing:border-box}.host-box-sizing .markdown-rendered{white-space:normal}.host-box-sizing .structural-tables-table{table-layout:fixed}.cm-editor{height:520px;border:1px solid #bbb}.cm-scroller{overflow:auto}.cm-content{padding-bottom:80px}td,th{padding:10px;border:1px solid #999}#host-menu{position:fixed;top:12px;right:12px;background:white;z-index:20}button{padding:12px}</style>'
   + '<style>.alignment-surface{--text-normal:#000;--table-selection:transparent}.alignment-surface .markdown-rendered{font:24px/32px Arial;white-space:normal}.alignment-surface .structural-tables-table{table-layout:fixed}.alignment-surface textarea{caret-color:transparent;background:#fff!important;color:#000!important}</style>'
+  + '<style>#target-note.switch-surface .cm-content{padding-inline-start:34px!important;}</style>'
   + '</head><body><script src="/bundle.js"></script></body></html>';
 const server = createServer((request, response) => {
   if (request.url === "/bundle.js") {

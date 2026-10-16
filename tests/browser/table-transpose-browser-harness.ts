@@ -121,6 +121,7 @@ function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-so
   const frame = mode.startsWith("popout-") ? document.body.appendChild(document.createElement("iframe")) : null;
   const doc = frame?.contentWindow?.document ?? document;
   const containerEl = doc.body.appendChild(doc.createElement("div")); containerEl.id = "target-note";
+  if (mode.startsWith("switch")) containerEl.classList.add("switch-surface");
   const bidi = mode === "rtl" || mode.startsWith("ltr-") || mode === "rtl-ascii-draft";
   containerEl.dir = mode.startsWith("rtl") || mode.endsWith("-rtl") ? "rtl" : "ltr";
   if (mode.startsWith("focus-wide")) containerEl.style.width = "340px";

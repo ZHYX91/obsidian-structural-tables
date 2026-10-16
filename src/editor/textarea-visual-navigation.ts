@@ -17,11 +17,13 @@ interface Probe {
 
 const COMPLEX_BIDI = /[\u0590-\u08ff\u200e-\u200f\u202a-\u202e\u2066-\u2069\ufb1d-\ufdff\ufe70-\ufeff]/u;
 
+export function hasComplexBidi(value: string): boolean { return COMPLEX_BIDI.test(value); }
+
 function visualProbe(editor: HTMLTextAreaElement): Probe | null {
   const owner = editor.ownerDocument;
   const win = owner.defaultView;
   if (win === null || editor.clientWidth <= 0 || editor.scrollHeight <= 0
-    || editor.value.length > 1200 || COMPLEX_BIDI.test(editor.value)) return null;
+    || editor.value.length > 1200 || hasComplexBidi(editor.value)) return null;
   const style = win.getComputedStyle(editor);
   const lineHeight = Number.parseFloat(style.lineHeight);
   const rect = editor.getBoundingClientRect();
@@ -29,8 +31,12 @@ function visualProbe(editor: HTMLTextAreaElement): Probe | null {
   const mirror = owner.body.createDiv({ cls: "structural-tables-visual-text-measure" });
   mirror.setAttribute("aria-hidden", "true");
   mirror.dir = editor.dir;
+  // clientWidth excludes a vertical scrollbar. Including that gutter would
+  // wrap the mirror later than the actual textarea in tall/narrow drafts.
+  const layoutWidth = editor.clientWidth + (Number.parseFloat(style.borderLeftWidth) || 0)
+    + (Number.parseFloat(style.borderRightWidth) || 0);
   mirror.setCssProps({
-    "--structural-visual-width": rect.width + "px",
+    "--structural-visual-width": layoutWidth + "px",
     "--structural-visual-word-break": style.wordBreak,
     "--structural-visual-font-family": style.fontFamily,
     "--structural-visual-font-size": style.fontSize,

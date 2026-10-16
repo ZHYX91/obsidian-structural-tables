@@ -16,7 +16,7 @@ import { basePropertyMigrationPreviewText, type BasePropertyMigrationLabels } fr
 import type { PreparedBasePropertyMigration } from "../../src/app/base-property-migration-service";
 import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "../../src/editor/table-source-focus";
 import { textareaVisualExit, textareaCaretAtVisualEdge } from "../../src/editor/textarea-visual-navigation";
-import { lastMenu, notices, TFile } from "../mocks/obsidian";
+import { dispatchScopeKey, lastMenu, notices, TFile } from "../mocks/obsidian";
 import { NativeCellEditorWidget } from "../helpers/native-cell-editor";
 import { NativeTableWidget } from "../helpers/native-table-widget";
 
@@ -88,6 +88,7 @@ for (const type of ["pointerdown", "pointerup", "touchstart", "touchend", "focus
 }, true);
 
 document.addEventListener("pointerdown", () => { pointers += 1; }, { capture: true });
+document.addEventListener("keydown", (event) => { dispatchScopeKey(event); }, { capture: true });
 // The host mock contributes real menu buttons while product code still builds
 // and validates its public menu. Chromium supplies pointer/focus/click ordering.
 document.addEventListener("contextmenu", () => {
@@ -365,7 +366,18 @@ function visualCaretProbe() {
   } finally { textarea.remove(); }
 }
 
-(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, switchState, visualCaretProbe, interfaceBidi, setupAlignment, alignmentState,
+async function setupPointerText(raw: string, visible: string, tag: "span" | "strong" | "em" | "code" | "a") {
+  setupAlignment({ direction: "ltr", alignment: "left", raw, visible, role: "body" });
+  const table = cm!.dom.querySelector<HTMLTableElement>(".structural-tables-live-preview table")!;
+  await tableRenderingComplete(table);
+  const content = table.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1'] .structural-tables-cell-content")!;
+  content.replaceChildren();
+  const rendered = content.createEl(tag, { text: visible });
+  if (tag === "a") rendered.setAttribute("href", "#gesture-link");
+}
+
+(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, switchState, visualCaretProbe, interfaceBidi, setupAlignment, alignmentState, setupPointerText,
+  currentVisualExit: () => textareaVisualExit(document.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor")!, "down"),
   refresh: () => cm!.dispatch({ effects: structuralTableSourceFocus.of(true) }),
   holdRendering: () => { holdCommitRendering = true; },
   releaseRendering: () => { holdCommitRendering = false; heldRenders.splice(0).forEach((resolve) => resolve()); },

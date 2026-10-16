@@ -101,6 +101,7 @@ const catalog = {
   "notice.clipboardUnsupported": "無法將此剪貼簿內容安全地貼入儲存格，已保留您的編輯內容。",
   "notice.clipboardPlainFallback": "已貼上完整的純文字替代內容。格式與附件可能需要另行加入。",
   "notice.rangeClipboardUnsupported": "剪貼簿中沒有相容的 Structural Tables 儲存格範圍。",
+  "notice.rangePasteDraft": "請先完成或取消目前儲存格草稿，再貼上複製的儲存格範圍。",
   "notice.rangeClipboardWriteFailed": "無法複製所選儲存格，表格未變更。",
   "notice.rangeClipboardReadFailed": "無法從剪貼簿讀取相容的儲存格選取範圍。",
   "notice.basesRequired": "升級表格前，請先啟用 Obsidian 的 Bases 核心外掛程式。",

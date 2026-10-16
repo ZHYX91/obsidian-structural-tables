@@ -5444,6 +5444,134 @@ describe("interaction batches one and two: real event ownership", () => {
     }
   });
 
+  it.each(["ctrl", "meta"] as const)("hands an untouched B draft to committed history through %s Scope", async (platform) => {
+    const source = "| H | V |\n| --- || --- |\n| Alpha | Beta |\n\nBetween\n\n| J | K |\n| --- || --- |\n| Gamma | Delta |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    Object.assign(view.state.field(editorInfoField).editor!, { undo: () => undo(view), redo: () => redo(view) });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      replaceDraftText(parent.querySelector<HTMLTextAreaElement>("textarea")!, "Changed Alpha");
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-source-table-index='1'] [data-structural-row='1'][data-structural-column='1']")!);
+      await Promise.resolve();
+      const committed = view.state.doc.toString();
+      expect(committed).toContain("Changed Alpha");
+      const b = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(b.value).toBe("Delta");
+      dispatchDraftShortcut(b, "z", platform);
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(b.isConnected).toBe(false);
+      expect((document.activeElement as HTMLElement).closest<HTMLElement>("[data-structural-source-table-index]")?.dataset.structuralSourceTableIndex).toBe("0");
+      dispatchScopeCaptureThenDom(document.activeElement as HTMLElement, modEvent("z", platform, true));
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(committed);
+    } finally { view.destroy(); }
+  });
+
+  const copiedSquare = { version: 1, rows: 2, columns: 2, owners: [["o0", "o1"], ["o2", "o3"]],
+    rawByOwner: { o0: "**P**", o1: "Q", o2: "R", o3: "S😀" } };
+
+  it("retains composition ownership across repeated cross-table clicks", () => {
+    const source = "| H | V |\n| --- || --- |\n| Alpha | Beta |\n\n| J | K |\n| --- || --- |\n| Gamma | Delta |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      const other = parent.querySelector<HTMLElement>("[data-structural-source-table-index='1'] [data-structural-row='1'][data-structural-column='1']")!;
+      mouseGesture(other); mouseGesture(other);
+      expect(parent.querySelectorAll("textarea")).toHaveLength(1);
+      expect(editor.isConnected).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      editor.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    } finally { view.destroy(); }
+  });
+
+  it("pastes an owned range from a freshly clicked cell in one expandable history transaction", async () => {
+    const source = "Before\n\n| H | V |\n| --- || :---: |\n| Keep | Old |\n\nAfter";
+    let writes = 0;
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(),
+      EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const transfer = new DataTransfer();
+      transfer.setData(TABLE_RANGE_CLIPBOARD_MIME, JSON.stringify(copiedSquare));
+      transfer.setData("text/plain", "Must not become one cell");
+      parent.querySelector<HTMLTextAreaElement>("textarea")!.dispatchEvent(gridClipboardEvent("paste", transfer));
+      await Promise.resolve();
+      const pasted = view.state.doc.toString();
+      const table = parseEditableTables(pasted).tables[0]!;
+      expect(table.columnCount).toBe(3);
+      expect(table.rows).toHaveLength(3);
+      expect(table.rows[1]!.cells.map((cell) => cell.raw.trim())).toEqual(["Keep", "**P**", "Q"]);
+      expect(table.rows[2]!.cells.map((cell) => cell.raw.trim())).toEqual(["", "R", "S😀"]);
+      expect(table.alignments).toEqual(["default", "center", "default"]);
+      expect(table.rowHeaderColumnCount).toBe(1);
+      expect(pasted.startsWith("Before\n\n")).toBe(true);
+      expect(pasted.endsWith("\n\nAfter")).toBe(true);
+      expect(writes).toBe(1);
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+      expect(redo(view)).toBe(true); expect(view.state.doc.toString()).toBe(pasted);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["changed", "composition", "invalid-payload", "partial-merge"] as const)("preserves source and draft when active-cell range paste is %s", (kind) => {
+    const source = "| H | V | W |\n| --- || --- | --- |\n| Keep | Old | End |\n| Next | Merged | < |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      if (kind === "changed") replaceDraftText(editor, "Unsaved draft");
+      if (kind === "composition") editor.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      const payload = kind === "partial-merge" ? { ...copiedSquare, columns: 1, owners: [["o0"], ["o1"]], rawByOwner: { o0: "P", o1: "Q" } } : copiedSquare;
+      const transfer = new DataTransfer();
+      transfer.setData(TABLE_RANGE_CLIPBOARD_MIME, kind === "invalid-payload" ? "bad" : JSON.stringify(payload));
+      transfer.setData("text/plain", "Must not be inserted");
+      const value = editor.value;
+      editor.dispatchEvent(gridClipboardEvent("paste", transfer));
+      expect(view.state.doc.toString()).toBe(source);
+      expect(editor.isConnected).toBe(true); expect(editor.value).toBe(value);
+      expect(undoDepth(view.state)).toBe(0);
+    } finally { view.destroy(); }
+  });
+
+  it("maps a first held text drag into a partial source selection without writing", () => {
+    const source = "| H | V |\n| --- || --- |\n| **Bright** | Other |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const content = cell.querySelector<HTMLElement>(".structural-tables-cell-content")!;
+      content.innerHTML = "<strong>Bright</strong>";
+      Object.defineProperty(document, "caretPositionFromPoint", { configurable: true,
+        value: (x: number) => ({ offsetNode: content.firstChild!.firstChild!, offset: x < 5 ? 1 : 4 }) });
+      cell.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true,
+        isPrimary: true, pointerType: "mouse", button: 0, clientX: 0, clientY: 0 }));
+      cell.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, buttons: 1, clientX: 10 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }));
+      cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, clientX: 10 }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(editor.value.slice(editor.selectionStart, editor.selectionEnd)).toBe("rig");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { Reflect.deleteProperty(document, "caretPositionFromPoint"); view.destroy(); }
+  });
+
+  it("does not use the single-line fallback to escape uncertain bidi geometry", () => {
+    const source = "| H | V |\n| --- || --- |\n| Keep | مرحبا ABC |\n| Next | Other |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.style.lineHeight = "20px";
+      Object.defineProperties(editor, { clientHeight: { value: 20 }, scrollHeight: { value: 20 } });
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+      const event = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true });
+      editor.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false); expect(editor.isConnected).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it("does not arm full-cell replacement when two identical labels make the mapping ambiguous", () => {
     const source = "| H | V |\n| --- || --- |\n| **abc** abc | Other |";
     const { parent, view } = mountEditor(source, { anchor: source.length });

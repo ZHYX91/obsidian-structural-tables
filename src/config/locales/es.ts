@@ -101,6 +101,7 @@ const catalog = {
   "notice.clipboardUnsupported": "Este contenido del portapapeles no se puede pegar de forma segura en una celda. Se ha conservado tu edición.",
   "notice.clipboardPlainFallback": "Se ha pegado la alternativa completa de texto sin formato. Es posible que debas añadir el formato enriquecido y los adjuntos por separado.",
   "notice.rangeClipboardUnsupported": "El portapapeles no contiene un rango de celdas compatible con Structural Tables.",
+  "notice.rangePasteDraft": "Termina o cancela el borrador de la celda antes de pegar las celdas copiadas.",
   "notice.rangeClipboardWriteFailed": "No se han podido copiar las celdas seleccionadas. La tabla no se ha modificado.",
   "notice.rangeClipboardReadFailed": "No se ha podido leer del portapapeles un rango compatible de celdas seleccionadas.",
   "notice.basesRequired": "Activa el complemento principal Bases de Obsidian antes de convertir una tabla.",

@@ -101,6 +101,7 @@ const zhCN = {
   "notice.clipboardUnsupported": "无法安全地将此剪贴板内容粘贴到单元格，已保留当前编辑内容。",
   "notice.clipboardPlainFallback": "已粘贴完整纯文本版本；富文本格式和附件可能需要单独添加。",
   "notice.rangeClipboardUnsupported": "剪贴板中没有与当前选区兼容的 Structural Tables 单元格范围。",
+  "notice.rangePasteDraft": "请先完成或取消当前单元格草稿，再粘贴复制的单元格范围。",
   "notice.rangeClipboardWriteFailed": "无法复制所选单元格；表格未发生变化。",
   "notice.rangeClipboardReadFailed": "无法从剪贴板读取兼容的单元格范围。",
   "notice.basesRequired": "请先启用 Obsidian 核心插件 Bases，再升级表格。",

@@ -101,6 +101,7 @@ const catalog = {
   "notice.clipboardUnsupported": "このクリップボードの内容をセルに安全に貼り付けることができません。編集中の内容は保持されています。",
   "notice.clipboardPlainFallback": "代替のプレーンテキストを省略せずに貼り付けました。書式や添付ファイルは別途追加する必要がある場合があります。",
   "notice.rangeClipboardUnsupported": "クリップボードに互換性のある Structural Tables のセル範囲がありません。",
+  "notice.rangePasteDraft": "コピーしたセルを貼り付ける前に、セルの下書きを確定またはキャンセルしてください。",
   "notice.rangeClipboardWriteFailed": "選択したセルをコピーできませんでした。テーブルは変更していません。",
   "notice.rangeClipboardReadFailed": "クリップボードから互換性のある選択セル範囲を読み取れませんでした。",
   "notice.basesRequired": "テーブルをアップグレードする前に、Obsidian のコアプラグイン Bases を有効にしてください。",

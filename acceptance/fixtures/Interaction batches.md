@@ -48,8 +48,13 @@ before each action, then Undo/Redo and verify the other tables and prose.
   without moving to select. Extend with Shift-click or a second touch. Test
   merged closure, header boundary refusal, RTL and cancellation.
 - Copy a 2x2 region with merged owners and paste at one unmerged destination
-  cell; verify right/down expansion and unchanged data outside the destination.
+  cell while its freshly opened textarea is unchanged; verify right/down
+  expansion and unchanged data outside the destination. Modified drafts and
+  composition must refuse the range paste without losing draft text.
   Repeat an incompatible partial merged destination; there must be no write.
 - Verify Up/Down from first/last actual textarea visual rows of wrapped
-  content; inside rows, IME, text selections and mixed bidi remain native.
+  content, including a tall draft with a vertical scrollbar; inside rows,
+  IME, text selections and mixed bidi remain native.
   Undo and redo every successful source write and check focus.
+- Commit A by clicking B, then leave B unchanged and press Ctrl/Cmd+Z.
+  A must undo; Ctrl+Shift+Z or Ctrl+Y redoes it at the correct table and cell.

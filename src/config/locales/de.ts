@@ -101,6 +101,7 @@ const catalog = {
   "notice.clipboardUnsupported": "Dieser Inhalt der Zwischenablage lässt sich nicht sicher in eine Zelle einfügen. Ihre Bearbeitung wurde beibehalten.",
   "notice.clipboardPlainFallback": "Die vollständige Klartextalternative wurde eingefügt. Formatierungen und Anhänge müssen möglicherweise gesondert hinzugefügt werden.",
   "notice.rangeClipboardUnsupported": "Die Zwischenablage enthält keinen kompatiblen Zellbereich von Structural Tables.",
+  "notice.rangePasteDraft": "Beende oder verwirf den Zellentwurf, bevor du kopierte Zellen einfügst.",
   "notice.rangeClipboardWriteFailed": "Die ausgewählten Zellen konnten nicht kopiert werden. Die Tabelle wurde nicht geändert.",
   "notice.rangeClipboardReadFailed": "Aus der Zwischenablage konnte kein kompatibler Bereich ausgewählter Zellen gelesen werden.",
   "notice.basesRequired": "Aktivieren Sie vor dem Umwandeln einer Tabelle Obsidians integriertes Plugin Bases.",

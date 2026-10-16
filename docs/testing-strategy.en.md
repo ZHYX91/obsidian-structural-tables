@@ -142,6 +142,9 @@ Check:
 
 Screenshots and DOM tests are supporting evidence, not substitutes for real-host acceptance.
 
+
+The Chromium gesture checks use actual consecutive mouse clicks and held drags across rendered text and textarea boundaries, plus Scope-before-DOM keyboard dispatch for untouched-cell Undo/Redo. DOM regressions cover active-cell anchored paste, partial-merge refusal, changed/composing drafts, malformed payloads and exact source/history preservation.
+
 <!-- section: mobile -->
 ## Mobile
 

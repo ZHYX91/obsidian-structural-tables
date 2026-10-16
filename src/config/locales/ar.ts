@@ -101,6 +101,7 @@ const catalog = {
   "notice.clipboardUnsupported": "لا يمكن لصق محتوى الحافظة هذا بأمان في خلية. احتُفظ بتعديلك.",
   "notice.clipboardPlainFallback": "لُصق بديل النص العادي بالكامل. قد تحتاج إلى إضافة التنسيق الغني والمرفقات بشكل منفصل.",
   "notice.rangeClipboardUnsupported": "لا تحتوي الحافظة على نطاق خلايا متوافق مع Structural Tables.",
+  "notice.rangePasteDraft": "أكمل مسودة الخلية أو ألغها قبل لصق الخلايا المنسوخة.",
   "notice.rangeClipboardWriteFailed": "تعذر نسخ الخلايا المحددة. لم يتغير الجدول.",
   "notice.rangeClipboardReadFailed": "تعذرت قراءة نطاق متوافق من الخلايا المحددة من الحافظة.",
   "notice.basesRequired": "فعّل إضافة Bases الأساسية في Obsidian قبل ترقية الجدول.",

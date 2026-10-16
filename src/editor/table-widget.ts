@@ -11,7 +11,7 @@ import type { StructuralTable } from "../core/model";
 import { adjacentTableCell, tableCellInDirection, tableCoordinateInDirection, type TableGridDirection } from "../core/table-navigation";
 import { mathPipeSuggestions } from "../core/table-cell-syntax";
 import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
-import { textareaVisualExit, textareaCaretAtVisualEdge, type VisualTextareaExit } from "./textarea-visual-navigation";
+import { textareaVisualExit, textareaCaretAtVisualEdge, hasComplexBidi, type VisualTextareaExit } from "./textarea-visual-navigation";
 import {
   appendTableRow,
   clearTableCells,
@@ -29,6 +29,9 @@ import { parseEditableTables } from "../core/parser";
 import { sourcePrefix } from "../core/source-lines";
 import {
   sameTableRangeTopology,
+  TABLE_RANGE_CLIPBOARD_MIME,
+  TABLE_RANGE_CLIPBOARD_WEB_MIME,
+  TABLE_RANGE_HTML_ATTRIBUTE,
   tableRangePayload,
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
@@ -91,7 +94,7 @@ interface CellCommitViewport {
   doc: EditorView["state"]["doc"];
 }
 
-type CellEditEntryIntent = "select-all" | { caretOffset: number } | { selectionStart: number; selectionEnd: number } | { visual: VisualTextareaExit };
+type CellEditEntryIntent = "select-all" | { caretOffset: number; pointer?: { x: number; y: number; at: number } } | { selectionStart: number; selectionEnd: number; selectionDirection?: "forward" | "backward" } | { visual: VisualTextareaExit };
 
 interface FrozenGridSelection {
   sourcePath: string;
@@ -284,7 +287,7 @@ class StructuralTableInteraction {
   private cellScope: Scope | null = null;
   private navigationScope: Scope | null = null;
   private component: Component | null = null;
-  private clickEditCandidate: { coordinate: TableCellCoordinate; caretOffset: number | null } | null = null;
+  private clickEditCandidate: { coordinate: TableCellCoordinate; caretOffset: number | null; endOffset?: number; x: number; y: number } | null = null;
   private dragging = false;
   private renderedTable: HTMLTableElement | null = null;
   private selection: StructuralTableSelection | null = null;
@@ -503,7 +506,10 @@ class StructuralTableInteraction {
     rendered.addEventListener("focusout", () => this.releaseNavigationScope());
     rendered.addEventListener("pointerdown", (event) => this.startPointerSelection(event, view));
     rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event));
-    rendered.addEventListener("pointermove", (event) => this.revealHandlesForPointer(event));
+    rendered.addEventListener("pointermove", (event) => {
+      this.revealHandlesForPointer(event);
+      this.extendTextSelection(event);
+    });
     rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
     rendered.addEventListener("copy", (event) => { this.handleRangeCopyCut(event, view, false); });
     rendered.addEventListener("cut", (event) => { this.handleRangeCopyCut(event, view, true); });
@@ -547,11 +553,13 @@ class StructuralTableInteraction {
 
   private readonly cancelPointerSelection = (event: PointerEvent): void => {
     this.dragging = false;
+    this.clickEditCandidate = null;
     if (this.touchPointerId !== undefined && event.pointerId === this.touchPointerId) this.abortPointerSelection();
   };
 
   private readonly abortPointerSelection = (): void => {
     this.dragging = false;
+    this.clickEditCandidate = null;
     this.touchPointerId = undefined;
     this.lastTouchTap = null;
     // Keep the completed visual range available to its long-press menu, but a
@@ -860,6 +868,7 @@ class StructuralTableInteraction {
       this.clickEditCandidate = {
         coordinate,
         caretOffset: this.renderedCaretOffset(event, coordinate),
+        x: event.clientX, y: event.clientY,
       };
     }
     event.preventDefault();
@@ -908,6 +917,16 @@ class StructuralTableInteraction {
     this.updateSelection();
   }
 
+  private extendTextSelection(event: PointerEvent): void {
+    const candidate = this.clickEditCandidate;
+    if (!this.dragging || candidate?.caretOffset == null || event.buttons !== 1) return;
+    const coordinate = this.coordinateFor(event.target);
+    if (coordinate?.row !== candidate.coordinate.row || coordinate.column !== candidate.coordinate.column) return;
+    if (Math.hypot(event.clientX - candidate.x, event.clientY - candidate.y) < 3) return;
+    const offset = this.renderedCaretOffset(event, coordinate);
+    if (offset !== null) candidate.endOffset = offset;
+  }
+
   private openCellOnDesktopClick(event: MouseEvent, view: EditorView): void {
     const candidate = this.clickEditCandidate;
     this.clickEditCandidate = null;
@@ -920,7 +939,11 @@ class StructuralTableInteraction {
     event.preventDefault();
     event.stopPropagation();
     const raw = this.table.rows[coordinate.row]?.cells[coordinate.column]?.raw.trim() ?? "";
-    this.openPointerCell(view, coordinate, { caretOffset: candidate.caretOffset ?? raw.length });
+    const start = candidate.caretOffset ?? raw.length;
+    this.openPointerCell(view, coordinate, candidate.endOffset !== undefined && candidate.endOffset !== start
+      ? { selectionStart: Math.min(start, candidate.endOffset), selectionEnd: Math.max(start, candidate.endOffset),
+        selectionDirection: candidate.endOffset < start ? "backward" : "forward" }
+      : { caretOffset: start, pointer: { x: event.clientX, y: event.clientY, at: event.timeStamp } });
   }
 
   /**
@@ -1802,7 +1825,7 @@ class StructuralTableInteraction {
     };
 
     const stableSingleVisualLine = (): boolean => {
-      if (editor.value.includes("\n")) return false;
+      if (editor.value.includes("\n") || hasComplexBidi(editor.value)) return false;
       const style = editor.ownerDocument.defaultView?.getComputedStyle(editor);
       const lineHeight = Number.parseFloat(style?.lineHeight ?? "");
       const clientHeight = editor.clientHeight;
@@ -1907,6 +1930,16 @@ class StructuralTableInteraction {
       scope.register(modifiers, key, (event) => {
         if (settled || composing || event.isComposing || contextMenuOpen
           || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return true;
+        // A fresh unchanged draft has no local history to protect. Release it
+        // before the host transaction so history restores its annotated cell.
+        if (draftUndo.length === 0 && draftRedo.length === 0 && pendingNativeInput === null
+          && editor.value === anchor.raw.trim()
+          && reparseUnchangedTable(view.state.doc.toString(), this.table) !== null
+          && view.state.field(editorInfoField, false)?.editor !== undefined) {
+          finish(false, null, false);
+          this.handleHistory(event, view, anchor);
+          return false;
+        }
         event.preventDefault();
         event.stopPropagation();
         const from = redo ? draftRedo : draftUndo;
@@ -1934,6 +1967,19 @@ class StructuralTableInteraction {
     };
     editor.addEventListener("focus", activateCellScope);
     editor.addEventListener("keydown", handleKey);
+    editor.addEventListener("dblclick", (event) => {
+      if (entryIntent === "select-all" || !("caretOffset" in entryIntent)
+        || entryIntent.pointer === undefined || editor.value !== anchor.raw.trim()
+        || composing || event.timeStamp - entryIntent.pointer.at > TOUCH_DOUBLE_TAP_MAX_MS
+        || Math.hypot(event.clientX - entryIntent.pointer.x, event.clientY - entryIntent.pointer.y) > 5) return;
+      // The first click replaced rendered text with Markdown. Use its proven
+      // source position for this double click, not the shifted textarea glyphs.
+      const word = this.wordSelection(editor.value, entryIntent.caretOffset);
+      if (word !== "select-all" && "selectionStart" in word) {
+        event.preventDefault(); event.stopPropagation();
+        editor.setSelectionRange(word.selectionStart, word.selectionEnd);
+      }
+    });
     editor.addEventListener("input", (event) => {
       const inputEvent = event;
       const after = draftSnapshot();
@@ -1974,6 +2020,38 @@ class StructuralTableInteraction {
     editor.addEventListener("paste", (event) => {
       if (event.clipboardData === null) return;
       const html = event.clipboardData?.getData("text/html") ?? "";
+      const payload = readTableRangeFromDataTransfer(event.clipboardData, editor.ownerDocument);
+      const owned = (event.clipboardData.types ?? []).some((type) => type === TABLE_RANGE_CLIPBOARD_MIME
+        || type === TABLE_RANGE_CLIPBOARD_WEB_MIME) || html.includes(TABLE_RANGE_HTML_ATTRIBUTE);
+      if (owned && payload === null) {
+        event.preventDefault(); event.stopPropagation();
+        new Notice(t("notice.rangeClipboardUnsupported"));
+        return;
+      }
+      if (payload !== null && (payload.rows > 1 || payload.columns > 1)) {
+        event.preventDefault(); event.stopPropagation();
+        if (composing || editor.value !== anchor.raw.trim() || pendingNativeInput !== null) {
+          new Notice(t("notice.rangePasteDraft"));
+          return;
+        }
+        const frozen = this.freezeGridSelection(view);
+        if (frozen === null || this.currentTableForFrozenSelection(view, frozen) === null) {
+          new Notice(t("notice.staleTable"));
+          return;
+        }
+        const bounds = this.frozenBounds(frozen);
+        // Validate and replace while the draft still owns focus. Closing it
+        // first can remount the widget and invalidate the destination.
+        finish(true, null, true, (table) => pasteTableRangeRaw(table, bounds, payload));
+        const pending = pendingCellFocus.get(view);
+        if (!editor.isConnected && pending !== undefined) {
+          pending.selectionBounds = {
+            first: { row: bounds.minRow, column: bounds.minColumn },
+            last: { row: bounds.minRow + payload.rows - 1, column: bounds.minColumn + payload.columns - 1 },
+          };
+        }
+        return;
+      }
       const result = cellClipboardText(html, event.clipboardData.getData("text/plain"));
       event.preventDefault();
       if (result.kind === "unsupported") {
@@ -2035,10 +2113,13 @@ class StructuralTableInteraction {
       composingCellEditors.delete(editor);
       event.stopPropagation();
       resizeEditor();
-      if (editor.ownerDocument.activeElement !== editor && !contextMenuOpen) finish(true, null, false);
+      if (editor.ownerDocument.activeElement !== editor && !contextMenuOpen) {
+        releaseCellEditorFocus(editor);
+        finish(true, null, false);
+      }
     });
     editor.addEventListener("blur", () => {
-      if (!contextMenuOpen) releaseCellEditorFocus(editor);
+      if (!contextMenuOpen && !composing) releaseCellEditorFocus(editor);
       if (!composing && !contextMenuOpen && lastRejectedDraft !== editor.value) {
         // Let the native pointer handler finish choosing its source destination
         // before a whole-table replacement maps the old logical cell cursor.
@@ -2066,7 +2147,7 @@ class StructuralTableInteraction {
     });
     editor.focus({ preventScroll: true });
     if (entryIntent === "select-all") editor.select();
-    else if ("selectionStart" in entryIntent) editor.setSelectionRange(entryIntent.selectionStart, entryIntent.selectionEnd);
+    else if ("selectionStart" in entryIntent) editor.setSelectionRange(entryIntent.selectionStart, entryIntent.selectionEnd, entryIntent.selectionDirection);
     else if ("caretOffset" in entryIntent) editor.setSelectionRange(entryIntent.caretOffset, entryIntent.caretOffset);
     else {
       const offset = textareaCaretAtVisualEdge(editor, entryIntent.visual)

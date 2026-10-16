@@ -60,7 +60,11 @@ function visualProbe(editor: HTMLTextAreaElement): Probe | null {
       ? { top: markRect.top - box.top, x: markRect.left - box.left } : null;
   };
   mirror.textContent = editor.value + "\u200b";
-  if (Math.abs(mirror.scrollHeight - editor.scrollHeight) > Math.max(3, lineHeight * 0.35)) {
+  // A textarea's scrollHeight is never smaller than its client viewport.
+  // A mirror of shorter content may legitimately have less content height;
+  // compare the native scroll extent with the greater of both extents.
+  const expectedScroll = Math.max(editor.clientHeight, mirror.scrollHeight);
+  if (Math.abs(expectedScroll - editor.scrollHeight) > Math.max(3, lineHeight * 0.35)) {
     mirror.remove();
     return null;
   }

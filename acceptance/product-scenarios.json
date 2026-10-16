@@ -236,15 +236,15 @@
         "Open Table controls in Live Preview. Use bottom/right add buttons, including with an active cell draft; commit, undo and redo",
         "On desktop, Tab from the final visible cell adds one data row and opens its first cell; Shift+Tab at the first cell creates nothing",
         "Use the bottom button on the header-only table; inspect header roles and the new data row",
-        "Select a row handle, then drag it to a new data-row position; repeat for a column and verify content and alignment after undo/redo",
+        "Press and drag an unselected row handle immediately to a new data-row position; repeat for a column and verify content and alignment after undo/redo",
         "Select a range with Shift-click on desktop or two handle taps on Android, then drag a selected handle to move the range",
-        "Try a first-gesture drag, partial merged rows/columns, a destination inside a merged group and crossing header boundaries; cancel a valid drag with Escape on desktop or by releasing outside",
+        "Verify one-gesture drag, partial merged rows/columns, a destination inside a merged group and crossing header boundaries; cancel a valid drag with Escape on desktop or by releasing outside",
         "Repeat insertion and row reorder inside the Callout and deep list; inspect saved prefixes and Reading View",
         "Inspect controls and drop markers in left, centered and full-width layouts, narrow/wide tables, and light/dark theme; verify no page overflow or clipped touch targets"
       ],
       "expected": [
         "Insertion and any active draft write atomically, retain content and prefixes, and focus the new cell; header-only tables gain data rows",
-        "A first gesture only selects; a subsequent selected-handle drag performs one validated reorder on drop and retains the moved axis selection",
+        "A first held drag moves the newly selected axis; a click selects and a selected-handle drag performs one validated reorder on drop and retains the moved axis selection",
         "Content, complete merged rectangles and column alignment move together; invalid and cancelled drops leave source unchanged",
         "Controls remain reachable and align with the table, local horizontal scrolling stays usable, and Reading View has no editing controls",
         "Hardware Tab and Escape claims apply to desktop; Android uses the declared touch driver"
@@ -586,6 +586,39 @@
         "Preview, copy and saving share the same completed PNG bytes; saving follows public attachment APIs, avoids overwrites and does not insert a Markdown link.",
         "Complete content and supported local resources become actual pixels, without controls, drafts, viewport cropping or silent missing content. Unsupported resources and resource limits fail clearly.",
         "Cancellation and unload release offscreen DOM, subscriptions and object URLs; source Markdown remains unchanged. Native PNG and third-party export observations stay separate, and uncovered host/platform combinations are reported accurately."
+      ]
+    },
+    {
+      "id": "interaction-batches",
+      "title": "First-click editing, visual arrows, axis gestures and anchored paste",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.drag"
+        ]
+      },
+      "steps": [
+        "Open Interaction batches in a disposable Vault, record the complete Markdown, and keep at least two tables plus the Callout visible",
+        "Edit Alpha and click Beta once with a real full pointer gesture, then immediately type; repeat with unchanged text, cross-table destination and the Callout",
+        "With rejected markup or IME composition in Alpha, click another cell; check that the old draft remains recoverable without navigation",
+        "Click the rich text samples, double-click to select a word, Alt-click a link label to edit and click normally to activate its link; drag text and Shift-select a grid range separately",
+        "Wrap long text in a narrow pane, including a draft tall enough to show its vertical scrollbar; compare Up/Down on outer visual lines versus internal hard/soft lines, RTL and mixed direction",
+        "Hold and drag an unselected row/column handle once; repeat with Shift extended and touch-extended ranges and block a partial merge/header crossing",
+        "Copy an owned 2x2 range, click one unmerged target cell and paste while its unchanged textarea is open; expand right/down, overwrite in-bound old values, refuse partial merge or changed/composing drafts and validate exact source plus Undo/Redo",
+        "Modify A and click B; before changing B, use Ctrl/Cmd+Z and Ctrl+Shift+Z/Ctrl+Y to undo/redo A, preserving focus and unrelated tables",
+        "Repeat while switching file or source during a clipboard await; a stale paste or Cut must write nothing"
+      ],
+      "expected": [
+        "One click commits the old valid draft and enters B before the next keystroke, with one exact write and no unrelated source changes; IME/rejected edits keep the old draft",
+        "Markup carets map only when unique, ambiguities use a collapsed end caret, ordinary links still activate, and visual/text/grid selections stay separate",
+        "Up/Down only exits at proven visual boundaries while retaining horizontal caret position; IME/selection/mixed bidi keep native editing",
+        "One gesture reorders the complete selected axis; header, merge, pointercancel and Escape blockers preserve source",
+        "Anchored paste expands only as necessary, preserves source syntax and unrelated values, refuses partial merges and unsafe owner topology, and commits once with undo/redo focus"
       ]
     }
   ]

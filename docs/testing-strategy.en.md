@@ -29,7 +29,7 @@ Separate-window DOM regressions use independent jsdom realms and host helpers th
 
 Locale checks compare every catalog's complete key set and interpolation placeholders with English. Cover all seven saved language IDs, Obsidian regional/script aliases, unsupported-language fallback, native dropdown names, and RTL interface attributes without changing note direction. Chromium regressions verify RTL row headers on the right, LTR Arabic content retaining column order, physical menu and arrow mapping, native mixed-bidi draft carets, and transpose undo/redo. HTML copies preserve table direction while TSV stays in source order; pending PNG export refuses a direction change.
 
-DOM emulation is useful for structure and most CSS contracts, but it does not replace real Obsidian geometry, scrolling, theme variables, or touch behavior. Critical writes cover pointerdown → focus changes → confirmation → revalidation of the original file and table → one write → undo/redo. Transient visual selection clearing when a menu or modal takes focus must preserve an unchanged whole-table target; actual target-source, file, editor/view or draft changes must cause zero writes. Real CodeMirror history tests cover the registered command, source menu and native menu, with typing immediately before and after transpose. PR CI also runs a real Chromium owned-menu → pointer modal → CodeMirror write/undo/redo smoke test, plus source/native entry and tall merged-table pointer-focus geometry/scroll checks; these do not replace actual Obsidian or Android acceptance. Multi-window fixtures use independent DOM realms, including existing non-Markdown windows that later open Markdown.
+Critical pointer tests must drive real pointerdown → blur → pointerup → click and inspect the source before release, followed by the remounted target and an immediate keystroke. Include same-table/cross-table/Callout targets, changed and unchanged drafts, rejected/IME sessions, outside-body clicks, double-click/drag/Shift boundaries and stale source identities. DOM emulation is useful for structure and most CSS contracts, but it does not replace real Obsidian geometry, scrolling, theme variables, or touch behavior. Critical writes cover pointerdown → focus changes → confirmation → revalidation of the original file and table → one write → undo/redo. Transient visual selection clearing when a menu or modal takes focus must preserve an unchanged whole-table target; actual target-source, file, editor/view or draft changes must cause zero writes. Real CodeMirror history tests cover the registered command, source menu and native menu, with typing immediately before and after transpose. PR CI also runs a real Chromium owned-menu → pointer modal → CodeMirror write/undo/redo smoke test, plus source/native entry and tall merged-table pointer-focus geometry/scroll checks; these do not replace actual Obsidian or Android acceptance. Multi-window fixtures use independent DOM realms, including existing non-Markdown windows that later open Markdown.
 
 Transpose regressions reparse the complete note and verify exact table boundaries, dimensions, header roles and merge owners, including adjacent pipe text in plain notes, quotes, Callouts and lists. Native menu fixtures use mapped CodeMirror widgets with inherited cell editors and nested panes. Stale callbacks must preserve the exact full source, real document-change transaction count and undo/redo depths, including when a connected editor is adopted into another document.
 
@@ -81,7 +81,7 @@ Core operation tests cover:
 - Shift+Enter, menu actions, and multiline paste producing representable `<br>` output;
 - format round-trips that preserve semantics and LF/CRLF/CR.
 
-Serialization tests also cover display width for ASCII, CJK, combining characters, and emoji. Live Preview DOM tests cover focus, Tab/Shift+Tab, IME composition, handles, selection clearing, and undo/redo.
+Visual arrow geometry tests use real Chromium textarea wrapping/explicit line breaks and caret coordinates to distinguish first/last visual lines from internal lines. Unknown geometry and RTL/mixed bidi keep native behavior. Test key modifier, composition and noncollapsed-selection exclusion, then undo/redo and focus. Serialization tests also cover display width for ASCII, CJK, combining characters, and emoji. Live Preview DOM tests cover focus, Tab/Shift+Tab, IME composition, handles, selection clearing, and undo/redo.
 
 <!-- section: interchange -->
 ## Interchange
@@ -97,6 +97,7 @@ Cover:
 - Wiki links, literal pipes, and cell line breaks;
 - bounded owned-range copy/cut/paste for 1x1, single-column, all-empty and complete merged-owner selections, including exact-topology raw round trips, clipboard failure/stale-session refusal, independently unavailable menu read/write support, and rejection of ordinary text or ordinary HTML without fallback to hidden source;
 - portable range HTML carrying spans and escaped raw Markdown text, and plain Markdown using the first copied row as a header without promising equivalent merged layout in external GFM;
+- single-anchor range paste expanding columns/rows, complete merged payload owners, matching multi-cell selection, non-empty overwrite, partial destination merge refusal, cross-role rejection, unchanged owner/raw content outside the rectangle, single-transaction undo/redo, async clipboard identity and Cut-before-success refusal;
 - the whole-note HTML-import route leaving mixed prose, multiple tables, images, attachments, links, MathML/SVG, and other unsafe payloads to Obsidian's native paste;
 - reparsing at GFM replacement confirmation so stale previews are refused.
 - the whole-note HTML-import route using complete plain-text fallback for headings, inherited preserved whitespace and preserved newlines, including zero replacement when safe fallback is absent.
@@ -140,6 +141,9 @@ Check:
 - cold-start Reading view in a separate desktop window, including combinations with FakeLink. Record the initial result before switching focus, then check whether activating the main window and returning restores content; recovery does not turn an initial blank page into an unqualified pass.
 
 Screenshots and DOM tests are supporting evidence, not substitutes for real-host acceptance.
+
+
+The Chromium gesture checks use actual consecutive mouse clicks and held drags across rendered text and textarea boundaries, plus Scope-before-DOM keyboard dispatch for untouched-cell Undo/Redo. DOM regressions cover active-cell anchored paste, partial-merge refusal, changed/composing drafts, malformed payloads and exact source/history preservation.
 
 <!-- section: mobile -->
 ## Mobile

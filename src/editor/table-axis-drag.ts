@@ -37,7 +37,7 @@ interface DragSession {
   preview?: { source: string; destination: number; result: OperationResult };
 }
 
-/** Only a second gesture on an explicitly selected axis can reorder it. */
+/** A held first pointer may select and drag one axis; selected ranges move as a unit. */
 export class TableAxisDrag {
   private session: DragSession | null = null;
   private scrollFrame: number | null = null;

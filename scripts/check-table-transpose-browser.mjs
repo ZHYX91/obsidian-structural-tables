@@ -19,6 +19,7 @@ const styles = await readFile("styles.css", "utf8");
 const page = '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/styles.css">'
   + '<style>body{margin:24px;font:16px sans-serif}.host-box-sizing *{box-sizing:border-box}.host-box-sizing .markdown-rendered{white-space:normal}.host-box-sizing .structural-tables-table{table-layout:fixed}.cm-editor{height:520px;border:1px solid #bbb}.cm-scroller{overflow:auto}.cm-content{padding-bottom:80px}td,th{padding:10px;border:1px solid #999}#host-menu{position:fixed;top:12px;right:12px;background:white;z-index:20}button{padding:12px}</style>'
   + '<style>.alignment-surface{--text-normal:#000;--table-selection:transparent}.alignment-surface .markdown-rendered{font:24px/32px Arial;white-space:normal}.alignment-surface .structural-tables-table{table-layout:fixed}.alignment-surface textarea{caret-color:transparent;background:#fff!important;color:#000!important}</style>'
+  + '<style>#target-note.switch-surface .cm-content{padding-inline-start:34px!important;}</style>'
   + '</head><body><script src="/bundle.js"></script></body></html>';
 const server = createServer((request, response) => {
   if (request.url === "/bundle.js") {
@@ -341,6 +342,141 @@ try {
       ...(mode.includes("detach") ? { naturalHeightOnReconnect: true } : {}),
       ...(mode.startsWith("focus-wide") ? { ...(asyncMouse ? { realMouse: true, asynchronousRendering: true } : { realTouch: true }), localHorizontalScroll: !mode.includes("detach") } : {}) });
   }
+  // Real Chromium dispatches pointerdown, native focus ownership, pointerup
+  // and click; invoking dblclick directly would miss the old-widget loss.
+  for (const mode of ["switch", "switch-rtl"]) {
+    await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
+    const initial = await evaluate("window.transposeBrowser.switchState()");
+    const table0 = "[data-structural-source-table-index='0']";
+    await click(select(table0 + " [data-structural-row='1'][data-structural-column='0']"));
+    let editing = await evaluate("window.transposeBrowser.switchState()");
+    assert.equal(editing.draft, "Alpha", JSON.stringify({mode,editing}));
+    await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select()");
+    await command("Input.insertText", { text: "Changed Alpha" }); await settle();
+    editing = await evaluate("window.transposeBrowser.switchState()");
+    assert.equal(editing.draft, "Changed Alpha");
+    const destination = table0 + " [data-structural-row='1'][data-structural-column='1']";
+    const point = await evaluate("(function(){const e=document.querySelector(" + JSON.stringify(destination) + ");const r=e.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()");
+    await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:point.x, y:point.y });
+    await command("Input.dispatchMouseEvent", { type:"mousePressed", x:point.x, y:point.y, button:"left", clickCount:1 });
+    const duringPress = await evaluate("window.transposeBrowser.switchState()");
+    assert.equal(duringPress.source, initial.source, JSON.stringify({mode,duringPress}));
+    await command("Input.dispatchMouseEvent", { type:"mouseReleased", x:point.x, y:point.y, button:"left", clickCount:1 });
+    await settle(); await settle();
+    editing = await evaluate("window.transposeBrowser.switchState()");
+    assert.equal(editing.draft, "Beta", JSON.stringify({mode,editing}));
+    assert.equal(editing.activeTable, "0", JSON.stringify({mode,editing}));
+    assert.ok(editing.source.includes("Changed Alpha"), JSON.stringify({mode,editing}));
+    await command("Input.insertText", { text: "!" }); await settle();
+    editing = await evaluate("window.transposeBrowser.switchState()");
+    assert.equal(editing.draft, "Beta!", JSON.stringify({mode,editing}));
+    // Cross-table target shares the editor but not the original widget.
+    await click(select("[data-structural-source-table-index='2'] [data-structural-row='1'][data-structural-column='1']"));
+    editing = await evaluate("window.transposeBrowser.switchState()");
+    assert.equal(editing.draft, "Delta", JSON.stringify({mode,editing}));
+    assert.equal(editing.activeTable, "2", JSON.stringify({mode,editing}));
+    assert.ok(editing.source.includes("Beta!"), JSON.stringify({mode,editing}));
+    results.push({ mode:mode+"-first-pointer-switch", changes:editing.changes, firstClickEditsB:true, crossTable:true });
+  }
+  // Direct, unselected handle press and movement must reorder on its own.
+  await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+  const beforeDrag = await evaluate("window.transposeBrowser.switchState()");
+  const dragPoint = await evaluate("(function(){const root=document.querySelector('[data-structural-source-table-index=\\\"0\\\"]');const start=root.querySelector('[data-structural-row-handle=\\\"1\\\"]');const target=root.querySelector('[data-structural-row-handle=\\\"3\\\"]');const cell=root.querySelector('[data-structural-row=\\\"1\\\"][data-structural-column=\\\"0\\\"]');const a=start.getBoundingClientRect(),b=target.getBoundingClientRect(),c=cell.getBoundingClientRect();return {x:a.left+a.width/2,y:a.top+a.height/2,endY:b.bottom+8,cellX:c.left+c.width/3,cellY:c.top+c.height/2,startRect:{x:a.x,y:a.y,w:a.width,h:a.height},targetRect:{x:b.x,y:b.y,w:b.width,h:b.height}};})()");
+  await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:dragPoint.cellX, y:dragPoint.cellY });
+  await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:dragPoint.x, y:dragPoint.y });
+  const beforeHandlePress = await evaluate("(function(){return {hit:document.elementFromPoint(" + dragPoint.x + "," + dragPoint.y + ")?.outerHTML?.slice(0,220),selected:[...document.querySelectorAll('.structural-tables-row-handle.is-selected')].map(e=>e.dataset.structuralRowHandle)};})()");
+  assert.match(beforeHandlePress.hit ?? "", /structural-tables-row-handle/, JSON.stringify({dragPoint,beforeHandlePress}));
+  await command("Input.dispatchMouseEvent", { type:"mousePressed", x:dragPoint.x, y:dragPoint.y, button:"left", clickCount:1 });
+  await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:dragPoint.x, y:dragPoint.endY, button:"left", buttons:1 });
+  await command("Input.dispatchMouseEvent", { type:"mouseReleased", x:dragPoint.x, y:dragPoint.endY, button:"left", clickCount:1 });
+  await settle();
+  const moved = await evaluate("window.transposeBrowser.switchState()");
+  assert.equal(moved.tables[0][1][0], "Next", JSON.stringify({beforeDrag,moved}));
+  assert.equal(moved.tables[0][3][0], "Alpha", JSON.stringify({beforeDrag,moved}));
+  results.push({ mode:"axis-first-gesture", sourceChanged:moved.source!==beforeDrag.source, rowsMoved:true });
+  // Real browser geometry for soft-wrapped textarea offsets; no synthetic
+  // keydown can prove where Chromium actually drew those visual rows.
+  const visual = await evaluate("window.transposeBrowser.visualCaretProbe()");
+  assert.equal(visual.midExit, null, JSON.stringify(visual));
+  assert.ok(visual.firstUp && visual.lastDown, JSON.stringify(visual));
+  assert.ok(Number.isInteger(visual.preserved), JSON.stringify(visual));
+  results.push({ mode:"visual-textarea-arrows", internalLineNative:true, firstLastExit:true });
+  // Real consecutive clicks cross the rendered-text/textarea DOM boundary.
+  for (const [raw, visible, tag] of [["Bright", "Bright", "span"], ["**Bright**", "Bright", "strong"],
+    ["*Bright*", "Bright", "em"], ["`symbol`", "symbol", "code"], ["[Display](target)", "Display", "a"]]) {
+    const setup = "window.transposeBrowser.setupPointerText(" + [raw, visible, tag].map(JSON.stringify).join(",") + ")";
+    await evaluate(setup); await settle();
+    const points = await evaluate("(()=>{const n=document.querySelector('[data-structural-row=\"1\"][data-structural-column=\"1\"] .structural-tables-cell-content').firstChild.firstChild;const p=o=>{const r=document.createRange();r.setStart(n,o);r.collapse(true);const b=r.getBoundingClientRect();return{x:b.left,y:b.top+b.height/2}};return{start:p(2),end:p(5)}})()");
+    const modifiers = tag === "a" ? 1 : 0;
+    await command("Input.dispatchMouseEvent", { type: "mouseMoved", ...points.start });
+    for (const clickCount of [1, 2]) {
+      await command("Input.dispatchMouseEvent", { type: "mousePressed", ...points.start, button: "left", clickCount, modifiers });
+      await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...points.start, button: "left", clickCount, modifiers });
+    }
+    await settle();
+    let state = await evaluate("window.transposeBrowser.result()");
+    assert.equal(state.draftValue?.slice(state.draftStart, state.draftEnd), visible, JSON.stringify({raw,state}));
+    assert.equal(state.changes, 0);
+    await evaluate(setup); await settle();
+    await command("Input.dispatchMouseEvent", { type: "mousePressed", ...points.start, button: "left", clickCount: 1, modifiers });
+    for (let step = 1; step <= 5; step++) await command("Input.dispatchMouseEvent", {
+      type: "mouseMoved", x: points.start.x + (points.end.x - points.start.x) * step / 5,
+      y: points.start.y, buttons: 1, modifiers,
+    });
+    await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...points.end, button: "left", clickCount: 1, modifiers });
+    await settle(); state = await evaluate("window.transposeBrowser.result()");
+    assert.equal(state.draftValue?.slice(state.draftStart, state.draftEnd), visible.slice(2,5), JSON.stringify({raw,state}));
+    assert.equal(state.changes, 0);
+  }
+  results.push({ mode: "rendered-text-gestures", actualDoubleClicks: 5, actualTextDrags: 5 });
+  await evaluate("window.transposeBrowser.setupPointerText('[Display](target)','Display','a')"); await settle();
+  await click(select("[data-structural-row='1'][data-structural-column='1'] a"));
+  assert.equal(await evaluate("location.hash"), "#gesture-link");
+  assert.equal((await evaluate("window.transposeBrowser.result()")).draft, false);
+  results.push({ mode: "normal-link-activation", nativeAnchor: true });
+
+  await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+  await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='1']"));
+  await command("Input.insertText", { text: "First visual line with enough words to wrap across this cell\nLast visual line" });
+  await evaluate("(()=>{const e=document.querySelector('textarea');e.setSelectionRange(0,0)})()");
+  await key("ArrowDown", "ArrowDown", 40);
+  assert.equal((await evaluate("window.transposeBrowser.result()")).changes, 0, "An internal visual line must remain text-local");
+  await evaluate("(()=>{const e=document.querySelector('textarea');e.setSelectionRange(e.value.length,e.value.length)})()");
+  assert.ok(await evaluate("window.transposeBrowser.currentVisualExit()"), "The scrollable draft must expose measurable outer-line geometry");
+  await key("ArrowDown", "ArrowDown", 40);
+  const visualNavigation = await evaluate("window.transposeBrowser.switchState()");
+  assert.equal(visualNavigation.changes, 1, JSON.stringify(visualNavigation));
+  assert.equal(visualNavigation.activeRow, "2"); assert.equal(visualNavigation.activeColumn, "1");
+  assert.equal(visualNavigation.draft, "Neighbor");
+  results.push({ mode: "multiline-actual-arrows", internalLineNative: true, lastLineCommitsToNext: true });
+
+  for (const alignment of ["left", "center", "right"]) {
+    await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+    await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='1']"));
+    await command("Input.insertText", { text: "First line with enough words to wrap in a narrow pane" });
+    await evaluate(`(()=>{const e=document.querySelector('textarea'); Object.assign(e.style,{width:'290px',height:'60px',fontSize:'16px',fontFamily:'Arial',textAlign:${JSON.stringify(alignment)}});e.setSelectionRange(0,0)})()`);
+    await key("ArrowDown", "ArrowDown", 40);
+    const wrapped = await evaluate("window.transposeBrowser.result()");
+    assert.equal(wrapped.changes, 0);
+    assert.ok(wrapped.draftStart > 0 && wrapped.draftStart < wrapped.draftValue.length, JSON.stringify(wrapped));
+    assert.ok(await evaluate("window.transposeBrowser.currentVisualExit()"), "The beginning of the final soft-wrapped line must be an outer visual line: " + alignment);
+    await key("ArrowDown", "ArrowDown", 40);
+    assert.equal((await evaluate("window.transposeBrowser.switchState()")).activeRow, "2");
+  }
+  results.push({ mode: "soft-wrapped-line-start-exit", alignments: ["left", "center", "right"] });
+
+  await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+  await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='0']"));
+  await command("Input.insertText", { text: "Changed" });
+  await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='1']"));
+  const historyBefore = await evaluate("window.transposeBrowser.result()");
+  assert.equal(historyBefore.draft, true); assert.equal(historyBefore.changes, 1);
+  await historyKey();
+  const historyUndo = await evaluate("window.transposeBrowser.result()");
+  assert.equal(historyUndo.source, historyBefore.initialSource);
+  await historyKey(true);
+  assert.equal((await evaluate("window.transposeBrowser.result()")).source, historyBefore.source);
+  results.push({ mode: "untouched-cell-history", actualUndoRedoKeys: true });
   const bidi = await evaluate("window.transposeBrowser.interfaceBidi()");
   assert.ok(bidi.technicalLefts[0] < bidi.technicalLefts[1], JSON.stringify(bidi));
   assert.ok(bidi.pathLefts.every((left, index) => index === 0 || left > bidi.pathLefts[index - 1]), JSON.stringify(bidi));

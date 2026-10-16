@@ -26,6 +26,11 @@ describe("table menus", () => {
     expect(menu.items.map((item) => item.title)).toContain("menu.insertRowAbove");
     expect(menu.items.map((item) => item.title)).toContain("menu.deleteColumns");
     expect(menu.items.map((item) => item.title)).toContain("menu.alignCenter");
+    expect(menu.items.every(item => item.icon !== null)).toBe(true);
+    const columnActions = menu.items.filter(item => [
+      "menu.insertColumnLeft", "menu.insertColumnRight", "menu.moveColumnsLeft", "menu.moveColumnsRight",
+    ].includes(item.title));
+    expect(new Set(columnActions.map(item => item.icon)).size).toBe(4);
   });
 
   it("offers explicit column-header removal when the complete header region is selected", () => {

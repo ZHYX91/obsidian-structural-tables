@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 - 2026-10-16
+
+- Continue editing with a single click after saving another cell, including across tables and Callouts, while preserving rejected drafts and active composition.
+- Place carets in rendered Markdown, select words by double-clicking and select text by dragging without replacing the selection with a grid gesture.
+- Reorder rows and columns with the first handle drag while preserving selected groups, merged cells and header boundaries.
+- Navigate multiline cell drafts by visual line, including soft-wrapped line starts, and let undo/redo in an untouched next cell reach the previous committed edit.
+- Paste a copied table range from one cell and expand right or down when needed. Restore the full pasted selection after Callout remounts and keep navigation available after a refused paste without losing edited drafts or surrounding text.
+- Distinguish column insertion and movement icons, restore both alignment icons and use a reset icon for default alignment. Keep physical left/right icons consistent in RTL interfaces without changing other Obsidian menus.
+
 ## 0.7.0 - 2026-10-15
 
 - Add Traditional Chinese, Japanese, German, Spanish and Arabic alongside English and Simplified Chinese, with automatic Obsidian language detection and native language names.

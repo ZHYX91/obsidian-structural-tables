@@ -1,6 +1,9 @@
 import { StateField } from "@codemirror/state";
 
 export const Platform = { isMobileApp: false };
+export function getIcon(_id: string): SVGSVGElement | null { return null; }
+export function addIcon(_id: string, _svg: string): void {}
+export function removeIcon(_id: string): void {}
 export async function finishRenderMath(): Promise<void> {}
 
 let mockUuid = 0;
@@ -85,13 +88,14 @@ export class Menu {
 
 export class MenuItem {
   title = "";
+  icon: string | null = null;
   section = "";
   checked: boolean | null = null;
   warning = false;
   callback: (() => void) | null = null;
 
   setTitle(title: string): this { this.title = title; return this; }
-  setIcon(_icon: string | null): this { return this; }
+  setIcon(icon: string | null): this { this.icon = icon; return this; }
   setSection(section: string): this { this.section = section; return this; }
   setChecked(checked: boolean | null): this { this.checked = checked; return this; }
   setWarning(warning: boolean): this { this.warning = warning; return this; }

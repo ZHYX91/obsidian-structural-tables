@@ -768,3 +768,42 @@
 .structural-tables-recovered-draft { display: block; width: 100%; margin-block: 0.5rem; }
 
 .structural-tables-cell-editor.is-measuring { height: 0; }
+
+/* These menu actions mean physical left/right even in an RTL interface. */
+.mod-rtl .menu svg.svg-icon:is(
+  .structural-tables-physical-arrow-left-to-line,
+  .structural-tables-physical-arrow-right-to-line,
+  .structural-tables-physical-arrow-left,
+  .structural-tables-physical-arrow-right,
+  .structural-tables-physical-align-left,
+  .structural-tables-physical-align-right
+) {
+  transform: none;
+}
+
+/* Offscreen, non-interactive typography mirror for verified textarea arrow exits. */
+.structural-tables-visual-text-measure {
+  position: fixed;
+  inset-block-start: 0;
+  left: -10000px;
+  visibility: hidden;
+  pointer-events: none;
+  box-sizing: border-box;
+  width: var(--structural-visual-width);
+  height: auto;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: var(--structural-visual-word-break);
+  font-family: var(--structural-visual-font-family);
+  font-size: var(--structural-visual-font-size);
+  font-weight: var(--structural-visual-font-weight);
+  font-style: var(--structural-visual-font-style);
+  line-height: var(--structural-visual-line-height);
+  letter-spacing: var(--structural-visual-letter-spacing);
+  word-spacing: var(--structural-visual-word-spacing);
+  text-align: var(--structural-visual-text-align);
+  tab-size: var(--structural-visual-tab-size);
+  padding: var(--structural-visual-padding);
+  border: var(--structural-visual-border);
+  direction: var(--structural-visual-direction);
+}

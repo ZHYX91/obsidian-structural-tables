@@ -5533,6 +5533,60 @@ describe("interaction batches one and two: real event ownership", () => {
       expect(view.state.doc.toString()).toBe(source);
       expect(editor.isConnected).toBe(true); expect(editor.value).toBe(value);
       expect(undoDepth(view.state)).toBe(0);
+      if (kind === "partial-merge") {
+        mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='2']")!);
+        expect(parent.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("End");
+        expect(view.state.doc.toString()).toBe(source);
+      }
+    } finally { view.destroy(); }
+  });
+
+  it("restores the full pasted range after an asynchronously rebuilt native Callout", async () => {
+    vi.stubGlobal("createDiv", (options: { cls: string }) => {
+      const element = document.createElement("div"); element.className = options.cls; return element;
+    });
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (...args: unknown[]) => {
+      const container = args[2] as HTMLElement;
+      if (container.className === "structural-tables-container") container.innerHTML = nativeTableForSource(args[1] as string)!.outerHTML;
+    });
+    class DeferredCallout extends WidgetType {
+      constructor(private readonly source: string) { super(); }
+      override toDOM(): HTMLElement { return new SourceCalloutWidget(this.source).toDOM(); }
+      override updateDOM(dom: HTMLElement): boolean {
+        queueMicrotask(() => dom.replaceChildren(...this.toDOM().childNodes));
+        return true;
+      }
+    }
+    const nativeFor = (source: string) => Decoration.set([
+      Decoration.replace({ widget: new DeferredCallout(source), block: true })
+        .range(source.indexOf("> [!note]"), source.indexOf("\n\nEnd")),
+    ]);
+    const native = StateField.define({
+      create: (state) => nativeFor(state.doc.toString()),
+      update: (value, transaction) => transaction.docChanged ? nativeFor(transaction.newDoc.toString()) : value,
+      provide: (field) => EditorView.decorations.from(field),
+    });
+    const source = "Before\n\n> [!note]\n> | H | V |\n> | --- || --- |\n> | Keep | Old |\n\nEnd";
+    let writes = 0;
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [native, history(),
+      EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-live-preview")).not.toBeNull());
+      mouseGesture(parent.querySelector<HTMLElement>(".callout [data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      const transfer = new DataTransfer();
+      transfer.setData(TABLE_RANGE_CLIPBOARD_MIME, JSON.stringify(copiedSquare));
+      editor.dispatchEvent(gridClipboardEvent("paste", transfer));
+      expect(editor.isConnected).toBe(true);
+      expect(writes).toBe(1);
+      await vi.waitFor(() => expect(parent.querySelectorAll(".callout [aria-selected='true']")).toHaveLength(4));
+      const pasted = view.state.doc.toString();
+      expect(pasted.startsWith("Before\n\n> [!note]\n")).toBe(true);
+      expect(pasted.endsWith("\n\nEnd")).toBe(true);
+      expect(document.activeElement).toBe(parent.querySelector(".callout [data-structural-row='1'][data-structural-column='1']"));
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+      expect(redo(view)).toBe(true); expect(view.state.doc.toString()).toBe(pasted);
     } finally { view.destroy(); }
   });
 

@@ -678,7 +678,8 @@ class StructuralTableInteraction {
   }
 
   private restoreCalloutFocus(view: EditorView, source: string, coordinate: TableCellCoordinate,
-    edit: boolean, reveal = false, from = this.table.range.from, entryIntent?: CellEditEntryIntent): void {
+    edit: boolean, reveal = false, from = this.table.range.from, entryIntent?: CellEditEntryIntent,
+    selectionBounds?: PendingCellFocus["selectionBounds"]): void {
     if (view.state.field(editorInfoField, false)?.file?.path !== this.sourcePath) return;
     const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
       candidate.range.from === from && candidate.source === source);
@@ -693,6 +694,7 @@ class StructuralTableInteraction {
     pendingCellFocus.set(view, {
       from: table.range.from, source, sourcePath: this.sourcePath, coordinate, edit,
       ...(entryIntent === undefined ? {} : { entryIntent }),
+      ...(selectionBounds === undefined ? {} : { selectionBounds }),
     });
     // Host history requests scrolling to its source caret, which may be far
     // outside this Callout. Keep the restored table in the mounted viewport.
@@ -1742,7 +1744,8 @@ class StructuralTableInteraction {
         }
       });
     };
-    const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation, nextIntent: CellEditEntryIntent = "select-all"): void => {
+    const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation, nextIntent: CellEditEntryIntent = "select-all",
+      pastedBounds?: PendingCellFocus["selectionBounds"]): void => {
       if (settled) return;
       if (!commit) {
         settle();
@@ -1758,6 +1761,12 @@ class StructuralTableInteraction {
         ? editCellContent(current, anchor.row, anchor.column, editor.value)
         : editCellAndTransform(current, anchor.row, anchor.column, editor.value, operation);
       if (!result.changed && result.code !== "cell-edited") {
+        // A refused external paste has no unsaved draft to protect. Keep the
+        // unchanged editor usable, including its next single-click handoff.
+        if (pastedBounds !== undefined && editor.value === anchor.raw.trim()) {
+          new Notice(operationNotice(t, result.code));
+          return;
+        }
         retainDraft(operationNotice(t, result.code));
         return;
       }
@@ -1785,6 +1794,7 @@ class StructuralTableInteraction {
       const target: PendingCellFocus = {
         from: current.range.from, source: result.source, sourcePath: this.sourcePath,
         coordinate: next ?? anchor, edit: next !== null, entryIntent: nextIntent,
+        ...(pastedBounds === undefined ? {} : { selectionBounds: pastedBounds }),
       };
       const history = tableWriteHistory(current, result.source, this.sourcePath, anchor);
       const blurEffect = !focus && next === null && !nativeCallout
@@ -1807,7 +1817,7 @@ class StructuralTableInteraction {
         });
       }
       if (nativeCallout && (focus || next !== null)) {
-        this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null, false, target.from, nextIntent);
+        this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null, false, target.from, nextIntent, pastedBounds);
       } else if (next !== null || focus) requestTableFocus(view, target);
     };
     this.finishActiveOperation = (operation, next) => {
@@ -2042,14 +2052,10 @@ class StructuralTableInteraction {
         const bounds = this.frozenBounds(frozen);
         // Validate and replace while the draft still owns focus. Closing it
         // first can remount the widget and invalidate the destination.
-        finish(true, null, true, (table) => pasteTableRangeRaw(table, bounds, payload));
-        const pending = pendingCellFocus.get(view);
-        if (!editor.isConnected && pending !== undefined) {
-          pending.selectionBounds = {
-            first: { row: bounds.minRow, column: bounds.minColumn },
-            last: { row: bounds.minRow + payload.rows - 1, column: bounds.minColumn + payload.columns - 1 },
-          };
-        }
+        finish(true, null, true, (table) => pasteTableRangeRaw(table, bounds, payload), "select-all", {
+          first: { row: bounds.minRow, column: bounds.minColumn },
+          last: { row: bounds.minRow + payload.rows - 1, column: bounds.minColumn + payload.columns - 1 },
+        });
         return;
       }
       const result = cellClipboardText(html, event.clipboardData.getData("text/plain"));

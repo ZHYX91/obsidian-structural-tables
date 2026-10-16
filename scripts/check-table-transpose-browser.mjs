@@ -380,8 +380,11 @@ try {
   // Direct, unselected handle press and movement must reorder on its own.
   await evaluate("window.transposeBrowser.reset('switch')"); await settle();
   const beforeDrag = await evaluate("window.transposeBrowser.switchState()");
-  const dragPoint = await evaluate("(function(){const root=document.querySelector('[data-structural-source-table-index=\"0\"]');const start=root.querySelector('[data-structural-row-handle=\"1\"]');const target=root.querySelector('[data-structural-row-handle=\"3\"]');const a=start.getBoundingClientRect(),b=target.getBoundingClientRect();return {x:a.left+a.width/2, y:a.top+a.height/2, endY:b.bottom+8};})()");
+  const dragPoint = await evaluate("(function(){const root=document.querySelector('[data-structural-source-table-index=\\\"0\\\"]');const start=root.querySelector('[data-structural-row-handle=\\\"1\\\"]');const target=root.querySelector('[data-structural-row-handle=\\\"3\\\"]');const cell=root.querySelector('[data-structural-row=\\\"1\\\"][data-structural-column=\\\"0\\\"]');const a=start.getBoundingClientRect(),b=target.getBoundingClientRect(),c=cell.getBoundingClientRect();return {x:a.left+a.width/2,y:a.top+a.height/2,endY:b.bottom+8,cellX:c.left+c.width/3,cellY:c.top+c.height/2,startRect:{x:a.x,y:a.y,w:a.width,h:a.height},targetRect:{x:b.x,y:b.y,w:b.width,h:b.height}};})()");
+  await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:dragPoint.cellX, y:dragPoint.cellY });
   await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:dragPoint.x, y:dragPoint.y });
+  const beforeHandlePress = await evaluate("(function(){return {hit:document.elementFromPoint(" + dragPoint.x + "," + dragPoint.y + ")?.outerHTML?.slice(0,220),selected:[...document.querySelectorAll('.structural-tables-row-handle.is-selected')].map(e=>e.dataset.structuralRowHandle)};})()");
+  assert.match(beforeHandlePress.hit ?? "", /structural-tables-row-handle/, JSON.stringify({dragPoint,beforeHandlePress}));
   await command("Input.dispatchMouseEvent", { type:"mousePressed", x:dragPoint.x, y:dragPoint.y, button:"left", clickCount:1 });
   await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:dragPoint.x, y:dragPoint.endY, button:"left", buttons:1 });
   await command("Input.dispatchMouseEvent", { type:"mouseReleased", x:dragPoint.x, y:dragPoint.endY, button:"left", clickCount:1 });

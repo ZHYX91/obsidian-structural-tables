@@ -15,6 +15,7 @@ import { appendDisplayPath, appendDisplayValue } from "../../src/config/interfac
 import { basePropertyMigrationPreviewText, type BasePropertyMigrationLabels } from "../../src/app/base-property-migration-modal";
 import type { PreparedBasePropertyMigration } from "../../src/app/base-property-migration-service";
 import { structuralTableLogicalCursorSync, structuralTableSourceFocus } from "../../src/editor/table-source-focus";
+import { textareaVisualExit, textareaCaretAtVisualEdge } from "../../src/editor/textarea-visual-navigation";
 import { lastMenu, notices, TFile } from "../mocks/obsidian";
 import { NativeCellEditorWidget } from "../helpers/native-cell-editor";
 import { NativeTableWidget } from "../helpers/native-table-widget";
@@ -106,7 +107,7 @@ document.addEventListener("contextmenu", () => {
   });
 }, true);
 
-function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | `focus-wide${string}`): void {
+function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | `focus-wide${string}` | "switch" | "switch-rtl"): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
   alignmentCase = null;
@@ -144,14 +145,24 @@ function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-so
       on: () => ({}),
     },
   }) as unknown as App;
-  const owned = bidi || mode === "owned" || mode.startsWith("focus");
+  const owned = bidi || mode === "owned" || mode.startsWith("focus") || mode.startsWith("switch");
   const focus = mode.startsWith("focus");
   const settings = { ...DEFAULT_SETTINGS, language: interfaceLanguage, takeOverOrdinaryTables: true };
   const controller = new StructuralTableEditorController(app, () => settings);
   const value = mode === "ltr-arabic-draft" || mode === "ltr-arabic" ? "مرحبا" : mode === "ltr-mixed-draft" ? "ABC مرحبا 123" : "ABC";
   const focusTable = delayedCommitRendering ? wrapped
     : mode.startsWith("focus-wide") ? tall.replace(/more/gu, "middle-value-long").replace(/last/gu, "last-cell-final-long") : tall;
-  const source = focus ? focusTable
+  const switchSource = [
+    "Before stays.", "",
+    "| Label | Value |", "| --- || --- |",
+    "| Alpha | Beta |", "| Next | Neighbor |", "| Last | Keep |",
+    "", "Between stays.", "",
+    "> [!note] A callout", "> | Group | Info |", "> | --- || --- |",
+    "> | First | Old |", "> | Second | Target |",
+    "", "| Other | Result |", "| --- || --- |", "| Gamma | Delta |",
+    "", "After stays.",
+  ].join("\n");
+  const source = mode.startsWith("switch") ? switchSource : focus ? focusTable
     + (mode === "focus-after" || mode.startsWith("focus-wide") ? "After the table." : "") : bidi
     ? `Before stays.\n\n| Region | A | B | C |\n| --- || --- | --- | --- |\n| North | ${value} | Two | Three |\n| South | Four | Five | Six |\n\nAfter stays.` : original;
   initialSource = source;
@@ -171,7 +182,7 @@ function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-so
   other = new EditorView({ parent: document.body.createDiv(), state: EditorState.create({ doc: "Other file stays.", extensions: [history()] }) });
   other.dom.style.display = "none";
   currentView = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file });
-  if (!focus) {
+  if (!focus && !mode.startsWith("switch")) {
     const offset = source.indexOf("North") + 5;
     cm.dispatch({ changes: { from: offset, insert: "X" }, selection: { anchor: owned ? 0 : offset + 1 }, annotations: Transaction.userEvent.of("input.type") });
   }
@@ -312,7 +323,48 @@ function alignmentState() {
       bounds: { x: bounds!.left + 2, y: bounds!.top + 2, width: bounds!.width - 4, height: bounds!.height - 4, scale: 1 } } };
 }
 
-(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, interfaceBidi, setupAlignment, alignmentState,
+function switchState() {
+  const draft = document.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor");
+  const active = document.activeElement as HTMLElement | null;
+  const host = active?.closest<HTMLElement>("[data-structural-source-table-index]");
+  return {
+    source: cm!.state.doc.toString(), changes, draft: draft?.value ?? null,
+    caret: draft === null ? null : [draft.selectionStart, draft.selectionEnd],
+    activeTable: host?.dataset.structuralSourceTableIndex ?? null,
+    activeRow: active?.closest<HTMLElement>("[data-structural-row]")?.dataset.structuralRow ?? null,
+    activeColumn: active?.closest<HTMLElement>("[data-structural-column]")?.dataset.structuralColumn ?? null,
+    tables: parseEditableTables(cm!.state.doc.toString()).tables.map((table) =>
+      table.rows.map((row) => row.cells.map((cell) => cell.content))),
+    notices: [...notices],
+  };
+}
+
+function visualCaretProbe() {
+  const textarea = document.createElement("textarea");
+  textarea.value = "First line is deliberately long enough to soft wrap here\nLast line";
+  textarea.style.cssText = "position:fixed;top:25px;left:25px;width:155px;height:130px;padding:2px;border:1px solid black;font:16px/24px monospace;box-sizing:border-box;white-space:pre-wrap";
+  textarea.wrap = "soft";
+  document.body.append(textarea);
+  try {
+    const internal = textarea.value.indexOf("deliberately");
+    textarea.setSelectionRange(internal, internal);
+    const midExit = textareaVisualExit(textarea, "down");
+    textarea.setSelectionRange(0, 0);
+    const firstUp = textareaVisualExit(textarea, "up");
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    const lastDown = textareaVisualExit(textarea, "down");
+    const destination = document.createElement("textarea");
+    destination.value = "Another line that soft wraps too\nEnd";
+    destination.style.cssText = textarea.style.cssText;
+    document.body.append(destination);
+    const preserved = lastDown === null ? null : textareaCaretAtVisualEdge(destination, lastDown);
+    destination.remove();
+    return { midExit, firstUp, lastDown, preserved, length: textarea.value.length,
+      measuredHeight: textarea.scrollHeight, lines: textarea.value.split("\n").length };
+  } finally { textarea.remove(); }
+}
+
+(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, switchState, visualCaretProbe, interfaceBidi, setupAlignment, alignmentState,
   refresh: () => cm!.dispatch({ effects: structuralTableSourceFocus.of(true) }),
   holdRendering: () => { holdCommitRendering = true; },
   releaseRendering: () => { holdCommitRendering = false; heldRenders.splice(0).forEach((resolve) => resolve()); },

@@ -78,9 +78,11 @@ Reading view is display-only. In-place editing and table controls are available 
 
 ### Advanced editing and safe deletion
 
-For plain text, the caret opens where you clicked when that position can be matched exactly; otherwise the cell text is selected. Enter saves and moves to the same column in the next row, adding a row at the bottom when needed. Shift+Enter inserts a line break; Tab moves to the next visible cell. Cmd/Ctrl+B and Cmd/Ctrl+I toggle Markdown bold and italic. While the cell editor is open, typing, IME composition, paste, line breaks, and these shortcuts share their own undo/redo history; the note changes only when you save the edit. To use other formatting commands, choose **Edit table source**.
+A single click edits a cell. When rendered text maps uniquely to Markdown (including bold, italic, inline code, emoji and link labels), the caret follows the clicked character; otherwise it opens at the end, without selecting and replacing the whole cell. To edit a link label without following its link, Alt-click it. Enter saves and moves to the next row, appending at the bottom; Shift+Enter inserts a line break, and Tab moves to the next visible cell. Up/Down navigates only from the first/last visible line when text geometry is provable, preserving horizontal position. Cmd/Ctrl+B and Cmd/Ctrl+I change draft bold/italic; typing, IME, paste and formatting use draft-local undo/redo until save. For other formatting, choose **Edit table source**.
 
 Shift+Arrow extends or shrinks a logical grid selection. With that selection focused, Delete/Backspace clears cell contents without removing rows, columns, header roles, or merges. For structural removal, right-click and choose **Delete selected rows**, **Delete selected columns**, or **Delete table**. Clearing or explicitly deleting is undoable in one step; non-empty rows do not need to be cleared first.
+
+Click a row or column handle to select it, or hold and drag it in the same gesture to move it. Shift-click or tap another handle to extend the selection; dragging an already-selected handle moves the whole group. Merge and header boundaries stay protected.
 
 ### Table syntax
 
@@ -138,7 +140,7 @@ For text with preserved spaces, tabs, line breaks or heading boundaries, the plu
 
 A body-only HTML table stays headerless instead of having its first row turned into a header. Real `thead`/`th` markup is used when the source provides it.
 
-Select cells and choose **Copy selected cells** or **Cut selected cells**. Select a destination with the same number of rows and columns and the same merged-cell layout, then choose **Paste into selected cells**. Paste never fills a larger range by repetition, adds rows or columns, or changes merges. You can copy a single cell, a column, an empty range, or complete merged cells. Copy leaves the note unchanged. Cut clears the selected cells only after copying succeeds and the table and selection have been checked again.
+Select cells and choose **Copy selected cells** or **Cut selected cells**. To paste, either select a destination rectangle with the same merged layout, or select just one unmerged cell as the top-left anchor. A single-cell anchor can grow the table right/down. It overwrites only content completely inside the destination rectangle, never the outside of an existing merge; roles, existing alignments, unrelated cells and raw Markdown remain intact. Unsupported merges or unsafe source are refused. Copy never edits the note; Cut clears only after verified clipboard success. Paste is a single undoable change.
 
 Range menu Copy/Cut needs platform clipboard-write support; menu Paste separately needs clipboard-read support. One may be available while the other is not. Plain text, ordinary HTML, or unrecognized range data cannot be pasted directly into a grid selection and never reaches the hidden Markdown source. To paste ordinary text, open a single cell for editing; to import an HTML table, paste in the note's Markdown editor. **Edit table source** also lets you work directly in Markdown.
 

@@ -2997,7 +2997,7 @@ describe("StructuralTableEditorController", () => {
     }
   });
 
-  it("falls back to select-all when rendered content is not a provable plain-text mapping", () => {
+  it("maps unique Markdown emphasis to its original source caret", () => {
     const source = "| H | V |\n| --- || --- |\n| **North** | Keep |";
     const { parent, view } = mountEditor(source, { anchor: source.length });
     try {
@@ -3014,7 +3014,7 @@ describe("StructuralTableEditorController", () => {
       cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
       const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
       expect(editor.value).toBe("**North**");
-      expect([editor.selectionStart, editor.selectionEnd]).toEqual([0, editor.value.length]);
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([4, 4]);
     } finally {
       Reflect.deleteProperty(document, "caretPositionFromPoint");
       view.destroy();
@@ -4939,7 +4939,8 @@ describe("StructuralTableEditorController", () => {
         .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
       const editor = parent.querySelector("textarea")!;
       expect(editor.value).toBe("Applications");
-      expect(editor.selectionEnd - editor.selectionStart).toBe(editor.value.length);
+      expect(editor.selectionStart).toBe(editor.value.length);
+      editor.select();
       const enter = new InputEvent("beforeinput", { inputType, bubbles: true, cancelable: true });
       editor.dispatchEvent(enter);
       expect(enter.defaultPrevented).toBe(true);
@@ -5332,5 +5333,132 @@ describe("whole-table transpose confirmation and source revalidation", () => {
       expect(view.state.doc.toString()).toContain("East");
       expect(view.state.doc.toString()).toContain("| :--- || ---: | :---: |");
     } finally { view.destroy(); }
+  });
+});
+
+describe("interaction batches one and two: real event ownership", () => {
+  function mouseGesture(target: HTMLElement): void {
+    dispatchPointerDown(target, "mouse");
+    window.dispatchEvent(new PointerEvent("pointerup", {
+      pointerType: "mouse", pointerId: 1, button: 0, isPrimary: true, bubbles: true,
+    }));
+    target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+  }
+
+  it.each([
+    { destination: "same", edited: false },
+    { destination: "same", edited: true },
+    { destination: "other", edited: false },
+    { destination: "other", edited: true },
+  ] as const)("opens $destination B after the first click on a changed or unchanged A ($edited)", async ({ destination, edited }) => {
+    const source = [
+      "Before", "", "| H | V |", "| --- || --- |", "| Alpha | Beta |",
+      "", "Between", "", "| J | K |", "| --- || --- |", "| Gamma | Delta |", "", "After",
+    ].join("\n");
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    try {
+      const first = parent.querySelector<HTMLElement>(
+        "[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='0']",
+      )!;
+      expect(first).not.toBeNull();
+      mouseGesture(first);
+      const a = parent.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor")!;
+      expect(a).not.toBeNull();
+      if (edited) replaceDraftText(a, "Edited-Alpha");
+      const targetSelector = destination === "same"
+        ? "[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='1']"
+        : "[data-structural-source-table-index='1'] [data-structural-row='1'][data-structural-column='1']";
+      const b = parent.querySelector<HTMLElement>(targetSelector)!;
+      expect(b).not.toBeNull();
+      dispatchPointerDown(b, "mouse");
+      expect(a.isConnected).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      window.dispatchEvent(new PointerEvent("pointerup", {
+        pointerType: "mouse", pointerId: 1, button: 0, isPrimary: true, bubbles: true,
+      }));
+      b.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+      await vi.waitFor(() => expect(parent.querySelector(targetSelector + " textarea")).not.toBeNull());
+      const target = parent.querySelector<HTMLTextAreaElement>(targetSelector + " textarea")!;
+      expect(document.activeElement).toBe(target);
+      typeDraftText(target, "!");
+      target.blur();
+      await vi.waitFor(() => expect(view.state.doc.toString()).toContain(
+        destination === "same" ? "Beta!" : "Delta!",
+      ));
+      expect(view.state.doc.toString()).toContain(edited ? "Edited-Alpha" : "Alpha");
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).not.toContain(destination === "same" ? "Beta!" : "Delta!");
+      if (edited) {
+        expect(undo(view)).toBe(true);
+        expect(view.state.doc.toString()).toBe(source);
+      }
+    } finally { view.destroy(); }
+  });
+
+  it.each(["rejected", "composing"] as const)("keeps a $case draft and refuses an unintended B switch", async (kind) => {
+    const source = "| H | V |\n| --- || --- |\n| Alpha | Beta |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const first = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      mouseGesture(first);
+      const a = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      if (kind === "rejected") replaceDraftText(a, "<!--");
+      else a.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      const b = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      mouseGesture(b);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(a.isConnected).toBe(true);
+      expect(b.querySelector("textarea")).toBeNull();
+      if (kind === "composing") a.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    } finally { view.destroy(); }
+  });
+
+  it.each([
+    { raw: "*Bright*", visible: "Bright", offset: 2, expected: 3, html: "<em>Bright</em>" },
+    { raw: "`symbol`", visible: "symbol", offset: 4, expected: 5, html: "<code>symbol</code>" },
+    { raw: "[Alias](target)", visible: "Alias", offset: 2, expected: 3, html: "<a href='#'>Alias</a>" },
+    { raw: "A😀B", visible: "A😀B", offset: 3, expected: 3, html: "A😀B" },
+    { raw: "R&amp;D", visible: "R&D", offset: 2, expected: 6, html: "R&amp;D" },
+  ])("maps rendered syntax to a safe source offset ($raw)", ({ raw, visible, offset, expected, html }) => {
+    const source = "| H | V |\n| --- || --- |\n| " + raw + " | Other |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const content = cell.querySelector<HTMLElement>(".structural-tables-cell-content")!;
+      content.innerHTML = html;
+      const node = content.querySelector("em, code, a")?.firstChild ?? content.firstChild!;
+      expect(node.textContent).toBe(visible);
+      Object.defineProperty(document, "caretPositionFromPoint", {
+        configurable: true, value: () => ({ offsetNode: node, offset }),
+      });
+      dispatchPointerDown(cell, "mouse");
+      cell.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(editor).not.toBeNull();
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([expected, expected]);
+    } finally {
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+      view.destroy();
+    }
+  });
+
+  it("does not arm full-cell replacement when two identical labels make the mapping ambiguous", () => {
+    const source = "| H | V |\n| --- || --- |\n| **abc** abc | Other |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      const content = cell.querySelector<HTMLElement>(".structural-tables-cell-content")!;
+      content.innerHTML = "<strong>abc</strong> abc";
+      const node = content.firstChild!.firstChild!;
+      Object.defineProperty(document, "caretPositionFromPoint", {
+        configurable: true, value: () => ({ offsetNode: node, offset: 1 }),
+      });
+      mouseGesture(cell);
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([editor.value.length, editor.value.length]);
+    } finally {
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+      view.destroy();
+    }
   });
 });

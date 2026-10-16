@@ -272,4 +272,96 @@ describe("table range clipboard payload", () => {
       minRow: 1, maxRow: 1, minColumn: 0, maxColumn: 0,
     }, bad)).toMatchObject({ changed: false, code: "invalid-result" });
   });
+  it("grows right and down from one anchor without changing unrelated values or roles", () => {
+    const copied = parseStructuralTables([
+      "| Group | Memo |",
+      "| --- | --- |",
+      "| **North** | [[N\\|Alias]] |",
+      "| South | 中文😀 |",
+    ].join("\n")).tables[0]!;
+    const payload = tableRangePayload(copied, {
+      minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1,
+    })!;
+    const target = parseStructuralTables([
+      "| Header | Amount |",
+      "| --- || :---: |",
+      "| KEEP-A | stay |",
+      "| KEEP-B | old |",
+    ].join("\n")).tables[0]!;
+    const bounds = { minRow: 2, maxRow: 2, minColumn: 1, maxColumn: 1 };
+    const result = pasteTableRangeRaw(target, bounds, payload);
+    expect(result).toMatchObject({ changed: true, code: "range-pasted" });
+    const pasted = parseStructuralTables(result.source).tables[0]!;
+    expect(pasted.valid).toBe(true);
+    expect(pasted.rows).toHaveLength(4);
+    expect(pasted.columnCount).toBe(3);
+    expect(pasted.headerRowCount).toBe(1);
+    expect(pasted.rowHeaderColumnCount).toBe(1);
+    expect(pasted.alignments).toEqual(["default", "center", "default"]);
+    expect(pasted.rows.map((row) => row.cells[0]!.raw.trim())).toEqual(["Header", "KEEP-A", "KEEP-B", ""]);
+    expect(pasted.rows[1]!.cells[1]!.raw.trim()).toBe("stay");
+    expect(tableRangePayload(pasted, {
+      minRow: 2, maxRow: 3, minColumn: 1, maxColumn: 2,
+    })).toEqual(payload);
+  });
+
+  it("moves a complete 2D merge into an expanded anchor and keeps original content outside the rectangle", () => {
+    const source = parseStructuralTables([
+      "| Header | Value |",
+      "| --- | --- |",
+      "| **A** | < |",
+      "| ^ | < |",
+    ].join("\n")).tables[0]!;
+    const payload = tableRangePayload(source, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 })!;
+    const target = parseStructuralTables([
+      "| H | V | W |",
+      "| --- | --- | --- |",
+      "| KEEP | old | old-right |",
+      "| KEEP2 | old2 | right2 |",
+    ].join("\n")).tables[0]!;
+    const result = pasteTableRangeRaw(target, { minRow: 1, maxRow: 1, minColumn: 1, maxColumn: 1 }, payload);
+    expect(result).toMatchObject({ changed: true, code: "range-pasted" });
+    const pasted = parseStructuralTables(result.source).tables[0]!;
+    expect(tableRangePayload(pasted, { minRow: 1, maxRow: 2, minColumn: 1, maxColumn: 2 })).toEqual(payload);
+    expect(pasted.rows[1]!.cells[0]!.content).toBe("KEEP");
+    expect(pasted.rows[2]!.cells[0]!.content).toBe("KEEP2");
+  });
+
+  it("refuses an anchored paste touching a partial existing merge or hidden overflow", () => {
+    const copy = parseStructuralTables([
+      "| H | V |", "| --- | --- |", "| A | B |", "| C | D |",
+    ].join("\n")).tables[0]!;
+    const payload = tableRangePayload(copy, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 })!;
+    const partial = parseStructuralTables([
+      "| H | V | W |", "| --- | --- | --- |",
+      "| K | old | r |", "| P | M | t |", "| Q | ^ | u |",
+    ].join("\n")).tables[0]!;
+    expect(partial.valid).toBe(true);
+    const rejected = pasteTableRangeRaw(partial, {
+      minRow: 1, maxRow: 1, minColumn: 1, maxColumn: 1,
+    }, payload);
+    expect(rejected).toMatchObject({ changed: false, code: "invalid-result", source: partial.source });
+
+    const overflow = parseEditableTables([
+      "| H | V |", "| --- | --- |", "| 1 | 2 | SECRET |",
+    ].join("\n")).tables[0]!;
+    expect(pasteTableRangeRaw(overflow, {
+      minRow: 1, maxRow: 1, minColumn: 0, maxColumn: 0,
+    }, payload)).toMatchObject({ changed: false, code: "gfm-overflow-readonly", source: overflow.source });
+  });
+
+  it("refuses a merged payload crossing destination header roles instead of flattening it", () => {
+    const source = parseStructuralTables([
+      "| H | V |", "| --- | --- |", "| A | < |", "| ^ | < |",
+    ].join("\n")).tables[0]!;
+    const payload = tableRangePayload(source, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 })!;
+    const target = parseStructuralTables([
+      "| Head | Two |", "| --- | --- |", "| a | b |",
+    ].join("\n")).tables[0]!;
+    const result = pasteTableRangeRaw(target, {
+      minRow: 0, maxRow: 0, minColumn: 0, maxColumn: 0,
+    }, payload);
+    expect(result).toMatchObject({ changed: false, code: "invalid-result", source: target.source });
+  });
+
 });

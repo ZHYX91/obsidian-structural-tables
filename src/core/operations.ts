@@ -478,6 +478,7 @@ export function clearTableCells(
   );
 }
 
+/** Paste an owned range with strict loss prevention and validated serialization. */
 export function pasteTableRangeRaw(
   table: StructuralTable,
   bounds: TableRangeBounds,
@@ -485,87 +486,116 @@ export function pasteTableRangeRaw(
 ): OperationResult {
   const blocked = unavailable(table);
   if (blocked !== null) return blocked;
+  const refuse = (message: string): OperationResult =>
+    ({ changed: false, code: "invalid-result", message, source: table.source });
   const target = tableRangePayload(table, bounds);
-  if (target === null || !sameTableRangeTopology(target, payload)) {
-    return {
-      changed: false,
-      code: "invalid-result",
-      message: "The clipboard range does not match the selected table geometry.",
-      source: table.source,
-    };
+  if (target === null || payload.version !== 1 || !Number.isInteger(payload.rows)
+    || !Number.isInteger(payload.columns) || payload.rows < 1 || payload.columns < 1
+    || !Array.isArray(payload.owners) || payload.owners.length !== payload.rows
+    || payload.owners.some((row) => !Array.isArray(row) || row.length !== payload.columns)
+    || payload.rawByOwner === null || typeof payload.rawByOwner !== "object") {
+    return refuse("The clipboard range or destination is invalid.");
+  }
+  const singleAnchor = bounds.minRow === bounds.maxRow && bounds.minColumn === bounds.maxColumn;
+  const anchored = singleAnchor && (payload.rows > 1 || payload.columns > 1);
+  if (!anchored && !sameTableRangeTopology(target, payload)) {
+    return refuse("The clipboard range does not match the selected table geometry.");
+  }
+  const finalBounds: TableRangeBounds = anchored ? {
+    minRow: bounds.minRow,
+    minColumn: bounds.minColumn,
+    maxRow: bounds.minRow + payload.rows - 1,
+    maxColumn: bounds.minColumn + payload.columns - 1,
+  } : bounds;
+  const grid = ownedGrid(table);
+  const oldRows = table.rows.length;
+  const oldColumns = table.columnCount;
+  const newRows = Math.max(oldRows, finalBounds.maxRow + 1);
+  const newColumns = Math.max(oldColumns, finalBounds.maxColumn + 1);
+  for (let row = 0; row < oldRows; row += 1) {
+    for (let column = oldColumns; column < newColumns; column += 1) {
+      const owner = "paste-empty:" + row + ":" + column;
+      grid.owners[row]!.push(owner);
+      grid.contents.set(owner, "");
+    }
+  }
+  for (let row = oldRows; row < newRows; row += 1) {
+    grid.owners.push(Array.from({ length: newColumns }, (_unused, column) => {
+      const owner = "paste-empty:" + row + ":" + column;
+      grid.contents.set(owner, "");
+      return owner;
+    }));
+  }
+  if (anchored) {
+    const overwritten = new Set<string>();
+    for (let row = finalBounds.minRow; row <= finalBounds.maxRow; row += 1) {
+      for (let column = finalBounds.minColumn; column <= finalBounds.maxColumn; column += 1) {
+        overwritten.add(grid.owners[row]![column]!);
+      }
+    }
+    // A merged owner touching any cell outside the paste rectangle is
+    // indivisible. Never erase its hidden or unselected content.
+    for (let row = 0; row < newRows; row += 1) {
+      for (let column = 0; column < newColumns; column += 1) {
+        if (overwritten.has(grid.owners[row]![column]!)
+          && (row < finalBounds.minRow || row > finalBounds.maxRow
+            || column < finalBounds.minColumn || column > finalBounds.maxColumn)) {
+          return refuse("Paste would overwrite only part of an existing merged cell.");
+        }
+      }
+    }
   }
 
-  const grid = ownedGrid(table);
   const targetOwnerByPayload = new Map<string, string>();
   for (let row = 0; row < payload.rows; row += 1) {
     for (let column = 0; column < payload.columns; column += 1) {
-      const payloadOwner = payload.owners[row]![column]!;
-      const tableRow = bounds.minRow + row;
-      const tableColumn = bounds.minColumn + column;
+      const payloadOwner = payload.owners[row]?.[column];
+      if (typeof payloadOwner !== "string"
+        || !Object.prototype.hasOwnProperty.call(payload.rawByOwner, payloadOwner)
+        || typeof payload.rawByOwner[payloadOwner] !== "string") {
+        return refuse("The clipboard range is incomplete.");
+      }
+      const tableRow = finalBounds.minRow + row;
+      const tableColumn = finalBounds.minColumn + column;
       const targetOwner = grid.owners[tableRow]?.[tableColumn];
-      if (targetOwner === undefined) {
-        return {
-          changed: false,
-          code: "cell-unavailable",
-          message: "The selected cell is unavailable.",
-          source: table.source,
-        };
+      if (targetOwner === undefined) return refuse("The selected cell is unavailable.");
+      if (anchored) {
+        const owner = "paste-owner:" + payloadOwner;
+        grid.owners[tableRow]![tableColumn] = owner;
+        grid.contents.set(owner, payload.rawByOwner[payloadOwner]!);
+      } else {
+        const previous = targetOwnerByPayload.get(payloadOwner);
+        if (previous !== undefined && previous !== targetOwner) {
+          return refuse("The clipboard range does not match the selected merge topology.");
+        }
+        targetOwnerByPayload.set(payloadOwner, targetOwner);
       }
-      const existing = targetOwnerByPayload.get(payloadOwner);
-      if (existing !== undefined && existing !== targetOwner) {
-        return {
-          changed: false,
-          code: "invalid-result",
-          message: "The clipboard range does not match the selected merge topology.",
-          source: table.source,
-        };
-      }
-      targetOwnerByPayload.set(payloadOwner, targetOwner);
     }
   }
-
-  let changed = false;
-  for (const [payloadOwner, targetOwner] of targetOwnerByPayload) {
-    const raw = payload.rawByOwner[payloadOwner];
-    if (raw === undefined) {
-      return {
-        changed: false,
-        code: "invalid-result",
-        message: "The clipboard range is incomplete.",
-        source: table.source,
-      };
+  if (!anchored) {
+    for (const [payloadOwner, targetOwner] of targetOwnerByPayload) {
+      grid.contents.set(targetOwner, payload.rawByOwner[payloadOwner]!);
     }
-    if ((grid.contents.get(targetOwner) ?? "") !== raw) changed = true;
-    grid.contents.set(targetOwner, raw);
   }
-  if (!changed) {
-    return {
-      changed: false,
-      code: "range-pasted",
-      message: "The selected cells already contain the clipboard values.",
-      source: table.source,
-    };
+  if (!anchored && Object.keys(payload.rawByOwner).every((owner) =>
+    payload.rawByOwner[owner] === target.rawByOwner[owner])) {
+    return { changed: false, code: "range-pasted", message: "The selected cells already contain the clipboard values.", source: table.source };
   }
+  const alignments = [
+    ...table.alignments,
+    ...Array.from({ length: newColumns - oldColumns }, () => "default" as const),
+  ];
   const result = resultFromOwnedGrid(
-    table,
-    grid,
-    "range-pasted",
-    "Clipboard range pasted.",
-    table.headerRowCount,
-    table.rowHeaderColumnCount,
-    table.alignments,
+    table, grid, "range-pasted", "Clipboard range pasted.",
+    table.headerRowCount, table.rowHeaderColumnCount, alignments,
   );
   if (!result.changed) return result;
+  // Reparse the entire result; source values and merge geometry must survive.
   const reparsed = parseEditableTables(result.source).tables[0];
-  const roundTrip = reparsed === undefined ? null : tableRangePayload(reparsed, bounds);
+  const roundTrip = reparsed === undefined ? null : tableRangePayload(reparsed, finalBounds);
   if (roundTrip === null || !sameTableRangeTopology(roundTrip, payload)
     || Object.keys(payload.rawByOwner).some((owner) => roundTrip.rawByOwner[owner] !== payload.rawByOwner[owner])) {
-    return {
-      changed: false,
-      code: "invalid-result",
-      message: "The clipboard range cannot be represented without changing its raw cell content.",
-      source: table.source,
-    };
+    return refuse("The clipboard range cannot be represented without changing raw cell content or merge roles.");
   }
   return result;
 }

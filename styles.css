@@ -795,11 +795,3 @@
   border: var(--structural-visual-border);
   direction: var(--structural-visual-direction);
 }
-
-.structural-tables-visual-text-caret {
-  display: inline-block;
-  width: 0;
-  height: 1em;
-  padding: 0;
-  border: 0;
-}

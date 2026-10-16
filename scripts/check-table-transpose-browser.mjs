@@ -450,6 +450,21 @@ try {
   assert.equal(visualNavigation.draft, "Neighbor");
   results.push({ mode: "multiline-actual-arrows", internalLineNative: true, lastLineCommitsToNext: true });
 
+  for (const alignment of ["left", "center", "right"]) {
+    await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+    await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='1']"));
+    await command("Input.insertText", { text: "First line with enough words to wrap in a narrow pane" });
+    await evaluate(`(()=>{const e=document.querySelector('textarea'); Object.assign(e.style,{width:'290px',height:'60px',fontSize:'16px',fontFamily:'Arial',textAlign:${JSON.stringify(alignment)}});e.setSelectionRange(0,0)})()`);
+    await key("ArrowDown", "ArrowDown", 40);
+    const wrapped = await evaluate("window.transposeBrowser.result()");
+    assert.equal(wrapped.changes, 0);
+    assert.ok(wrapped.draftStart > 0 && wrapped.draftStart < wrapped.draftValue.length, JSON.stringify(wrapped));
+    assert.ok(await evaluate("window.transposeBrowser.currentVisualExit()"), "The beginning of the final soft-wrapped line must be an outer visual line: " + alignment);
+    await key("ArrowDown", "ArrowDown", 40);
+    assert.equal((await evaluate("window.transposeBrowser.switchState()")).activeRow, "2");
+  }
+  results.push({ mode: "soft-wrapped-line-start-exit", alignments: ["left", "center", "right"] });
+
   await evaluate("window.transposeBrowser.reset('switch')"); await settle();
   await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='0']"));
   await command("Input.insertText", { text: "Changed" });

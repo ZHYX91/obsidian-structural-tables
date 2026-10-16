@@ -51,21 +51,21 @@ function visualProbe(editor: HTMLTextAreaElement): Probe | null {
     "--structural-visual-border": style.border,
     "--structural-visual-direction": style.direction,
   });
+  // Keep one uninterrupted text node: inserting an inline-block caret before
+  // a wrapped word changes its break opportunity and can put the marker on
+  // the preceding line even though the textarea caret is on the next line.
+  const text = owner.createTextNode(editor.value + "\u200b");
+  mirror.replaceChildren(text);
   const measure = (offset: number): { top: number; x: number } | null => {
     if (offset < 0 || offset > editor.value.length) return null;
-    const mark = mirror.createDiv({ cls: "structural-tables-visual-text-caret" });
-    mark.textContent = "\u200b";
-    mirror.replaceChildren(
-      owner.createTextNode(editor.value.slice(0, offset)),
-      mark,
-      owner.createTextNode(editor.value.slice(offset)),
-    );
-    const markRect = mark.getBoundingClientRect();
+    const range = owner.createRange();
+    range.setStart(text, offset);
+    range.setEnd(text, offset + ((text.textContent?.codePointAt(offset) ?? 0) > 0xffff ? 2 : 1));
+    const markRect = range.getClientRects()[0];
     const box = mirror.getBoundingClientRect();
-    return markRect.height > 0
+    return markRect !== undefined && markRect.height > 0
       ? { top: markRect.top - box.top, x: markRect.left - box.left } : null;
   };
-  mirror.textContent = editor.value + "\u200b";
   // A textarea's scrollHeight is never smaller than its client viewport.
   // A mirror of shorter content may legitimately have less content height;
   // compare the native scroll extent with the greater of both extents.

@@ -273,7 +273,7 @@ describe("table range clipboard payload", () => {
     }, bad)).toMatchObject({ changed: false, code: "invalid-result" });
   });
   it("grows right and down from one anchor without changing unrelated values or roles", () => {
-    const copied = parseStructuralTables([
+    const copied = parseEditableTables([
       "| Group | Memo |",
       "| --- | --- |",
       "| **North** | [[N\\|Alias]] |",
@@ -282,7 +282,7 @@ describe("table range clipboard payload", () => {
     const payload = tableRangePayload(copied, {
       minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1,
     })!;
-    const target = parseStructuralTables([
+    const target = parseEditableTables([
       "| Header | Amount |",
       "| --- || :---: |",
       "| KEEP-A | stay |",
@@ -291,7 +291,7 @@ describe("table range clipboard payload", () => {
     const bounds = { minRow: 2, maxRow: 2, minColumn: 1, maxColumn: 1 };
     const result = pasteTableRangeRaw(target, bounds, payload);
     expect(result).toMatchObject({ changed: true, code: "range-pasted" });
-    const pasted = parseStructuralTables(result.source).tables[0]!;
+    const pasted = parseEditableTables(result.source).tables[0]!;
     expect(pasted.valid).toBe(true);
     expect(pasted.rows).toHaveLength(4);
     expect(pasted.columnCount).toBe(3);
@@ -306,14 +306,14 @@ describe("table range clipboard payload", () => {
   });
 
   it("moves a complete 2D merge into an expanded anchor and keeps original content outside the rectangle", () => {
-    const source = parseStructuralTables([
+    const source = parseEditableTables([
       "| Header | Value |",
       "| --- | --- |",
       "| **A** | < |",
       "| ^ | < |",
     ].join("\n")).tables[0]!;
     const payload = tableRangePayload(source, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 })!;
-    const target = parseStructuralTables([
+    const target = parseEditableTables([
       "| H | V | W |",
       "| --- | --- | --- |",
       "| KEEP | old | old-right |",
@@ -321,18 +321,18 @@ describe("table range clipboard payload", () => {
     ].join("\n")).tables[0]!;
     const result = pasteTableRangeRaw(target, { minRow: 1, maxRow: 1, minColumn: 1, maxColumn: 1 }, payload);
     expect(result).toMatchObject({ changed: true, code: "range-pasted" });
-    const pasted = parseStructuralTables(result.source).tables[0]!;
+    const pasted = parseEditableTables(result.source).tables[0]!;
     expect(tableRangePayload(pasted, { minRow: 1, maxRow: 2, minColumn: 1, maxColumn: 2 })).toEqual(payload);
     expect(pasted.rows[1]!.cells[0]!.content).toBe("KEEP");
     expect(pasted.rows[2]!.cells[0]!.content).toBe("KEEP2");
   });
 
   it("refuses an anchored paste touching a partial existing merge or hidden overflow", () => {
-    const copy = parseStructuralTables([
+    const copy = parseEditableTables([
       "| H | V |", "| --- | --- |", "| A | B |", "| C | D |",
     ].join("\n")).tables[0]!;
     const payload = tableRangePayload(copy, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 })!;
-    const partial = parseStructuralTables([
+    const partial = parseEditableTables([
       "| H | V | W |", "| --- | --- | --- |",
       "| K | old | r |", "| P | M | t |", "| Q | ^ | u |",
     ].join("\n")).tables[0]!;
@@ -351,11 +351,11 @@ describe("table range clipboard payload", () => {
   });
 
   it("refuses a merged payload crossing destination header roles instead of flattening it", () => {
-    const source = parseStructuralTables([
+    const source = parseEditableTables([
       "| H | V |", "| --- | --- |", "| A | < |", "| ^ | < |",
     ].join("\n")).tables[0]!;
     const payload = tableRangePayload(source, { minRow: 1, maxRow: 2, minColumn: 0, maxColumn: 1 })!;
-    const target = parseStructuralTables([
+    const target = parseEditableTables([
       "| Head | Two |", "| --- | --- |", "| a | b |",
     ].join("\n")).tables[0]!;
     const result = pasteTableRangeRaw(target, {

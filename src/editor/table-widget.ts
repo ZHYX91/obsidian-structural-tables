@@ -76,6 +76,7 @@ interface PendingCellFocus {
 }
 const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
 const activeCellEditors = new WeakMap<Document, HTMLTextAreaElement>();
+const composingCellEditors = new WeakSet<HTMLTextAreaElement>();
 
 interface CellCommitViewport {
   document: Document;
@@ -518,7 +519,7 @@ class StructuralTableInteraction {
       const offset = this.renderedCaretOffset(event, coordinate);
       const raw = this.table.rows[coordinate.row]?.cells[coordinate.column]?.raw.trim() ?? "";
       this.openPointerCell(view, coordinate,
-        offset === null ? { caretOffset: raw.length } : this.wordSelection(raw, offset));
+        offset === null ? { caretOffset: raw.length } : this.wordSelection(raw, offset), true);
     });
     rendered.addEventListener("keydown", (event) => {
       if (event.target !== this.cellForTarget(event.target)) return;
@@ -927,7 +928,7 @@ class StructuralTableInteraction {
    * textarea: its commit can replace this widget before pointerup/click.
    * The destination must be re-resolved against the new source and DOM.
    */
-  private openPointerCell(view: EditorView, coordinate: TableCellCoordinate, entryIntent: CellEditEntryIntent): void {
+  private openPointerCell(view: EditorView, coordinate: TableCellCoordinate, entryIntent: CellEditEntryIntent, explicitSecondaryActivation = false): void {
     const document = this.renderedTable?.ownerDocument;
     if (document === undefined) return;
     const prior = activeCellEditors.get(document);
@@ -937,8 +938,14 @@ class StructuralTableInteraction {
       const expectedSource = this.table.source;
       const sameTable = this.host?.contains(prior) === true;
       prior.blur();
-      // A rejected commit or incomplete IME composition retains the draft.
-      if (prior.isConnected) return;
+      // A single click may not silently abandon a rejected or composing
+      // draft. A separate explicit double-click in another cell may continue
+      // while keeping a rejected (noncomposing) draft recoverable.
+      if (prior.isConnected && (composingCellEditors.has(prior) || !explicitSecondaryActivation)) return;
+      if (prior.isConnected) {
+        this.beginCellEdit(view, coordinate, entryIntent);
+        return;
+      }
       const destination = (): StructuralTable | undefined =>
         parseEditableTables(view.state.doc.toString()).tables.find((table) =>
           table.sourceTableIndex === expectedIndex && table.valid
@@ -950,14 +957,12 @@ class StructuralTableInteraction {
         this.beginCellEdit(view, coordinate, entryIntent);
         return;
       }
-      queueMicrotask(() => {
-        if (!view.dom.isConnected || view.dom.ownerDocument !== document
-          || view.state.field(editorInfoField, false)?.file?.path !== sourcePath) return;
-        const remounted = destination();
-        if (remounted !== undefined) requestTableFocus(view, {
-          from: remounted.range.from, source: remounted.source, sourcePath,
-          coordinate, edit: true, entryIntent,
-        });
+      if (!view.dom.isConnected || view.dom.ownerDocument !== document
+        || view.state.field(editorInfoField, false)?.file?.path !== sourcePath) return;
+      const remounted = destination();
+      if (remounted !== undefined) requestTableFocus(view, {
+        from: remounted.range.from, source: remounted.source, sourcePath,
+        coordinate, edit: true, entryIntent,
       });
       return;
     }
@@ -1694,10 +1699,12 @@ class StructuralTableInteraction {
         retainCellDraft(this.app, { sourcePath: this.sourcePath, row: anchor.row, column: anchor.column, text: editor.value }, t);
       }
       settled = true;
+      composingCellEditors.delete(editor);
       releaseCellEditorFocus(editor);
     };
     const settle = (): void => {
       settled = true;
+      composingCellEditors.delete(editor);
       releaseCellEditorFocus(editor);
       this.preserveDraft = null;
       this.finishActiveOperation = null;
@@ -2020,10 +2027,12 @@ class StructuralTableInteraction {
     });
     editor.addEventListener("compositionstart", (event) => {
       composing = true;
+      composingCellEditors.add(editor);
       event.stopPropagation();
     });
     editor.addEventListener("compositionend", (event) => {
       composing = false;
+      composingCellEditors.delete(editor);
       event.stopPropagation();
       resizeEditor();
       if (editor.ownerDocument.activeElement !== editor && !contextMenuOpen) finish(true, null, false);
@@ -2128,6 +2137,7 @@ class StructuralTableInteraction {
         if (!event.isPrimary || event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
+        if (this.axisDrag?.start(event, axis, index)) return;
         const touchAnchor = event.pointerType === "touch" ? this.touchAxisAnchor : null;
         const extendTouch = touchAnchor?.axis === axis && touchAnchor.index !== index;
         if (extendTouch) this.axisAnchor = touchAnchor.index;

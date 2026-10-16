@@ -4971,6 +4971,7 @@ describe("StructuralTableEditorController", () => {
     };
     try {
       const editor = open();
+      editor.select(); // The Gboard regression requires an actual text selection.
       editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Unidentified", bubbles: true }));
       const empty = new InputEvent("beforeinput", { inputType: "insertText", data: "", bubbles: true, cancelable: true });
       // Simulate the browser's default replacement only when it was not cancelled.

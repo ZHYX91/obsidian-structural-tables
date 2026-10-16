@@ -4983,6 +4983,7 @@ describe("StructuralTableEditorController", () => {
       expect(undo(view)).toBe(false);
 
       const deleting = open();
+      deleting.select(); // Explicit deletion tests a real selected range, not the new collapsed click caret.
       const deletion = new InputEvent("beforeinput", { inputType: "deleteContentBackward", data: null, bubbles: true, cancelable: true });
       expect(deleting.dispatchEvent(deletion)).toBe(true);
       deleting.setRangeText("", deleting.selectionStart, deleting.selectionEnd, "end");

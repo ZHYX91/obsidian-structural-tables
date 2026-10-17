@@ -1,0 +1,123 @@
+# Structural Tables
+
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+
+تضيف Structural Tables دمج الخلايا ورؤوس الأعمدة متعددة الصفوف ورؤوس الصفوف والجداول بلا رأس أعمدة إلى جداول Markdown. عرض الجدول وحده لا يغيّر نص الملاحظة.
+
+## لقطات الشاشة
+
+### جدول بثلاثة خطوط في وضع القراءة
+
+تُعرض رؤوس الأعمدة المتعددة والخلايا المدمجة دون رسم حدود كاملة لكل خلية.
+
+![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+
+### التحرير في المعاينة المباشرة
+
+انقر الخلية على الحاسوب أو اضغط عليها مرتين في شاشة اللمس لتحرير النص.
+
+![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+
+### إعدادات المظهر
+
+![Structural Tables settings](../assets/structural-tables-settings-en.png)
+
+<!-- section: features -->
+## الميزات
+
+- ضع `<` لدمج الخلية مع العمود السابق في ترتيب المصدر، أو `^` لدمجها مع الخلية العليا.
+- استخدم `||` المتجاورين في سطر الفصل لتحديد أعمدة رؤوس الصفوف، ويمكن إنشاء عدة صفوف لرؤوس الأعمدة.
+- تظهر بنية الدمج في وضع القراءة والمعاينة المباشرة.
+- أضف الصفوف والأعمدة أو انقلها أو احذفها، أو بدّل صفوف الجدول وأعمدته بالكامل.
+- انسخ الجدول بصيغة HTML أو GFM العادية أو TSV أو CSV، وصدّره إلى PNG على الحاسوب.
+- الصق جداول HTML المدعومة من المتصفحات وبرامج الجداول.
+- حوّل الجدول إلى Obsidian Base بعد مراجعة الملفات التي ستُنشأ.
+- تُرفض العمليات التي قد تزيل محتوى غير محدد، باستثناء الحذف أو التفريغ الصريح.
+
+<!-- section: requirements-and-compatibility -->
+## المتطلبات والتوافق
+
+يتطلب Obsidian 1.12.7 أو أحدث. يدعم أجهزة الحاسوب وAndroid. تحويل الجدول إلى Base يتطلب تفعيل المكوّن الأساسي Bases في Obsidian.
+
+الرموز `<` و`^` و`||` هي امتدادات لبنية Markdown، وقد تعرضها المحررات الأخرى بصورة مختلفة. لاستخدام Advanced Tables اختر «تحرير مصدر الجدول» ثم راجع المحتوى والدمج بعد الفرز.
+
+<!-- section: installation -->
+## التثبيت
+
+افتح «الإعدادات ← الإضافات المجتمعية ← تصفح» في Obsidian، وابحث عن Structural Tables، ثم ثبّتها وفعّلها.
+
+للتثبيت اليدوي، فك ضغط `structural-tables-<version>.zip` داخل `Vault/.obsidian/plugins/`، ثم أعد تحميل Obsidian وفعّل الإضافة.
+
+[GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
+
+<!-- section: usage -->
+## طريقة الاستخدام
+
+أنشئ جدول Markdown ثم استخدم الصيغة التالية:
+
+```markdown
+| Region | Sales | < |
+| Quarter | Q1 | Q2 |
+| --- || --- | --- |
+| North | 10 | 12 |
+| ^ | 8 | 11 |
+```
+
+يعني `<` الدمج مع العمود السابق في ترتيب المصدر، ويعني `^` الدمج للأعلى. يحدد `||` حد رؤوس الصفوف داخل سطر الفصل ولا يضيف عمودًا. اتجاه الأعمدة يتبع اتجاه الملاحظة، لا لغة الواجهة.
+
+في المعاينة المباشرة، انقر خلية لتحريرها. Enter للحفظ والانتقال، وShift+Enter لسطر جديد، وEscape للإلغاء. اسحب مقبض الصف أو العمود لنقله.
+
+عند تحديد خلايا الشبكة، يمسح Delete/Backspace النص فقط ولا يحذف الصفوف أو الدمج. استخدم قائمة النقر الأيمن لحذف الصفوف أو الأعمدة أو الجدول، ويمكن التراجع عن العمليات.
+
+يمكن نسخ نطاق الخلايا وقصه ولصقه ما دامت بنية الدمج قابلة للحفظ. على الهاتف تضيع معلومات الدمج المحفوظة بعد إعادة التشغيل أو تغيير محتوى الحافظة.
+
+على الحاسوب يمكنك معاينة PNG للجدول ونسخه أو حفظه. لا تتضمن الصورة تعديلات الخلايا غير المحفوظة. تصدير الصور غير متاح على الهاتف.
+
+احفظ الملاحظة وانقل الجداول المتداخلة خارج الاقتباسات والقوائم قبل تحويلها إلى Base. تُسطح بنية الدمج، واستعادة الجدول الأصلي لا تحذف ملاحظات السجلات المنشأة.
+
+<!-- section: settings -->
+## الإعدادات
+
+«عام»: اللغة ولصق HTML وتحذيرات التعارض. «العروض»: القراءة والمعاينة المباشرة والأخطاء والتحكم في جداول GFM العادية. «المظهر»: النمط والعرض والتباعد وتناوب ألوان الصفوف.
+
+اختر اتباع السمة أو الشبكة أو الجدول ذي الخطوط الثلاثة. لا تغير إعدادات المظهر أو لغة الواجهة نص Markdown أو اتجاه الملاحظة.
+
+<!-- section: limitations -->
+## القيود
+
+الإضافة ليست برنامج جداول حسابية ولا تحسب الصيغ. لا تدعم تنسيقًا مستقلًا لكل خلية أو عنوانًا للجدول أو Markdown الكتلي داخل الخلايا أو أسطر مصدر متعددة حقيقية.
+
+يُحوَّل HTML المستورد إلى نص عادي مع فواصل `<br>` المرئية المدعومة. لا تمثل GFM العادية كل أشكال الدمج، وتحويل Base يسطح الرؤوس.
+
+<!-- section: privacy-and-security -->
+## الخصوصية والأمان
+
+تُعالج الجداول محليًا ولا يُرفع محتوى الملاحظات أو تُجمع إحصاءات الاستخدام. عرض الجدول وحده لا يعدّل Markdown.
+
+تتبع الصور والخطوط البعيدة سياسة الشبكة في Obsidian والسمة المستخدمة. لا تنشر ملفاتك أو مساراتك الخاصة في المشكلات العامة.
+
+<!-- section: development -->
+## التطوير
+
+استخدم Node 24.19.0 وnpm 11.17.0، ثم ثبّت التبعيات وشغّل الفحوص:
+
+```bash
+npm ci
+npm run check
+```
+
+[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.en.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+
+<!-- section: support -->
+## الدعم
+
+للأسئلة استخدم Q&A، وللاقتراحات Ideas، وللأخطاء القابلة للتكرار GitHub Issues. أرفق إصدار Obsidian والسمة ومصدر الجدول والنتيجة المتوقعة والفعلية.
+
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+
+أبلغ عن الثغرات الأمنية بصورة خاصة عبر قناة الإبلاغ الأمني.
+
+<!-- section: license -->
+## الترخيص
+
+[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX

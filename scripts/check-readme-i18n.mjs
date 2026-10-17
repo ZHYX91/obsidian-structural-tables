@@ -78,4 +78,18 @@ for (const [file, source] of [[englishPath, english], [chinesePath, chinese]]) {
     `${file} must not contain local or workspace-only paths`);
 }
 
-process.stdout.write(`README i18n contract passed for ${sections.length} synchronized sections.\n`);
+const locales = [["English","README.md"],["简体中文","README.zh-CN.md"],["繁體中文","README.zh-TW.md"],["日本語","README.ja.md"],["Deutsch","README.de.md"],["Español","README.es.md"],["العربية","README.ar.md"],["Français","README.fr.md"],["Português (Brasil)","README.pt-BR.md"],["Русский","README.ru.md"],["한국어","README.ko.md"],["Tiếng Việt","README.vi.md"]];
+for (const [label, filename] of locales) {
+  const path = filename === "README.md" ? filename : "docs/i18n/" + filename;
+  const source = path === englishPath ? english : path === chinesePath ? chinese : await readFile(path, "utf8");
+  sectionMarkers(source, path);
+  for (const [otherLabel, otherName] of locales) {
+    const href = filename === "README.md"
+      ? "https://github.com/ZHYX91/obsidian-structural-tables/blob/main/" + (otherName === "README.md" ? otherName : "docs/i18n/" + otherName)
+      : otherName === "README.md" ? "../../README.md" : otherName;
+    assert.ok(source.includes("[" + otherLabel + "](" + href + ")"), path + " missing the " + otherLabel + " navigation link");
+  }
+  assert.ok(source.includes("||") && source.includes("^") && source.includes("<"),
+    path + " must explain the same table syntax");
+}
+process.stdout.write(`README i18n contract passed for ${locales.length} languages and ${sections.length} synchronized sections.\\n`);

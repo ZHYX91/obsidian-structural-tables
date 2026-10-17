@@ -1,0 +1,123 @@
+# Structural Tables
+
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+
+Thêm ô gộp, nhiều hàng tiêu đề cột, tiêu đề hàng và bảng không có tiêu đề cột vào bảng Markdown. Chỉ xem bảng sẽ không viết lại nội dung Markdown của ghi chú.
+
+## Ảnh chụp màn hình
+
+### Bảng ba đường kẻ trong chế độ đọc
+
+Hiển thị nhóm tiêu đề và các ô đã gộp mà không vẽ khung cho mọi ô.
+
+![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+
+### Chỉnh sửa trong bản xem trước
+
+Nhấp vào ô trên máy tính hoặc chạm hai lần trên màn hình cảm ứng để chỉnh sửa trực tiếp.
+
+![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+
+### Cài đặt giao diện
+
+![Structural Tables settings](../assets/structural-tables-settings-en.png)
+
+<!-- section: features -->
+## Tính năng
+
+- Nhập `<` để gộp với cột trước đó theo thứ tự nguồn hoặc `^` để gộp với ô phía trên.
+- Dùng hai dấu `||` liền nhau trong hàng phân cách để đánh dấu các cột làm tiêu đề hàng.
+- Hiển thị cấu trúc gộp ô trong chế độ đọc và xem trước trực tiếp.
+- Thêm, di chuyển, xóa hàng/cột hoặc hoán đổi hàng và cột của toàn bộ bảng.
+- Sao chép dưới dạng HTML, GFM thông thường, TSV hoặc CSV; xuất PNG trên máy tính.
+- Dán các bảng HTML được hỗ trợ từ trình duyệt và phần mềm bảng tính.
+- Chuyển bảng thành Obsidian Base sau khi xem trước các bản ghi sẽ được tạo.
+- Từ chối thao tác có thể làm mất dữ liệu ngoài vùng chọn, trừ khi người dùng chọn xóa một cách rõ ràng.
+
+<!-- section: requirements-and-compatibility -->
+## Yêu cầu và khả năng tương thích
+
+Cần Obsidian 1.12.7 trở lên. Hỗ trợ máy tính và Android. Muốn chuyển bảng thành Base, hãy bật plugin lõi Bases của Obsidian.
+
+`<`, `^` và `||` là cú pháp mở rộng nên các trình chỉnh sửa Markdown khác có thể hiển thị bảng gộp khác đi. Khi dùng Advanced Tables, chọn «Sửa mã Markdown của bảng» rồi kiểm tra lại dữ liệu sau khi sắp xếp bằng công cụ khác.
+
+<!-- section: installation -->
+## Cài đặt
+
+Trong Obsidian, mở «Cài đặt → Plugin cộng đồng → Duyệt», tìm Structural Tables, cài đặt và kích hoạt.
+
+Để cài thủ công, giải nén `structural-tables-<version>.zip` vào `Vault/.obsidian/plugins/`, tải lại Obsidian rồi bật plugin.
+
+[GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
+
+<!-- section: usage -->
+## Cách sử dụng
+
+Tạo một bảng Markdown rồi dùng cú pháp sau:
+
+```markdown
+| Region | Sales | < |
+| Quarter | Q1 | Q2 |
+| --- || --- | --- |
+| North | 10 | 12 |
+| ^ | 8 | 11 |
+```
+
+`<` gộp với cột phía trước theo thứ tự nguồn, `^` gộp với ô ở trên. Ký hiệu `||` trong hàng phân cách đánh dấu ranh giới tiêu đề hàng và không tạo thêm cột.
+
+Nhấp vào ô trong bản xem trước để sửa. Enter lưu và chuyển ô, Shift+Enter xuống dòng, Escape hủy. Kéo tay nắm hàng hoặc cột để di chuyển.
+
+Khi chọn một vùng ô, Delete/Backspace chỉ xóa nội dung, không xóa hàng, cột hay cấu trúc gộp. Dùng menu chuột phải để xóa hàng, cột hoặc bảng; có thể hoàn tác bằng Undo.
+
+Có thể sao chép, cắt và dán vùng ô khi bố cục gộp vẫn được giữ nguyên. Trên điện thoại, việc khởi động lại hoặc thay đổi bộ nhớ tạm sẽ làm mất thông tin gộp của lần sao chép trước.
+
+Trên máy tính có thể xem trước, sao chép hoặc lưu PNG của toàn bộ bảng. Các thay đổi ô chưa lưu không nằm trong ảnh. Di động không hỗ trợ xuất PNG.
+
+Trước khi chuyển thành Base, hãy lưu ghi chú và đưa bảng ra ngoài khối trích dẫn hoặc danh sách. Cấu trúc gộp sẽ được làm phẳng; khôi phục bảng gốc không xóa các ghi chú bản ghi đã tạo.
+
+<!-- section: settings -->
+## Cài đặt
+
+«Chung»: ngôn ngữ, dán HTML, cảnh báo xung đột. «Chế độ xem»: đọc, xem trước, kiểm tra lỗi và chỉnh sửa bảng GFM thường. «Giao diện»: kiểu, chiều rộng, khoảng cách và nền xen kẽ.
+
+Chọn Theo chủ đề, Lưới hoặc Bảng ba đường kẻ. Đổi giao diện hay ngôn ngữ plugin không thay đổi Markdown hoặc hướng văn bản của ghi chú.
+
+<!-- section: limitations -->
+## Giới hạn
+
+Đây không phải ứng dụng bảng tính nên không tính công thức. Không hỗ trợ định dạng riêng từng ô, chú thích bảng, Markdown dạng khối trong ô hoặc ô có nhiều dòng mã nguồn thực sự.
+
+HTML nhập vào được chuyển thành văn bản và dấu xuống dòng trực quan `<br>` được hỗ trợ. GFM thường không giữ mọi cấu trúc gộp; chuyển thành Base sẽ làm phẳng tiêu đề.
+
+<!-- section: privacy-and-security -->
+## Quyền riêng tư và bảo mật
+
+Bảng được xử lý trên máy, không tải nội dung ghi chú lên mạng và không thu thập số liệu sử dụng. Chỉ xem bảng không làm thay đổi Markdown.
+
+Hình ảnh và phông chữ trên mạng vẫn tuân theo hoạt động mạng của Obsidian và giao diện chủ đề. Không đăng công khai đường dẫn hoặc nội dung ghi chú cá nhân.
+
+<!-- section: development -->
+## Phát triển
+
+Sử dụng Node 24.19.0 và npm 11.17.0. Cài đặt các gói phụ thuộc và chạy kiểm tra:
+
+```bash
+npm ci
+npm run check
+```
+
+[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.en.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+
+<!-- section: support -->
+## Hỗ trợ
+
+Hỏi đáp tại Q&A, đề xuất tại Ideas và báo lỗi có thể tái hiện tại GitHub Issues. Hãy cung cấp phiên bản Obsidian, chủ đề, Markdown của bảng, kết quả mong đợi và kết quả thực tế.
+
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+
+Báo cáo lỗ hổng bảo mật qua kênh riêng thay vì đăng công khai.
+
+<!-- section: license -->
+## Giấy phép
+
+[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX

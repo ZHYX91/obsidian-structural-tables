@@ -83,11 +83,16 @@ for (const [, filename] of locales) {
   const path = filename === "README.md" ? filename : "docs/i18n/" + filename;
   const source = path === englishPath ? english : path === chinesePath ? chinese : await readFile(path, "utf8");
   sectionMarkers(source, path);
+  const navigation = source.split("\n")[2] ?? "";
+  const navigationLinks = [...navigation.matchAll(/\]\([^)]*\)/gu)];
+  assert.equal(navigationLinks.length, locales.length, `${path} must have exactly ${locales.length} language links`);
+  assert.doesNotMatch(navigation, /https:\/\/github\.com\/ZHYX91\/obsidian-structural-tables\/blob\/main\//u,
+    `${path} must use branch-relative README links, including before merge`);
   for (const [otherLabel, otherName] of locales) {
     const href = filename === "README.md"
       ? (otherName === "README.md" ? "README.md" : "docs/i18n/" + otherName)
       : otherName === "README.md" ? "../../README.md" : otherName;
-    assert.ok(source.includes("[" + otherLabel + "](" + href + ")"), path + " missing the " + otherLabel + " navigation link");
+    assert.ok(navigation.includes("[" + otherLabel + "](" + href + ")"), path + " missing the " + otherLabel + " navigation link");
   }
   assert.ok(source.includes("||") && source.includes("^") && source.includes("<"),
     path + " must explain the same table syntax");

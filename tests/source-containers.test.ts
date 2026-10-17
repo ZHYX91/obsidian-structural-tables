@@ -30,20 +30,21 @@ describe("source containers", () => {
     ["# Heading", true],
     ["## Heading ##", true],
     ["***", true],
-    ["---", true],
+    ["Intro\n\n---", true],
     ["~~~md\nexample\n~~~", true],
     ["```md\nexample\n```", true],
     ["Title\n===", true],
     ["Normal paragraph", false],
     ["A **continued** paragraph", false],
   ] as const)("compares CommonMark type-7 ownership after %s", (before, ownsHtml) => {
-    const literal = ['<span id="literal" class="keep">', ...tableSource.split("\n"), "</span>"].join("\n");
+    const fakeTable = "| Fake | < |\n| --- | --- |\n| x | y |";
+    const literal = ['<span id="literal" class="keep">', ...fakeTable.split("\n"), "</span>"].join("\n");
     const source = before + "\n" + literal + "\n\n" + tableSource;
     const startsHtml = new MarkdownIt({ html: true }).parse(source, {}).some((token) =>
       token.type === "html_block" && token.content.includes('<span id="literal"'));
     expect(startsHtml).toBe(ownsHtml);
     const tables = parseEditableTables(source).tables;
-    expect(tables.some((table) => table.source.includes("| A | < |"))).toBe(!ownsHtml);
+    expect(tables.some((table) => table.source === fakeTable)).toBe(!ownsHtml);
     expect(tables.some((table) => table.source === tableSource)).toBe(true);
   });
 

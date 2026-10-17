@@ -79,7 +79,7 @@ for (const [file, source] of [[englishPath, english], [chinesePath, chinese]]) {
 }
 
 const locales = [["English","README.md"],["简体中文","README.zh-CN.md"],["繁體中文","README.zh-TW.md"],["日本語","README.ja.md"],["Deutsch","README.de.md"],["Español","README.es.md"],["العربية","README.ar.md"],["Français","README.fr.md"],["Português (Brasil)","README.pt-BR.md"],["Русский","README.ru.md"],["한국어","README.ko.md"],["Tiếng Việt","README.vi.md"]];
-for (const [label, filename] of locales) {
+for (const [, filename] of locales) {
   const path = filename === "README.md" ? filename : "docs/i18n/" + filename;
   const source = path === englishPath ? english : path === chinesePath ? chinese : await readFile(path, "utf8");
   sectionMarkers(source, path);

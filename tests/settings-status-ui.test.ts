@@ -27,8 +27,8 @@ function createHost(status: SettingsSaveStatus, language: InterfaceLanguage = "e
 
 describe("settings persistence status UI", () => {
   it.each([
-    ["en", "incompatible data schema 2"],
-    ["zh-CN", "不兼容的数据架构 2"],
+    ["en", "unsupported format (2)"],
+    ["zh-CN", "设置格式（2）"],
   ] as const)("shows the incompatible-schema warning in %s and disables controls", (language, text) => {
     const host = createHost({
       state: "incompatible",

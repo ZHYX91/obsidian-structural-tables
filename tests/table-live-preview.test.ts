@@ -905,6 +905,97 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it.each(["row", "column"] as const)("commits a changed cell with the first %s drag and restores axis selection", async (axis) => {
+    const source = ["Before", "", "| H1 | H2 | H3 |", "| --- || --- | --- |", "| A | B | C |", "| D | E | F |", "", "End"].join("\n");
+    const rect = (left: number, top: number, width: number, height: number): DOMRect =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("structural-tables-live-preview")) return rect(0, 0, 430, 250);
+      if (this.tagName === "TABLE") return rect(40, 20, 300, 160);
+      if (this.tagName === "TR") {
+        const row = [...this.closest("table")!.rows].indexOf(this as HTMLTableRowElement);
+        return rect(40, 20 + row * 40, 300, 40);
+      }
+      if (this.dataset.structuralColumn !== undefined) return rect(
+        40 + Number(this.dataset.structuralColumn) * 100, 20 + Number(this.dataset.structuralRow) * 40,
+        100 * Number(this.getAttribute("colspan") ?? 1), 40 * Number(this.getAttribute("rowspan") ?? 1),
+      );
+      return rect(0, 0, 0, 0);
+    });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const pointer = (type: string, x: number, y: number) => new PointerEvent(type, {
+      pointerId: 4, isPrimary: true, button: 0, pointerType: "mouse", clientX: x, clientY: y,
+      bubbles: true, cancelable: true,
+    });
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='2']")!;
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(editor).not.toBeNull();
+      editor.value = "DRAFT";
+      const handle = parent.querySelector<HTMLElement>(axis === "row"
+        ? "[data-structural-row-handle='2']" : "[data-structural-column-handle='2']")!;
+      const origin = axis === "row" ? { x: 25, y: 120 } : { x: 290, y: 10 };
+      const destination = axis === "row" ? { x: 25, y: 60 } : { x: 140, y: 10 };
+      handle.dispatchEvent(pointer("pointerdown", origin.x, origin.y));
+      expect(editor.isConnected).toBe(true);
+      window.dispatchEvent(pointer("pointermove", destination.x, destination.y));
+      window.dispatchEvent(pointer("pointerup", destination.x, destination.y));
+      await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows
+        .flatMap((row) => row.cells.map((cell) => cell.content))).toContain("DRAFT"));
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(table.valid).toBe(true);
+      expect(table.rows[axis === "row" ? 1 : 2]!.cells[axis === "row" ? 2 : 1]!.content).toBe("DRAFT");
+      await vi.waitFor(() => expect(parent.querySelector(`.structural-tables-${axis}-handle.is-selected`)).not.toBeNull());
+      expect(parent.querySelector<HTMLTextAreaElement>("textarea")).toBeNull();
+      expect(undoDepth(view.state)).toBe(1);
+      const after = view.state.doc.toString();
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(after);
+    } finally { view.destroy(); }
+  });
+
+  it("keeps consecutive fast row drags as two independent Undo steps", async () => {
+    const source = ["| H | V |", "| --- || --- |", "| A | 1 |", "| B | 2 |", "| C | 3 |"].join("\n");
+    const rect = (left: number, top: number, width: number, height: number): DOMRect =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("structural-tables-live-preview")) return rect(0, 0, 340, 270);
+      if (this.tagName === "TABLE") return rect(40, 20, 200, 200);
+      if (this.tagName === "TR") return rect(40, 20 + [...this.closest("table")!.rows].indexOf(this as HTMLTableRowElement) * 40, 200, 40);
+      if (this.dataset.structuralColumn !== undefined) return rect(40 + Number(this.dataset.structuralColumn) * 100,
+        20 + Number(this.dataset.structuralRow) * 40, 100, 40);
+      return rect(0, 0, 0, 0);
+    });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const pointer = (type: string, y: number) => new PointerEvent(type, { pointerId: 5, isPrimary: true,
+      button: 0, pointerType: "mouse", clientX: 25, clientY: y, bubbles: true, cancelable: true });
+    const move = (from: number, to: number) => {
+      const handle = parent.querySelector<HTMLElement>(`[data-structural-row-handle='${from}']`)!;
+      handle.dispatchEvent(pointer("pointerdown", 20 + from * 40 + 20));
+      window.dispatchEvent(pointer("pointermove", 20 + to * 40));
+      window.dispatchEvent(pointer("pointerup", 20 + to * 40));
+    };
+    try {
+      move(1, 5);
+      await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[0]!.content).toBe("B"));
+      const once = view.state.doc.toString();
+      move(2, 1);
+      await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[0]!.content).toBe("C"));
+      const twice = view.state.doc.toString();
+      expect(undoDepth(view.state)).toBe(2);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(once);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(once);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(twice);
+    } finally { view.destroy(); }
+  });
   it.each(["row", "column"] as const)("keeps a selected %s handle range through right-click pointerdown", (axis) => {
     const source = "Before\n\n| H | V | W |\n| --- || --- | --- |\n| A | B | C |\n| D | E | F |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 });

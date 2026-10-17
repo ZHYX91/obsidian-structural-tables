@@ -299,7 +299,7 @@ class StructuralTableInteraction {
   private pointerWindow: Window | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private host: HTMLElement | null = null;
-  private finishActiveOperation: ((operation: TableOperation, next: TableCellCoordinate) => void) | null = null;
+  private finishActiveOperation: ((operation: TableOperation, next: TableCellCoordinate, axis?: AxisSelection) => void) | null = null;
   private axisSelection: AxisSelection | null = null;
   private axisAnchor = 0;
   private touchAxisAnchor: { axis: TableAxis; index: number } | null = null;
@@ -679,7 +679,7 @@ class StructuralTableInteraction {
 
   private restoreCalloutFocus(view: EditorView, source: string, coordinate: TableCellCoordinate,
     edit: boolean, reveal = false, from = this.table.range.from, entryIntent?: CellEditEntryIntent,
-    selectionBounds?: PendingCellFocus["selectionBounds"]): void {
+    selectionBounds?: PendingCellFocus["selectionBounds"], axis?: AxisSelection): void {
     if (view.state.field(editorInfoField, false)?.file?.path !== this.sourcePath) return;
     const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
       candidate.range.from === from && candidate.source === source);
@@ -695,6 +695,7 @@ class StructuralTableInteraction {
       from: table.range.from, source, sourcePath: this.sourcePath, coordinate, edit,
       ...(entryIntent === undefined ? {} : { entryIntent }),
       ...(selectionBounds === undefined ? {} : { selectionBounds }),
+      ...(axis === undefined ? {} : { axisSelection: axis }),
     });
     // Host history requests scrolling to its source caret, which may be far
     // outside this Callout. Keep the restored table in the mounted viewport.
@@ -1745,7 +1746,7 @@ class StructuralTableInteraction {
       });
     };
     const finish = (commit: boolean, next: TableCellCoordinate | null = null, focus = true, operation?: TableOperation, nextIntent: CellEditEntryIntent = "select-all",
-      pastedBounds?: PendingCellFocus["selectionBounds"]): void => {
+      pastedBounds?: PendingCellFocus["selectionBounds"], axis?: AxisSelection): void => {
       if (settled) return;
       if (!commit) {
         settle();
@@ -1793,10 +1794,13 @@ class StructuralTableInteraction {
       } : null;
       const target: PendingCellFocus = {
         from: current.range.from, source: result.source, sourcePath: this.sourcePath,
-        coordinate: next ?? anchor, edit: next !== null, entryIntent: nextIntent,
+        coordinate: next ?? anchor, edit: next !== null && axis === undefined, entryIntent: nextIntent,
         ...(pastedBounds === undefined ? {} : { selectionBounds: pastedBounds }),
+        ...(axis === undefined ? {} : { axisSelection: axis }),
       };
-      const history = tableWriteHistory(current, result.source, this.sourcePath, anchor);
+      const history = tableWriteHistory(current, result.source, this.sourcePath,
+        axis === undefined ? anchor : next ?? anchor,
+        axis === undefined ? {} : { undoCoordinate: anchor });
       const blurEffect = !focus && next === null && !nativeCallout
         ? structuralTableCellBlurCommit.of({
           from: current.range.from, before: current.source, after: result.source,
@@ -1817,11 +1821,12 @@ class StructuralTableInteraction {
         });
       }
       if (nativeCallout && (focus || next !== null)) {
-        this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null, false, target.from, nextIntent, pastedBounds);
+        this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null && axis === undefined,
+          false, target.from, nextIntent, pastedBounds, axis);
       } else if (next !== null || focus) requestTableFocus(view, target);
     };
-    this.finishActiveOperation = (operation, next) => {
-      if (!composing) finish(true, next, true, operation);
+    this.finishActiveOperation = (operation, next, axis) => {
+      if (!composing) finish(true, next, true, operation, "select-all", undefined, axis);
     };
     const commitToNextRow = (): void => {
       const next = tableCellInDirection(this.table, anchor, "down");
@@ -2215,7 +2220,7 @@ class StructuralTableInteraction {
         const next = axis === "row" ? { row: movedStart, column: 0 } : { row: 0, column: movedStart };
         // The pointer was held through a cell draft. Commit text and the reorder
         // together instead of letting focus/blur discard this first drag.
-        if (this.finishActiveOperation !== null) this.finishActiveOperation(operation, next);
+        if (this.finishActiveOperation !== null) this.finishActiveOperation(operation, next, nextSelection);
         else this.applyMenuOperation(view, operation, next, nextSelection);
       });
     const installAxisHandle = (handle: HTMLButtonElement, axis: TableAxis, index: number): void => {

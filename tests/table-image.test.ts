@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { parseEditableTables } from "../src/core/parser";
 import { imageWork, renderTableImage, tableImageDimensions, TableImageError } from "../src/rendering/table-image";
 import { tableRenderingComplete, tableRenderingFailed, renderStructuralTable } from "../src/rendering/table-renderer";
+import { readingImageStyleElement } from "../src/reading/table-image-menu";
 
 const raster = vi.hoisted(() => ({ toSvg: vi.fn() }));
 vi.mock("html-to-image", () => raster);
@@ -79,6 +80,22 @@ describe("complete table PNG", () => {
     });
     await expect(render({ contextElement: context })).rejects.toMatchObject({ code: "stale" });
   });
+  it("inherits the rendered table direction rather than the Reading wrapper's direction", async () => {
+    const wrapper = document.body.appendChild(document.createElement("div"));
+    wrapper.className = "structural-tables-container";
+    wrapper.style.direction = "ltr";
+    const table = wrapper.appendChild(document.createElement("table"));
+    table.className = "structural-tables-table";
+    table.style.direction = "rtl";
+    expect(readingImageStyleElement(wrapper)).toBe(table);
+    raster.toSvg.mockImplementation(async (root: HTMLElement) => {
+      expect(root.querySelector<HTMLTableElement>("table")?.style.direction).toBe("rtl");
+      return "data:image/svg+xml;charset=utf-8,%3Csvg%2F%3E";
+    });
+    await render({ contextElement: readingImageStyleElement(wrapper) });
+    expect(document.querySelector(".structural-tables-image-stage")).toBeNull();
+  });
+
   it("renders the reconstructed five-column owner model, completed rich cells and explicit alignment without controls", async () => {
     expect(meal.columnCount).toBe(5);
     expect(meal.valid).toBe(true);

@@ -1,4 +1,5 @@
 import { Window } from "happy-dom";
+import MarkdownIt from "markdown-it";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Platform, type Editor } from "obsidian";
@@ -311,6 +312,29 @@ describe("HTML table clipboard import", () => {
 
     expect(parsed?.columnCount).toBe(2);
     expect(parsed?.rows[1]?.cells[1]?.content).toBe(String.raw`[[Target\|Alias]] \| literal`);
+  });
+
+  it("imports literal HTML cell code spans without inserting a GFM-only escape", () => {
+    const tick = String.fromCharCode(96);
+    const source = structuralSourceFromClipboardHtml(
+      "<table><tr><th>H</th><th>V</th></tr><tr><td>" +
+      tick + "a|b" + tick + "</td><td>KEEP</td></tr></table>");
+    const parsed = parseEditableTables(source ?? "").tables[0]!;
+    expect(parsed).toMatchObject({ valid: true, columnCount: 2 });
+    expect(parsed.rows[1]?.cells[0]?.content).toBe(tick + "a|b" + tick);
+    expect(parsed.rows[1]?.cells[1]?.content).toBe("KEEP");
+    expect(new MarkdownIt({ html: true }).render(source!)).toContain("<code>a|b</code>");
+  });
+
+  it.each([0, 1, 2, 3] as const)("preserves %i literal slashes from an HTML text cell", (count) => {
+    const visible = "a" + "\\".repeat(count) + "|b";
+    const source = structuralSourceFromClipboardHtml(
+      "<table><tr><th>H</th><th>V</th></tr><tr><td>" + visible + "</td><td>KEEP</td></tr></table>");
+    const parsed = parseEditableTables(source ?? "").tables[0]!;
+    expect(parsed).toMatchObject({ valid: true, columnCount: 2 });
+    expect(parsed.rows[1]?.cells[1]?.content).toBe("KEEP");
+    const html = new MarkdownIt({ html: true }).render(source!);
+    expect(html).toContain(visible);
   });
 
   it("refuses mixed prose or multiple tables so native paste can preserve all content", () => {

@@ -111,4 +111,62 @@ describe("source containers", () => {
     expect(parseEditableTables(`<pre>\n- literal\n  </pre>\n\n${structural}`).tables).toEqual([]);
     expect(parseEditableTables(`<pre>\n- literal\n  </pre>\n\n${ordinary}`).tables).toEqual([]);
   });
+  it("protects CommonMark type-6 closing tags until the next blank line", () => {
+    const literal = ["</div>", "| Fake | V |", "| --- || --- |", "| x | y |"].join("\n");
+    const note = literal + "\n\n" + tableSource;
+    const tables = parseEditableTables(note).tables;
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.source).toBe(tableSource);
+    expect(tables[0]?.range.from).toBe(literal.length + 2);
+  });
+  it.each(["base", "basefont", "frame", "frameset", "link", "menuitem", "noframes",
+    "optgroup", "option", "param", "search", "title", "track"])(
+    "protects CommonMark type-6 HTML <%s> until a blank line", (tag) => {
+      const raw = [`<${tag} data-example="literal">`, "| Fake | Table |", "| --- || --- |", "| A | B |"].join("\n");
+      const doc = raw + "\n\n" + tableSource;
+      const tables = parseEditableTables(doc).tables;
+      expect(tables).toHaveLength(1);
+      expect(tables[0]?.source).toBe(tableSource);
+      expect(tables[0]?.range.from).toBe(raw.length + 2);
+    },
+  );
+  it.each(["a", "custom-widget", "Warning"])(
+    "protects an isolated type-7 <%s> HTML block but not inline text", (tag) => {
+      const raw = [`<${tag} data-example="literal">`, "| Fake | Table |", "| --- || --- |", "| A | B |"].join("\n");
+      const note = raw + "\n\n" + tableSource;
+      expect(parseEditableTables(note).tables.map((table) => table.source)).toEqual([tableSource]);
+      const inline = `Ordinary prose\n<${tag}>\n` + tableSource;
+      expect(parseEditableTables(inline).tables.some((table) => table.source.includes("| A | < |"))).toBe(true);
+    },
+  );
+  it.each([["<?xml", "?>"], ["<!DOCTYPE", ">"], ["<![CDATA[", "]]>"]])(
+    "protects HTML instruction/declaration/CDATA beginning with %s", (start, end) => {
+      const raw = [start, "| Fake | Table |", "| --- || --- |", "| A | B |", end].join("\n");
+      const doc = raw + "\n\n" + tableSource;
+      expect(parseEditableTables(doc).tables.map((table) => table.source)).toEqual([tableSource]);
+    },
+  );
+  it("does not treat pipe lines in raw HTML blocks as editable tables", () => {
+    const html = ["<div id=\"literal\" class=\"keep-html\" style=\"color:red\">",
+      "| H | V |", "| --- || --- |", "| x | y |", "</div>"].join("\n");
+    const input = html + "\n\n" + tableSource;
+    const parsed = parseEditableTables(input).tables;
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.source).toBe(tableSource);
+    expect(parsed[0]?.range.from).toBe(html.length + 2);
+    expect(parseEditableTables(html).tables).toEqual([]);
+  });
+
+  it("preserves raw HTML ownership inside blockquotes and list continuations", () => {
+    for (const prefix of ["> ", "    "]) {
+      const container = prefix === "> " ? "" : "- List\n\n";
+      const input = container + withSourcePrefix(
+        "<div>\n| H | V |\n| --- || --- |\n| x | y |\n</div>", prefix
+      ) + "\n\n" + tableSource;
+      const parsed = parseEditableTables(input).tables;
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0]?.source).toBe(tableSource);
+    }
+  });
+
 });

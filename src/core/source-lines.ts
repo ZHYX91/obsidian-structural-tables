@@ -31,6 +31,11 @@ type ProtectedBlock = "%%" | "<!--" | "$$";
 
 const RAW_LITERAL_HTML_START = /^ {0,3}<(?:pre|script|style|textarea)(?=[\t >]|$)/iu;
 const RAW_LITERAL_HTML_END = /<\/(?:pre|script|style|textarea)>/iu;
+// CommonMark HTML block type 6: block tags own following literal lines
+// until the next blank line. Type 1 raw-text tags retain close-tag semantics.
+const HTML_BLOCK_START = /^ {0,3}<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?=[\t />]|$)/iu;
+// Conservative CommonMark type-7 standalone tags: never interrupt ordinary prose.
+const HTML_STANDALONE_TAG = /^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*(?:[\t ]+[^<>]*)?[\t ]*\/?>[\t ]*$/u;
 
 export function startsRawLiteralHtmlBlock(line: string): boolean {
   return RAW_LITERAL_HTML_START.test(line);
@@ -91,6 +96,9 @@ export function ignoredMarkdownLines(
   let protectedIndent = 0;
   let rawLiteralHtml = false;
   let rawLiteralIndent = 0;
+  let htmlBlock = false;
+  let htmlBlockIndent = 0;
+  let htmlSpecial: { end: string; indent: number } | null = null;
   let frontmatter = /^---[\t ]*$/u.test(lines[0]?.replace(/^\uFEFF/u, "") ?? "");
   let quoteDepth = 0;
   let listIndents: number[] = [];
@@ -103,7 +111,7 @@ export function ignoredMarkdownLines(
     }
     let quote = /^(?: {0,3}>[\t ]?)*/u.exec(original)?.[0] ?? "";
     let depth = quote.split(">").length - 1;
-    if ((fence !== null || protectedBlock !== null || rawLiteralHtml) && depth >= quoteDepth) {
+    if ((fence !== null || protectedBlock !== null || rawLiteralHtml || htmlBlock || htmlSpecial !== null) && depth >= quoteDepth) {
       quote = (quote.match(/ {0,3}>[\t ]?/gu) ?? []).slice(0, quoteDepth).join("");
       depth = quoteDepth;
     }
@@ -111,6 +119,8 @@ export function ignoredMarkdownLines(
       fence = null;
       protectedBlock = null;
       rawLiteralHtml = false;
+      htmlBlock = false;
+      htmlSpecial = null;
       listIndents = [];
       quoteDepth = depth;
     }
@@ -123,11 +133,13 @@ export function ignoredMarkdownLines(
     let line = unquoted.slice(listIndent);
     if (line.trim() !== "" && listIndent < protectedIndent) protectedBlock = null;
     if (line.trim() !== "" && listIndent < rawLiteralIndent) rawLiteralHtml = false;
+    if (line.trim() !== "" && listIndent < htmlBlockIndent) htmlBlock = false;
+    if (line.trim() !== "" && htmlSpecial !== null && listIndent < htmlSpecial.indent) htmlSpecial = null;
     if (line.trim() !== "" && fence !== null && listIndent < fence.listIndent) fence = null;
 
     // A list marker is a container, including when its first content is a fence.
     // Markers inside an active code/comment block remain literal content.
-    if (fence === null && protectedBlock === null && !rawLiteralHtml) {
+    if (fence === null && protectedBlock === null && !rawLiteralHtml && !htmlBlock && htmlSpecial === null) {
       let list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
       // Thematic breaks take precedence over list markers at every container depth.
       const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
@@ -170,6 +182,17 @@ export function ignoredMarkdownLines(
       if (endsRawLiteralHtmlBlock(line)) rawLiteralHtml = false;
       continue;
     }
+    if (htmlBlock) {
+      // A blank line ends this HTML block; subsequent Markdown can be parsed.
+      if (line.trim() === "") htmlBlock = false;
+      else ignored.add(index);
+      continue;
+    }
+    if (htmlSpecial !== null) {
+      ignored.add(index);
+      if (line.includes(htmlSpecial.end)) htmlSpecial = null;
+      continue;
+    }
 
     const indentedCode = /^(?: {4}|\t)/u.test(line);
     if (
@@ -180,6 +203,27 @@ export function ignoredMarkdownLines(
       ignored.add(index);
       rawLiteralHtml = !endsRawLiteralHtmlBlock(line);
       rawLiteralIndent = listIndent;
+      continue;
+    }
+
+    // HTML blocks 3–5 can span lines; they must not lend their pipe text to a table.
+    if (!indentedCode && protectedBlock === null) {
+      const end = /^ {0,3}<\?/u.test(line) ? "?>"
+        : /^ {0,3}<!\[CDATA\[/u.test(line) ? "]]>"
+          : /^ {0,3}<![A-Za-z]/u.test(line) ? ">" : null;
+      if (end !== null) {
+        ignored.add(index);
+        if (!line.includes(end)) htmlSpecial = { end, indent: listIndent };
+        continue;
+      }
+    }
+    const previous = lines[index - 1] ?? "";
+    const previousBlank = index === 0 || previous.trim() === "" || /^(?:[ \t]*>[ \t]*)+$/u.test(previous);
+    if (!indentedCode && protectedBlock === null
+      && (HTML_BLOCK_START.test(line) || (previousBlank && HTML_STANDALONE_TAG.test(line)))) {
+      ignored.add(index);
+      htmlBlock = true;
+      htmlBlockIndent = listIndent;
       continue;
     }
 

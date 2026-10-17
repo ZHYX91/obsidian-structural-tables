@@ -259,7 +259,7 @@ export function ignoredMarkdownLines(
     if (indentedCode) ignored.add(index);
     const atxHeading = /^ {0,3}#{1,6}(?:[\t ]|$)/u.test(line);
     const thematicBreak = /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(line);
-    const setextUnderline = continuesParagraph && /^ {0,3}(?:=+|-+)[\t ]*$/u.test(line);
+    const setextUnderline: boolean = continuesParagraph && /^ {0,3}(?:=+|-+)[\t ]*$/u.test(line);
     paragraph = line.trim() === "" || indentedCode || protectedBlock !== null
       || atxHeading || thematicBreak || setextUnderline ? null : { quoteDepth, listIndent };
   }

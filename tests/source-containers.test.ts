@@ -126,7 +126,7 @@ describe("source containers", () => {
     for (const prefix of ["> ", "    "]) {
       const container = prefix === "> " ? "" : "- List\n\n";
       const input = container + withSourcePrefix(
-        "<div>\n| H | V |\n| --- || --- |\n| x | y |\n</div>", prefix)
+        "<div>\n| H | V |\n| --- || --- |\n| x | y |\n</div>", prefix
       ) + "\n\n" + tableSource;
       const parsed = parseEditableTables(input).tables;
       expect(parsed).toHaveLength(1);

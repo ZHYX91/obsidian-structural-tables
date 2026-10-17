@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editCellContent, insertTableColumn, pasteTableRangeRaw, setHeaderRowCount } from "../src/core/operations";
+import { editCellContent, insertTableColumn, pasteTableRangeRaw, removeTable, setHeaderRowCount } from "../src/core/operations";
 import { validateTableOperationInDocument } from "../src/core/table-operation-document";
 import { parseEditableTables } from "../src/core/parser";
 import { tableRangePayload } from "../src/core/table-range-clipboard";
@@ -31,6 +31,29 @@ describe("complete-document structural writes", () => {
     expect(validateTableOperationInDocument(note, table, inserted).changed).toBe(true);
   });
 
+  it("deletes only the chosen table and keeps the following table unchanged", () => {
+    const note = ["Intro", "", "| H | V |", "| --- || --- |", "| a | b |", "",
+      "| Other | Table |", "| --- | --- |", "| Keep | Data |", "", "Outro"].join("\n");
+    const before = parseEditableTables(note).tables;
+    expect(before).toHaveLength(2);
+    const deleted = removeTable(before[0]!);
+    const result = validateTableOperationInDocument(note, before[0]!, deleted);
+    expect(result.changed).toBe(true);
+    const after = note.slice(0, before[0]!.range.from) + result.source + note.slice(before[0]!.range.to);
+    const remaining = parseEditableTables(after).tables;
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]!.source).toBe(before[1]!.source);
+  });
+
+  it("refuses a stale cell edit without touching any bytes", () => {
+    const oldNote = ["Before", "", "| H | V |", "| --- || --- |", "| a | b |"].join("\n");
+    const oldTable = parseEditableTables(oldNote).tables[0]!;
+    const nextNote = oldNote.replace("| a | b |", "| changed | b |");
+    const candidate = editCellContent(oldTable, 1, 0, "newer");
+    expect(validateTableOperationInDocument(nextNote, oldTable, candidate)).toMatchObject({
+      changed: false, code: "invalid-result", source: oldTable.source,
+    });
+  });
   it.each(["\n", "\r\n", "\r"])("pastes into a deeply indented list without misidentifying code for %j", (ending) => {
     const note = ["- Item", "", "    | H | V |", "    | --- || --- |", "    | a | b |", "    | c | d |"].join(ending);
     const table = parseEditableTables(note).tables[0]!;

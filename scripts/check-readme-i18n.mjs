@@ -66,7 +66,7 @@ assert.deepEqual(
   "README translations must keep the same per-section Markdown structure",
 );
 assert.match(english,
-  /^# Structural Tables\n\n\[English\]\(https:\/\/github\.com\/ZHYX91\/obsidian-structural-tables\/blob\/main\/README\.md\) · \[简体中文\]\(https:\/\/github\.com\/ZHYX91\/obsidian-structural-tables\/blob\/main\/docs\/i18n\/README\.zh-CN\.md\)/u,
+  /^# Structural Tables\n\n\[English\]\(README\.md\) · \[简体中文\]\(docs\/i18n\/README\.zh-CN\.md\)/u,
   "English README must link to both canonical language documents");
 assert.match(chinese,
   /^# Structural Tables\n\n\[English\]\(\.\.\/\.\.\/README\.md\) · \[简体中文\]\(README\.zh-CN\.md\)/u,
@@ -85,7 +85,7 @@ for (const [, filename] of locales) {
   sectionMarkers(source, path);
   for (const [otherLabel, otherName] of locales) {
     const href = filename === "README.md"
-      ? "https://github.com/ZHYX91/obsidian-structural-tables/blob/main/" + (otherName === "README.md" ? otherName : "docs/i18n/" + otherName)
+      ? (otherName === "README.md" ? "README.md" : "docs/i18n/" + otherName)
       : otherName === "README.md" ? "../../README.md" : otherName;
     assert.ok(source.includes("[" + otherLabel + "](" + href + ")"), path + " missing the " + otherLabel + " navigation link");
   }

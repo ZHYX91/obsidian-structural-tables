@@ -26,6 +26,41 @@ describe("source containers", () => {
   it.each(["<div>", "<?instruction", "<![CDATA["])("keeps quoted fence text inside literal HTML: %s", (tag) => {
     expect(parseEditableTables(`${tag}\n> \`\`\`\n${tableSource}`).tables).toEqual([]);
   });
+  it.each([
+    ["# Heading", true],
+    ["## Heading ##", true],
+    ["***", true],
+    ["---", true],
+    ["~~~md\nexample\n~~~", true],
+    ["```md\nexample\n```", true],
+    ["Title\n===", true],
+    ["Normal paragraph", false],
+    ["A **continued** paragraph", false],
+  ] as const)("compares CommonMark type-7 ownership after %s", (before, ownsHtml) => {
+    const literal = ['<span id="literal" class="keep">', ...tableSource.split("\n"), "</span>"].join("\n");
+    const source = before + "\n" + literal + "\n\n" + tableSource;
+    const startsHtml = new MarkdownIt({ html: true }).parse(source, {}).some((token) =>
+      token.type === "html_block" && token.content.includes('<span id="literal"'));
+    expect(startsHtml).toBe(ownsHtml);
+    const tables = parseEditableTables(source).tables;
+    expect(tables.some((table) => table.source.includes("| A | < |"))).toBe(!ownsHtml);
+    expect(tables.some((table) => table.source === tableSource)).toBe(true);
+  });
+
+  it.each([
+    ["> # Heading\n> <span id='literal'>", "> "],
+    ["- # Heading\n  <span id='literal'>", "  "],
+    ["> Paragraph\n> <span id='literal'>", "> "],
+    ["- Paragraph\n  <span id='literal'>", "  "],
+  ] as const)("keeps type-7 ownership scoped to the quote/list container: %s", (head, prefix) => {
+    const nested = ["| H | < |", "| --- | --- |", "| a | b |", "</span>"]
+      .map((line) => prefix + line).join("\n");
+    const source = head + "\n" + nested + "\n\n" + tableSource;
+    const tables = parseEditableTables(source).tables;
+    expect(tables.some((table) => table.source.includes("| H | < |"))).toBe(!head.includes("Heading"));
+    expect(tables.some((table) => table.source === tableSource)).toBe(true);
+  });
+
   it("refuses nested Base promotion before producing files or replacement source", () => {
     const table = parseStructuralTables(withSourcePrefix(tableSource, "> ")).tables[0]!;
     expect(() => buildBasePromotionPlan(table, "example")).toThrow("outside its Markdown container");

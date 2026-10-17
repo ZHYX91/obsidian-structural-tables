@@ -6,6 +6,11 @@ import type { StructuralTable } from "../core/model";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { addImageExportMenuItem } from "../editor/table-menu";
 
+/** The table, not its outer wrapper, owns a table-specific direction override. */
+export function readingImageStyleElement(wrapper: HTMLElement): HTMLTableElement | null {
+  return wrapper.querySelector<HTMLTableElement>("table.structural-tables-table");
+}
+
 export function installReadingImageMenu(app: App, wrapper: HTMLElement, table: StructuralTable,
   sourcePath: string, owner: Component, t: () => Translate, exportImage?: ExportTableImage): void {
   if (exportImage === undefined) return;
@@ -30,7 +35,9 @@ export function installReadingImageMenu(app: App, wrapper: HTMLElement, table: S
         // host rerender may replace this render child without changing its note.
         const isCurrent = (): boolean => file.path === sourcePath && (sourceView === undefined
           ? surface.isConnected : sourceView.containerEl.isConnected && sourceView.file?.path === sourcePath);
-        exportImage(table, sourcePath, isCurrent, wrapper);
+        const styleElement = readingImageStyleElement(wrapper);
+        if (styleElement === null) { new Notice(t()("notice.staleTable")); return; }
+        exportImage(table, sourcePath, isCurrent, styleElement);
       })().catch(() => { new Notice(t()("image.error.resource")); });
     });
   });

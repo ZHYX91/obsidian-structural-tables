@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+هذا دليل مختصر للبدء يشرح الاستخدامات الأساسية والقيود المهمة. للاطلاع على الشرح الكامل، راجع [English](../../README.md) أو [简体中文](README.zh-CN.md).
+
 تضيف Structural Tables دمج الخلايا ورؤوس الأعمدة متعددة الصفوف ورؤوس الصفوف والجداول بلا رأس أعمدة إلى جداول Markdown. عرض الجدول وحده لا يغيّر نص الملاحظة.
 
 ## لقطات الشاشة

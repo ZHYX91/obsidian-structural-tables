@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+Este guia resumido apresenta as funções principais e as limitações importantes. Consulte as instruções completas em [English](../../README.md) ou [简体中文](README.zh-CN.md).
+
 Adicione células mescladas, várias linhas de cabeçalho, cabeçalhos de linha e tabelas sem cabeçalho às tabelas Markdown. Apenas visualizar uma tabela não reescreve a nota.
 
 ## Capturas de tela

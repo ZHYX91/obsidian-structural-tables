@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+Hướng dẫn ngắn này trình bày các chức năng chính và những giới hạn quan trọng. Xem hướng dẫn đầy đủ bằng [English](../../README.md) hoặc [简体中文](README.zh-CN.md).
+
 Thêm ô gộp, nhiều hàng tiêu đề cột, tiêu đề hàng và bảng không có tiêu đề cột vào bảng Markdown. Chỉ xem bảng sẽ không viết lại nội dung Markdown của ghi chú.
 
 ## Ảnh chụp màn hình

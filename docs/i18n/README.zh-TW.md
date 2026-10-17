@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+這是精簡入門指南，涵蓋常用操作與重要限制。完整說明請參閱 [English](../../README.md) 或[简体中文](README.zh-CN.md)。
+
 讓 Markdown 表格支援合併儲存格、多層欄標題、列標題，以及沒有欄標題的表格。開啟或閱讀表格不會改寫筆記的 Markdown。
 
 ## 畫面預覽

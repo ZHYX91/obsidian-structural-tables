@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+Dieser kompakte Einstieg erklärt die wichtigsten Funktionen und Grenzen. Ausführliche Anleitungen gibt es auf [English](../../README.md) und [简体中文](README.zh-CN.md).
+
 Erweitert Markdown-Tabellen um verbundene Zellen, mehrere Kopfzeilen, Zeilenüberschriften und Tabellen ohne Spaltenüberschriften. Das Anzeigen einer Tabelle verändert den Markdown-Text nicht.
 
 ## Screenshots

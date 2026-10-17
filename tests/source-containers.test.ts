@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import MarkdownIt from "markdown-it";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { serializeStructuralTable } from "../src/core/serializer";
 import { cellColumnAt, editCellContent, insertTableRow, splitCell } from "../src/core/operations";
@@ -8,6 +9,23 @@ import { buildBasePromotionPlan } from "../src/core/base-promotion";
 const tableSource = "| A | < |\n| --- | --- |\n| x | y |";
 
 describe("source containers", () => {
+  it.each(['<widget title="a > b">', "<widget title='a < b'>", "<widget enabled value=plain />", "</widget >"])(
+    "keeps valid standalone HTML literal: %s", (tag) => {
+      const source = `${tag}\n${tableSource}`;
+      expect(new MarkdownIt({ html: true }).parse(source, {}).some((token) => token.type === "html_block")).toBe(true);
+      expect(parseEditableTables(source).tables).toEqual([]);
+    },
+  );
+  it.each(["<widget =broken>", "</widget invalid>", "<widget title=\"unterminated>"])(
+    "does not hide a table after malformed HTML: %s", (tag) => {
+      const source = `${tag}\n${tableSource}`;
+      expect(new MarkdownIt({ html: true }).parse(source, {}).some((token) => token.type === "html_block")).toBe(false);
+      expect(parseEditableTables(source).tables).toHaveLength(1);
+    },
+  );
+  it.each(["<div>", "<?instruction", "<![CDATA["])("keeps quoted fence text inside literal HTML: %s", (tag) => {
+    expect(parseEditableTables(`${tag}\n> \`\`\`\n${tableSource}`).tables).toEqual([]);
+  });
   it("refuses nested Base promotion before producing files or replacement source", () => {
     const table = parseStructuralTables(withSourcePrefix(tableSource, "> ")).tables[0]!;
     expect(() => buildBasePromotionPlan(table, "example")).toThrow("outside its Markdown container");

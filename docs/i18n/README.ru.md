@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+Это краткое руководство по основным функциям и важным ограничениям. Подробные инструкции доступны на [English](../../README.md) и [简体中文](README.zh-CN.md).
+
 Добавляет в Markdown-таблицы объединённые ячейки, многострочные заголовки столбцов, заголовки строк и таблицы без заголовков. Обычный просмотр таблицы не меняет исходный Markdown.
 
 ## Снимки экрана

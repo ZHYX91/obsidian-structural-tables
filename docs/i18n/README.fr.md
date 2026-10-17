@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+Ce guide de prise en main résume les fonctions principales et les limites importantes. Consultez la documentation complète en [English](../../README.md) ou en [简体中文](README.zh-CN.md).
+
 Ajoutez des cellules fusionnées, plusieurs lignes d’en-têtes, des en-têtes de lignes et des tableaux sans en-tête à vos tableaux Markdown. Afficher une table ne réécrit jamais le Markdown de la note.
 
 ## Captures d’écran

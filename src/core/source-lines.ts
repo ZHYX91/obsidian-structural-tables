@@ -35,7 +35,7 @@ const RAW_LITERAL_HTML_END = /<\/(?:pre|script|style|textarea)>/iu;
 // until the next blank line. Type 1 raw-text tags retain close-tag semantics.
 const HTML_BLOCK_START = /^ {0,3}<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?=[\t />]|$)/iu;
 // Conservative CommonMark type-7 standalone tags: never interrupt ordinary prose.
-const HTML_STANDALONE_TAG = /^ {0,3}<\/?[A-Za-z][A-Za-z0-9-]*(?:[\t ]+[^<>]*)?[\t ]*\/?>[\t ]*$/u;
+const HTML_STANDALONE_TAG = /^ {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:[\t ]+[A-Za-z_:][A-Za-z0-9:._-]*(?:[\t ]*=[\t ]*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*[\t ]*\/?>|<\/[A-Za-z][A-Za-z0-9-]*[\t ]*>)[\t ]*$/u;
 
 export function startsRawLiteralHtmlBlock(line: string): boolean {
   return RAW_LITERAL_HTML_START.test(line);
@@ -151,7 +151,7 @@ export function ignoredMarkdownLines(
       }
     }
 
-    if (fence === null && protectedBlock === null && !rawLiteralHtml) {
+    if (fence === null && protectedBlock === null && !rawLiteralHtml && !htmlBlock && htmlSpecial === null) {
       const nestedQuote = /^(?: {0,3}>[\t ]?)*/u.exec(line)?.[0] ?? "";
       const nestedDepth = nestedQuote.split(">").length - 1;
       const nestedLine = line.slice(nestedQuote.length);

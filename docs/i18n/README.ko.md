@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+이 시작 가이드는 주요 기능과 중요한 제한 사항을 요약합니다. 자세한 설명은 [English](../../README.md) 또는 [简体中文](README.zh-CN.md)를 참고하세요.
+
 Markdown 표에 셀 병합, 여러 줄의 열 머리글, 행 머리글, 열 머리글이 없는 표를 추가합니다. 표를 보는 것만으로 노트의 Markdown 내용이 바뀌지는 않습니다.
 
 ## 화면 예시

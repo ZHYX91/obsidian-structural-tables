@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+これは主な操作と重要な制限をまとめた入門ガイドです。詳しい説明は [English](../../README.md) または [简体中文](README.zh-CN.md) を参照してください。
+
 Markdown の表でセルの結合、複数行の列見出し、行見出し、見出しのない表を使えます。表を開いたり表示したりするだけでノートの Markdown が書き換わることはありません。
 
 ## スクリーンショット

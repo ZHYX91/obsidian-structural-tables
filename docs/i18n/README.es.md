@@ -2,6 +2,8 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
 
+Esta guía resumida explica las funciones principales y sus límites. Consulta las instrucciones completas en [English](../../README.md) o [简体中文](README.zh-CN.md).
+
 Añade celdas combinadas, varias filas de encabezados, encabezados de fila y tablas sin encabezados a Markdown. Abrir o leer una tabla nunca reescribe el Markdown de la nota.
 
 ## Capturas de pantalla

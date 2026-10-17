@@ -1,7 +1,7 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
-import { existingTableCellText, mathCellInputProblem } from "./table-cell-syntax";
+import { closedCodeSpanEnd, existingTableCellText, mathCellInputProblem } from "./table-cell-syntax";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
 
 export interface TabularProjection {
@@ -43,12 +43,76 @@ function anchorFor(table: StructuralTable, cell: StructuralCell): StructuralCell
   return table.rows[cell.anchorRow]?.cells[cell.anchorColumn] ?? cell;
 }
 
+function codeSpanDisplayText(raw: string): string {
+  const normalized = raw.replace(/\r\n|\r|\n/gu, " ");
+  // CommonMark code spans collapse line endings and trim one surrounding
+  // space when both ends are spaces and the span is not all whitespace.
+  return normalized.startsWith(" ") && normalized.endsWith(" ") && /[^ ]/u.test(normalized)
+    ? normalized.slice(1, -1) : normalized;
+}
+
+function codeSpanAsHtml(raw: string): string {
+  // In GFM tables, a pipe MUST have an odd backslash count to remain inside
+  // its column. An odd number of literal backslashes within a code span
+  // cannot survive that table unescape unchanged. Use standard GFM inline
+  // HTML only for this corner case, encoding backslashes and pipes as entities.
+  const content = codeSpanDisplayText(raw)
+    .replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;")
+    .replace(/\\/gu, "&#92;").replace(/\|/gu, "&#124;");
+  return "<code>" + content + "</code>";
+}
+
 function portableCell(content: string): string {
-  // GFM recognizes pipes as cell separators even inside backtick code spans.
-  // Preserve existing escapes and escape only separators with even backslash parity.
-  return existingTableCellText(content).replace(/(\\*)\|/gu, (_match, slashes: string) =>
+  const source = existingTableCellText(content);
+  let cell = "";
+  for (let index = 0; index < source.length;) {
+    const character = source[index] ?? "";
+    if (character === "\\") {
+      cell += source.slice(index, index + 2);
+      index += 2;
+      continue;
+    }
+    if (character === "`") {
+      const end = closedCodeSpanEnd(source, index);
+      if (end !== null) {
+        const opening = /^`+/u.exec(source.slice(index))![0].length;
+        const raw = source.slice(index + opening, end - opening);
+        const losesBackslash = [...raw.matchAll(/(\\+)\|/gu)]
+          .some((match) => match[1]!.length % 2 === 1);
+        cell += losesBackslash ? codeSpanAsHtml(raw) : source.slice(index, end);
+        index = end;
+        continue;
+      }
+    }
+    cell += character;
+    index += 1;
+  }
+  // Pipes outside protected code spans still need GFM delimiter escaping.
+  return cell.replace(/(\\*)\|/gu, (_match, slashes: string) =>
     slashes.length % 2 === 0 ? slashes + "\\|" : slashes + "|");
 }
+
+/** HTML clipboard cells are literal text, not already-escaped GFM source. */
+function importedHtmlCellText(content: string): string {
+  const source = content.replace(/\r\n|\r|\n/gu, "<br>").trim();
+  let result = "";
+  for (let index = 0; index < source.length;) {
+    const character = source[index] ?? "";
+    if (character === "`") {
+      const end = closedCodeSpanEnd(source, index);
+      if (end !== null) {
+        // The structural parser already treats closed code spans as opaque.
+        result += source.slice(index, end);
+        index = end;
+        continue;
+      }
+    }
+    result += character === "\\" ? "\\\\" : character === "|" ? "\\|" : character;
+    index += 1;
+  }
+  return result === "<" || result === "^" ? "\\" + result : result;
+}
+
 function delimiterFor(alignment: ColumnAlignment): string {
   if (alignment === "left") return ":---";
   if (alignment === "center") return ":---:";
@@ -306,7 +370,7 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
   }
   const values = owners.map((row, rowIndex) => row.map((anchor, columnIndex) => {
     if (anchor === undefined) return "";
-    if (anchor.row === rowIndex && anchor.column === columnIndex) return portableCell(anchor.text);
+    if (anchor.row === rowIndex && anchor.column === columnIndex) return importedHtmlCellText(anchor.text);
     return anchor.row === rowIndex ? "<" : "^";
   }));
   const delimiters = Array.from({ length: columnCount }, () => "---");

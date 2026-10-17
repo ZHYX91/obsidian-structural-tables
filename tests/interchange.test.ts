@@ -52,7 +52,7 @@ describe("table interchange", () => {
     expect(output).toContain(`| A | ${content} |`);
   });
 
-  it.each(["`a|b`", "``a|b``", "`a" + String.fromCharCode(92) + "|b`"])(
+  it.each(["`a|b`", "``a|b``"])(
     "escapes separators in code spans for standard GFM without hiding later cells: %s", (cell) => {
       const input = ["| H1 | H2 |", "| --- || --- |", "| " + cell + " | KEEP |"].join("\n");
       const gfm = structuralTableToPlainGfm(table(input));
@@ -62,6 +62,45 @@ describe("table interchange", () => {
       expect((output.match(/<td>/gu) ?? []).length).toBe(2);
     },
   );
+
+  it.each([1, 2] as const)("keeps 0–5 literal backslashes in %i-backtick GFM code", (ticks) => {
+    const fence = String.fromCharCode(96).repeat(ticks);
+    const markdown = new MarkdownIt({ html: true });
+    for (let count = 0; count <= 5; count += 1) {
+      const visible = "a" + "\\".repeat(count) + "|b";
+      const cell = fence + visible + fence;
+      const source = ["| H1 | H2 |", "| --- || --- |", "| " + cell + " | KEEP |"].join("\n");
+      const output = structuralTableToPlainGfm(table(source));
+      const rendered = markdown.render(output);
+      expect(rendered, cell).toContain("<code>" + visible + "</code>");
+      expect(rendered, cell).toContain("<td>KEEP</td>");
+      expect((rendered.match(/<td>/gu) ?? []).length, cell).toBe(2);
+      if (count % 2 === 1) expect(output, cell).toContain("<code>");
+      else expect(output, cell).toContain(fence);
+    }
+  });
+
+  it("retains padded code spans and HTML-sensitive literals without losing columns", () => {
+    const tick = String.fromCharCode(96);
+    for (const value of ["a\\|b & <c> 😊", " a\\|b & <c> 😊 "]) {
+      const code = tick.repeat(2) + value + tick.repeat(2);
+      const input = ["| H | V |", "| --- || --- |", "| " + code + " | KEEP |"].join("\n");
+      const rendered = new MarkdownIt({ html: true }).render(structuralTableToPlainGfm(table(input)));
+      const display = value.startsWith(" ") ? value.slice(1, -1) : value;
+      const encoded = display.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;");
+      expect(rendered).toContain("<code>" + encoded + "</code>");
+      expect(rendered).toContain("<td>KEEP</td>");
+    }
+  });
+
+  it("preserves code-text slashes projected through a GFM column header", () => {
+    const tick = String.fromCharCode(96);
+    const value = "a" + "\\" + "|b";
+    const source = ["| H | " + tick + value + tick + " |", "| --- || --- |", "| row | KEEP |"].join("\n");
+    const html = new MarkdownIt({ html: true }).render(structuralTableToPlainGfm(table(source)));
+    expect(html).toContain("<code>" + value + "</code>");
+    expect(html).toContain("<td>KEEP</td>");
+  });
 
   it("exports semantic HTML with spans and scopes", () => {
     const html = structuralTableToHtml(table(STRUCTURAL), "test");

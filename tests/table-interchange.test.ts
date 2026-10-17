@@ -323,7 +323,9 @@ describe("HTML table clipboard import", () => {
     expect(parsed).toMatchObject({ valid: true, columnCount: 2 });
     expect(parsed.rows[1]?.cells[0]?.content).toBe(tick + "a|b" + tick);
     expect(parsed.rows[1]?.cells[1]?.content).toBe("KEEP");
-    expect(new MarkdownIt({ html: true }).render(source!)).toContain("<code>a|b</code>");
+    // Structural tables own the pipe-row parse; render the accepted code cell
+    // individually, not as an ordinary GFM table (which splits a bare code pipe).
+    expect(new MarkdownIt({ html: true }).renderInline(parsed.rows[1]!.cells[0]!.content)).toBe("<code>a|b</code>");
   });
 
   it.each([0, 1, 2, 3] as const)("preserves %i literal slashes from an HTML text cell", (count) => {

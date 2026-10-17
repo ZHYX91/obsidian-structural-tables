@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { insertTableColumn, pasteTableRangeRaw, setHeaderRowCount } from "../src/core/operations";
+import { editCellContent, insertTableColumn, pasteTableRangeRaw, setHeaderRowCount } from "../src/core/operations";
 import { validateTableOperationInDocument } from "../src/core/table-operation-document";
 import { parseEditableTables } from "../src/core/parser";
 import { tableRangePayload } from "../src/core/table-range-clipboard";
@@ -17,6 +17,13 @@ describe("complete-document structural writes", () => {
     expect(validateTableOperationInDocument(note, table, setHeaderRowCount(table, 0)).changed).toBe(false);
   });
 
+  it("checks cell-editor commits against the complete note without rejecting safe edits", () => {
+    const note = ["Intro", "", "| H | V |", "| --- || --- |", "| a | b |", "", "Outro"].join("\n");
+    const table = parseEditableTables(note).tables[0]!;
+    const updated = editCellContent(table, 1, 0, "changed");
+    expect(updated.changed).toBe(true);
+    expect(validateTableOperationInDocument(note, table, updated)).toMatchObject({ changed: true, code: "cell-edited" });
+  });
   it("accepts a safe isolated edit without changing neighboring tables", () => {
     const note = "| H | V |\n| --- || --- |\n| a | b |\n\n| X | Y |\n| --- | --- |\n| 1 | 2 |";
     const table = parseEditableTables(note).tables[0]!;

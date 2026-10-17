@@ -1758,9 +1758,12 @@ class StructuralTableInteraction {
         retainDraft(t("notice.staleTable"));
         return;
       }
-      const result = operation === undefined
+      const candidate = operation === undefined
         ? editCellContent(current, anchor.row, anchor.column, editor.value)
         : editCellAndTransform(current, anchor.row, anchor.column, editor.value, operation);
+      // Cell-draft commits can also alter the complete-note parse boundary.
+      // Validate the same full document as other structural write consumers.
+      const result = validateTableOperationInDocument(view.state.doc.toString(), current, candidate);
       if (!result.changed && result.code !== "cell-edited") {
         // A refused external paste has no unsaved draft to protect. Keep the
         // unchanged editor usable, including its next single-click handoff.

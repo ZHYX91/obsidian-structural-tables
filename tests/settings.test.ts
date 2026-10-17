@@ -29,7 +29,7 @@ describe("sanitizeSettings", () => {
       convertHtmlTablePaste: false,
       warnPluginConflicts: false,
     });
-    expect(sanitizeSettings({ language: "fr", density: "dense", layout: "wide" })).toMatchObject({
+    expect(sanitizeSettings({ language: "xx", density: "dense", layout: "wide" })).toMatchObject({
       language: "auto", density: "theme", layout: "theme", appearance: "theme",
     });
   });

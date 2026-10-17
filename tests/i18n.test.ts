@@ -24,7 +24,9 @@ describe("i18n", () => {
     ["en-GB", "en"], ["zh", "zh-CN"], ["zh-CN", "zh-CN"], ["zh-SG", "zh-CN"],
     ["zh-TW", "zh-TW"], ["zh-HK", "zh-TW"], ["zh-MO", "zh-TW"], ["zh_Hant_HK", "zh-TW"],
     ["zh-Hans-HK", "zh-CN"], ["ja-JP", "ja"], ["de-AT", "de"], ["es-419", "es"], ["ar-SA", "ar"],
-    ["", "en"], ["fr", "en"], ["arbitrary", "en"],
+    ["fr-FR", "fr"], ["pt-BR", "pt-BR"], ["pt_BR", "pt-BR"], ["pt", "pt-BR"],
+    ["pt-PT", "en"], ["ru-RU", "ru"], ["ko-KR", "ko"], ["vi-VN", "vi"],
+    ["", "en"], ["arbitrary", "en"],
   ] as const)("resolves Obsidian %s to %s", (input, expected) => {
     vi.spyOn(host, "getLanguage").mockReturnValue(input);
     expect(resolveLocale("auto", input)).toBe(expected);
@@ -46,9 +48,25 @@ describe("i18n", () => {
     }
   });
 
+  it("requires complete translated text for the five new language catalogs", () => {
+    const english = TRANSLATIONS.en;
+    // Product names, language names, and a shared loanword are intentional identities.
+    const identities = new Set(["settings.title", "settings.language.en", "settings.language.zh", "settings.density.compact"]);
+    for (const locale of ["fr", "pt-BR", "ru", "ko", "vi"] as const) {
+      const catalog = TRANSLATIONS[locale];
+      for (const key of Object.keys(english) as Array<keyof typeof english>) {
+        if (!identities.has(key)) expect(catalog[key], `${locale}/${key} must not fall back to English`).not.toBe(english[key]);
+      }
+      expect(catalog["menu.useMathAbsoluteSuggestion"]).toContain(String.raw`\lvert … \rvert`);
+      expect(catalog["menu.useMathConditionalSuggestion"]).toContain(String.raw`\mid`);
+      expect(catalog["operation.mathMultilineUnsafe"]).toContain(String.raw`\\`);
+      expect(catalog["operation.mathSyntaxUnsafe"]).toContain(String.raw`\$`);
+      expect(catalog["modal.promoteBase.contentVisualBreak"]).toContain("<br>");
+    }
+  });
   it("accepts saved supported IDs and safely resets unrecognized settings to automatic", () => {
     for (const locale of LOCALES) expect(sanitizeInterfaceLanguage(locale.id)).toBe(locale.id);
-    for (const value of ["auto", undefined, null, {}, "ar-SA", "fr", "zh"]) expect(sanitizeInterfaceLanguage(value)).toBe("auto");
+    for (const value of ["auto", undefined, null, {}, "ar-SA", "pt", "zh"]) expect(sanitizeInterfaceLanguage(value)).toBe("auto");
   });
 
   it("localizes the interface independently of table direction and isolates RTL substitutions", () => {

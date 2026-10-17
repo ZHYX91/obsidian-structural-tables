@@ -94,6 +94,7 @@ describe("Structural Tables settings export guide", () => {
     expect([...dropdown.options.entries()].slice(1)).toEqual([
       ["en", "English"], ["zh-CN", "简体中文"], ["zh-TW", "繁體中文"], ["ja", "日本語"],
       ["de", "Deutsch"], ["es", "Español"], ["ar", "العربية"],
+      ["fr", "Français"], ["pt-BR", "Português (Brasil)"], ["ru", "Русский"], ["ko", "한국어"], ["vi", "Tiếng Việt"],
     ]);
     expect(dropdown.value).toBe("ar");
     const container = tab.containerEl as unknown as MockElement;

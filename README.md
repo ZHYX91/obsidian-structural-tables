@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/README.md) · [简体中文](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-CN.md)
+[English](README.md) · [简体中文](docs/i18n/README.zh-CN.md) · [繁體中文](docs/i18n/README.zh-TW.md) · [日本語](docs/i18n/README.ja.md) · [Deutsch](docs/i18n/README.de.md) · [Español](docs/i18n/README.es.md) · [العربية](docs/i18n/README.ar.md) · [Français](docs/i18n/README.fr.md) · [Português (Brasil)](docs/i18n/README.pt-BR.md) · [Русский](docs/i18n/README.ru.md) · [한국어](docs/i18n/README.ko.md) · [Tiếng Việt](docs/i18n/README.vi.md)
 
 Add merged cells, multiple header rows, and row headers to Markdown tables. You can also make tables without column headers. Your notes stay in Markdown, and opening a table never rewrites them.
 
@@ -181,7 +181,7 @@ A rejected cell edit stays open whenever possible. If an external change or view
 
 The settings page has **General**, **Views**, and **Appearance** tabs.
 
-Choose **Follow Obsidian** or select English, 简体中文, 繁體中文, 日本語, Deutsch, Español, or العربية. Automatic selection uses Obsidian's language and falls back to English when it is unsupported. Changing the plugin language affects its controls and messages; it does not translate notes or change table direction.
+Choose **Follow Obsidian** or select one of twelve interface languages: English, 简体中文, 繁體中文, 日本語, Deutsch, Español, العربية, Français, Português (Brasil), Русский, 한국어, and Tiếng Việt. Automatic selection follows Obsidian and falls back to English when the language is unavailable. Your choice changes the plugin's menus and messages, not your note contents or table direction.
 
 - **General**: language, HTML-table paste conversion, and conflict warnings.
 - **Views**: Reading view, Live Preview, diagnostics, and the default-off **Take over ordinary Markdown tables** option.

@@ -26,7 +26,7 @@ export function validateTableOperationInDocument(source: string, expected: Struc
       || target.sourcePrefix !== expected.sourcePrefix) return refuse;
   }
   const otherBefore = before.filter((_table, i) => i !== index);
-  const otherAfter = after.filter((_table, i) => !deleted && i === index);
+  const otherAfter = deleted ? after : after.filter((_table, i) => i !== index);
   const delta = result.source.length - expected.source.length;
   for (const [i, original] of otherBefore.entries()) {
     const candidate = otherAfter[i];

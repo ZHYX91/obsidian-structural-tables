@@ -905,7 +905,8 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
-  it.each(["row", "column"] as const)("commits a changed cell with the first %s drag and restores axis selection", async (axis) => {
+  it.each((["row", "column"] as const).flatMap((axis) => [false, true].map((changed) => ({ axis, changed }))))(
+    "moves the first held $axis drag with an active draft (changed=$changed) and restores axis selection", async ({ axis, changed }) => {
     const source = ["Before", "", "| H1 | H2 | H3 |", "| --- || --- | --- |", "| A | B | C |", "| D | E | F |", "", "End"].join("\n");
     const rect = (left: number, top: number, width: number, height: number): DOMRect =>
       ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) });
@@ -932,7 +933,8 @@ describe("StructuralTableEditorController", () => {
       cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
       const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
       expect(editor).not.toBeNull();
-      editor.value = "DRAFT";
+      if (changed) editor.value = "DRAFT";
+      const expected = changed ? "DRAFT" : "F";
       const handle = parent.querySelector<HTMLElement>(axis === "row"
         ? "[data-structural-row-handle='2']" : "[data-structural-column-handle='2']")!;
       const origin = axis === "row" ? { x: 25, y: 120 } : { x: 290, y: 10 };
@@ -942,10 +944,10 @@ describe("StructuralTableEditorController", () => {
       window.dispatchEvent(pointer("pointermove", destination.x, destination.y));
       window.dispatchEvent(pointer("pointerup", destination.x, destination.y));
       await vi.waitFor(() => expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows
-        .flatMap((row) => row.cells.map((cell) => cell.content))).toContain("DRAFT"));
+        .flatMap((row) => row.cells.map((cell) => cell.content))).toContain(expected));
       const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
       expect(table.valid).toBe(true);
-      expect(table.rows[axis === "row" ? 1 : 2]!.cells[axis === "row" ? 2 : 1]!.content).toBe("DRAFT");
+      expect(table.rows[axis === "row" ? 1 : 2]!.cells[axis === "row" ? 2 : 1]!.content).toBe(expected);
       await vi.waitFor(() => expect(parent.querySelector(`.structural-tables-${axis}-handle.is-selected`)).not.toBeNull());
       expect(parent.querySelector<HTMLTextAreaElement>("textarea")).toBeNull();
       expect(undoDepth(view.state)).toBe(1);

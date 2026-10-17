@@ -44,9 +44,11 @@ function anchorFor(table: StructuralTable, cell: StructuralCell): StructuralCell
 }
 
 function portableCell(content: string): string {
-  return existingTableCellText(content);
+  // GFM recognizes pipes as cell separators even inside backtick code spans.
+  // Preserve existing escapes and escape only separators with even backslash parity.
+  return existingTableCellText(content).replace(/(\\*)\|/gu, (_match, slashes: string) =>
+    slashes.length % 2 === 0 ? slashes + "\\|" : slashes + "|");
 }
-
 function delimiterFor(alignment: ColumnAlignment): string {
   if (alignment === "left") return ":---";
   if (alignment === "center") return ":---:";

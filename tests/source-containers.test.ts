@@ -111,6 +111,14 @@ describe("source containers", () => {
     expect(parseEditableTables(`<pre>\n- literal\n  </pre>\n\n${structural}`).tables).toEqual([]);
     expect(parseEditableTables(`<pre>\n- literal\n  </pre>\n\n${ordinary}`).tables).toEqual([]);
   });
+  it("protects CommonMark type-6 closing tags until the next blank line", () => {
+    const literal = ["</div>", "| Fake | V |", "| --- || --- |", "| x | y |"].join("\n");
+    const note = literal + "\n\n" + tableSource;
+    const tables = parseEditableTables(note).tables;
+    expect(tables).toHaveLength(1);
+    expect(tables[0]?.source).toBe(tableSource);
+    expect(tables[0]?.range.from).toBe(literal.length + 2);
+  });
   it("does not treat pipe lines in raw HTML blocks as editable tables", () => {
     const html = ["<div id=\"literal\" class=\"keep-html\" style=\"color:red\">",
       "| H | V |", "| --- || --- |", "| x | y |", "</div>"].join("\n");

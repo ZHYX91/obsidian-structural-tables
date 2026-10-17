@@ -33,7 +33,7 @@ const RAW_LITERAL_HTML_START = /^ {0,3}<(?:pre|script|style|textarea)(?=[\t >]|$
 const RAW_LITERAL_HTML_END = /<\/(?:pre|script|style|textarea)>/iu;
 // CommonMark HTML block type 6: block tags own following literal lines
 // until the next blank line. Type 1 raw-text tags retain close-tag semantics.
-const HTML_BLOCK_START = /^ {0,3}<(?:address|article|aside|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|head|header|hr|html|iframe|legend|li|main|menu|nav|ol|p|section|summary|table|tbody|td|tfoot|th|thead|tr|ul)(?=[\t />]|$)/iu;
+const HTML_BLOCK_START = /^ {0,3}<\/?(?:address|article|aside|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|h[1-6]|head|header|hr|html|iframe|legend|li|main|menu|nav|ol|p|section|summary|table|tbody|td|tfoot|th|thead|tr|ul)(?=[\t />]|$)/iu;
 
 export function startsRawLiteralHtmlBlock(line: string): boolean {
   return RAW_LITERAL_HTML_START.test(line);

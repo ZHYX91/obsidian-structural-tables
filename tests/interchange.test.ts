@@ -52,9 +52,9 @@ describe("table interchange", () => {
     expect(output).toContain(`| A | ${content} |`);
   });
 
-  it.each(["`a|b`", "``a|b``", String.raw``a\\|b``])(
+  it.each(["`a|b`", "``a|b``", "`a" + String.fromCharCode(92) + "|b`"])(
     "escapes separators in code spans for standard GFM without hiding later cells: %s", (cell) => {
-      const input = `| H1 | H2 |\\n| --- || --- |\\n| ${cell} | KEEP |`;
+      const input = ["| H1 | H2 |", "| --- || --- |", "| " + cell + " | KEEP |"].join("\n");
       const gfm = structuralTableToPlainGfm(table(input));
       const output = new MarkdownIt().render(gfm);
       expect(output).toContain("<td>KEEP</td>");

@@ -48,6 +48,72 @@ describe("i18n", () => {
     }
   });
 
+  it("requires complete translated text for the five new language catalogs", () => {
+    const english = TRANSLATIONS.en;
+    // Product names, language names, and a shared loanword are intentional identities.
+    const identities = new Set(["settings.title", "settings.language.en", "settings.language.zh", "settings.density.compact"]);
+    for (const locale of ["fr", "pt-BR", "ru", "ko", "vi"] as const) {
+      const catalog = TRANSLATIONS[locale];
+      for (const key of Object.keys(english) as Array<keyof typeof english>) {
+        if (!identities.has(key)) expect(catalog[key], `${locale}/${key} must not fall back to English`).not.toBe(english[key]);
+      }
+      expect(catalog["menu.useMathAbsoluteSuggestion"]).toContain(String.raw`\lvert … \rvert`);
+      expect(catalog["menu.useMathConditionalSuggestion"]).toContain(String.raw`\mid`);
+      expect(catalog["operation.mathMultilineUnsafe"]).toContain(String.raw`\\`);
+      expect(catalog["operation.mathSyntaxUnsafe"]).toContain(String.raw`\// @vitest-environment happy-dom
+
+import * as host from "obsidian";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { applyInterfaceLocale, createTranslator, operationNotice, TRANSLATIONS, withCount } from "../src/config/i18n";
+import { LOCALES, resolveLocale, sanitizeInterfaceLanguage } from "../src/config/locale";
+
+afterEach(() => vi.restoreAllMocks());
+
+describe("i18n", () => {
+  it("isolates complete Arabic technical expressions only in translated display strings", () => {
+    const t = createTranslator("ar");
+    for (const [key, literal] of [
+      ["menu.useMathAbsoluteSuggestion", String.raw`\lvert … \rvert`], ["menu.useMathConditionalSuggestion", String.raw`\mid`],
+      ["operation.mathMultilineUnsafe", String.raw`\\`], ["operation.mathSyntaxUnsafe", String.raw`\$`],
+      ["modal.migrateBaseProperties.desc", "structural_table_ids"], ["modal.promoteBase.contentVisualBreak", "<br>"],
+      ["menu.copyWholeHtml", "Word / HTML"], ["settings.exportGuide.setup", "Windows/Linux"],
+    ] as const) expect(t(key)).toContain(`\u2066${literal}\u2069`);
+    expect(t("image.ready").replace("{width}", "640").replace("{height}", "1280")).toContain("\u2066\u2068640\u2069 × \u20681280\u2069\u2069");
+    for (const catalog of Object.values(TRANSLATIONS)) for (const text of Object.values(catalog)) expect(text).not.toMatch(/\p{Bidi_Control}/u);
+  });
+  it.each([
+    ["en-GB", "en"], ["zh", "zh-CN"], ["zh-CN", "zh-CN"], ["zh-SG", "zh-CN"],
+    ["zh-TW", "zh-TW"], ["zh-HK", "zh-TW"], ["zh-MO", "zh-TW"], ["zh_Hant_HK", "zh-TW"],
+    ["zh-Hans-HK", "zh-CN"], ["ja-JP", "ja"], ["de-AT", "de"], ["es-419", "es"], ["ar-SA", "ar"],
+    ["fr-FR", "fr"], ["pt-BR", "pt-BR"], ["pt_BR", "pt-BR"], ["pt", "pt-BR"],
+    ["pt-PT", "en"], ["ru-RU", "ru"], ["ko-KR", "ko"], ["vi-VN", "vi"],
+    ["", "en"], ["arbitrary", "en"],
+  ] as const)("resolves Obsidian %s to %s", (input, expected) => {
+    vi.spyOn(host, "getLanguage").mockReturnValue(input);
+    expect(resolveLocale("auto", input)).toBe(expected);
+    expect(createTranslator("auto").locale).toBe(expected);
+    expect(createTranslator("auto")("transpose.confirmTitle")).toBe(createTranslator(expected)("transpose.confirmTitle"));
+    expect(resolveLocale("en", input)).toBe("en");
+  });
+
+  it("keeps every catalog complete with the same placeholders", () => {
+    const keys = Object.keys(TRANSLATIONS.en).sort();
+    const placeholders = (text: string): string[] => [...text.matchAll(/\{[a-zA-Z]+\}/gu)].map((match) => match[0]).sort();
+    expect(Object.keys(TRANSLATIONS).sort()).toEqual(LOCALES.map((locale) => locale.id).sort());
+    for (const catalog of Object.values(TRANSLATIONS)) {
+      expect(Object.keys(catalog).sort()).toEqual(keys);
+      for (const key of keys as Array<keyof typeof TRANSLATIONS.en>) {
+        expect(catalog[key].trim(), key).not.toBe("");
+        expect(placeholders(catalog[key]), key).toEqual(placeholders(TRANSLATIONS.en[key]));
+      }
+    }
+  });
+
+);
+      expect(catalog["modal.promoteBase.contentVisualBreak"]).toContain("<br>");
+    }
+  });
   it("accepts saved supported IDs and safely resets unrecognized settings to automatic", () => {
     for (const locale of LOCALES) expect(sanitizeInterfaceLanguage(locale.id)).toBe(locale.id);
     for (const value of ["auto", undefined, null, {}, "ar-SA", "pt", "zh"]) expect(sanitizeInterfaceLanguage(value)).toBe("auto");

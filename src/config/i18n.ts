@@ -10,11 +10,16 @@ import ja from "./locales/ja";
 import de from "./locales/de";
 import es from "./locales/es";
 import ar from "./locales/ar";
+import fr from "./locales/fr";
+import ptBR from "./locales/pt-BR";
+import ru from "./locales/ru";
+import ko from "./locales/ko";
+import vi from "./locales/vi";
 import { arabicDisplayText } from "./interface-bidi";
 
 export type { TranslationKey } from "./locales/en";
 
-export const TRANSLATIONS = { en, "zh-CN": zhCN, "zh-TW": zhTW, ja, de, es, ar } satisfies Record<LocaleId, TranslationCatalog>;
+export const TRANSLATIONS = { en, "zh-CN": zhCN, "zh-TW": zhTW, ja, de, es, ar, fr, "pt-BR": ptBR, ru, ko, vi } satisfies Record<LocaleId, TranslationCatalog>;
 
 export type Translate = ((key: TranslationKey) => string) & { readonly locale?: LocaleId };
 

@@ -2211,8 +2211,12 @@ class StructuralTableInteraction {
         const { axis, start, end } = selection;
         const movedStart = destination > end ? destination - (end - start + 1) : destination;
         const nextSelection = { axis, start: movedStart, end: movedStart + end - start };
-        this.applyMenuOperation(view, (table) => reorderTableAxis(table, axis, start, end, destination),
-          axis === "row" ? { row: movedStart, column: 0 } : { row: 0, column: movedStart }, nextSelection);
+        const operation: TableOperation = (table) => reorderTableAxis(table, axis, start, end, destination);
+        const next = axis === "row" ? { row: movedStart, column: 0 } : { row: 0, column: movedStart };
+        // The pointer was held through a cell draft. Commit text and the reorder
+        // together instead of letting focus/blur discard this first drag.
+        if (this.finishActiveOperation !== null) this.finishActiveOperation(operation, next);
+        else this.applyMenuOperation(view, operation, next, nextSelection);
       });
     const installAxisHandle = (handle: HTMLButtonElement, axis: TableAxis, index: number): void => {
       // Obsidian listens to touch events separately from pointer events for sidebar swipes.
@@ -2231,10 +2235,14 @@ class StructuralTableInteraction {
         else if (!event.shiftKey || this.axisSelection?.axis !== axis) this.axisAnchor = index;
         this.selectAxis({ axis, start: Math.min(this.axisAnchor, index), end: Math.max(this.axisAnchor, index) });
         this.touchAxisAnchor = event.pointerType === "touch" && !extendTouch ? { axis, index } : null;
-        handle.focus({ preventScroll: true });
-        this.activateAxisClearScope(view, handle, axis, index);
+        // Focusing the handle while a modified textarea is active synchronously
+        // blurs and commits it, which destroys this drag controller mid-pointer.
+        // Retain the live editor until drop; the drop callback combines edits.
+        if (this.finishActiveOperation === null || event.shiftKey || extendTouch) {
+          handle.focus({ preventScroll: true });
+          this.activateAxisClearScope(view, handle, axis, index);
+        }
         // Arm the new merge-closed selection on the same held pointer.
-        // Shift-extended and second-touch ranges still select without reordering.
         if (!event.shiftKey && !extendTouch) this.axisDrag?.start(event, axis, index);
       });
       handle.addEventListener("click", () => {
@@ -2497,15 +2505,14 @@ class StructuralTableInteraction {
     if (tableDeleted) this.clearSelection();
     view.dispatch({
       changes: { from: current.range.from, to: current.range.to, insert: result.source },
-      ...((nativeCallout || ownedGrid)
-        ? tableWriteHistory(
+      ...tableWriteHistory(
           current,
           result.source,
           this.sourcePath,
           historyCoordinate,
           tableDeleted ? { restorePresentation: true }
             : result.code === "table-transposed" ? { undoCoordinate: preTransposeCoordinate } : {},
-        ) : {}),
+        ),
       ...(!nativeCallout ? {
         selection: { anchor: tableDeleted ? current.range.from : current.range.from + result.source.length },
       } : {}),

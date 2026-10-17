@@ -111,4 +111,27 @@ describe("source containers", () => {
     expect(parseEditableTables(`<pre>\n- literal\n  </pre>\n\n${structural}`).tables).toEqual([]);
     expect(parseEditableTables(`<pre>\n- literal\n  </pre>\n\n${ordinary}`).tables).toEqual([]);
   });
+  it("does not treat pipe lines in raw HTML blocks as editable tables", () => {
+    const html = ["<div id=\"literal\" class=\"keep-html\" style=\"color:red\">",
+      "| H | V |", "| --- || --- |", "| x | y |", "</div>"].join("\n");
+    const input = html + "\n\n" + tableSource;
+    const parsed = parseEditableTables(input).tables;
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.source).toBe(tableSource);
+    expect(parsed[0]?.range.from).toBe(html.length + 2);
+    expect(parseEditableTables(html).tables).toEqual([]);
+  });
+
+  it("preserves raw HTML ownership inside blockquotes and list continuations", () => {
+    for (const prefix of ["> ", "    "]) {
+      const container = prefix === "> " ? "" : "- List\n\n";
+      const input = container + withSourcePrefix(
+        "<div>\n| H | V |\n| --- || --- |\n| x | y |\n</div>", prefix)
+      ) + "\n\n" + tableSource;
+      const parsed = parseEditableTables(input).tables;
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0]?.source).toBe(tableSource);
+    }
+  });
+
 });

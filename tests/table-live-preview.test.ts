@@ -958,7 +958,7 @@ describe("StructuralTableEditorController", () => {
   });
 
   it("keeps consecutive fast row drags as two independent Undo steps", async () => {
-    const source = ["| H | V |", "| --- || --- |", "| A | 1 |", "| B | 2 |", "| C | 3 |"].join("\n");
+    const source = ["Before", "", "| H | V |", "| --- || --- |", "| A | 1 |", "| B | 2 |", "| C | 3 |", "", "End"].join("\n");
     const rect = (left: number, top: number, width: number, height: number): DOMRect =>
       ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) });
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {

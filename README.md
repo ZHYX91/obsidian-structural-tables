@@ -1,16 +1,16 @@
 # Structural Tables
 
-[English](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/README.md) · [简体中文](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-CN.md)
+[English](README.md) · [简体中文](docs/i18n/README.zh-CN.md) · [繁體中文](docs/i18n/README.zh-TW.md) · [日本語](docs/i18n/README.ja.md) · [Deutsch](docs/i18n/README.de.md) · [Español](docs/i18n/README.es.md) · [العربية](docs/i18n/README.ar.md) · [Français](docs/i18n/README.fr.md) · [Português (Brasil)](docs/i18n/README.pt-BR.md) · [Русский](docs/i18n/README.ru.md) · [한국어](docs/i18n/README.ko.md) · [Tiếng Việt](docs/i18n/README.vi.md)
 
-Structural Tables extends ordinary Markdown pipe tables with merged cells, multiple column-header rows, row headers, and headerless tables. The Markdown stays readable, and simply viewing a table never rewrites the note.
+Add merged cells, multiple header rows, and row headers to Markdown tables. You can also make tables without column headers. Your notes stay in Markdown, and opening a table never rewrites them.
 
-Tables can live in blockquotes, callouts, and list continuations. When you edit or format one, the plugin keeps it in the same place. Move a nested table to the top level only when you want to convert it to an Obsidian Base.
+Tables work inside quotes, callouts, and lists. Editing one does not move it elsewhere. To convert a nested table into an Obsidian Base, move it outside the quote or list first.
 
 ## Screenshots
 
 ### Three-line table in Reading view
 
-Group columns under multi-row headers and merge row headers across related records. Three-line styling adds short rules below column groups while keeping the table body uncluttered.
+Group columns under several header rows and merge repeated labels in the first columns. Three-line style shows separators for header groups without drawing borders around every cell.
 
 ![Three-line table with grouped column headers and merged regional row headers in Reading view](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-reading-view-en.png)
 
@@ -78,7 +78,7 @@ Reading view is display-only. In-place editing and table controls are available 
 
 ### Advanced editing and safe deletion
 
-A single click edits a cell. When rendered text maps uniquely to Markdown (including bold, italic, inline code, emoji and link labels), the caret follows the clicked character; otherwise it opens at the end, without selecting and replacing the whole cell. To edit a link label without following its link, Alt-click it. Enter saves and moves to the next row, appending at the bottom; Shift+Enter inserts a line break, and Tab moves to the next visible cell. Up/Down navigates only from the first/last visible line when text geometry is provable, preserving horizontal position. Cmd/Ctrl+B and Cmd/Ctrl+I change draft bold/italic; typing, IME, paste and formatting use draft-local undo/redo until save. For other formatting, choose **Edit table source**.
+A single click edits a cell. When rendered text maps uniquely to Markdown (including bold, italic, inline code, emoji and link labels), the caret follows the clicked character; otherwise it opens at the end, without selecting and replacing the whole cell. To edit a link label without following its link, Alt-click it. Enter saves and moves to the next row, appending at the bottom; Shift+Enter inserts a line break, and Tab moves to the next visible cell. Up/Down moves to the next cell only at the first or last displayed line. If line wrapping cannot be measured reliably, the cursor stays in the current cell. Cmd/Ctrl+B and Cmd/Ctrl+I change draft bold/italic; typing, IME, paste and formatting use draft-local undo/redo until save. For other formatting, choose **Edit table source**.
 
 Shift+Arrow extends or shrinks a logical grid selection. With that selection focused, Delete/Backspace clears cell contents without removing rows, columns, header roles, or merges. For structural removal, right-click and choose **Delete selected rows**, **Delete selected columns**, or **Delete table**. Clearing or explicitly deleting is undoable in one step; non-empty rows do not need to be cleared first.
 
@@ -181,7 +181,7 @@ A rejected cell edit stays open whenever possible. If an external change or view
 
 The settings page has **General**, **Views**, and **Appearance** tabs.
 
-Choose **Follow Obsidian** or select English, 简体中文, 繁體中文, 日本語, Deutsch, Español, or العربية. Automatic selection uses Obsidian's language and falls back to English when it is unsupported. Changing the plugin language affects its controls and messages; it does not translate notes or change table direction.
+Choose **Follow Obsidian** or select one of twelve interface languages: English, 简体中文, 繁體中文, 日本語, Deutsch, Español, العربية, Français, Português (Brasil), Русский, 한국어, and Tiếng Việt. Automatic selection follows Obsidian and falls back to English when the language is unavailable. Your choice changes the plugin's menus and messages, not your note contents or table direction.
 
 - **General**: language, HTML-table paste conversion, and conflict warnings.
 - **Views**: Reading view, Live Preview, diagnostics, and the default-off **Take over ordinary Markdown tables** option.

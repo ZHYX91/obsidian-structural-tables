@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0 - 2026-10-17
+
+- Add French, Brazilian Portuguese, Russian, Korean and Vietnamese interface languages, bringing the total to twelve. Add ten localized getting-started guides alongside the complete English and Simplified Chinese references.
+- Explain refused edits, HTML paste limits and recovery actions more clearly across interface languages and user guides.
+- Validate table edits against the complete note so inserting columns, changing headers and committing cell drafts cannot absorb neighboring text or alter another table. Preserve range paste in deeply indented lists.
+- Keep pending cell edits and the first row or column drag in one transaction, restore the moved handle selection, and keep rapid independent drags in separate undo steps.
+- Preserve literal pipes in plain GFM export, including code spans, and constrain imported HTML row spans to their own row group.
+- Leave literal HTML blocks under native Markdown ownership, including quoted attributes, declarations and container boundaries; keep malformed tags from hiding normal tables.
+- Export Reading View PNGs using the rendered table's own text direction, including theme overrides.
+
 ## 0.7.1 - 2026-10-16
 
 - Continue editing with a single click after saving another cell, including across tables and Callouts, while preserving rejected drafts and active composition.

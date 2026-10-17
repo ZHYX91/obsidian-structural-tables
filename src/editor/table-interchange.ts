@@ -118,11 +118,13 @@ function rowSpanForClipboardCell(cell: HTMLTableCellElement, row: HTMLTableRowEl
   const raw = cell.getAttribute("rowspan");
   const token = raw?.trim() ?? "";
   const parsed = /^[0-9]+$/u.test(token) ? Number(token) : null;
-  if (parsed !== 0) return positiveSpan(cell.rowSpan);
   const siblings = Array.from(row.parentElement?.children ?? [])
     .filter((candidate): candidate is HTMLTableRowElement => candidate.tagName === "TR");
   const index = siblings.indexOf(row);
-  return index < 0 ? 1 : Math.max(1, siblings.length - index);
+  // HTML cells cannot span two row groups. The DOM rowSpan getter preserves
+  // the requested positive value even when the browser layout clips the span.
+  const remaining = index < 0 ? 1 : Math.max(1, siblings.length - index);
+  return parsed === 0 ? remaining : Math.min(positiveSpan(cell.rowSpan), remaining);
 }
 
 function hasMeaningfulTableContent(table: HTMLTableElement): boolean {

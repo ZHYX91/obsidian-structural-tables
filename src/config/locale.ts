@@ -7,6 +7,11 @@ export const LOCALES = [
   { id: "de", name: "Deutsch", direction: "ltr" },
   { id: "es", name: "Español", direction: "ltr" },
   { id: "ar", name: "العربية", direction: "rtl" },
+  { id: "fr", name: "Français", direction: "ltr" },
+  { id: "pt-BR", name: "Português (Brasil)", direction: "ltr" },
+  { id: "ru", name: "Русский", direction: "ltr" },
+  { id: "ko", name: "한국어", direction: "ltr" },
+  { id: "vi", name: "Tiếng Việt", direction: "ltr" },
 ] as const;
 
 export type LocaleId = typeof LOCALES[number]["id"];
@@ -25,5 +30,7 @@ export function resolveLocale(language: InterfaceLanguage, hostLanguage: string)
     if (subtags.includes("hans")) return "zh-CN";
     return subtags.some((part) => part === "tw" || part === "hk" || part === "mo") ? "zh-TW" : "zh-CN";
   }
+  // Obsidian may expose pt, pt_BR or pt-BR while the catalog has one regional ID.
+  if (base === "pt") return subtags.length === 0 || subtags.includes("br") ? "pt-BR" : "en";
   return LOCALES.find((locale) => locale.id === base)?.id ?? "en";
 }

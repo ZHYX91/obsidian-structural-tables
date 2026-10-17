@@ -33,6 +33,7 @@ import { parseEditableTables, parseStructuralTables } from "../core/parser";
 import { serializeStructuralTable } from "../core/serializer";
 import { withSourcePrefix } from "../core/source-lines";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+import { validateTableOperationInDocument } from "../core/table-operation-document";
 import { hasHiddenGfmOverflow } from "../core/table-write-safety";
 import type { StructuralTable } from "../core/model";
 import {
@@ -772,8 +773,9 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private applyOperation(editor: Editor, table: StructuralTable, result: OperationResult): void {
-    if (result.changed) this.replaceTable(editor, table, result.source);
-    new Notice(operationNotice(createTranslator(this.settings.language), result.code));
+    const verified = validateTableOperationInDocument(editor.getValue(), table, result);
+    if (verified.changed) this.replaceTable(editor, table, verified.source);
+    new Notice(operationNotice(createTranslator(this.settings.language), verified.code));
   }
 
   private applyMenuOperation(

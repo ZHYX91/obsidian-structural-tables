@@ -24,6 +24,7 @@ import {
 } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+import { validateTableOperationInDocument } from "../core/table-operation-document";
 import { transposeTableInDocument } from "../core/table-transpose-validation";
 import { parseEditableTables } from "../core/parser";
 import { sourcePrefix } from "../core/source-lines";
@@ -1757,9 +1758,12 @@ class StructuralTableInteraction {
         retainDraft(t("notice.staleTable"));
         return;
       }
-      const result = operation === undefined
+      const candidate = operation === undefined
         ? editCellContent(current, anchor.row, anchor.column, editor.value)
         : editCellAndTransform(current, anchor.row, anchor.column, editor.value, operation);
+      // Cell-draft commits can also alter the complete-note parse boundary.
+      // Validate the same full document as other structural write consumers.
+      const result = validateTableOperationInDocument(view.state.doc.toString(), current, candidate);
       if (!result.changed && result.code !== "cell-edited") {
         // A refused external paste has no unsaved draft to protect. Keep the
         // unchanged editor usable, including its next single-click handoff.
@@ -2440,7 +2444,7 @@ class StructuralTableInteraction {
     const selection = frozen?.selection ?? this.selection;
     const selectionAnchor = wholeTableAnchor ?? frozen?.anchor ?? this.selectionAnchor;
     const selectionHead = frozen?.head ?? this.selectionHead;
-    const result = operation(current);
+    const result = validateTableOperationInDocument(view.state.doc.toString(), current, operation(current));
     if (!result.changed) {
       if (result.code !== "cells-cleared") new Notice(operationNotice(t, result.code));
       return;

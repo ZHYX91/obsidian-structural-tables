@@ -8,7 +8,7 @@ import {
 } from "./table-range-clipboard";
 import { serializeStructuralTable } from "./serializer";
 import { parseTableWrite } from "./table-write-validation";
-import { sourcePrefix } from "./source-lines";
+import { sourcePrefix, withoutSourcePrefixes } from "./source-lines";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
 import { mathCellInputProblem, normalizeTableCellText, tableColumnAt as tableSyntaxColumnAt, type MathCellInputProblem } from "./table-cell-syntax";
 
@@ -591,7 +591,9 @@ export function pasteTableRangeRaw(
   );
   if (!result.changed) return result;
   // Reparse the entire result; source values and merge geometry must survive.
-  const reparsed = parseEditableTables(result.source).tables[0];
+  // The saved fragment may be indented inside a list or quote. Reparse the
+  // logical cells here; the complete note is validated again at the write edge.
+  const reparsed = parseEditableTables(withoutSourcePrefixes(result.source)).tables[0];
   const roundTrip = reparsed === undefined ? null : tableRangePayload(reparsed, finalBounds);
   if (roundTrip === null || !sameTableRangeTopology(roundTrip, payload)
     || Object.keys(payload.rawByOwner).some((owner) => roundTrip.rawByOwner[owner] !== payload.rawByOwner[owner])) {

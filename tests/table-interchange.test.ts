@@ -476,10 +476,14 @@ describe("HTML table clipboard import", () => {
     expect(table?.rows[3]?.cells[1]?.content).toBe("Second");
   });
 
-  it("refuses a span across an explicit header boundary instead of reclassifying data", () => {
-    expect(structuralSourceFromClipboardHtml(`<table>
+  it("clips header spans at thead instead of carrying them into tbody", () => {
+    const result = structuralSourceFromClipboardHtml(`<table>
       <thead><tr><th rowspan=2>Region</th><th>Sales</th></tr></thead>
       <tbody><tr><td>10</td></tr></tbody>
-    </table>`)).toBeNull();
+    </table>`);
+    const parsed = parseEditableTables(result ?? "").tables[0]!;
+    expect(parsed).toMatchObject({ valid: true, columnCount: 2, headerRowCount: 1 });
+    expect(parsed.rows[1]?.cells[0]?.content).toBe("10");
+    expect(parsed.rows[1]?.cells[0]?.covered).toBe(false);
   });
 });

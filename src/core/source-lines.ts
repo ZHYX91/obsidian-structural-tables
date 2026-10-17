@@ -229,7 +229,8 @@ export function ignoredMarkdownLines(
         continue;
       }
     }
-    const continuesParagraph = paragraph?.quoteDepth === quoteDepth && paragraph.listIndent === listIndent;
+    const continuesParagraph: boolean = paragraph !== null
+      && paragraph.quoteDepth === quoteDepth && paragraph.listIndent === listIndent;
     if (!indentedCode && protectedBlock === null
       && (HTML_BLOCK_START.test(line) || (!continuesParagraph && HTML_STANDALONE_TAG.test(line)))) {
       paragraph = null;

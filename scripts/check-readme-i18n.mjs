@@ -91,5 +91,14 @@ for (const [, filename] of locales) {
   }
   assert.ok(source.includes("||") && source.includes("^") && source.includes("<"),
     path + " must explain the same table syntax");
+  const requiredTopics = ["<br>", "_promotion.json", "8192", "16", "Base", "Markdown"];
+  for (const topic of requiredTopics) {
+    assert.ok(source.includes(topic), `${path} is missing the required user guidance: ${topic}`);
+  }
+  for (const image of ["Structural Tables Reading View", "Structural Tables Live Preview", "Structural Tables settings"]) {
+    if (filename === "README.md" || filename === "README.zh-CN.md") continue;
+    // Localized guides must not leave screenshot accessibility text in English.
+    assert.ok(!source.includes("![" + image + "]"), `${path} contains an untranslated screenshot label`);
+  }
 }
 process.stdout.write(`README i18n contract passed for ${locales.length} languages and ${sections.length} synchronized sections.\\n`);

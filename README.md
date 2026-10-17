@@ -181,7 +181,7 @@ A rejected cell edit stays open whenever possible. If an external change or view
 
 The settings page has **General**, **Views**, and **Appearance** tabs.
 
-Choose **Follow Obsidian** or select English, 简体中文, 繁體中文, 日本語, Deutsch, Español, or العربية. Automatic selection uses Obsidian's language and falls back to English when it is unsupported. Changing the plugin language affects its controls and messages; it does not translate notes or change table direction.
+Choose **Follow Obsidian** or select one of twelve interface languages: English, 简体中文, 繁體中文, 日本語, Deutsch, Español, العربية, Français, Português (Brasil), Русский, 한국어, and Tiếng Việt. Automatic selection follows Obsidian and falls back to English when the language is unavailable. Your choice changes the plugin's menus and messages, not your note contents or table direction.
 
 - **General**: language, HTML-table paste conversion, and conflict warnings.
 - **Views**: Reading view, Live Preview, diagnostics, and the default-off **Take over ordinary Markdown tables** option.

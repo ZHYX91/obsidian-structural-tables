@@ -10,17 +10,17 @@ Thêm ô gộp, nhiều hàng tiêu đề cột, tiêu đề hàng và bảng kh
 
 Hiển thị nhóm tiêu đề và các ô đã gộp mà không vẽ khung cho mọi ô.
 
-![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+![Bảng ba đường kẻ với các ô gộp trong chế độ đọc](../assets/structural-tables-reading-view-en.png)
 
 ### Chỉnh sửa trong bản xem trước
 
 Nhấp vào ô trên máy tính hoặc chạm hai lần trên màn hình cảm ứng để chỉnh sửa trực tiếp.
 
-![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+![Chỉnh sửa ô trong bản xem trước trực tiếp](../assets/structural-tables-live-preview-en.png)
 
 ### Cài đặt giao diện
 
-![Structural Tables settings](../assets/structural-tables-settings-en.png)
+![Cài đặt giao diện của Structural Tables](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## Tính năng
@@ -74,6 +74,22 @@ Có thể sao chép, cắt và dán vùng ô khi bố cục gộp vẫn được
 Trên máy tính có thể xem trước, sao chép hoặc lưu PNG của toàn bộ bảng. Các thay đổi ô chưa lưu không nằm trong ảnh. Di động không hỗ trợ xuất PNG.
 
 Trước khi chuyển thành Base, hãy lưu ghi chú và đưa bảng ra ngoài khối trích dẫn hoặc danh sách. Cấu trúc gộp sẽ được làm phẳng; khôi phục bảng gốc không xóa các ghi chú bản ghi đã tạo.
+
+### Bảng Markdown thông thường
+
+Theo mặc định, bảng GFM thông thường sử dụng trình chỉnh sửa bảng của Obsidian. Bật «Chỉnh sửa cả bảng Markdown thông thường» để dùng các điều khiển của Structural Tables. Nếu một hàng dữ liệu có nhiều ô trong mã nguồn hơn số cột tiêu đề, một số nội dung có thể bị ẩn. Hãy chọn «Sửa mã Markdown của bảng» và xử lý các ô đó trước khi sửa cấu trúc.
+
+### Công thức và ngắt dòng
+
+Shift+Enter chèn ngắt dòng khi hiển thị, được lưu bằng cách viết `<br>` được hỗ trợ. Ký hiệu `|` chưa thoát trong công thức có thể bị hiểu thành dấu phân cách cột. Khi đó, plugin giữ nội dung đang sửa và từ chối lưu không an toàn. Hãy dùng lệnh TeX `\lvert`, `\rvert` hoặc `\mid` tùy theo ý nghĩa.
+
+### Dán và sao chép
+
+Plugin chỉ chuyển bảng HTML sang Markdown khi có thể giữ cấu trúc ô an toàn. Nếu không thể bảo toàn định dạng, nó có thể dán toàn bộ văn bản thuần thay thế hoặc để Obsidian xử lý thao tác dán. Văn bản thuần không giữ ô gộp hay kiểu chữ. Hãy kiểm tra cách hiển thị trong ứng dụng đích sau khi chuyển sang GFM thông thường.
+
+### Giới hạn PNG và khôi phục Base
+
+Ảnh PNG bị giới hạn 8192 pixel cho mỗi chiều hoặc tổng cộng 16 triệu pixel. Nếu không thể chụp đủ bảng, plugin không tạo ảnh bị cắt. Chuyển sang Base sẽ tạo các ghi chú bản ghi và tệp `_promotion.json` để khôi phục. Khôi phục bảng gốc không đưa các sửa đổi Base sau đó vào bảng và không xóa ghi chú đã tạo.
 
 <!-- section: settings -->
 ## Cài đặt

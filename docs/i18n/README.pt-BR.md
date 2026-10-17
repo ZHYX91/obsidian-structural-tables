@@ -10,17 +10,17 @@ Adicione células mescladas, várias linhas de cabeçalho, cabeçalhos de linha 
 
 Cabeçalhos agrupados e células mescladas aparecem sem bordas completas ao redor de cada célula.
 
-![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+![Tabela de três linhas com células mescladas no modo de leitura](../assets/structural-tables-reading-view-en.png)
 
 ### Edição na pré-visualização
 
 Clique numa célula no computador ou toque duas vezes na tela sensível ao toque para editar o texto.
 
-![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+![Edição de uma célula na pré-visualização](../assets/structural-tables-live-preview-en.png)
 
 ### Configurações de aparência
 
-![Structural Tables settings](../assets/structural-tables-settings-en.png)
+![Configurações de aparência do Structural Tables](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## Recursos
@@ -74,6 +74,22 @@ Copie ou recorte intervalos e cole apenas onde a estrutura de células mescladas
 No desktop, visualize, copie ou salve o PNG da tabela inteira. Edições de células ainda não salvas não aparecem na imagem. A exportação para PNG não está disponível no celular.
 
 Salve a nota e mova as tabelas para fora de listas ou citações antes de convertê-las em Base. As mesclagens são achatadas, e restaurar a tabela não exclui as notas de registro criadas.
+
+### Tabelas Markdown comuns
+
+As tabelas GFM comuns usam o editor nativo do Obsidian por padrão. Ative «Editar também tabelas Markdown comuns» para usar os controles do Structural Tables. Se uma linha tiver mais células no Markdown que o cabeçalho, parte do conteúdo pode ficar oculta. Abra «Editar código Markdown da tabela» e corrija essas células antes de alterar a estrutura.
+
+### Fórmulas e quebras de linha
+
+Shift+Enter insere uma quebra visual de linha, gravada como um `<br>` compatível. Uma barra `|` não escapada dentro de uma fórmula pode ser confundida com separador de tabela. Nesse caso, o rascunho é mantido e a gravação é recusada. Dependendo do significado, use os comandos TeX `\lvert`, `\rvert` ou `\mid`.
+
+### Colar e copiar
+
+A conversão de tabelas HTML só acontece quando é possível manter a estrutura das células com segurança. Se não for possível preservar a formatação, o plugin pode usar a alternativa completa em texto simples ou deixar a colagem para o Obsidian. Texto simples não preserva mesclagens nem estilos. Confira o resultado no aplicativo de destino após converter para GFM comum.
+
+### Limites de PNG e restauração da Base
+
+O limite de exportação PNG é 8192 pixels por lado ou 16 megapixels no total. Se não for possível capturar a tabela inteira, nenhuma imagem cortada é criada. A conversão em Base cria notas de registro e o arquivo `_promotion.json`. Restaurar a tabela original não traz edições posteriores dos registros nem apaga as notas criadas.
 
 <!-- section: settings -->
 ## Configurações

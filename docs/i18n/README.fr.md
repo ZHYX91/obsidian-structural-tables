@@ -10,17 +10,17 @@ Ajoutez des cellules fusionnées, plusieurs lignes d’en-têtes, des en-têtes 
 
 Les en-têtes groupés et les cellules fusionnées restent visibles sans encadrer chaque cellule.
 
-![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+![Tableau à trois lignes avec cellules fusionnées en mode lecture](../assets/structural-tables-reading-view-en.png)
 
 ### Modification dans l’aperçu en direct
 
 Cliquez une cellule sur ordinateur, ou appuyez deux fois sur un écran tactile, pour modifier son contenu.
 
-![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+![Édition directe d’une cellule dans l’aperçu en direct](../assets/structural-tables-live-preview-en.png)
 
 ### Réglages de l’apparence
 
-![Structural Tables settings](../assets/structural-tables-settings-en.png)
+![Réglages de l’apparence de Structural Tables](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## Fonctions
@@ -74,6 +74,22 @@ La copie, la coupe et le collage de plages conservent la structure fusionnée lo
 Sur ordinateur, prévisualisez, copiez ou enregistrez une image PNG du tableau entier. Les modifications de cellule non enregistrées sont exclues. L’export PNG n’est pas disponible sur mobile.
 
 Enregistrez la note et sortez les tableaux des listes ou citations avant une conversion en Base. Les fusions sont aplaties ; la restauration de la table initiale conserve les notes créées.
+
+### Tableaux Markdown ordinaires
+
+Les tableaux GFM ordinaires utilisent d’abord l’éditeur natif d’Obsidian. Activez « Gérer aussi les tableaux Markdown ordinaires » pour obtenir les commandes du plugin. Si une ligne contient davantage de cellules source que d’en-têtes, des données peuvent être invisibles. Ouvrez « Modifier le code Markdown du tableau » et corrigez-les avant toute opération structurelle.
+
+### Formules et retours à la ligne
+
+Maj+Entrée insère un saut de ligne visuel qui est enregistré sous une forme `<br>` prise en charge. Dans une formule, un caractère `|` non échappé peut être interprété comme un séparateur de tableau. Le plugin conserve alors le brouillon et refuse l’enregistrement risqué. Selon le sens voulu, utilisez les commandes TeX `\lvert`, `\rvert` ou `\mid`.
+
+### Collage et copie
+
+Le collage de tableaux HTML ne convertit que les structures pouvant être conservées sans perte. Si un format ne peut pas être repris, la version complète en texte brut peut être insérée ou le collage est laissé à Obsidian. Le texte brut ne conserve pas les cellules fusionnées ni la mise en forme. Vérifiez toujours le résultat lorsque vous convertissez un tableau en GFM ordinaire.
+
+### Limites PNG et restauration de Base
+
+Un PNG ne peut pas dépasser 8192 pixels par côté ou 16 mégapixels au total. Si le tableau complet ne peut pas être capturé, aucune image tronquée n’est créée. La conversion en Base crée des notes d’enregistrement et le fichier `_promotion.json`. Restaurer le tableau ne récupère pas les modifications ultérieures de Base et ne supprime pas les notes déjà créées.
 
 <!-- section: settings -->
 ## Paramètres

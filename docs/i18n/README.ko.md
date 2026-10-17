@@ -10,17 +10,17 @@ Markdown 표에 셀 병합, 여러 줄의 열 머리글, 행 머리글, 열 머�
 
 여러 줄의 머리글과 병합된 셀이 표시되며, 모든 셀에 테두리를 그리지 않아도 그룹을 구분할 수 있습니다.
 
-![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+![읽기 보기의 병합 셀이 포함된 삼선표](../assets/structural-tables-reading-view-en.png)
 
 ### 실시간 미리보기 편집
 
 컴퓨터에서는 셀을 클릭하고 터치 화면에서는 두 번 탭하여 바로 편집할 수 있습니다.
 
-![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+![실시간 미리보기에서 셀 편집](../assets/structural-tables-live-preview-en.png)
 
 ### 모양 설정
 
-![Structural Tables settings](../assets/structural-tables-settings-en.png)
+![Structural Tables 모양 설정](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## 기능
@@ -74,6 +74,22 @@ Markdown 표를 만들고 다음 확장 문법을 사용하세요.
 데스크톱에서는 표 전체를 PNG로 미리 보거나 복사·저장할 수 있습니다. 저장하지 않은 셀 편집은 이미지에 포함되지 않습니다. 모바일은 PNG 내보내기를 지원하지 않습니다.
 
 Base로 변환하기 전에 노트를 저장하고 인용문이나 목록 속 표를 최상위로 옮기세요. 병합 구조는 펼쳐지며 원본 표를 복원해도 이미 만든 레코드 노트는 남습니다.
+
+### 일반 Markdown 표
+
+일반 GFM 표는 기본적으로 Obsidian 원래의 표 편집기를 사용합니다. «일반 Markdown 표도 편집»을 켜야 이 플러그인의 편집 도구를 사용할 수 있습니다. 본문의 한 행에 머리글보다 많은 원본 셀이 있으면 일부 데이터가 숨겨질 수 있습니다. 구조를 변경하기 전에 «표의 Markdown 원문 편집»에서 추가 셀을 처리하세요.
+
+### 수식과 줄바꿈
+
+Shift+Enter로 입력한 표시용 줄바꿈은 지원되는 `<br>` 형태로 저장됩니다. 수식 안의 이스케이프되지 않은 `|`는 표 구분자로 해석될 수 있으므로, 플러그인은 임시 편집을 유지하고 위험한 저장을 거부합니다. 수식의 뜻에 따라 TeX 명령 `\lvert`, `\rvert`, `\mid`를 사용하세요.
+
+### 붙여넣기와 복사
+
+HTML 표의 구조를 안전하게 보존할 수 있을 때만 Markdown으로 변환합니다. 서식을 그대로 보존할 수 없다면 클립보드의 전체 일반 텍스트를 붙여넣거나 Obsidian 원래 붙여넣기에 맡깁니다. 일반 텍스트는 병합과 서식을 보존하지 못합니다. 일반 GFM으로 변환했다면 다른 편집기에서 최종 표시를 확인하세요.
+
+### PNG 제한과 Base 복원
+
+PNG 이미지 제한은 한 변 8192픽셀 또는 총 1600만 픽셀입니다. 표 전체를 담을 수 없다면 잘린 이미지를 만들지 않습니다. Base로 변환할 때 레코드 노트와 `_promotion.json` 복원 기록을 만듭니다. 원래 표를 복원해도 이후 Base 레코드 수정 내용은 포함되지 않으며 생성된 노트는 삭제하지 않습니다.
 
 <!-- section: settings -->
 ## 설정

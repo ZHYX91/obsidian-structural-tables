@@ -10,17 +10,17 @@ Markdown の表でセルの結合、複数行の列見出し、行見出し、�
 
 複数行の見出しと結合セルを表示し、すべてのセルに枠線を引かずにグループを区切ります。
 
-![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+![閲覧ビューの結合セルを含む三線表](../assets/structural-tables-reading-view-en.png)
 
 ### ライブプレビューで編集
 
 デスクトップではセルをクリック、タッチ画面ではダブルタップして内容を編集できます。
 
-![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+![ライブプレビューでのセル編集](../assets/structural-tables-live-preview-en.png)
 
 ### 外観設定
 
-![Structural Tables settings](../assets/structural-tables-settings-en.png)
+![Structural Tables の外観設定](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## 機能
@@ -74,6 +74,22 @@ Markdown 表を作成し、次の記法を使用します。
 デスクトップでは表全体の PNG をプレビュー、コピー、保存できます。未保存のセル編集は画像に入りません。モバイルでは画像出力できません。
 
 Base に変換する前にノートを保存し、引用やリスト内の表はトップレベルへ移動してください。結合情報は展開され、表を復元しても生成済みの記録ノートは残ります。
+
+### 通常の Markdown 表
+
+通常の GFM 表は標準では Obsidian の表エディターを使います。「通常の Markdown 表にも適用」を有効にした場合だけ本プラグインの操作が使えます。ヘッダーより列数が多い行には非表示のソースセルが残るため、まず「表のソースを編集」で修正してください。
+
+### 数式と改行
+
+Shift+Enter で見た目の改行を入れられ、対応する `<br>` として保存されます。数式中の未エスケープの `|` は表の区切りと区別できない場合があります。この場合は編集内容を保持して保存を拒否します。意味に応じて TeX の `\lvert`、`\rvert`、`\mid` を使用してください。
+
+### 貼り付けとコピー
+
+HTML の貼り付けはセル構造を安全に保てる場合にだけ変換します。保存できない書式がある場合は完全なプレーンテキストを使うか、Obsidian の標準貼り付けに任せます。プレーンテキストでは結合や装飾は残りません。通常 GFM への変換後は対象エディターで表を確認してください。
+
+### 画像と Base の復元
+
+PNG は一辺 8192 ピクセル、合計 1600 万ピクセルが上限です。全体を収められない場合は切り取った画像を作らず停止します。Base への変換時にはレコードノートと `_promotion.json` の復元情報を作成します。表の復元で後からの Base の編集内容は取り込まず、作成済みのノートも削除しません。
 
 <!-- section: settings -->
 ## 設定

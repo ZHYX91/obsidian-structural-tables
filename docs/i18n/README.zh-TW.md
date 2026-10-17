@@ -10,17 +10,17 @@
 
 多層標題與跨列合併會依表格結構顯示，三線表不會為每個儲存格繪製完整框線。
 
-![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+![閱讀模式：具有合併儲存格的三線表](../assets/structural-tables-reading-view-en.png)
 
 ### 即時預覽編輯
 
 在桌面版點一下儲存格，或在觸控裝置點兩下，即可直接修改內容。
 
-![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+![即時預覽：編輯表格中的儲存格](../assets/structural-tables-live-preview-en.png)
 
 ### 外觀設定
 
-![Structural Tables settings](../assets/structural-tables-settings-en.png)
+![Structural Tables 外觀設定](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## 功能
@@ -74,6 +74,22 @@
 桌面版可以預覽、複製或儲存完整表格 PNG。未儲存的儲存格文字不會包含在圖片內；手機不支援圖片匯出。
 
 將表格轉換為 Base 之前，請先儲存筆記，並把引用或清單中的巢狀表格移到頂層。轉換會展開合併結構；還原原始表格不會刪除已建立的記錄筆記。
+
+### 一般 Markdown 表格
+
+一般 GFM 表格預設使用 Obsidian 原生編輯介面。開啟「接管一般 Markdown 表格」後才能用本外掛的表格控制項；關閉時不會修改原始 Markdown。若某行有超出表頭欄數的隱藏儲存格，請先用「編輯表格原始碼」整理內容，外掛不會猜測要丟棄哪一格。
+
+### 公式與換行
+
+儲存格可使用 Shift+Enter 加入視覺換行，寫回時使用受支援的 `<br>`。公式中的未轉義 `|` 可能與表格分隔符混淆，外掛會保留草稿並拒絕不安全的儲存。可依公式含義改用 TeX 的 `\lvert`、`\rvert` 或 `\mid`。
+
+### 貼上與複製
+
+HTML 貼上只在能安全保留儲存格結構時轉換成 Markdown。遇到無法保留的格式時，可能改用剪貼簿中的完整純文字，或交回 Obsidian 原生貼上；純文字不保證保留合併與格式。將結構表格複製成一般 GFM 後，請在目標編輯器預覽，因為 GFM 無法表示所有跨列與跨欄合併。
+
+### 圖片、Base 與還原
+
+PNG 匯出上限為單邊 8192 像素或 1600 萬像素；如果完整內容無法擷取，會停止而不是產生裁切圖片。Base 轉換會建立資料筆記與 `_promotion.json` 還原清單；「還原表格」只還原轉換前的表格，不會合併後續 Base 編輯，也不會刪除已建立的資料筆記。
 
 <!-- section: settings -->
 ## 設定

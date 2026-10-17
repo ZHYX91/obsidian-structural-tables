@@ -10,17 +10,17 @@ Añade celdas combinadas, varias filas de encabezados, encabezados de fila y tab
 
 Muestra encabezados agrupados y celdas combinadas sin dibujar un borde completo alrededor de cada celda.
 
-![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+![Tabla de tres líneas con celdas combinadas en vista de lectura](../assets/structural-tables-reading-view-en.png)
 
 ### Edición en vista previa
 
 Haz clic en una celda en el escritorio o tócala dos veces en una pantalla táctil para editarla.
 
-![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+![Edición de celdas en vista previa](../assets/structural-tables-live-preview-en.png)
 
 ### Ajustes de apariencia
 
-![Structural Tables settings](../assets/structural-tables-settings-en.png)
+![Ajustes de apariencia de Structural Tables](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## Funciones
@@ -74,6 +74,22 @@ Los rangos copiados o cortados solo se pegan si puede conservarse la estructura 
 En escritorio puedes previsualizar, copiar o guardar un PNG de la tabla completa. Los cambios de celda sin guardar no aparecen en la imagen. La exportación de PNG no está disponible en móvil.
 
 Guarda la nota y saca la tabla de listas o citas antes de convertirla en Base. La conversión aplana las combinaciones; restaurar la tabla original no elimina las notas de registro creadas.
+
+### Tablas Markdown normales
+
+Las tablas GFM normales utilizan por defecto el editor nativo de Obsidian. Activa «Controlar las tablas Markdown ordinarias» para usar los controles de este plugin. Si una fila tiene más celdas en el código fuente que el encabezado, puede haber datos ocultos. Usa «Editar código fuente de la tabla» para resolverlos antes de editarla con estos controles.
+
+### Fórmulas y saltos de línea
+
+Mayús+Enter inserta un salto visual de línea que se guarda mediante `<br>` cuando es compatible. Un `|` sin escapar dentro de una fórmula puede confundirse con un separador de la tabla. En ese caso, se conserva el borrador y no se guarda. Según su significado, usa los comandos TeX `\lvert`, `\rvert` o `\mid`.
+
+### Pegado y copia
+
+Las tablas HTML solo se convierten cuando es posible conservar su estructura de forma segura. Si no se pueden conservar ciertos formatos, se puede usar todo el texto sin formato del portapapeles o dejar que Obsidian gestione el pegado. El texto simple no conserva combinaciones ni estilos. Revisa en la aplicación de destino cualquier conversión a GFM ordinario.
+
+### Límites de PNG y recuperación de Base
+
+El PNG tiene un límite de 8192 píxeles por lado y 16 megapíxeles en total. Si no cabe toda la tabla, no se crea una imagen recortada. Al convertir a Base se crean notas de registro y un archivo `_promotion.json`. Restaurar la tabla original no incorpora cambios posteriores de Base ni elimina las notas creadas.
 
 <!-- section: settings -->
 ## Ajustes

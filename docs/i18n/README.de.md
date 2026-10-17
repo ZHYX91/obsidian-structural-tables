@@ -10,17 +10,17 @@ Erweitert Markdown-Tabellen um verbundene Zellen, mehrere Kopfzeilen, Zeilenübe
 
 Mehrzeilige Spaltenüberschriften und verbundene Zeilenüberschriften werden angezeigt, ohne jede Zelle vollständig zu umranden.
 
-![Structural Tables Reading View](../assets/structural-tables-reading-view-en.png)
+![Dreilinientabelle mit verbundenen Zellen in der Leseansicht](../assets/structural-tables-reading-view-en.png)
 
 ### Bearbeiten in der Live-Vorschau
 
 Auf dem Desktop eine Zelle anklicken, auf Touchgeräten doppelt antippen, um Text direkt zu bearbeiten.
 
-![Structural Tables Live Preview](../assets/structural-tables-live-preview-en.png)
+![Zellen in der Live-Vorschau bearbeiten](../assets/structural-tables-live-preview-en.png)
 
 ### Darstellungseinstellungen
 
-![Structural Tables settings](../assets/structural-tables-settings-en.png)
+![Darstellungseinstellungen von Structural Tables](../assets/structural-tables-settings-en.png)
 
 <!-- section: features -->
 ## Funktionen
@@ -74,6 +74,22 @@ Bereiche lassen sich kopieren, ausschneiden und nur bei passender Verbindungsstr
 Auf dem Desktop können Sie die komplette Tabelle als PNG prüfen, kopieren und speichern. Ungespeicherte Zellbearbeitungen fehlen im Bild. Auf Mobilgeräten steht der PNG-Export nicht zur Verfügung.
 
 Vor der Base-Umwandlung die Notiz speichern und Tabellen aus Zitaten oder Listen auf die oberste Ebene verschieben. Verbindungen werden aufgelöst. Das Wiederherstellen der Ursprungstabelle löscht erzeugte Datensatznotizen nicht.
+
+### Normale Markdown-Tabellen
+
+Normale GFM-Tabellen werden zunächst mit Obsidians eigenem Editor bearbeitet. Erst die Option „Gewöhnliche Markdown-Tabellen übernehmen“ aktiviert die Bedienelemente dieses Plugins. Wenn eine Datenzeile mehr Quellzellen als die Kopfzeile enthält, können unsichtbare Inhalte vorhanden sein. Bearbeiten Sie diese erst über „Tabellenquelltext bearbeiten“, statt sie stillschweigend zu verlieren.
+
+### Formeln und Zeilenumbrüche
+
+Shift+Enter fügt einen sichtbaren Zeilenumbruch ein, der als unterstütztes `<br>` gespeichert wird. Ein nicht maskiertes `|` innerhalb einer Formel kann wie ein Tabellentrenner wirken. In diesem Fall bleibt der Entwurf erhalten und das Speichern wird abgelehnt. Verwenden Sie je nach Bedeutung die TeX-Befehle `\lvert`, `\rvert` oder `\mid`.
+
+### Einfügen und Kopieren
+
+HTML-Tabellen werden nur dann in Markdown umgewandelt, wenn die Zellstruktur sicher übernommen werden kann. Bei schwierigen Formatierungen wird gegebenenfalls der vollständige Klartext eingefügt oder Obsidians normale Einfügefunktion verwendet. Klartext bewahrt weder Zellverbindungen noch Formatierung. Nach einer Umwandlung in gewöhnliches GFM sollten Sie das Ergebnis im Zielprogramm prüfen.
+
+### PNG-Grenzen und Base-Wiederherstellung
+
+PNG-Bilder sind auf 8192 Pixel je Seite und 16 Megapixel begrenzt. Wenn nicht die ganze Tabelle erfasst werden kann, entsteht kein beschnittenes Bild. Die Base-Umwandlung erstellt Datensatznotizen und die Datei `_promotion.json`. Die Wiederherstellung setzt die ursprüngliche Tabelle zurück, übernimmt keine späteren Base-Änderungen und löscht die erzeugten Notizen nicht.
 
 <!-- section: settings -->
 ## Einstellungen

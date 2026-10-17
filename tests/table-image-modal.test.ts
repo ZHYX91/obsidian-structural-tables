@@ -141,6 +141,10 @@ describe("PNG preview and outputs", () => {
     const owner = new Component();
     const pane = document.body.appendChild(document.createElement("div")); pane.className = "markdown-preview-view";
     const wrapper = pane.appendChild(document.createElement("div"));
+    const rendered = wrapper.appendChild(document.createElement("table"));
+    rendered.className = "structural-tables-table";
+    rendered.style.direction = "rtl";
+    wrapper.style.direction = "ltr";
     const view = new MarkdownView(); view.file = file; view.containerEl = pane;
     Object.assign(harness.app, { workspace: { iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => callback({ view }) } });
     const exportImage = vi.fn();
@@ -150,7 +154,7 @@ describe("PNG preview and outputs", () => {
     lastMenu!.items.find((item) => item.title.includes("Export whole"))!.callback!();
     await vi.waitFor(() => expect(exportImage).toHaveBeenCalledOnce());
     expect(exportImage.mock.calls[0]![2]()).toBe(true);
-    expect(exportImage.mock.calls[0]![3]).toBe(wrapper);
+    expect(exportImage.mock.calls[0]![3]).toBe(rendered);
     owner.unload();
     wrapper.remove();
     expect(exportImage.mock.calls[0]![2]()).toBe(true);

@@ -1,3 +1,4 @@
+import MarkdownIt from "markdown-it";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -50,6 +51,17 @@ describe("table interchange", () => {
     const output = structuralTableToPlainGfm(table(source));
     expect(output).toContain(`| A | ${content} |`);
   });
+
+  it.each(["`a|b`", "``a|b``", String.raw``a\\|b``])(
+    "escapes separators in code spans for standard GFM without hiding later cells: %s", (cell) => {
+      const input = `| H1 | H2 |\\n| --- || --- |\\n| ${cell} | KEEP |`;
+      const gfm = structuralTableToPlainGfm(table(input));
+      const output = new MarkdownIt().render(gfm);
+      expect(output).toContain("<td>KEEP</td>");
+      expect(output).toContain("<code>a|b</code>");
+      expect((output.match(/<td>/gu) ?? []).length).toBe(2);
+    },
+  );
 
   it("exports semantic HTML with spans and scopes", () => {
     const html = structuralTableToHtml(table(STRUCTURAL), "test");

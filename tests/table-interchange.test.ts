@@ -151,6 +151,20 @@ describe("HTML table clipboard import", () => {
     expect(wholeTableClipboardImport(html, "")).toEqual({ kind: "blocked-unsafe-text" });
   });
 
+  it.each([[0, 2], [1, 2], [2, 2], [99, 2]] as const)(
+    "clips HTML rowspan=%i at the row group boundary", (span, expectedColumns) => {
+      const html = `<table><tbody><tr><td rowspan="${span}">First</td><td>A</td></tr></tbody><tbody><tr><td>Second</td><td>B</td></tr></tbody></table>`;
+      const imported = structuralSourceFromClipboardHtml(html);
+      expect(imported).not.toBeNull();
+      const parsed = parseEditableTables(imported!).tables[0]!;
+      expect(parsed.valid).toBe(true);
+      expect(parsed.columnCount).toBe(expectedColumns);
+      expect(parsed.rows[0]?.cells[0]?.content).toBe("First");
+      expect(parsed.rows[1]?.cells[0]?.content).toBe("Second");
+      expect(parsed.rows[1]?.cells[1]?.content).toBe("B");
+    },
+  );
+
   beforeEach(() => {
     const window = new Window();
     globalThis.DOMParser = window.DOMParser as unknown as typeof DOMParser;

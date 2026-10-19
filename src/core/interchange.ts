@@ -52,10 +52,9 @@ function codeSpanDisplayText(raw: string): string {
 }
 
 function codeSpanAsHtml(raw: string): string {
-  // In GFM tables, a pipe MUST have an odd backslash count to remain inside
-  // its column. An odd number of literal backslashes within a code span
-  // cannot survive that table unescape unchanged. Use standard GFM inline
-  // HTML only for this corner case, encoding backslashes and pipes as entities.
+  // GFM unescapes code-span pipes in tables, while native Obsidian keeps that
+  // backslash. No backtick spelling preserves the same pipe text in both.
+  // Encode code pipes as inline HTML, including their literal backslashes.
   const content = codeSpanDisplayText(raw)
     .replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;")
     .replace(/\\/gu, "&#92;").replace(/\|/gu, "&#124;");
@@ -77,9 +76,7 @@ function portableCell(content: string): string {
       if (end !== null) {
         const opening = /^`+/u.exec(source.slice(index))![0].length;
         const raw = source.slice(index + opening, end - opening);
-        const losesBackslash = [...raw.matchAll(/(\\+)\|/gu)]
-          .some((match) => match[1]!.length % 2 === 1);
-        cell += losesBackslash ? codeSpanAsHtml(raw) : source.slice(index, end);
+        cell += raw.includes("|") ? codeSpanAsHtml(raw) : source.slice(index, end);
         index = end;
         continue;
       }

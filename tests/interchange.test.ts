@@ -53,10 +53,10 @@ describe("table interchange", () => {
   });
 
   it.each(["`a|b`", "``a|b``"])(
-    "escapes separators in code spans for standard GFM without hiding later cells: %s", (cell) => {
+    "preserves code pipes in standard GFM without hiding later cells: %s", (cell) => {
       const input = ["| H1 | H2 |", "| --- || --- |", "| " + cell + " | KEEP |"].join("\n");
       const gfm = structuralTableToPlainGfm(table(input));
-      const output = new MarkdownIt().render(gfm);
+      const output = new MarkdownIt({ html: true }).render(gfm);
       expect(output).toContain("<td>KEEP</td>");
       expect(output).toContain("<code>a|b</code>");
       expect((output.match(/<td>/gu) ?? []).length).toBe(2);
@@ -75,8 +75,11 @@ describe("table interchange", () => {
       expect(rendered, cell).toContain("<code>" + visible + "</code>");
       expect(rendered, cell).toContain("<td>KEEP</td>");
       expect((rendered.match(/<td>/gu) ?? []).length, cell).toBe(2);
-      if (count % 2 === 1) expect(output, cell).toContain("<code>");
-      else expect(output, cell).toContain(fence);
+      expect(output, cell).toContain("<code>");
+      // Obsidian's native renderer also uses inline code without GFM's
+      // table-level pipe unescape. The same exported cell must work there.
+      const exportedCell = output.split("\n")[2]!.split("|")[1]!.trim();
+      expect(markdown.renderInline(exportedCell), cell).toBe("<code>" + visible + "</code>");
     }
   });
 

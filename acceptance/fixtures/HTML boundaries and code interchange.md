@@ -3,13 +3,6 @@
 The literal HTML examples retain their attributes and pipe text. Only the
 tables explicitly labelled editable are owned by Structural Tables.
 
-## Editable in a Callout
-
-> [!note] Boundary control
-> | Editable callout | < |
-> | --- | --- |
-> | Beta | KEEP-Q |
-
 ## HTML after a heading
 <span id="literal-heading" class="keep" data-case="heading">
 | Literal heading | < |
@@ -43,6 +36,13 @@ Paragraph
 | Editable continuation | < |
 | --- | --- |
 | Alpha | KEEP-C |
+
+## Editable in a Callout
+
+> [!note] Boundary control
+> | Editable callout | < |
+> | --- | --- |
+> | Beta | KEEP-Q |
 
 ## Escaped tag and protected fence
 

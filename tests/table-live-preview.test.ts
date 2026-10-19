@@ -17,6 +17,7 @@ import { TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_HTML_ATTRIBUTE } from "../src/c
 import { recoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
 import { StructuralTableWidget } from "../src/editor/table-widget";
+import { CalloutFallbackWidget } from "../src/editor/callout-fallback-widget";
 import {
   activeScopes,
   dispatchScopeCaptureThenDom,
@@ -289,6 +290,104 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it("renders and edits a source-owned Callout when native HTML lexing leaves it raw", async () => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
+      const native = nativeTableForSource(markdown, target.ownerDocument);
+      if (markdown.startsWith("> [!note]")) {
+        const shell = new SourceCalloutWidget(markdown).toDOM();
+        shell.querySelector(".callout-title")!.textContent = "Boundary control";
+        shell.querySelector(".callout-content")!.prepend(Object.assign(document.createElement("p"), { textContent: "Keep intro" }));
+        shell.querySelector(".callout-content")!.append(Object.assign(document.createElement("p"), { textContent: "Keep tail" }));
+        target.appendChild(shell);
+      } else if (native !== null) target.appendChild(native);
+      else target.textContent = markdown;
+    });
+    const prefix = 'Intro\n\n## HTML\n<span id="keep">\n| literal | < |\n</span>\n\n';
+    const source = prefix + "> [!note] Boundary control\n> Keep intro\n>\n> | A | < |\n> | --- | --- |\n> | x | y |\n>\n> Keep tail\n\nEnd";
+    const { view, parent } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-callout-fallback .structural-tables-live-preview")).not.toBeNull());
+      expect(view.state.doc.toString()).toBe(source);
+      expect(parent.querySelector(".callout-content")?.textContent).toContain("Keep intro");
+      expect(parent.querySelector(".callout-content")?.textContent).toContain("Keep tail");
+      const cell = parent.querySelector<HTMLElement>(".callout [data-structural-row='1'][data-structural-column='0']")!;
+      dispatchPointerDown(cell, "mouse");
+      cell.click();
+      await vi.waitFor(() => expect(parent.querySelector("textarea")).not.toBeNull());
+      replaceDraftText(parent.querySelector("textarea")!, "changed");
+      parent.querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+      await vi.waitFor(() => expect(view.state.doc.toString()).toContain("changed"));
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-table")?.textContent).toContain("changed"));
+      const after = view.state.doc.toString();
+      expect(after.startsWith(prefix + "> [!note] Boundary control\n> Keep intro\n>\n")).toBe(true);
+      expect(after.endsWith(">\n> Keep tail\n\nEnd")).toBe(true);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-table")?.textContent).toContain("x"));
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(after);
+      await vi.waitFor(() => expect(parent.querySelector(".callout .structural-tables-table")?.textContent).toContain("changed"));
+    } finally { view.destroy(); }
+  });
+
+  it("returns the complete fallback Callout to source and resumes after leaving it", async () => {
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
+      if (markdown.startsWith("> [!note]")) target.appendChild(new SourceCalloutWidget(markdown).toDOM());
+      else {
+        const native = nativeTableForSource(markdown, target.ownerDocument);
+        if (native !== null) target.appendChild(native);
+      }
+    });
+    const source = "Intro\n\n> [!note] Title\n> | A | < |\n> | --- | --- |\n> | x | y |\n\nEnd";
+    const { view, parent } = mountEditor(source, { anchor: 0 });
+    try {
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-callout-fallback .callout-title")).not.toBeNull());
+      parent.querySelector(".callout-title")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      expect(view.state.selection.main.from).toBe(source.indexOf("> [!note]"));
+      expect(parent.querySelector(".structural-tables-callout-fallback")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+      view.dispatch({ selection: { anchor: 0 } });
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-callout-fallback .structural-tables-live-preview")).not.toBeNull());
+      view.dispatch({ changes: { from: 0, insert: "Before\n" } });
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-callout-fallback .structural-tables-live-preview")).not.toBeNull());
+      expect(view.state.doc.toString()).toBe("Before\n" + source);
+    } finally { view.destroy(); }
+  });
+
+  it.each([
+    "```md\n> [!note]\n> | A | < |\n> | --- | --- |\n> | x | y |\n```",
+    "<div>\n> [!note]\n> | A | < |\n> | --- | --- |\n> | x | y |\n</div>",
+    "> [!note]\n> | A | B |\n> | --- | --- |\n> | x | y |",
+    "> [!note]\n> | A | ^ |\n> | --- | --- |\n> | x | y |",
+  ])("does not acquire protected, ordinary or invalid raw Callout text: %s", async (body) => {
+    const source = "Intro\n\n" + body + "\n\nEnd";
+    const { view, parent } = mountEditor(source, { anchor: 0 });
+    try {
+      for (let turn = 0; turn < 8; turn += 1) await Promise.resolve();
+      expect(parent.querySelector(".structural-tables-callout-fallback")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["reject", "destroy", "not-callout"] as const)("keeps fallback source safe during %s native rendering", async (mode) => {
+    let complete!: () => void;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, _markdown, target) => {
+      await new Promise<void>((resolve) => { complete = resolve; });
+      if (mode === "reject") throw new Error("render failed");
+      target.innerHTML = mode === "not-callout" ? "<p>Other</p>" : "<div class='callout'>Late</div>";
+    });
+    const { view } = mountEditor("Intro", { anchor: 0 });
+    const widget = new CalloutFallbackWidget(new App(), 0, "> [!note] Keep complete source", "Test.md");
+    const host = widget.toDOM(view);
+    try {
+      expect(host.textContent).toBe(widget.source);
+      if (mode === "destroy") widget.destroy(host);
+      complete();
+      for (let turn = 0; turn < 8; turn += 1) await Promise.resolve();
+      expect(host.textContent).toBe(widget.source);
+    } finally { widget.destroy(host); view.destroy(); }
+  });
+
   it.each(["above", "below"] as const)("keeps column controls inside the table beside an external %s block caption", (placement) => {
     const source = "Before\n\nTable: Q\n\n| Region | Value |\n| --- | --- |\n| North | 10 |\n| ^ | 20 |\n\nAfter";
     const table = parseEditableTables(source).tables[0]!;

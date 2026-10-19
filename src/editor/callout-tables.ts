@@ -40,6 +40,7 @@ export class CalloutTables {
       owns: (table: StructuralTable) => boolean;
       widget: (table: StructuralTable) => StructuralTableWidget;
       render: (table: StructuralTable) => Promise<string[]>;
+      fallback?: (ranges: readonly SourceRange[]) => void;
     },
   ) {
     this.observer = new view.dom.ownerDocument.defaultView!.MutationObserver(() => this.schedule());
@@ -110,10 +111,20 @@ export class CalloutTables {
       this.release(entry);
     }
     const activeKeys = new Set<string>();
+    const fallback: SourceRange[] = [];
     for (const [range, root] of roots) {
       // Unowned and invalid neighbours participate in matching but are never replaced.
       const tables = state.tables.filter((table) => rangeFor(table) === range);
       if (!tables.some(state.owns)) continue;
+      if (root === undefined && range.from >= this.view.viewport.from && range.from < this.view.viewport.to) {
+        const { node } = this.view.domAtPos(range.from);
+        const element = node.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node.parentElement;
+        const line = element?.closest<HTMLElement>(".cm-line");
+        // Only an actual visible source line is evidence of absent native DOM.
+        // Virtual placeholders, embedded notes and other editors cannot claim it.
+        if (line !== undefined && line !== null && line.closest(".cm-editor") === this.view.dom
+          && line.textContent === this.view.state.doc.lineAt(range.from).text) fallback.push(range);
+      }
       const originals = new Map([...this.mounted].map(([host, entry]) => [host, entry.originals]));
       const groups = root === undefined ? [] : calloutBlocks(root, originals);
       const plans = tables.map((table) => {
@@ -159,6 +170,7 @@ export class CalloutTables {
       }
     }
     for (const key of this.signatures.keys()) if (!activeKeys.has(key)) this.signatures.delete(key);
+    if (fallback.length > 0) state.fallback?.(fallback);
   }
 
   destroy(): void {

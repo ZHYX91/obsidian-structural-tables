@@ -26,6 +26,75 @@ describe("source containers", () => {
   it.each(["<div>", "<?instruction", "<![CDATA["])("keeps quoted fence text inside literal HTML: %s", (tag) => {
     expect(parseEditableTables(`${tag}\n> \`\`\`\n${tableSource}`).tables).toEqual([]);
   });
+  it.each([
+    ["# Heading", true],
+    ["## Heading ##", true],
+    ["***", true],
+    ["Intro\n\n---", true],
+    ["~~~md\nexample\n~~~", true],
+    ["```md\nexample\n```", true],
+    ["Title\n===", true],
+    ["Normal paragraph", false],
+    ["A **continued** paragraph", false],
+  ] as const)("compares CommonMark type-7 ownership after %s", (before, ownsHtml) => {
+    const fakeTable = "| Fake | < |\n| --- | --- |\n| x | y |";
+    const literal = ['<span id="literal" class="keep">', ...fakeTable.split("\n"), "</span>"].join("\n");
+    const source = before + "\n" + literal + "\n\n" + tableSource;
+    const startsHtml = new MarkdownIt({ html: true }).parse(source, {}).some((token) =>
+      token.type === "html_block" && token.content.includes('<span id="literal"'));
+    expect(startsHtml).toBe(ownsHtml);
+    const tables = parseEditableTables(source).tables;
+    expect(tables.some((table) => table.source === fakeTable)).toBe(!ownsHtml);
+    expect(tables.some((table) => table.source === tableSource)).toBe(true);
+  });
+
+  it.each([
+    ["Paragraph\n    continuation\n<span id='literal'>", "", false],
+    ["Paragraph\n\tcontinuation\n<span id='literal'>", "", false],
+    ["- Paragraph\n      continuation\n  <span id='literal'>", "  ", false],
+    ["> Paragraph\n<span id='literal'>", "", false],
+    ["- Paragraph\n<span id='literal'>", "", false],
+    ["- First item\n- <span id='literal'>", "  ", true],
+    ["- Outer\n  - First item\n  - <span id='literal'>", "    ", true],
+    ["> - First item\n> - <span id='literal'>", ">   ", true],
+    ["1. First item\n2. <span id='literal'>", "   ", true],
+    ["1. First item\n12. <span id='literal'>", "    ", true],
+    ["Paragraph\n2. <span id='literal'>", "", false],
+    ["- Paragraph\n2. <span id='literal'>", "   ", true],
+    ["- Paragraph\n  2. <span id='literal'>", "  ", false],
+    ["[Name]: /url\n<span id='literal'>", "", true],
+    ["[Name]: <https://example.com> \"Title\"\n<span id='literal'>", "", true],
+    ["[Name]: /url(with-nesting)\n<span id='literal'>", "", true],
+    ["Paragraph\n[Name]: /url\n<span id='literal'>", "", false],
+    ["[Name]: /url unexpected text\n<span id='literal'>", "", false],
+    ["[Name]: /url(unclosed\n<span id='literal'>", "", false],
+    ["    code\n<span id='literal'>", "", true],
+  ] as const)("matches native HTML ownership at paragraph/container boundary %s", (head, prefix, ownsHtml) => {
+    const nested = ["| Fake | < |", "| --- | --- |", "| literal | KEEP |", "</span>"]
+      .map((line) => prefix + line).join("\n");
+    const source = head + "\n" + nested + "\n\n" + tableSource;
+    const nativeHtml = new MarkdownIt({ html: true }).parse(source, {}).some((token) =>
+      token.type === "html_block" && token.content.includes("<span id='literal'>"));
+    expect(nativeHtml).toBe(ownsHtml);
+    const tables = parseEditableTables(source).tables;
+    expect(tables.some((table) => table.source.includes("| Fake | < |"))).toBe(!ownsHtml);
+    expect(tables.some((table) => table.source === tableSource)).toBe(true);
+  });
+
+  it.each([
+    ["> # Heading\n> <span id='literal'>", "> "],
+    ["- # Heading\n  <span id='literal'>", "  "],
+    ["> Paragraph\n> <span id='literal'>", "> "],
+    ["- Paragraph\n  <span id='literal'>", "  "],
+  ] as const)("keeps type-7 ownership scoped to the quote/list container: %s", (head, prefix) => {
+    const nested = ["| H | < |", "| --- | --- |", "| a | b |", "</span>"]
+      .map((line) => prefix + line).join("\n");
+    const source = head + "\n" + nested + "\n\n" + tableSource;
+    const tables = parseEditableTables(source).tables;
+    expect(tables.some((table) => table.source.includes("| H | < |"))).toBe(!head.includes("Heading"));
+    expect(tables.some((table) => table.source === tableSource)).toBe(true);
+  });
+
   it("refuses nested Base promotion before producing files or replacement source", () => {
     const table = parseStructuralTables(withSourcePrefix(tableSource, "> ")).tables[0]!;
     expect(() => buildBasePromotionPlan(table, "example")).toThrow("outside its Markdown container");

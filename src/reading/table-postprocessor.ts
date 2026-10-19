@@ -94,7 +94,6 @@ export class StructuralTableReadingProcessor {
       return;
     }
     const deferred = allTables.filter((table) => table.valid && table.structural
-      && (table.headerRowCount === 0 || table.headerRowCount > 1 || table.rowHeaderColumnCount > 0)
       && table.startLine <= section.lineEnd && table.endLine >= section.lineStart);
     const candidates = renderedTables(container);
     const mappings = parsed.map((table) => {

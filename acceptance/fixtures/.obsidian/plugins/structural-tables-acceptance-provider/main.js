@@ -1,6 +1,47 @@
 const { Plugin, MarkdownView, Notice, TFile, Component, MarkdownRenderer, Modal } = require("obsidian");
 module.exports = class extends Plugin {
   onload() {
+    this.addCommand({
+      id: "record-html-boundary-observation",
+      name: "Record HTML boundary observation",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "O" }],
+      callback: async () => {
+        if (require("obsidian").Platform.isMobileApp) return;
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view?.file || !["HTML boundaries and code interchange.md", "GFM clipboard result.md"].includes(view.file.path)) return;
+        const { createHash } = require("node:crypto");
+        const source = await this.app.vault.read(view.file);
+        const root = view.containerEl;
+        const clipboard = require("electron").clipboard;
+        const clipboardText = clipboard.readText();
+        const ownsClipboard = clipboardText.includes("KEEP-0") || clipboardText.includes("BROWSER-KEEP");
+        const report = {
+          observedAt: new Date().toISOString(), file: view.file.path,
+          hostVersion: require("obsidian").apiVersion,
+          view: view.getMode(), sourceMode: view.getState().source ?? null,
+          source, sourceSha256: createHash("sha256").update(source).digest("hex"),
+          literalElements: Array.from(root.querySelectorAll("[id^='literal-'], #inline-continuation"))
+            .filter((element) => element.getClientRects().length > 0).map((element) => ({
+            tag: element.tagName, id: element.id, class: element.className,
+            case: element.getAttribute("data-case"), text: element.textContent,
+            ownedAncestor: Boolean(element.closest(".structural-tables-live-preview, .structural-tables-container")),
+          })),
+          tables: Array.from(root.querySelectorAll("table"))
+            .filter((table) => table.getClientRects().length > 0).map((table) => ({
+            class: table.className,
+            owned: Boolean(table.closest(".structural-tables-live-preview, .structural-tables-container")),
+            cells: Array.from(table.querySelectorAll("th, td")).map((cell) => ({
+              text: cell.textContent, rowSpan: cell.rowSpan, colSpan: cell.colSpan,
+              code: Array.from(cell.querySelectorAll("code")).map((code) => code.textContent),
+            })),
+          })),
+          clipboard: { formats: clipboard.availableFormats(), fixtureOwned: ownsClipboard,
+            text: ownsClipboard ? clipboardText : null, html: ownsClipboard ? clipboard.readHTML() : null },
+        };
+        await this.app.vault.adapter.write(`_html-boundary-observation-${Date.now()}.json`, JSON.stringify(report, null, 2));
+        new Notice("HTML boundary observation recorded.");
+      },
+    });
     this.focusTraceWrites = Promise.resolve();
     this.register(() => { void this.focusTrace?.stop("plugin-unload"); });
     this.addCommand({ id: "start-final-cell-focus-trace", name: "Start passive final-cell focus trace", callback: () => this.startFocusTrace() });

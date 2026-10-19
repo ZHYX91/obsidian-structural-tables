@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 - 2026-10-19
+
+- Render source-owned Callout tables even when native Live Preview leaves the Callout as raw source after HTML; preserve complete quote source, editing and undo/redo without acquiring protected HTML or code.
+- Keep standalone HTML under native Markdown ownership after completed blocks, new sibling list items and complete single-line link definitions. Preserve tables after indented or lazy paragraph continuations.
+- Render source-verified merged tables when Reading View leaves their lines inside a native paragraph, retaining surrounding inline HTML attributes and prose.
+- Preserve every literal backslash and pipe in code spans when exporting plain GFM or importing HTML clipboard tables. Code spans containing pipes use inline HTML so both GitHub GFM and native Obsidian preserve the displayed text.
+
 ## 0.8.0 - 2026-10-17
 
 - Add French, Brazilian Portuguese, Russian, Korean and Vietnamese interface languages, bringing the total to twelve. Add ten localized getting-started guides alongside the complete English and Simplified Chinese references.

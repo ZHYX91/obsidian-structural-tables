@@ -27,7 +27,7 @@ interface Section {
 
 interface TextPosition { node: Text; offset: number; visibleOffset: number }
 interface TextIndex { text: string; compact: string; positions: TextPosition[] }
-interface Target { element: HTMLElement; range?: Range }
+interface Target { element: HTMLElement; range?: Range; preserveInline?: boolean }
 
 /** Obsidian annotates text direction after postprocessors start deferred work. */
 function snapshotHtml(element: HTMLElement): string {
@@ -66,7 +66,8 @@ function textIndex(element: HTMLElement): TextIndex {
   return result;
 }
 
-function rawTarget(element: HTMLElement, expected: HTMLElement, allowPrefix: boolean, allowSuffix: boolean): Target | undefined {
+function rawTarget(element: HTMLElement, expected: HTMLElement, allowPrefix: boolean, allowSuffix: boolean,
+  preserveInline = false): Target | undefined {
   // Whole-block identity includes image destinations and other non-text nodes.
   // Partial paragraph mapping still needs the stricter text-range checks below.
   if (contentSignature(element) === contentSignature(expected)) return { element };
@@ -89,7 +90,11 @@ function rawTarget(element: HTMLElement, expected: HTMLElement, allowPrefix: boo
   if (Array.from(element.querySelectorAll("img, svg, iframe, input, audio, video, .math, .internal-embed, .markdown-embed"))
     .some((child) => range.intersectsNode(child))) return undefined;
   if (contentSignature(range.cloneContents()) !== contentSignature(expected)) return undefined;
-  return { element, range };
+  // A native inline HTML span may contain the literal table lines. Keep its
+  // identity and attributes rather than splitting/cloning the foreign wrapper.
+  const inline = first.node.parentElement?.closest("span");
+  return { element, range, preserveInline: preserveInline && inline !== undefined && inline !== null
+    && inline.contains(last.node) && element.contains(inline) };
 }
 
 /** Only transparent section wrappers may be traversed; foreign blocks split groups. */
@@ -115,7 +120,7 @@ function blockGroups(sections: readonly Section[]): HTMLElement[][] {
   return groups;
 }
 
-function matchingTargets(groups: readonly HTMLElement[][], templates: readonly HTMLElement[]): Target[][] {
+function matchingTargets(groups: readonly HTMLElement[][], templates: readonly HTMLElement[], preserveInline = false): Target[][] {
   const matches: Target[][] = [];
   for (const group of groups) for (let start = 0; start <= group.length - templates.length; start += 1) {
     const targets: Target[] = [];
@@ -125,7 +130,7 @@ function matchingTargets(groups: readonly HTMLElement[][], templates: readonly H
       if (expected.tagName !== element.tagName) break;
       const target = expected.tagName === "TABLE"
         ? (contentSignature(element) === contentSignature(expected) ? { element } : undefined)
-        : rawTarget(element, expected, offset === 0, offset === templates.length - 1);
+        : rawTarget(element, expected, offset === 0, offset === templates.length - 1, preserveInline);
       if (target === undefined) break;
       targets.push(target);
     }
@@ -152,6 +157,11 @@ function replaceTarget(target: Target, replacement?: HTMLElement): void {
   if (range === undefined) {
     if (replacement !== undefined) element.before(replacement);
     element.remove();
+    return;
+  }
+  if (target.preserveInline) {
+    range.deleteContents();
+    if (replacement !== undefined) range.insertNode(replacement);
     return;
   }
   const tail = element.cloneNode(false) as HTMLElement;
@@ -245,7 +255,27 @@ export class ReadingBlockMapper {
     })) return;
     const currentScope = this.scope(owner, table);
     if (currentScope?.length !== scope.length || currentScope.some((section, index) => section !== scope[index])) return;
-    const matches = matchingTargets(blockGroups(scope), templates);
+    const groups = blockGroups(scope);
+    let matches = matchingTargets(groups, templates);
+    if (matches.length === 0) {
+      // Native hosts may keep adjacent table lines as literal paragraph text
+      // instead of the standalone table template. Acquire only an exact,
+      // unique, complete-line source range; rawTarget also verifies its nodes.
+      const literal = owner.element.ownerDocument.createElement("p");
+      literal.textContent = withoutSourcePrefixes(table.source);
+      matches = matchingTargets(groups, [literal], true);
+      if (matches.length === 0) {
+        // Obsidian renders soft breaks as BR nodes in native paragraphs.
+        // Match those nodes exactly instead of discarding structure checks.
+        const lines = withoutSourcePrefixes(table.source).split("\n");
+        literal.replaceChildren();
+        lines.forEach((line, index) => {
+          if (index > 0) literal.appendChild(literal.ownerDocument.createElement("br"));
+          literal.appendChild(literal.ownerDocument.createTextNode(line));
+        });
+        matches = matchingTargets(groups, [literal], true);
+      }
+    }
     // Repeated text/coarse ownership is ambiguous. Never choose by position alone.
     if (matches.length !== 1) return;
     const targets = matches[0]!;

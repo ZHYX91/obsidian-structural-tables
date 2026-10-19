@@ -43,9 +43,13 @@ Standalone Markdown renderers without section metadata use a separate source-ver
 
 Native Callout blocks use a source-owned mounting session rather than reverse DOM offsets or unchecked table indexes. The editor resolves the source block with CodeMirror's forward position mapping; both views compare native-rendered block signatures, including rich raw paragraphs and multi-block headers. Identical tables use source order only when the complete matching target inventory agrees. Embedded-note targets and ambiguous mappings stay untouched. Editor mounts track changes by source range and exact source, and pending cell focus is fulfilled only when the matching replacement mounts. Host mutations retry pending mappings; diagnostics distinguish missing DOM, rendering, failed rendering, unmatched or ambiguous targets, and mounted tables.
 
+When an eligible Callout has no native container, a visible exact source-line match can request a source-owned fallback shell. Only blocks containing valid owned tables qualify; protected HTML/code and unowned ordinary tables cannot request it. The shell renders the complete quote through the native Markdown renderer and reuses the same verified table mounting session. Source selection reveals the complete original quote; leaving source restores presentation, and double-clicking the fallback title enters source. Asynchronous stale or failed renders preserve source and release their components. Normal native containers retain their existing path.
+
 Callout writes carry invertible focus targets in CodeMirror's own history, isolated from adjacent prose edits. Undo and redo restore the exact source/path target after remounting, including commands invoked outside a cell. Unrecorded source changes map those targets through the host history; no parallel undo stack is maintained.
 
 Interrupted dirty editors hand their text to an application-session recovery buffer before DOM disposal. Its dialog supports copying and explicit discard; dismissing the dialog keeps the buffer available through a command. Recovery never automatically writes a stale draft to a new table.
+
+Reading View also maps a simple merged table when the host leaves its exact raw lines in a paragraph. Acquisition requires a unique complete-line range, unchanged source/section/DOM identity and no intersecting media or widgets. A containing inline HTML span retains its node identity and attributes; ambiguous text and protected HTML remain untouched.
 
 <!-- section: editing -->
 ## Editing

@@ -15,6 +15,7 @@ import { tableHistory, tableHistoryTarget } from "./table-history";
 import { mapTablesThroughProseEdit } from "./table-parse-cache";
 import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
+import { CalloutFallbackWidget } from "./callout-fallback-widget";
 import { renderTableSignatures } from "../rendering/native-table-mapping";
 import { structuralTableViewMode } from "./table-view-state";
 import { setTableSourcePointerPending, structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus, type CellBlurCommit } from "./table-source-focus";
@@ -30,6 +31,7 @@ interface DecorationEntry {
 
 interface StructuralTableDecorationState {
   callouts: readonly { from: number; to: number }[];
+  fallbackCallouts: readonly { from: number; to: number }[];
   composing: boolean;
   sourceFocused: boolean;
   tables: readonly StructuralTable[] | null;
@@ -37,6 +39,7 @@ interface StructuralTableDecorationState {
 }
 
 const structuralTableComposition = StateEffect.define<boolean>();
+const structuralCalloutFallback = StateEffect.define<readonly { from: number; to: number }[]>();
 
 function isCellBlurCommit(transaction: Transaction): boolean {
   const commit = transaction.effects.find((effect) => effect.is(structuralTableCellBlurCommit))?.value;
@@ -75,6 +78,7 @@ export class StructuralTableEditorController {
       tables: readonly StructuralTable[] | null,
       callouts: readonly { from: number; to: number }[],
       sourceFocused: boolean,
+      fallbackCallouts: readonly { from: number; to: number }[],
       restoredTarget?: { from: number; source: string; sourcePath: string },
       cellCommit?: CellBlurCommit,
     ): DecorationSet => {
@@ -84,6 +88,18 @@ export class StructuralTableEditorController {
       const sourcePath = state.field(editorInfoField, false)?.file?.path ?? "";
       const selections = state.selection.ranges;
       const entries: DecorationEntry[] = [];
+      for (const range of fallbackCallouts) {
+        if (!callouts.some((callout) => callout.from === range.from && callout.to === range.to)
+          || sourceFocused && selections.some((selection) => selection.empty
+            ? selection.from >= range.from && selection.from < range.to
+            : selection.from < range.to && selection.to > range.from)
+          || !tables?.some((table) => table.range.from >= range.from && table.range.to <= range.to
+            && table.valid && (table.structural || settings.takeOverOrdinaryTables))) continue;
+        entries.push({ from: range.from, to: range.to, decoration: Decoration.replace({
+          block: true, widget: new CalloutFallbackWidget(app, range.from,
+            state.doc.sliceString(range.from, range.to), sourcePath),
+        }) });
+      }
       for (const table of tables ?? []) {
         const resolvedMode = structuralTableViewMode(table, settings, selections, callouts, sourceFocused);
         const restored = restoredTarget !== undefined
@@ -140,6 +156,7 @@ export class StructuralTableEditorController {
       const modeChanged = transaction.startState.field(editorLivePreviewField, false)
         !== transaction.state.field(editorLivePreviewField, false);
       return transaction.docChanged || transaction.selection !== undefined || refreshed
+        || transaction.effects.some((effect) => effect.is(structuralCalloutFallback))
         || compositionChanged || sourceFocusChanged || modeChanged;
     };
     const decorationField = StateField.define<StructuralTableDecorationState>({
@@ -152,7 +169,8 @@ export class StructuralTableEditorController {
           sourceFocused,
           tables,
           callouts,
-          decorations: buildDecorations(state, tables, callouts, sourceFocused),
+          fallbackCallouts: [],
+          decorations: buildDecorations(state, tables, callouts, sourceFocused, []),
         };
       },
       update: (value, transaction) => {
@@ -175,11 +193,20 @@ export class StructuralTableEditorController {
         const callouts = !transaction.docChanged ? value.callouts : mapped === null
           ? calloutRanges(transaction.state.doc.toString())
           : value.callouts.map((range) => ({ from: transaction.changes.mapPos(range.from, 1), to: transaction.changes.mapPos(range.to, -1) }));
+        const requested = transaction.effects.find((effect) => effect.is(structuralCalloutFallback))?.value;
+        const sameFile = transaction.startState.field(editorInfoField, false)?.file?.path
+          === transaction.state.field(editorInfoField, false)?.file?.path;
+        const fallbackCallouts = [...(sameFile ? value.fallbackCallouts.map((range) => ({
+          from: transaction.changes.mapPos(range.from, 1), to: transaction.changes.mapPos(range.to, -1),
+        })) : []), ...(requested ?? [])].filter((range, index, all) =>
+          callouts.some((callout) => callout.from === range.from && callout.to === range.to)
+          && all.findIndex((other) => other.from === range.from && other.to === range.to) === index);
         return {
           composing,
           sourceFocused,
           tables,
           callouts,
+          fallbackCallouts,
           decorations: composing
             ? Decoration.none
             : buildDecorations(
@@ -187,6 +214,7 @@ export class StructuralTableEditorController {
               tables,
               callouts,
               sourceFocused,
+              fallbackCallouts,
               restoredTarget,
               isCellBlurCommit(transaction) ? transaction.effects.find((effect) => effect.is(structuralTableCellBlurCommit))?.value : undefined,
             ),
@@ -338,6 +366,17 @@ export class StructuralTableEditorController {
           const sourcePath = view.state.field(editorInfoField, false)?.file?.path ?? "";
           return {
             tables: value.tables ?? [], ranges: value.callouts, sourcePath,
+            fallback: (ranges) => {
+              const eligible = ranges.filter((range) => !value.fallbackCallouts.some((known) => known.from === range.from && known.to === range.to)
+                && (!value.sourceFocused || !view.state.selection.ranges.some((selection) => selection.empty
+                  ? selection.from >= range.from && selection.from < range.to
+                  : selection.from < range.to && selection.to > range.from)));
+              if (eligible.length === 0) return;
+              const state = view.state;
+              queueMicrotask(() => {
+                if (views.has(view) && view.state === state) view.dispatch({ effects: structuralCalloutFallback.of(eligible) });
+              });
+            },
             render: (table) => renderTableSignatures(app, table, sourcePath, this.view.dom.ownerDocument),
             owns: (table) => !value.composing && settings.enableLivePreview
               && Boolean(view.state.field(editorLivePreviewField, false))

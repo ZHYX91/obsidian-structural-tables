@@ -13,6 +13,29 @@
   },
   "scenarios": [
     {
+      "id": "html-boundary-code-interchange",
+      "title": "Native HTML boundaries and exact code clipboard text",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open HTML boundaries and code interchange in Reading View and Live Preview. Compare saved source hashes across view changes. In Reading View verify literal-heading, literal-list and literal-reference retain their attributes and complete pipe text. In Live Preview verify these remain unowned, preserving native HTML or source rendering. The continuation, Callout, escaped-tag and Code export tables render as owned tables. The Callout remains after raw HTML to exercise native-lexer failure recovery: double-click its fallback title to edit the complete quote source, then leave it to restore presentation. The fenced example remains code or native source.",
+        "Edit Alpha in the continuation table, commit, undo and redo. Repeat with Beta in the Callout. Compare the complete note before and after each history action; retain surrounding HTML, list indentation, quote prefixes and other tables.",
+        "Use the product Copy plain GFM command on Code export. Paste at a blank block boundary in a separate disposable note and inspect the saved Markdown plus the actual rendered code text and every KEEP cell. Preview Convert to plain GFM, cancel without a source change, then confirm and undo once to restore the complete original note. Code spans containing pipes use inline HTML code elements and entities for GitHub GFM and native Obsidian compatibility.",
+        "Copy an actual browser HTML table containing code text a|b, a\\|b, a\\\\|b and a\\\\\\|b into Clipboard destination. Verify all text and trailing KEEP cells, then undo and redo the paste. Also exercise plain literal backslashes, a Wiki link, line breaks and merged cells, and verify math/linked/unsupported HTML retains the existing native fallback. Record the external source application and clipboard formats."
+      ],
+      "expected": [
+        "Both views respect native HTML ownership, retain valid editable tables and do not mutate Markdown during rendering.",
+        "Cell edits, GFM conversion and HTML paste write only the intended table or destination; one undo restores the complete operation baseline and redo reproduces the exact result.",
+        "Rendered code text retains every literal backslash and pipe, all columns and trailing cells. GFM inline HTML fallback is documented as requiring a consumer that permits inline HTML; unsupported HTML is not silently truncated."
+      ]
+    },
+    {
       "id": "transpose-confirm-history",
       "title": "Whole-table transpose confirmation and host history",
       "surfaces": [

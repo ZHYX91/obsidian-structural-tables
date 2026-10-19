@@ -179,16 +179,21 @@ export function ignoredMarkdownLines(
     // A list marker is a container, including when its first content is a fence.
     // Markers inside an active code/comment block remain literal content.
     if (fence === null && protectedBlock === null && !rawLiteralHtml && !htmlBlock && htmlSpecial === null) {
-      let list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
+      let list = /^( {0,3})([-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
       // Thematic breaks take precedence over list markers at every container depth.
       const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
       while (list !== null && !thematicBreak(line)) {
+        const marker = list[2]!;
+        // Only an ordered list beginning with 1 can interrupt a paragraph.
+        // Outdenting from the preceding item starts a distinct list paragraph.
+        if (paragraph !== null && paragraph.listIndent <= listIndent
+          && /^\d/u.test(marker) && !/^1[.)]$/u.test(marker)) break;
         // Sibling list items may have identical indentation but distinct paragraphs.
         paragraph = null;
         listIndent += list[0].length;
         listIndents.push(listIndent);
         line = line.slice(list[0].length);
-        list = /^( {0,3})(?:[-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
+        list = /^( {0,3})([-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
       }
     }
 

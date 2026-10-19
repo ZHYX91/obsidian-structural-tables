@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 - 2026-10-19
+
+- Keep standalone HTML under native Markdown ownership after completed blocks, new sibling list items and complete single-line link definitions. Preserve tables after indented or lazy paragraph continuations.
+- Preserve every literal backslash and pipe in code spans when exporting plain GFM or importing HTML clipboard tables. GFM uses inline HTML code only when backtick syntax cannot preserve the displayed text.
+
 ## 0.8.0 - 2026-10-17
 
 - Add French, Brazilian Portuguese, Russian, Korean and Vietnamese interface languages, bringing the total to twelve. Add ten localized getting-started guides alongside the complete English and Simplified Chinese references.

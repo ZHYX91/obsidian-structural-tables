@@ -842,6 +842,14 @@ class StructuralTableInteraction {
 
   private startPointerSelection(event: PointerEvent, view: EditorView): void {
     this.clickEditCandidate = null;
+    if (event.isPrimary && event.button === 2) {
+      const target = event.target !== null && "closest" in event.target ? event.target as Element : null;
+      // Native focus can scroll a different source caret into view between
+      // right-button press and contextmenu, moving the clicked cell away.
+      // Keep this gesture on its rendered target; contextmenu captures it.
+      if (target?.closest("textarea, input, a, button") == null && this.coordinateFor(event.target) !== null) event.preventDefault();
+      return;
+    }
     if (!event.isPrimary || event.button !== 0) return;
     const targetElement = event.target !== null && "closest" in event.target ? event.target as Element : null;
     const link = targetElement?.closest("a") ?? null;

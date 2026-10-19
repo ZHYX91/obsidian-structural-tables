@@ -264,6 +264,17 @@ export class ReadingBlockMapper {
       const literal = owner.element.ownerDocument.createElement("p");
       literal.textContent = withoutSourcePrefixes(table.source);
       matches = matchingTargets(groups, [literal], true);
+      if (matches.length === 0) {
+        // Obsidian renders soft breaks as BR nodes in native paragraphs.
+        // Match those nodes exactly instead of discarding structure checks.
+        const lines = withoutSourcePrefixes(table.source).split("\n");
+        literal.replaceChildren();
+        lines.forEach((line, index) => {
+          if (index > 0) literal.appendChild(literal.ownerDocument.createElement("br"));
+          literal.appendChild(literal.ownerDocument.createTextNode(line));
+        });
+        matches = matchingTargets(groups, [literal], true);
+      }
     }
     // Repeated text/coarse ownership is ambiguous. Never choose by position alone.
     if (matches.length !== 1) return;

@@ -69,7 +69,8 @@ async function settled(): Promise<void> {
 }
 
 describe("Reading View source/block boundaries", () => {
-  it.each([false, true])("maps exact native raw lines while preserving inline HTML: span=%s", async (inSpan) => {
+  it.each([[false, false], [true, false], [false, true], [true, true]] as const)(
+    "maps exact native raw lines while preserving inline HTML: span=%s, native BR=%s", async (inSpan, nativeBreaks) => {
     const table = "| Editable | < |\n| --- | --- |\n| Alpha | KEEP |";
     const prefix = inSpan ? "Paragraph\n    continuation\n<span id='inline' class='keep' data-case='continuation'>\n" : "\\<span id='escaped'>\n";
     const source = prefix + table;
@@ -79,7 +80,12 @@ describe("Reading View source/block boundaries", () => {
     paragraph.appendChild(document.createTextNode(inSpan ? "Paragraph\ncontinuation\n" : "<span id='escaped'>\n"));
     const inline = inSpan ? paragraph.appendChild(document.createElement("span")) : paragraph;
     if (inSpan) { inline.id = "inline"; inline.className = "keep"; inline.setAttribute("data-case", "continuation"); }
-    inline.appendChild(document.createTextNode("\n" + table));
+    if (nativeBreaks) {
+      for (const [index, line] of table.split("\n").entries()) {
+        if (index > 0) inline.appendChild(document.createElement("br"));
+        inline.appendChild(document.createTextNode((index === 0 ? "\n" : "") + line + "\n"));
+      }
+    } else inline.appendChild(document.createTextNode("\n" + table));
     const context = {
       sourcePath: "Reading.md", docId: "native-raw-lines",
       getSectionInfo: () => ({ text: source, lineStart: 0, lineEnd: source.split("\n").length - 1 }),

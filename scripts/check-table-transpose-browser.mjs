@@ -394,6 +394,13 @@ try {
   assert.equal(moved.tables[0][1][0], "Next", JSON.stringify({beforeDrag,moved}));
   assert.equal(moved.tables[0][3][0], "Alpha", JSON.stringify({beforeDrag,moved}));
   results.push({ mode:"axis-first-gesture", sourceChanged:moved.source!==beforeDrag.source, rowsMoved:true });
+  const fractional = await evaluate("window.transposeBrowser.fractionalCaretProbe()");
+  for (const probe of fractional) {
+    assert.ok(probe.first && probe.last, JSON.stringify(probe));
+    assert.equal(probe.middle, null, JSON.stringify(probe));
+    assert.ok(!Number.isInteger(probe.width), JSON.stringify(probe));
+  }
+  results.push({ mode: "fractional-textarea-width", cases: fractional.length, firstLastExit: true, internalLineNative: true });
   // Real browser geometry for soft-wrapped textarea offsets; no synthetic
   // keydown can prove where Chromium actually drew those visual rows.
   const visual = await evaluate("window.transposeBrowser.visualCaretProbe()");

@@ -10,6 +10,7 @@ import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
 import { reparseUnchangedTable } from "../core/table-snapshot";
+import { validateTableOperationInDocument } from "../core/table-operation-document";
 
 import { nativeTableDomSelection } from "./native-table-selection";
 import {
@@ -184,7 +185,7 @@ export class NativeTableMenuBridge {
       new Notice(t("notice.staleTable"));
       return;
     }
-    const result = operation(current);
+    const result = validateTableOperationInDocument(editor.getValue(), current, operation(current));
     if (result.changed) {
       replaceTableSource(editor, current, result.source);
     }

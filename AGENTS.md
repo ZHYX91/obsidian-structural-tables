@@ -38,4 +38,17 @@ the current contract and repeatable process rather than past executions.
 
 Deploy to a production Vault only when the user explicitly names and authorizes the exact target. Before copying, resolve the target plugin directory, record or back up the currently installed runtime assets, and hash `data.json` when present. Replace only the verified production assets declared by the release contract, preserve `data.json` unless the user explicitly authorizes a reset, and verify the installed hashes after copying.
 
-Acceptance fixtures, cleanup scripts, and destructive test operations may target only explicitly identified temporary Vaults; never point them at an ordinary or production Vault. Source checks, packaged-candidate checks, deployed-host behavior, and Android emulator evidence remain separate claims. Desktop and Android emulator acceptance are optional quality checks on an exact candidate. Record failures, skipped checks, and incomplete coverage honestly; they do not block explicitly authorized publication. Source/build checks, version identity, asset integrity and build provenance remain required. Android physical devices and iOS are out of scope.
+Acceptance fixtures, cleanup scripts, and destructive test operations may target only explicitly identified temporary Vaults; never point them at an ordinary or production Vault. Source checks, packaged-candidate checks, deployed-host behavior, and Android emulator evidence remain separate claims.
+
+Select representative acceptance by change impact on the exact candidate. Changes to desktop
+interaction, settings, editor integration or lifecycle require affected real-host scenarios.
+Changes to mobile interaction or shared mobile-runtime behavior require affected Android emulator
+scenarios when the plugin supports mobile. Documentation-only or host-independent logic changes
+may omit hosts with a recorded reason. Cover the original reported case and a relevant boundary;
+use one suitable environment for equivalent coverage and expand only for distinct risks.
+Run the selected checks when the environment is available; claim acceptance only for observed
+passing scope. Confirmed serious product defects block the affected release. Missing host/tool
+evidence is assessed by risk and recorded as unverified, without an automatic publication block
+or separate approval step. Record failures and follow-up honestly. Full host closure is not required
+for a scoped release, and the CI publication workflow does not automatically enforce host coverage.
+Source/build checks, version identity, asset integrity and build provenance remain required. Android physical devices and iOS are out of scope.

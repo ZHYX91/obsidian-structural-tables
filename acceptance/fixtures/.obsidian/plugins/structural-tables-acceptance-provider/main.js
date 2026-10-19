@@ -4,6 +4,7 @@ module.exports = class extends Plugin {
     this.addCommand({
       id: "record-html-boundary-observation",
       name: "Record HTML boundary observation",
+      hotkeys: [{ modifiers: ["Mod", "Shift"], key: "O" }],
       callback: async () => {
         if (require("obsidian").Platform.isMobileApp) return;
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);

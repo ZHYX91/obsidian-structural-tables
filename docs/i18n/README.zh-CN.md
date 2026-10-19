@@ -247,6 +247,8 @@ npm ci
 npm run check
 ```
 
+CI 还单独执行浏览器检查：`npm run test:browser -- /path/to/chromium`。需要已安装的 Chromium 和可加载的本地字体；[测试策略](../testing-strategy.zh-CN.md#浏览器检查)说明如何只跑相关场景以及查看失败诊断。这些本地样本没有运行 Obsidian。
+
 开发者参考文档：
 
 - [产品需求](../product-requirements.zh-CN.md)

@@ -40,6 +40,30 @@ Reading View 的回归必须使用完整笔记文本和真实源码行范围，�
 
 阿语展示测试检查完整 TeX 表达式、尺寸、属性映射和路径的视觉顺序。Chromium 检查实际字符与路径组成部分的位置；DOM 测试确认复制的草稿、待生成记录和 Markdown 保持原始字节。注册命令与源码菜单的 PNG 测试执行从暂存渲染到光栅化的实际流程，覆盖外层、编辑器及表格方向相反，以及生成期间仅内层方向改变的情况。
 
+<!-- section: browser-fixtures -->
+## 浏览器检查
+
+`npm run check` 检查锁定环境下的源码和构建。CI 在它之后另跑 Chromium 检查，两道检查都要保留。在本地执行完整浏览器检查：
+
+```bash
+npm run test:browser -- /path/to/chromium
+```
+
+每组检查都创建全新的临时浏览器配置，只加载本地样本，不连接已有浏览器或 Vault。场景组包括 `transpose`、`focus`、`editing`、`arrows`、`history-bidi`、`alignment`、`image` 和 `gfm`。排查时可只选相关的一个或多个组：
+
+```bash
+npm run test:browser -- /path/to/chromium arrows alignment
+npm run test:browser -- /path/to/chromium image gfm
+```
+
+保留原有 `test:browser-transpose` 命令及可选的 `alignment` 参数；`test:browser-image` 和 `test:browser-gfm` 可直接运行相应样本。不传路径时，也可用 `CHROMIUM_PATH` 指定浏览器。容器需要额外进程参数时，使用 JSON 数组形式的 `CHROMIUM_ARGS_JSON`；临时配置目录和调试端点仍由运行器管理。
+
+开始呈现之前，运行器通过 `FontFace` 和 `local()` 实际加载已安装字体。默认依次尝试 Arial、Liberation Sans、DejaVu Sans、Noto Sans、Open Sans、Helvetica 和 Nimbus Sans，也可用 `CHROMIUM_LOCAL_FONT` 指定确切字体名称。预检失败时先安装可加载的字体。Chromium 的单进程模式会阻止本地字体来源加载，因此这些样本不能使用该模式；仅靠通用后备字体会使图像测试中的字体来源断言失去意义。转置页面明确提供基础行高，对齐样本的呈现文字和编辑框使用同一份已验证字体。
+
+每组检查将浏览器版本、所选字体、结果和 Chromium 标准错误保存在 `dist/browser-checks/`，可用 `STRUCTURAL_BROWSER_ARTIFACTS` 改变输出位置。失败时另存 DOM、截图、相关编辑框／对话框状态和近期浏览器错误。完整运行器会继续执行其他独立场景，写出汇总；任一场景失败，最终退出码都非零。CI 在浏览器断言失败后仍上传这些诊断。根据证据修复环境前置条件或产品回归，不通过放宽几何、像素、源码身份或历史断言来取得通过结果。
+
+GFM 样本调用产品对话框、捕获的目标和真实 CodeMirror，驱动真实指针、键盘与剪贴板操作。MarkdownIt 在宿主 MarkdownRenderer 的接口处独立解释最终 GFM。覆盖源码／接管／原生入口，两张同文表中的第二张，方向、结果、源码与复制一致，一次写入及键盘撤销／重做，文件过期拒绝，只能复制的阅读视图，以及窄屏阿语界面中独立保持的笔记方向。宿主辅助方法和对话框外框仍是测试适配器；Chromium 样本通过不代表实际 Obsidian 的菜单、主题、公式、弹出窗口焦点或移动端输入已验收。
+
 <!-- section: parser-cases -->
 ## 解析用例
 

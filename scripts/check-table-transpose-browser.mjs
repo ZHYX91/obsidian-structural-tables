@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { readFile, mkdtemp, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
-import os from "node:os";
 import { build } from "esbuild";
+import { startBrowserHarness } from "./browser-harness-runner.mjs";
 
 const browser = process.argv[2] || process.env.CHROMIUM_PATH;
 assert.ok(browser, "Usage: node scripts/check-table-transpose-browser.mjs <Chromium executable>");
-const dir = await mkdtemp(path.join(os.tmpdir(), "structural-transpose-browser-"));
+const scenario = process.argv[3] || "all";
+const scenarios = ["transpose", "focus", "editing", "arrows", "history-bidi", "alignment"];
+assert.ok(scenario === "all" || scenarios.includes(scenario), "Unknown transpose scenario: " + scenario);
+const selected = (name) => scenario === "all" || scenario === name;
+let localFont = "sans-serif";
 const bundle = await build({
   entryPoints: ["tests/browser/table-transpose-browser-harness.ts"],
   bundle: true,
@@ -17,8 +20,8 @@ const bundle = await build({
 });
 const styles = await readFile("styles.css", "utf8");
 const page = '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="/styles.css">'
-  + '<style>body{margin:24px;font:16px sans-serif}.host-box-sizing *{box-sizing:border-box}.host-box-sizing .markdown-rendered{white-space:normal}.host-box-sizing .structural-tables-table{table-layout:fixed}.cm-editor{height:520px;border:1px solid #bbb}.cm-scroller{overflow:auto}.cm-content{padding-bottom:80px}td,th{padding:10px;border:1px solid #999}#host-menu{position:fixed;top:12px;right:12px;background:white;z-index:20}button{padding:12px}</style>'
-  + '<style>.alignment-surface{--text-normal:#000;--table-selection:transparent}.alignment-surface .markdown-rendered{font:24px/32px Arial;white-space:normal}.alignment-surface .structural-tables-table{table-layout:fixed}.alignment-surface textarea{caret-color:transparent;background:#fff!important;color:#000!important}</style>'
+  + '<style>body{margin:24px;font:16px/1.5 __FIXTURE_FONT__}.host-box-sizing *{box-sizing:border-box}.host-box-sizing .markdown-rendered{white-space:normal}.host-box-sizing .structural-tables-table{table-layout:fixed}.cm-editor{height:520px;border:1px solid #bbb}.cm-scroller{overflow:auto}.cm-content{padding-bottom:80px}td,th{padding:10px;border:1px solid #999}#host-menu{position:fixed;top:12px;right:12px;background:white;z-index:20}button{padding:12px}</style>'
+  + '<style>.alignment-surface{--text-normal:#000;--table-selection:transparent}.alignment-surface .markdown-rendered{font:24px/32px __FIXTURE_FONT__;white-space:normal}.alignment-surface .structural-tables-table{table-layout:fixed}.alignment-surface textarea{caret-color:transparent;background:#fff!important;color:#000!important}</style>'
   + '<style>#target-note.switch-surface .cm-content{padding-inline-start:34px!important;}</style>'
   + '</head><body><script src="/bundle.js"></script></body></html>';
 const server = createServer((request, response) => {
@@ -29,66 +32,19 @@ const server = createServer((request, response) => {
     response.setHeader("Content-Type", "text/css"); response.end(styles);
   } else {
     response.setHeader("Content-Type", "text/html; charset=utf-8");
-    response.end(page);
+    response.end(page.replaceAll("__FIXTURE_FONT__", JSON.stringify(localFont)));
   }
 });
-let child;
-let socket;
+let session;
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 try {
   const address = server.address();
   assert.ok(address !== null && typeof address !== "string");
   const url = "http://127.0.0.1:" + address.port + "/";
-  child = spawn(browser, ["--headless=new", "--no-sandbox", "--disable-gpu",
-    "--remote-debugging-port=0", "--user-data-dir=" + path.join(dir, "profile"),
-    "--window-size=980,740", url], { stdio: "ignore", windowsHide: true });
-  let port;
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    try {
-      port = (await readFile(path.join(dir, "profile", "DevToolsActivePort"), "utf8")).split("\n")[0];
-      break;
-    } catch { await new Promise((resolve) => setTimeout(resolve, 100)); }
-  }
-  assert.ok(port, "Chromium did not start its debugging endpoint");
-  const tabs = await (await globalThis.fetch("http://127.0.0.1:" + port + "/json/list")).json();
-  const tab = tabs.find((item) => item.type === "page");
-  assert.ok(tab, "Chromium page is missing");
-  socket = new WebSocket(tab.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => {
-    socket.addEventListener("open", resolve, { once: true });
-    socket.addEventListener("error", reject, { once: true });
-  });
-  let id = 0;
-  const pending = new Map();
-  socket.addEventListener("message", (event) => {
-    const response = JSON.parse(String(event.data));
-    const request = pending.get(response.id);
-    if (request !== undefined) {
-      pending.delete(response.id);
-      if (response.error) request.reject(response.error);
-      else request.resolve(response.result);
-    }
-  });
-  const command = (method, params = {}) => new Promise((resolve, reject) => {
-    id += 1;
-    pending.set(id, { resolve, reject });
-    socket.send(JSON.stringify({ id, method, params }));
-  });
-  const evaluate = async (expression) => {
-    const response = await command("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
-    assert.ok(!response.exceptionDetails, JSON.stringify(response.exceptionDetails));
-    return response.result.value;
-  };
-  let ready = false;
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    try {
-      ready = await evaluate("location.href === " + JSON.stringify(url)
-        + " && typeof window.transposeBrowser === 'object'");
-      if (ready) break;
-    } catch { /* navigation may replace the initial execution context */ }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  assert.ok(ready, "Browser fixture did not load");
+  session = await startBrowserHarness({ name: "transpose-" + scenario, browser });
+  localFont = session.localFont;
+  const { command, evaluate } = session;
+  await session.navigate(url, "typeof window.transposeBrowser === 'object'");
   const settle = () => evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
   const click = async (expression, button = "left") => {
     const bounds = await evaluate("(function(){const b=" + expression + ";if(!b)return null;b.scrollIntoView({block:'nearest'});"
@@ -122,7 +78,8 @@ try {
     await settle();
   };
   const results = [];
-  if (process.argv[3] !== "alignment") {
+  let state;
+  if (selected("transpose")) {
   for (const mode of ["owned", "source", "native", "native-child", "popout-source"]) {
     await evaluate("window.transposeBrowser.reset(" + JSON.stringify(mode) + ")"); await settle();
     if (mode === "source" || mode === "native-child" || mode === "popout-source") await click(select("#transpose-source"));
@@ -160,7 +117,7 @@ try {
   await click(select("#transpose-source"));
   await evaluate("window.transposeBrowser.switchFile()");
   await clickConfirm();
-  let state = await evaluate("window.transposeBrowser.result()");
+  state = await evaluate("window.transposeBrowser.result()");
   assert.equal(state.changes, 0, JSON.stringify(state));
   assert.equal(state.rowHeaders, 0, JSON.stringify(state));
   assert.equal(state.editorFocused, false, JSON.stringify(state));
@@ -235,6 +192,8 @@ try {
       results.push({ mode, arrow, nativeCaret: true, sourcePreserved: true });
     }
   }
+  }
+  if (selected("focus")) {
   for (const mode of ["focus", "focus-after", "focus-canceled", "focus-wide", "focus-wide-rtl", "focus-wide-edited", "focus-wide-edited-rtl", "focus-wide-edited-blank", "focus-wide-edited-blank-rtl", "focus-wide-edited-mouse", "focus-wide-edited-mouse-rtl", "focus-wide-edited-mouse-double", "focus-wide-edited-mouse-drag", "focus-wide-edited-mouse-shrink", "focus-wide-mouse-external", "focus-wide-mouse-external-rtl", "focus-wide-edited-mouse-shrink-detach",
     ...["mouse-above", "mouse-above-blank", "edited-mouse-above", "edited-mouse-above-blank"].flatMap((suffix) => ["focus-wide-" + suffix, "focus-wide-" + suffix + "-rtl"])]) {
     const asyncMouse = mode.includes("blank") || mode.includes("mouse");
@@ -342,6 +301,8 @@ try {
       ...(mode.includes("detach") ? { naturalHeightOnReconnect: true } : {}),
       ...(mode.startsWith("focus-wide") ? { ...(asyncMouse ? { realMouse: true, asynchronousRendering: true } : { realTouch: true }), localHorizontalScroll: !mode.includes("detach") } : {}) });
   }
+  }
+  if (selected("editing")) {
   // Real Chromium dispatches pointerdown, native focus ownership, pointerup
   // and click; invoking dblclick directly would miss the old-widget loss.
   for (const mode of ["switch", "switch-rtl"]) {
@@ -394,13 +355,6 @@ try {
   assert.equal(moved.tables[0][1][0], "Next", JSON.stringify({beforeDrag,moved}));
   assert.equal(moved.tables[0][3][0], "Alpha", JSON.stringify({beforeDrag,moved}));
   results.push({ mode:"axis-first-gesture", sourceChanged:moved.source!==beforeDrag.source, rowsMoved:true });
-  const fractional = await evaluate("window.transposeBrowser.fractionalCaretProbe()");
-  for (const probe of fractional) {
-    assert.ok(probe.first && probe.last, JSON.stringify(probe));
-    assert.equal(probe.middle, null, JSON.stringify(probe));
-    assert.ok(!Number.isInteger(probe.width), JSON.stringify(probe));
-  }
-  results.push({ mode: "fractional-textarea-width", cases: fractional.length, firstLastExit: true, internalLineNative: true });
   // Real browser geometry for soft-wrapped textarea offsets; no synthetic
   // keydown can prove where Chromium actually drew those visual rows.
   const visual = await evaluate("window.transposeBrowser.visualCaretProbe()");
@@ -442,6 +396,15 @@ try {
   assert.equal((await evaluate("window.transposeBrowser.result()")).draft, false);
   results.push({ mode: "normal-link-activation", nativeAnchor: true });
 
+  }
+  if (selected("arrows")) {
+  const fractional = await evaluate("window.transposeBrowser.fractionalCaretProbe()");
+  for (const probe of fractional) {
+    assert.ok(probe.first && probe.last, JSON.stringify(probe));
+    assert.equal(probe.middle, null, JSON.stringify(probe));
+    assert.ok(!Number.isInteger(probe.width), JSON.stringify(probe));
+  }
+  results.push({ mode: "fractional-textarea-width", cases: fractional.length, firstLastExit: true, internalLineNative: true });
   await evaluate("window.transposeBrowser.reset('switch')"); await settle();
   await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='1']"));
   await command("Input.insertText", { text: "First visual line with enough words to wrap across this cell\nLast visual line" });
@@ -461,7 +424,7 @@ try {
     await evaluate("window.transposeBrowser.reset('switch')"); await settle();
     await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='1']"));
     await command("Input.insertText", { text: "First line with enough words to wrap in a narrow pane" });
-    await evaluate(`(()=>{const e=document.querySelector('textarea'); Object.assign(e.style,{width:'290px',height:'60px',fontSize:'16px',fontFamily:'Arial',textAlign:${JSON.stringify(alignment)}});e.setSelectionRange(0,0)})()`);
+    await evaluate(`(()=>{const e=document.querySelector('textarea'); Object.assign(e.style,{width:'290px',height:'60px',fontSize:'16px',fontFamily:${JSON.stringify(localFont)},textAlign:${JSON.stringify(alignment)}});e.setSelectionRange(0,0)})()`);
     await key("ArrowDown", "ArrowDown", 40);
     const wrapped = await evaluate("window.transposeBrowser.result()");
     assert.equal(wrapped.changes, 0);
@@ -472,6 +435,8 @@ try {
   }
   results.push({ mode: "soft-wrapped-line-start-exit", alignments: ["left", "center", "right"] });
 
+  }
+  if (selected("history-bidi")) {
   await evaluate("window.transposeBrowser.reset('switch')"); await settle();
   await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='0']"));
   await command("Input.insertText", { text: "Changed" });
@@ -493,6 +458,7 @@ try {
   results.push({ mode: "arabic-interface-bidi", technicalExpressions: true, pathOrder: true, mappingOrder: true });
   results.push({ mode: "arabic-migration-preview", initialPathOrder: true, togglePathOrder: true });
   }
+  if (selected("alignment")) {
   const alignmentCases = [];
   for (const direction of ["rtl", "ltr"]) {
     for (const alignment of ["default", "left", "center", "right"]) {
@@ -532,16 +498,12 @@ try {
     assert.equal((await evaluate("window.transposeBrowser.alignmentState()")).source, before.source);
   }
   results.push({ mode: "cell-draft-alignment", cases: alignmentCases.length, actualTextPixels: true, nativeDirection: true, explicitAlignment: true, sourcePreserved: true });
-  process.stdout.write(JSON.stringify({ status: "passed", browser: path.basename(browser), scenarios: results }) + "\n");
-} finally {
-  socket?.close();
-  if (child !== undefined && child.exitCode === null && child.signalCode === null) {
-    const stopped = new Promise((resolve) => child.once("exit", resolve));
-    child.kill();
-    await stopped;
   }
+  await session.result({ status: "passed", browser: path.basename(browser), group: scenario, scenarios: results });
+} catch (error) {
+  await session?.diagnose(error, `(()=>{const editor=document.querySelector('textarea.structural-tables-cell-editor');const style=editor&&getComputedStyle(editor);return {scenario:${JSON.stringify(scenario)},result:window.transposeBrowser?.result(),editor:editor&&{value:editor.value,selection:[editor.selectionStart,editor.selectionEnd],font:style.fontFamily,lineHeight:style.lineHeight,clientWidth:editor.clientWidth,clientHeight:editor.clientHeight,scrollHeight:editor.scrollHeight,bounds:editor.getBoundingClientRect().toJSON()}}})()`);
+  throw error;
+} finally {
+  await session?.close();
   await new Promise((resolve) => server.close(resolve));
-  // Chromium writes its profile asynchronously. Wait for process exit and
-  // allow the OS to finish releasing child profile files before cleanup.
-  await rm(dir, { recursive: true, force: true, maxRetries: 12, retryDelay: 150 });
 }

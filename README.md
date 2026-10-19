@@ -247,6 +247,8 @@ npm ci
 npm run check
 ```
 
+Run `npm run test:browser -- /path/to/chromium` for the separate browser gate used by CI. It requires an installed Chromium and a loadable local font; the [testing strategy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/testing-strategy.en.md#browser-fixtures) explains focused suites and retained diagnostics. These local fixtures do not run Obsidian.
+
 Developer references:
 
 - [Product requirements](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/product-requirements.en.md)

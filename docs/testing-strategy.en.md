@@ -41,6 +41,30 @@ Draft-alignment Chromium cases model Obsidian paragraphs with `dir=auto` and `un
 
 Arabic display tests keep complete TeX expressions, dimensions, property mappings and paths in their intended visual order. Chromium checks actual character and path-component positions; DOM tests verify that copied drafts, prepared record contents and Markdown retain their original bytes. Registered command and source-menu PNG tests run the rendering pipeline through staging and rasterization, with opposing outer/editor/table directions and asynchronous inner-direction changes.
 
+<!-- section: browser-fixtures -->
+## Browser fixtures
+
+`npm run check` is the locked source/build gate. CI runs an additional Chromium gate after it; keep both checks. Run the complete browser gate locally with:
+
+```bash
+npm run test:browser -- /path/to/chromium
+```
+
+The runner creates a fresh temporary browser profile for each suite, serves only local fixture data and never attaches to an existing browser or Vault. Its suites are `transpose`, `focus`, `editing`, `arrows`, `history-bidi`, `alignment`, `image` and `gfm`. Select one or more to investigate a relevant failure:
+
+```bash
+npm run test:browser -- /path/to/chromium arrows alignment
+npm run test:browser -- /path/to/chromium image gfm
+```
+
+The existing `test:browser-transpose` command and its optional `alignment` argument remain available. `test:browser-image` and `test:browser-gfm` run their corresponding fixtures directly. `CHROMIUM_PATH` can supply the executable when no argument is passed. `CHROMIUM_ARGS_JSON` accepts an array of extra process arguments when a container needs them; profile and debugging-endpoint arguments remain controlled by the runner.
+
+Before rendering, the runner loads a real installed font through `FontFace` and `local()`. It tries Arial, Liberation Sans, DejaVu Sans, Noto Sans, Open Sans, Helvetica and Nimbus Sans, or the exact `CHROMIUM_LOCAL_FONT` family when provided. Install a loadable family if preflight fails. Chromium's single-process mode prevents local-font source loading; do not use it for these fixtures. A generic fallback would invalidate the image font-source assertions. The transpose page supplies explicit base line height, and alignment samples use the same verified font in rendered text and editing controls.
+
+Every suite retains the browser version, selected font, result and Chromium stderr under `dist/browser-checks/`; `STRUCTURAL_BROWSER_ARTIFACTS` changes that output directory. Failures also retain DOM, screenshot, relevant editor/modal state and recent browser errors. The complete runner continues with independent suites after a failure, writes one summary and exits nonzero if any suite failed. CI uploads these diagnostics even when a browser assertion fails. Fix an environment prerequisite or a demonstrated product regression; do not weaken geometry, pixel, source-identity or history assertions to obtain a passing run.
+
+The GFM fixture uses the production modal, captured targets, real CodeMirror and real pointer/keyboard/clipboard operations. MarkdownIt adapts the host MarkdownRenderer boundary to independently interpret the final GFM. It covers source/owned/native entries, the second of two identical tables, orientation/result/source/copy consistency, one write and keyboard Undo/Redo, stale file refusal, Reading copy without replacement, and a narrow Arabic interface with independent note direction. Its host helper and modal frame are test adapters. Chromium fixture success does not verify actual Obsidian menus, themes, formulas, popout focus or mobile input.
+
 <!-- section: parser-cases -->
 ## Parser cases
 

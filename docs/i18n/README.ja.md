@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
 これは主な操作と重要な制限をまとめた入門ガイドです。詳しい説明は [English](../../README.md) または [简体中文](README.zh-CN.md) を参照してください。
 
@@ -88,6 +88,16 @@ Shift+Enter で見た目の改行を入れられ、対応する `<br>` として
 ### 貼り付けとコピー
 
 HTML の貼り付けはセル構造を安全に保てる場合にだけ変換します。保存できない書式がある場合は完全なプレーンテキストを使うか、Obsidian の標準貼り付けに任せます。プレーンテキストでは結合や装飾は残りません。通常 GFM への変換後は対象エディターで表を確認してください。
+
+### 標準 GFM に変換
+
+表を右クリックして「通常の Markdown（GFM）をプレビュー…」を選びます。編集ビューでは表のソース内にカーソルを置き、通常の GFM に変換するコマンドからも開けます。
+
+行見出ししかない表では、行と列を入れ替えて先頭の見出し行にすることを推奨します。列見出しがない表で元の向きを維持すると、先頭に空の見出し行を追加し、既存のデータ行をすべて保持します。
+
+結合セルは個別のセルに分かれ、結合範囲の各位置に同じ内容が入ります。 複数の見出し行は1行になり、各階層の見出しは「 / 」でつながれます。 側面に残る行見出しは通常のセルになります。GFM ではその行見出しの役割を保持できません。
+
+結果のプレビューと Markdown ソースを切り替え、現在の結果をコピーするか元の表を置換できます。閲覧ビューではコピーのみ可能です。置換は1回の変更として記録され、1回の取り消しで元に戻ります。閉じるだけではソースは変わりません。セルの編集を終えてから操作し、元の表やファイルが変わった場合はプレビューを開き直してください。通常の GFM を直接コピーするコマンドは推奨の向きを使います。
 
 ### 画像と Base の復元
 

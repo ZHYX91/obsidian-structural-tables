@@ -20,6 +20,7 @@ import { renderTableSignatures } from "../rendering/native-table-mapping";
 import { structuralTableViewMode } from "./table-view-state";
 import { setTableSourcePointerPending, structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus, type CellBlurCommit } from "./table-source-focus";
 import type { ExportTableImage } from "../app/table-image-modal";
+import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
 
 export const refreshStructuralTables = StateEffect.define<void>();
 
@@ -61,6 +62,7 @@ export class StructuralTableEditorController {
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
+    private readonly previewGfm?: PreviewPlainGfm,
   ) {}
 
   createExtension(): Extension {
@@ -68,6 +70,7 @@ export class StructuralTableEditorController {
     const settingsProvider = this.getSettings;
     const promote = this.promote;
     const exportImage = this.exportImage;
+    const previewGfm = this.previewGfm;
     const views = this.views;
     const readTables = (state: EditorState, cached: readonly StructuralTable[] | null): readonly StructuralTable[] | null => {
       if (!settingsProvider().enableLivePreview || !state.field(editorLivePreviewField, false)) return null;
@@ -116,7 +119,7 @@ export class StructuralTableEditorController {
             to: table.range.from,
             decoration: Decoration.widget({
               widget: new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote, exportImage,
-                cellCommit?.from === table.range.from && cellCommit.after === table.source && cellCommit.sourcePath === sourcePath ? cellCommit : undefined),
+                cellCommit?.from === table.range.from && cellCommit.after === table.source && cellCommit.sourcePath === sourcePath ? cellCommit : undefined, previewGfm),
               block: true,
               side: -1,
             }),
@@ -381,7 +384,7 @@ export class StructuralTableEditorController {
             owns: (table) => !value.composing && settings.enableLivePreview
               && Boolean(view.state.field(editorLivePreviewField, false))
               && table.valid && (table.structural || settings.takeOverOrdinaryTables),
-            widget: (table) => new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote, exportImage),
+            widget: (table) => new StructuralTableWidget(app, table, sourcePath, settings, settingsProvider, promote, exportImage, undefined, previewGfm),
           };
         });
         views.add(view);

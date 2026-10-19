@@ -43,6 +43,7 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
   "already-merged": "operation.alreadyMerged",
   "cell-unavailable": "operation.cellUnavailable",
   "cell-edited": "operation.cellEdited",
+  "table-converted": "notice.convertedGfm",
   "cells-cleared": "operation.cellsCleared",
   "math-pipe-unsafe": "operation.mathPipeUnsafe",
   "math-multiline-unsafe": "operation.mathMultilineUnsafe",

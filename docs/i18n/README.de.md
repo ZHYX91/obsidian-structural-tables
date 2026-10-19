@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
 Dieser kompakte Einstieg erklärt die wichtigsten Funktionen und Grenzen. Ausführliche Anleitungen gibt es auf [English](../../README.md) und [简体中文](README.zh-CN.md).
 
@@ -88,6 +88,16 @@ Shift+Enter fügt einen sichtbaren Zeilenumbruch ein, der als unterstütztes `<b
 ### Einfügen und Kopieren
 
 HTML-Tabellen werden nur dann in Markdown umgewandelt, wenn die Zellstruktur sicher übernommen werden kann. Bei schwierigen Formatierungen wird gegebenenfalls der vollständige Klartext eingefügt oder Obsidians normale Einfügefunktion verwendet. Klartext bewahrt weder Zellverbindungen noch Formatierung. Nach einer Umwandlung in gewöhnliches GFM sollten Sie das Ergebnis im Zielprogramm prüfen.
+
+### In einfaches GFM umwandeln
+
+Klicke mit der rechten Maustaste auf die Tabelle und wähle „Vorschau als einfaches Markdown (GFM)…“. Im Editor kannst du den Cursor auch in den Tabellenquelltext setzen und den Befehl zur Umwandlung in einfaches GFM aufrufen.
+
+Bei Tabellen mit ausschließlich Zeilenüberschriften empfiehlt sich das Tauschen von Zeilen und Spalten: Die Beschriftungen werden zur obersten Kopfzeile. Bleibt die ursprüngliche Ausrichtung ohne Spaltenüberschriften erhalten, wird oben eine leere Kopfzeile ergänzt; alle vorhandenen Datenzeilen bleiben bestehen.
+
+Verbundene Zellen werden getrennt. Ihr Inhalt wird an jeder zuvor überdeckten Position wiederholt. Mehrere Kopfzeilen werden zu einer Zeile zusammengeführt. Die Ebenen werden mit „ / “ verbunden. An der Seite verbleibende Zeilenüberschriften werden zu normalen Zellen; GFM erhält ihre Überschriftenrolle nicht.
+
+Wechsle zwischen Ergebnisvorschau und Markdown-Quelltext und kopiere das aktuelle Ergebnis oder ersetze die ursprüngliche Tabelle. Die Leseansicht bietet nur Kopieren. Ersetzen ist eine einzelne Änderung, die sich mit einmal Rückgängig wiederherstellen lässt; Schließen ändert den Quelltext nicht. Beende zuerst offene Zellbearbeitungen. Hat sich die ursprüngliche Tabelle oder Datei geändert, öffne die Vorschau erneut. Der direkte GFM-Kopierbefehl verwendet die empfohlene Ausrichtung.
 
 ### PNG-Grenzen und Base-Wiederherstellung
 

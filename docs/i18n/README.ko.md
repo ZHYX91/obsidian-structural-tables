@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
 이 시작 가이드는 주요 기능과 중요한 제한 사항을 요약합니다. 자세한 설명은 [English](../../README.md) 또는 [简体中文](README.zh-CN.md)를 참고하세요.
 
@@ -88,6 +88,16 @@ Shift+Enter로 입력한 표시용 줄바꿈은 지원되는 `<br>` 형태로 �
 ### 붙여넣기와 복사
 
 HTML 표의 구조를 안전하게 보존할 수 있을 때만 Markdown으로 변환합니다. 서식을 그대로 보존할 수 없다면 클립보드의 전체 일반 텍스트를 붙여넣거나 Obsidian 원래 붙여넣기에 맡깁니다. 일반 텍스트는 병합과 서식을 보존하지 못합니다. 일반 GFM으로 변환했다면 다른 편집기에서 최종 표시를 확인하세요.
+
+### 일반 GFM으로 변환
+
+표를 오른쪽 클릭하고 “일반 Markdown(GFM) 미리 보기…”를 선택하세요. 편집기에서 표 소스 안에 커서를 놓고 일반 GFM 변환 명령으로 열 수도 있습니다.
+
+행 머리글만 있는 표는 행과 열을 맞바꾸어 맨 위 머리글 행으로 만드는 것을 권장합니다. 열 머리글 없이 원래 방향을 유지하면 맨 위에 빈 머리글 행을 추가하고 기존 데이터 행을 모두 보존합니다.
+
+병합된 셀은 개별 셀로 나뉘며 병합 범위의 모든 위치에 같은 내용이 반복됩니다. 여러 머리글 행은 하나로 합쳐지고 각 단계의 머리글은 “ / ”로 연결됩니다. 옆쪽에 남는 행 머리글은 일반 셀이 됩니다. GFM은 해당 행 머리글 역할을 유지하지 못합니다.
+
+결과 미리 보기와 Markdown 소스를 전환한 뒤 현재 결과를 복사하거나 원본 표를 바꿀 수 있습니다. 읽기 보기에서는 복사만 가능합니다. 바꾸기는 한 번의 변경이며 한 번의 실행 취소로 복원됩니다. 창을 닫으면 소스는 바뀌지 않습니다. 셀 편집을 먼저 완료하고 원본 표나 파일이 바뀌면 미리 보기를 다시 여세요. 일반 GFM 빠른 복사 명령은 권장 방향을 사용합니다.
 
 ### PNG 제한과 Base 복원
 

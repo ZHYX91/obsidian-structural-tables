@@ -19,6 +19,7 @@ const expressions: Partial<Record<TranslationKey, readonly string[]>> = {
   "image.copyUnavailable": ["{width} × {height}"],
   "promotion.blocker.mergedDataCell": ["({rowSpan} × {columnSpan})"],
   "promotion.warning.flattenMultiRowHeaders": ["‘ / ’"],
+  "gfm.warning.multipleHeaders": ["« / »"],
 };
 
 /** Display strings only: never use this output as source, a path or a value. */

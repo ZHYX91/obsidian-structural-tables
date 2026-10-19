@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
 Este guia resumido apresenta as funções principais e as limitações importantes. Consulte as instruções completas em [English](../../README.md) ou [简体中文](README.zh-CN.md).
 
@@ -88,6 +88,16 @@ Shift+Enter insere uma quebra visual de linha, gravada como um `<br>` compatíve
 ### Colar e copiar
 
 A conversão de tabelas HTML só acontece quando é possível manter a estrutura das células com segurança. Se não for possível preservar a formatação, o plugin pode usar a alternativa completa em texto simples ou deixar a colagem para o Obsidian. Texto simples não preserva mesclagens nem estilos. Confira o resultado no aplicativo de destino após converter para GFM comum.
+
+### Converter em GFM comum
+
+Clique com o botão direito na tabela e escolha “Prévia como Markdown simples (GFM)…”. No editor, você também pode posicionar o cursor no código da tabela e executar o comando de conversão para GFM simples.
+
+Se a tabela tiver apenas cabeçalhos de linha, recomenda-se trocar linhas e colunas para mover esses rótulos ao cabeçalho superior. Ao manter a orientação sem cabeçalhos de coluna, uma linha vazia de cabeçalho é adicionada no topo e todas as linhas de dados são preservadas.
+
+As células mescladas são separadas. Seu conteúdo se repete em cada posição que ocupavam. Várias linhas de cabeçalho são unidas em uma só. Os níveis são separados por “ / ”. Os cabeçalhos de linha que permanecem na lateral viram células comuns; o GFM não mantém sua função de cabeçalho.
+
+Alterne entre a prévia do resultado e o código Markdown; depois copie o resultado atual ou substitua a tabela original. A visualização de leitura permite apenas copiar. A substituição é uma única alteração, reversível com um Desfazer; fechar a janela não altera o código. Conclua primeiro a edição das células. Se a tabela ou o arquivo mudar, abra a prévia novamente. O comando de cópia direta em GFM usa a orientação recomendada.
 
 ### Limites de PNG e restauração da Base
 

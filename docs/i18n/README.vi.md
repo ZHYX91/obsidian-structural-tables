@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
 Hướng dẫn ngắn này trình bày các chức năng chính và những giới hạn quan trọng. Xem hướng dẫn đầy đủ bằng [English](../../README.md) hoặc [简体中文](README.zh-CN.md).
 
@@ -88,6 +88,16 @@ Shift+Enter chèn ngắt dòng khi hiển thị, được lưu bằng cách vi�
 ### Dán và sao chép
 
 Plugin chỉ chuyển bảng HTML sang Markdown khi có thể giữ cấu trúc ô an toàn. Nếu không thể bảo toàn định dạng, nó có thể dán toàn bộ văn bản thuần thay thế hoặc để Obsidian xử lý thao tác dán. Văn bản thuần không giữ ô gộp hay kiểu chữ. Hãy kiểm tra cách hiển thị trong ứng dụng đích sau khi chuyển sang GFM thông thường.
+
+### Chuyển sang GFM thông thường
+
+Nhấp chuột phải vào bảng và chọn “Xem trước dưới dạng Markdown thông thường (GFM)…”. Trong trình soạn thảo, bạn cũng có thể đặt con trỏ trong mã nguồn bảng rồi chạy lệnh chuyển sang GFM thông thường.
+
+Nếu bảng chỉ có tiêu đề hàng, nên hoán đổi hàng và cột để chuyển các nhãn đó lên hàng tiêu đề trên cùng. Nếu giữ nguyên hướng mà không có tiêu đề cột, một hàng tiêu đề trống được thêm ở trên và mọi hàng dữ liệu được giữ lại.
+
+Các ô đã gộp được tách ra. Nội dung của chúng được lặp lại tại từng vị trí đã bị che. Nhiều hàng tiêu đề được gộp thành một hàng. Các cấp tiêu đề được nối bằng “ / ”. Các tiêu đề hàng còn ở bên cạnh trở thành ô thông thường; GFM không giữ vai trò tiêu đề của chúng.
+
+Chuyển giữa bản xem trước kết quả và mã nguồn Markdown, rồi sao chép kết quả hiện tại hoặc thay thế bảng gốc. Chế độ đọc chỉ cho phép sao chép. Việc thay thế là một thay đổi duy nhất và có thể phục hồi bằng một lần Hoàn tác; đóng cửa sổ không sửa mã nguồn. Hãy hoàn tất việc sửa ô trước. Nếu bảng hoặc tệp gốc thay đổi, hãy mở lại bản xem trước. Lệnh sao chép nhanh sang GFM dùng hướng được khuyên dùng.
 
 ### Giới hạn PNG và khôi phục Base
 

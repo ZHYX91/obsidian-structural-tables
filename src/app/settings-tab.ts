@@ -77,6 +77,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     });
     this.statusCleanup = this.renderSaveStatus(panels);
     if (this.activeTab === "general") {
+      this.renderHelpLinks(panels, t);
       new Setting(panels)
         .setName(t("settings.language"))
         .setDesc(t("settings.language.desc"))
@@ -160,6 +161,23 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     });
     link.setAttribute("target", "_blank");
     link.setAttribute("rel", "noopener noreferrer");
+  }
+
+  private renderHelpLinks(container: HTMLElement, t: Translate): void {
+    const links = container.createDiv({ cls: "structural-tables-settings-help" });
+    links.setAttribute("role", "group");
+    links.setAttribute("aria-label", t("settings.help"));
+    const repository = "https://github.com/ZHYX91/obsidian-structural-tables";
+    const locale = t.locale ?? "en";
+    const guidePath = locale === "en" ? "README.md" : `docs/i18n/README.${locale}.md`;
+    for (const [text, href] of [
+      [t("settings.guide"), `${repository}/blob/main/${guidePath}`],
+      [t("settings.reportIssue"), `${repository}/issues/new/choose`],
+    ] as const) {
+      const link = links.createEl("a", { text, href });
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+    }
   }
 
   private renderSaveStatus(container: HTMLElement): () => void {

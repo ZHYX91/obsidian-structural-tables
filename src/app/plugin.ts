@@ -27,11 +27,9 @@ import {
   enabledConflictingPlugins,
   migrateSheetsExtendedTable,
   structuralTableToDelimited,
-  structuralTableToPlainGfm,
 } from "../core/interchange";
 import { parseEditableTables, parseStructuralTables } from "../core/parser";
 import { serializeStructuralTable } from "../core/serializer";
-import { withSourcePrefix } from "../core/source-lines";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { validateTableOperationInDocument } from "../core/table-operation-document";
 import { hasHiddenGfmOverflow } from "../core/table-write-safety";
@@ -50,6 +48,7 @@ import { StructuralTableEditorController } from "../editor/table-live-preview";
 import {
   addBasePromotionMenuItem,
   addImageExportMenuItem,
+  addPlainGfmMenuItem,
   addSelectionMenuItems,
   addWholeTableTransposeMenuItem,
   hasSelectionMenuItems,
@@ -76,6 +75,9 @@ import { BasePropertyMigrationModal } from "./base-property-migration-modal";
 import { BasePropertyMigrationService } from "./base-property-migration-service";
 import { showRecoveredCellDrafts } from "../editor/cell-draft-recovery";
 import { TableImageExportService } from "./table-image-modal";
+import { PlainGfmConversionService } from "./plain-gfm-modal";
+import { captureEditorPlainGfmTarget } from "../editor/plain-gfm-target";
+import { planPlainGfmConversion } from "../core/plain-gfm-conversion";
 
 const TEMPLATE = `| Region | Sales | < |
 | Quarter | Q1 | Q2 |
@@ -120,6 +122,7 @@ export class StructuralTablesPlugin extends Plugin {
   private readonly localizedCommands: Command[] = [];
   private settingsPersistence: SettingsPersistenceSession | null = null;
   private imageExport: TableImageExportService | null = null;
+  private plainGfm: PlainGfmConversionService | null = null;
   private transposeRequestsActive = true;
 
   override async onload(): Promise<void> {
@@ -137,14 +140,16 @@ export class StructuralTablesPlugin extends Plugin {
     };
     this.imageExport = new TableImageExportService(this.app, () => ({ settings: this.settings, t: createTranslator(this.settings.language) }));
     this.register(() => this.imageExport?.close());
-    this.editorController = new StructuralTableEditorController(this.app, () => this.settings, promote, this.imageExport.open);
+    this.plainGfm = new PlainGfmConversionService(this.app, () => createTranslator(this.settings.language));
+    this.register(() => this.plainGfm?.close());
+    this.editorController = new StructuralTableEditorController(this.app, () => this.settings, promote, this.imageExport.open, this.plainGfm.open);
     const basePromotionService = new BasePromotionService(this.app, this.manifest.version);
     this.basePromotionService = basePromotionService;
     this.basePropertyMigrationService = new BasePropertyMigrationService(this.app);
     this.registerEditorExtension(this.editorController.createExtension());
-    const reading = new StructuralTableReadingProcessor(this.app, () => this.settings, this.imageExport.open);
+    const reading = new StructuralTableReadingProcessor(this.app, () => this.settings, this.imageExport.open, this.plainGfm.open);
     this.registerMarkdownPostProcessor((element, context) => reading.process(element, context));
-    new NativeTableMenuBridge(this.app, () => this.settings, promote, this.imageExport.open).register(this);
+    new NativeTableMenuBridge(this.app, () => this.settings, promote, this.imageExport.open, this.plainGfm.open).register(this);
     this.addSettingTab(new StructuralTablesSettingTab(this.app, this));
     this.registerCommands();
     this.localizedCommands.push(this.addCommand({
@@ -374,6 +379,12 @@ export class StructuralTablesPlugin extends Plugin {
         if (transposeTarget === null) { new Notice(t("notice.staleTable")); return; }
         requestWholeTableTranspose(this.app, t, current.table, transposeTarget);
       });
+      const gfmTarget = captureEditorPlainGfmTarget(this.app, editor, current.table, targetView,
+        () => this.transposeRequestsActive);
+      addPlainGfmMenuItem(menu, t, () => {
+        if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
+        this.plainGfm?.open(current.table, gfmTarget);
+      });
       addImageExportMenuItem(menu, t, () => this.exportImage(editor, () => info, current.table));
       addBasePromotionMenuItem(menu, t, current.table, () => {
         this.previewBasePromotion(editor, () => info, current.table);
@@ -513,7 +524,7 @@ export class StructuralTablesPlugin extends Plugin {
         return copyHtml(html, text);
       }
       const text = format === "GFM"
-        ? structuralTableToPlainGfm(current.table)
+        ? (() => { const conversion = planPlainGfmConversion(current.table)!; return conversion[conversion.recommended]!.source; })()
         : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t");
       await copyText(text);
     });
@@ -532,42 +543,12 @@ export class StructuralTablesPlugin extends Plugin {
       new Notice(current.table.diagnostics[0] === undefined ? t("operation.tableInvalid") : diagnosticNotice(t, current.table.diagnostics[0]));
       return;
     }
-    if (this.blockUnsafeTableWrite(current.table)) return;
-    const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
-    if (targetIsCurrent === null) {
-      new Notice(t("notice.noFile"));
-      return;
+    if (sourceFile === null) { new Notice(t("notice.noFile")); return; }
+    const target = captureEditorPlainGfmTarget(this.app, editor, current.table, undefined, () => this.transposeRequestsActive);
+    if (target === null || this.app.vault.getFileByPath(target.sourcePath) !== sourceFile) {
+      new Notice(t("notice.staleTable")); return;
     }
-    try {
-      const source = withSourcePrefix(structuralTableToPlainGfm(current.table), current.table.sourcePrefix);
-      new ConversionPreviewModal(this.app, {
-        language: t.locale ?? "en",
-        title: t("modal.convertGfm.title"),
-        description: t("modal.convertGfm.desc"),
-        source,
-        cancelLabel: t("modal.cancel"),
-        confirmLabel: t("modal.convertGfm.replace"),
-        onConfirm: () => {
-          try {
-            if (!targetIsCurrent()) {
-              new Notice(t("notice.staleTable"));
-              return;
-            }
-            const reparsed = reparseUnchangedTable(editor.getValue(), current.table);
-            if (reparsed === null) {
-              new Notice(t("notice.staleTable"));
-              return;
-            }
-            this.replaceTable(editor, reparsed, source);
-            new Notice(t("notice.convertedGfm"));
-          } catch (error) {
-            new Notice(t("notice.convertGfmFailed").replace("{message}", errorMessage(error)), 8000);
-          }
-        },
-      }).open();
-    } catch (error) {
-      new Notice(t("notice.convertGfmFailed").replace("{message}", errorMessage(error)), 8000);
-    }
+    this.plainGfm?.open(current.table, target);
   }
 
   private migrateSheetsExtended(editor: Editor): void {

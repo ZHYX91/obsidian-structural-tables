@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
 Esta guía resumida explica las funciones principales y sus límites. Consulta las instrucciones completas en [English](../../README.md) o [简体中文](README.zh-CN.md).
 
@@ -88,6 +88,16 @@ Mayús+Enter inserta un salto visual de línea que se guarda mediante `<br>` cua
 ### Pegado y copia
 
 Las tablas HTML solo se convierten cuando es posible conservar su estructura de forma segura. Si no se pueden conservar ciertos formatos, se puede usar todo el texto sin formato del portapapeles o dejar que Obsidian gestione el pegado. El texto simple no conserva combinaciones ni estilos. Revisa en la aplicación de destino cualquier conversión a GFM ordinario.
+
+### Convertir a GFM simple
+
+Haz clic derecho en la tabla y elige «Vista previa como Markdown simple (GFM)…». En el editor también puedes colocar el cursor en el código de la tabla y ejecutar el comando de conversión a GFM simple.
+
+Si la tabla solo tiene encabezados de fila, se recomienda intercambiar filas y columnas para llevar esas etiquetas al encabezado superior. Si mantienes la orientación sin encabezados de columna, se añade una fila vacía de encabezados arriba y se conservan todas las filas de datos.
+
+Las celdas combinadas se separan. Su contenido se repite en todas las posiciones que cubrían. Las múltiples filas de encabezados se unen en una sola. Los niveles se separan con « / ». Los encabezados de fila que permanecen a un lado pasan a ser celdas normales; GFM no conserva su función de encabezado.
+
+Alterna entre la vista previa del resultado y el código Markdown; después copia el resultado actual o reemplaza la tabla original. La vista de lectura solo permite copiar. El reemplazo es un único cambio que se revierte con un solo Deshacer; cerrar la ventana no modifica el código. Termina primero la edición de celdas. Si cambia la tabla o su archivo, vuelve a abrir la vista previa. El comando de copia directa a GFM utiliza la orientación recomendada.
 
 ### Límites de PNG y recuperación de Base
 

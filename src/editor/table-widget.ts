@@ -1,5 +1,7 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import type { ExportTableImage } from "../app/table-image-modal";
+import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
+import { captureEditorPlainGfmTarget } from "./plain-gfm-target";
 import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
 import type { ChangeDesc } from "@codemirror/state";
@@ -48,6 +50,7 @@ import {
 import {
   addBasePromotionMenuItem,
   addImageExportMenuItem,
+  addPlainGfmMenuItem,
   addSelectionEditingMenuItems,
   addSelectionRemovalMenuItems,
   addWholeTableTransposeMenuItem,
@@ -246,6 +249,7 @@ export class StructuralTableWidget extends WidgetType {
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
     private readonly cellCommitGeometry?: { height: number; minHeight: number },
+    private readonly previewGfm?: PreviewPlainGfm,
   ) { super(); }
 
   override get estimatedHeight(): number {
@@ -258,12 +262,12 @@ export class StructuralTableWidget extends WidgetType {
       && this.table.range.from === other.table.range.from && this.table.range.to === other.table.range.to
       && this.table.sourceTableIndex === other.table.sourceTableIndex
       && this.sourcePath === other.sourcePath && samePresentation(this.settings, other.settings)
-      && this.promote === other.promote && this.exportImage === other.exportImage;
+      && this.promote === other.promote && this.exportImage === other.exportImage && this.previewGfm === other.previewGfm;
   }
 
   override toDOM(view: EditorView): HTMLElement {
     const interaction = new StructuralTableInteraction(
-      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage,
+      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage, this.previewGfm,
     );
     const host = interaction.mount(view, this.cellCommitGeometry?.minHeight);
     interactions.set(host, interaction);
@@ -317,6 +321,7 @@ class StructuralTableInteraction {
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
+    private readonly previewGfm?: PreviewPlainGfm,
   ) {}
 
   restoreCellCommitViewport(view: EditorView, snapshot: CellCommitViewport): void {
@@ -1363,6 +1368,14 @@ class StructuralTableInteraction {
     addWholeTableTransposeMenuItem(menu, t, () => activate(() => requestWholeTableTranspose(
       this.app, t, tableIdentity, transposeRequest,
     )));
+    if (this.previewGfm !== undefined && info?.editor !== undefined) {
+      const gfmTarget = captureEditorPlainGfmTarget(this.app, info.editor, tableIdentity, undefined,
+        () => view.dom.isConnected && this.host === frozen.host && frozen.host.isConnected);
+      addPlainGfmMenuItem(menu, t, () => activate(() => {
+        if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
+        this.previewGfm?.(tableIdentity, gfmTarget);
+      }));
+    }
     menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
       const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
       if (current === null) { new Notice(t("notice.staleTable")); return; }

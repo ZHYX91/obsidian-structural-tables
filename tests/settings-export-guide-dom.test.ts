@@ -93,8 +93,8 @@ describe("Structural Tables settings export guide", () => {
     const dropdown = MockInput.created[0]!;
     expect([...dropdown.options.entries()].slice(1)).toEqual([
       ["en", "English"], ["zh-CN", "简体中文"], ["zh-TW", "繁體中文"], ["ja", "日本語"],
-      ["de", "Deutsch"], ["es", "Español"], ["ar", "العربية"],
-      ["fr", "Français"], ["pt-BR", "Português (Brasil)"], ["ru", "Русский"], ["ko", "한국어"], ["vi", "Tiếng Việt"],
+      ["ko", "한국어"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"],
+      ["pt-BR", "Português (Brasil)"], ["ru", "Русский"], ["vi", "Tiếng Việt"], ["ar", "العربية"],
     ]);
     expect(dropdown.value).toBe("ar");
     const container = tab.containerEl as unknown as MockElement;
@@ -121,7 +121,12 @@ describe("Structural Tables settings export guide", () => {
     tab.display();
     const container = tab.containerEl as unknown as MockElement;
     const elements = container.descendants();
-    const link = elements.find(element => element.tag === "a");
+    const links = elements.filter(element => element.tag === "a");
+    const guide = links.find(element => element.textContent === "使用指南");
+    const report = links.find(element => element.textContent === "报告问题");
+    expect(guide?.attributes.get("href")).toBe("https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-CN.md");
+    expect(report?.attributes.get("href")).toBe("https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose");
+    const link = links.find(element => element.attributes.get("href") === "https://obsidian.md/plugins?id=docwen-assistant");
     expect(link?.attributes.get("href")).toBe("https://obsidian.md/plugins?id=docwen-assistant");
     expect(link?.attributes.get("target")).toBe("_blank");
     expect(link?.attributes.get("rel")).toBe("noopener noreferrer");

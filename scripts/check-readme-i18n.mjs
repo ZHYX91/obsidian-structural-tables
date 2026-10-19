@@ -66,7 +66,7 @@ assert.deepEqual(
   "README translations must keep the same per-section Markdown structure",
 );
 assert.match(english,
-  /^# Structural Tables\n\n\[English\]\(README\.md\) · \[简体中文\]\(docs\/i18n\/README\.zh-CN\.md\)/u,
+  /^# Structural Tables\n\n\[English\]\(https:\/\/github\.com\/ZHYX91\/obsidian-structural-tables\/blob\/main\/README\.md\) · \[简体中文\]\(https:\/\/github\.com\/ZHYX91\/obsidian-structural-tables\/blob\/main\/docs\/i18n\/README\.zh-CN\.md\)/u,
   "English README must link to both canonical language documents");
 assert.match(chinese,
   /^# Structural Tables\n\n\[English\]\(\.\.\/\.\.\/README\.md\) · \[简体中文\]\(README\.zh-CN\.md\)/u,
@@ -78,7 +78,7 @@ for (const [file, source] of [[englishPath, english], [chinesePath, chinese]]) {
     `${file} must not contain local or workspace-only paths`);
 }
 
-const locales = [["English","README.md"],["简体中文","README.zh-CN.md"],["繁體中文","README.zh-TW.md"],["日本語","README.ja.md"],["Deutsch","README.de.md"],["Español","README.es.md"],["العربية","README.ar.md"],["Français","README.fr.md"],["Português (Brasil)","README.pt-BR.md"],["Русский","README.ru.md"],["한국어","README.ko.md"],["Tiếng Việt","README.vi.md"]];
+const locales = [["English","README.md"],["简体中文","README.zh-CN.md"],["繁體中文","README.zh-TW.md"],["日本語","README.ja.md"],["한국어","README.ko.md"],["Deutsch","README.de.md"],["Français","README.fr.md"],["Español","README.es.md"],["Português (Brasil)","README.pt-BR.md"],["Русский","README.ru.md"],["Tiếng Việt","README.vi.md"],["العربية","README.ar.md"]];
 for (const [, filename] of locales) {
   const path = filename === "README.md" ? filename : "docs/i18n/" + filename;
   const source = path === englishPath ? english : path === chinesePath ? chinese : await readFile(path, "utf8");
@@ -86,14 +86,16 @@ for (const [, filename] of locales) {
   const navigation = source.split("\n")[2] ?? "";
   const navigationLinks = [...navigation.matchAll(/\]\([^)]*\)/gu)];
   assert.equal(navigationLinks.length, locales.length, `${path} must have exactly ${locales.length} language links`);
-  assert.doesNotMatch(navigation, /https:\/\/github\.com\/ZHYX91\/obsidian-structural-tables\/blob\/main\//u,
-    `${path} must use branch-relative README links, including before merge`);
+  if (filename !== "README.md") assert.doesNotMatch(navigation, /https:\/\/github\.com/u,
+    `${path} must use relative links between translated README documents`);
+  const expectedNavigation = [];
   for (const [otherLabel, otherName] of locales) {
     const href = filename === "README.md"
-      ? (otherName === "README.md" ? "README.md" : "docs/i18n/" + otherName)
+      ? "https://github.com/ZHYX91/obsidian-structural-tables/blob/main/" + (otherName === "README.md" ? "README.md" : "docs/i18n/" + otherName)
       : otherName === "README.md" ? "../../README.md" : otherName;
-    assert.ok(navigation.includes("[" + otherLabel + "](" + href + ")"), path + " missing the " + otherLabel + " navigation link");
+    expectedNavigation.push("[" + otherLabel + "](" + href + ")");
   }
+  assert.equal(navigation, expectedNavigation.join(" · "), `${path} must preserve the shared language order and exact destinations`);
   assert.ok(source.includes("||") && source.includes("^") && source.includes("<"),
     path + " must explain the same table syntax");
   const requiredTopics = ["<br>", "_promotion.json", "8192", "16", "Base", "Markdown"];
@@ -106,4 +108,4 @@ for (const [, filename] of locales) {
     assert.ok(!source.includes("![" + image + "]"), `${path} contains an untranslated screenshot label`);
   }
 }
-process.stdout.write(`README i18n contract passed for ${locales.length} languages and ${sections.length} synchronized sections.\\n`);
+process.stdout.write(`README i18n contract passed for ${locales.length} languages and ${sections.length} synchronized sections.\n`);

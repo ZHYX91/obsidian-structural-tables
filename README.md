@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](README.md) · [简体中文](docs/i18n/README.zh-CN.md) · [繁體中文](docs/i18n/README.zh-TW.md) · [日本語](docs/i18n/README.ja.md) · [Deutsch](docs/i18n/README.de.md) · [Español](docs/i18n/README.es.md) · [العربية](docs/i18n/README.ar.md) · [Français](docs/i18n/README.fr.md) · [Português (Brasil)](docs/i18n/README.pt-BR.md) · [Русский](docs/i18n/README.ru.md) · [한국어](docs/i18n/README.ko.md) · [Tiếng Việt](docs/i18n/README.vi.md)
+[English](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/README.md) · [简体中文](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-CN.md) · [繁體中文](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-TW.md) · [日本語](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.ja.md) · [한국어](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.ko.md) · [Deutsch](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.de.md) · [Français](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.fr.md) · [Español](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.es.md) · [Português (Brasil)](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.pt-BR.md) · [Русский](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.ru.md) · [Tiếng Việt](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.vi.md) · [العربية](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.ar.md)
 
 Add merged cells, multiple header rows, and row headers to Markdown tables. You can also make tables without column headers. Your notes stay in Markdown, and opening a table never rewrites them.
 
@@ -148,11 +148,39 @@ On mobile, range Copy/Cut writes a plain Markdown table and checks that the syst
 
 For other applications, range Copy also provides HTML and plain Markdown. Range HTML represents spans and shows the cell's Markdown as raw text. Plain Markdown uses the first copied row as a header and retains structural markers where representable; it does not guarantee the same merge layout in other applications, including vertical merges.
 
-Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. Converting a headerless table to plain GFM adds an empty compatibility header because GFM itself requires a header row.
+Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. The plain GFM preview lets you choose how header roles and orientation are converted.
 
 Copied HTML records which headers belong to each data cell. Word may discard those associations when saving a DOCX, even if the table still looks correct. Tables with several row-header columns may therefore lose some header information.
 
 On mobile, or when rich clipboard support is unavailable, the HTML copy commands copy tab-separated plain text and say that header structure and merged cells were flattened. Cell-internal line breaks and tabs become spaces; rich HTML formatting and merged-cell layout are unavailable in this fallback.
+
+### Convert to plain Markdown (GFM)
+
+Right-click the table and choose **Preview as plain Markdown (GFM)…**. In an editor, you can also place the source cursor inside the table and run **Convert current table to plain GFM**. The preview belongs to the table you opened it from, even if you later move the cursor to another table.
+
+1. Choose **Keep rows and columns** or **Swap rows and columns**. For a table with only row headers, swapping is recommended: those labels become the top header row that GFM supports.
+2. Check **Result preview**, switch to **Markdown source**, and review the listed changes. Merged-cell contents repeat across the formerly merged area. Multiple header levels are joined with ` / `; row-header roles that remain on the side become ordinary cells. Keeping a table without column headers adds an empty top header row and preserves every existing data row.
+3. Choose **Copy preview Markdown** to use exactly this result elsewhere, or **Replace table** to replace the original table once. Reading View offers copying. One Undo restores an editor replacement; Close leaves the source unchanged. Finish any open cell edit first. If the original table or its file changes while the preview is open, reopen the preview.
+
+For example, this table has only row headers:
+
+```markdown
+| --- || --- | --- |
+| 姓名 | 张三 | 李四 |
+| 年龄 | 28 | 31 |
+| 城市 | 杭州 | 上海 |
+```
+
+The recommended result is ordinary GFM, with the labels retained as column headers:
+
+```markdown
+| 姓名 | 年龄 | 城市 |
+| --- | --- | --- |
+| 张三 | 28 | 杭州 |
+| 李四 | 31 | 上海 |
+```
+
+**Copy current table as plain GFM** uses the recommended orientation directly. Use the preview when you want to choose the orientation. Neither option changes the source until you choose **Replace table**. If Obsidian hides extra source cells, the preview explains that they are absent from the copy and disables replacement; correct the source first to include them.
 
 ### Export a table image
 
@@ -181,9 +209,9 @@ A rejected cell edit stays open whenever possible. If an external change or view
 
 The settings page has **General**, **Views**, and **Appearance** tabs.
 
-Choose **Follow Obsidian** or select one of twelve interface languages: English, 简体中文, 繁體中文, 日本語, Deutsch, Español, العربية, Français, Português (Brasil), Русский, 한국어, and Tiếng Việt. Automatic selection follows Obsidian and falls back to English when the language is unavailable. Your choice changes the plugin's menus and messages, not your note contents or table direction.
+Choose **Follow Obsidian** or select one of twelve interface languages: English, 简体中文, 繁體中文, 日本語, 한국어, Deutsch, Français, Español, Português (Brasil), Русский, Tiếng Việt, and العربية. Automatic selection follows Obsidian and falls back to English when the language is unavailable. Your choice changes the plugin's menus and messages, not your note contents or table direction.
 
-- **General**: language, HTML-table paste conversion, and conflict warnings.
+- **General**: usage guide and issue-reporting links, language, HTML-table paste conversion, and conflict warnings.
 - **Views**: Reading view, Live Preview, diagnostics, and the default-off **Take over ordinary Markdown tables** option.
 - **Appearance**: Follow theme, Grid, or Three-line table; table width/alignment; comfortable or compact spacing; optional alternating rows.
 

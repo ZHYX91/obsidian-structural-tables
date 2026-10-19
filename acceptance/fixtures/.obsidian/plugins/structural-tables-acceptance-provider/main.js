@@ -19,12 +19,14 @@ module.exports = class extends Plugin {
           hostVersion: require("obsidian").apiVersion,
           view: view.getMode(), sourceMode: view.getState().source ?? null,
           source, sourceSha256: createHash("sha256").update(source).digest("hex"),
-          literalElements: Array.from(root.querySelectorAll("[id^='literal-'], #inline-continuation")).map((element) => ({
+          literalElements: Array.from(root.querySelectorAll("[id^='literal-'], #inline-continuation"))
+            .filter((element) => element.getClientRects().length > 0).map((element) => ({
             tag: element.tagName, id: element.id, class: element.className,
             case: element.getAttribute("data-case"), text: element.textContent,
             ownedAncestor: Boolean(element.closest(".structural-tables-live-preview, .structural-tables-container")),
           })),
-          tables: Array.from(root.querySelectorAll("table")).map((table) => ({
+          tables: Array.from(root.querySelectorAll("table"))
+            .filter((table) => table.getClientRects().length > 0).map((table) => ({
             class: table.className,
             owned: Boolean(table.closest(".structural-tables-live-preview, .structural-tables-container")),
             cells: Array.from(table.querySelectorAll("th, td")).map((cell) => ({

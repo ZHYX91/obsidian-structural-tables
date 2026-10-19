@@ -69,6 +69,62 @@ async function settled(): Promise<void> {
 }
 
 describe("Reading View source/block boundaries", () => {
+  it.each([false, true])("maps exact native raw lines while preserving inline HTML: span=%s", async (inSpan) => {
+    const table = "| Editable | < |\n| --- | --- |\n| Alpha | KEEP |";
+    const prefix = inSpan ? "Paragraph\n    continuation\n<span id='inline' class='keep' data-case='continuation'>\n" : "\\<span id='escaped'>\n";
+    const source = prefix + table;
+    const root = document.createElement("div");
+    const section = root.appendChild(document.createElement("div"));
+    const paragraph = section.appendChild(document.createElement("p"));
+    paragraph.appendChild(document.createTextNode(inSpan ? "Paragraph\ncontinuation\n" : "<span id='escaped'>\n"));
+    const inline = inSpan ? paragraph.appendChild(document.createElement("span")) : paragraph;
+    if (inSpan) { inline.id = "inline"; inline.className = "keep"; inline.setAttribute("data-case", "continuation"); }
+    inline.appendChild(document.createTextNode("\n" + table));
+    const context = {
+      sourcePath: "Reading.md", docId: "native-raw-lines",
+      getSectionInfo: () => ({ text: source, lineStart: 0, lineEnd: source.split("\n").length - 1 }),
+      addChild: (child: MarkdownRenderChild) => { child.load(); },
+    } as unknown as MarkdownPostProcessorContext;
+    new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(section, context);
+    await settled();
+    expect(root.querySelectorAll(".structural-tables-table")).toHaveLength(1);
+    expect(root.querySelector("thead th")?.getAttribute("colspan")).toBe("2");
+    expect(root.querySelector("tbody")?.textContent).toContain("Alpha");
+    expect(root.textContent).toContain(inSpan ? "Paragraph\ncontinuation" : "<span id='escaped'>");
+    if (inSpan) {
+      expect(root.querySelector("#inline")).toBe(inline);
+      expect(inline.className).toBe("keep");
+      expect(inline.getAttribute("data-case")).toBe("continuation");
+      expect(root.querySelectorAll("#inline")).toHaveLength(1);
+    }
+    expect(context.getSectionInfo(section)?.text).toBe(source);
+  });
+
+  it.each(["literal HTML", "ambiguous duplicate", "inline media"])("refuses unsafe raw-line acquisition: %s", async (kind) => {
+    const table = "| Editable | < |\n| --- | --- |\n| Alpha | KEEP |";
+    const source = kind === "literal HTML" ? "<span id='literal'>\n" + table + "\n</span>" : "Text\n" + table;
+    const section = document.createElement("div");
+    const paragraph = section.appendChild(document.createElement("p"));
+    paragraph.textContent = "Text\n" + table;
+    if (kind === "ambiguous duplicate") paragraph.textContent += "\n" + table;
+    if (kind === "inline media") {
+      const text = paragraph.firstChild!;
+      text.textContent = "Text\n| Editable | < |\n";
+      paragraph.appendChild(document.createElement("img")).src = "protected.png";
+      paragraph.appendChild(document.createTextNode("\n| --- | --- |\n| Alpha | KEEP |"));
+    }
+    const before = section.innerHTML;
+    const context = {
+      sourcePath: "Reading.md", docId: "raw-refusal",
+      getSectionInfo: () => ({ text: source, lineStart: 0, lineEnd: source.split("\n").length - 1 }),
+      addChild: (child: MarkdownRenderChild) => { child.load(); },
+    } as unknown as MarkdownPostProcessorContext;
+    new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(section, context);
+    await settled();
+    expect(section.querySelector(".structural-tables-table")).toBeNull();
+    expect(section.innerHTML).toBe(before);
+  });
+
   it.each([
     ["isolated row header", rowHeader, 1],
     ["split multi-row header", multiHeader, 2],

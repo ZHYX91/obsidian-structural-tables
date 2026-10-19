@@ -3,6 +3,7 @@
 ## 0.8.1 - 2026-10-19
 
 - Keep standalone HTML under native Markdown ownership after completed blocks, new sibling list items and complete single-line link definitions. Preserve tables after indented or lazy paragraph continuations.
+- Render source-verified merged tables when Reading View leaves their lines inside a native paragraph, retaining surrounding inline HTML attributes and prose.
 - Preserve every literal backslash and pipe in code spans when exporting plain GFM or importing HTML clipboard tables. GFM uses inline HTML code only when backtick syntax cannot preserve the displayed text.
 
 ## 0.8.0 - 2026-10-17

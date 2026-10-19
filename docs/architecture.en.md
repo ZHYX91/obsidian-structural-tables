@@ -47,6 +47,8 @@ Callout writes carry invertible focus targets in CodeMirror's own history, isola
 
 Interrupted dirty editors hand their text to an application-session recovery buffer before DOM disposal. Its dialog supports copying and explicit discard; dismissing the dialog keeps the buffer available through a command. Recovery never automatically writes a stale draft to a new table.
 
+Reading View also maps a simple merged table when the host leaves its exact raw lines in a paragraph. Acquisition requires a unique complete-line range, unchanged source/section/DOM identity and no intersecting media or widgets. A containing inline HTML span retains its node identity and attributes; ambiguous text and protected HTML remain untouched.
+
 <!-- section: editing -->
 ## Editing
 

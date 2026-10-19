@@ -93,7 +93,7 @@ function portableCell(content: string): string {
 }
 
 /** HTML clipboard cells are literal text, not already-escaped GFM source. */
-function importedHtmlCellText(content: string): string {
+function importedHtmlCellText(content: string, nativeGfm: boolean): string {
   const source = content.replace(/\r\n|\r|\n/gu, "<br>").trim();
   let result = "";
   for (let index = 0; index < source.length;) {
@@ -101,8 +101,11 @@ function importedHtmlCellText(content: string): string {
     if (character === "`") {
       const end = closedCodeSpanEnd(source, index);
       if (end !== null) {
-        // The structural parser already treats closed code spans as opaque.
-        result += source.slice(index, end);
+        const opening = /^`+/u.exec(source.slice(index))![0].length;
+        const raw = source.slice(index + opening, end - opening);
+        // Ordinary output stays native when takeover is off. Entity-encoded
+        // code pipes preserve both its GFM columns and the owned inline render.
+        result += nativeGfm && raw.includes("|") ? codeSpanAsHtml(raw) : source.slice(index, end);
         index = end;
         continue;
       }
@@ -368,9 +371,12 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
     if (!bodyOwners.every((row) => row[column]?.header === true)) break;
     rowHeaderColumnCount = column + 1;
   }
+  const nativeGfm = headerRowCount === 1 && rowHeaderColumnCount === 0
+    && owners.every((row) => row.every((anchor) => anchor === undefined
+      || (anchor.rowSpan === 1 && anchor.columnSpan === 1)));
   const values = owners.map((row, rowIndex) => row.map((anchor, columnIndex) => {
     if (anchor === undefined) return "";
-    if (anchor.row === rowIndex && anchor.column === columnIndex) return importedHtmlCellText(anchor.text);
+    if (anchor.row === rowIndex && anchor.column === columnIndex) return importedHtmlCellText(anchor.text, nativeGfm);
     return anchor.row === rowIndex ? "<" : "^";
   }));
   const delimiters = Array.from({ length: columnCount }, () => "---");

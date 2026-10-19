@@ -314,18 +314,41 @@ describe("HTML table clipboard import", () => {
     expect(parsed?.rows[1]?.cells[1]?.content).toBe(String.raw`[[Target\|Alias]] \| literal`);
   });
 
-  it("imports literal HTML cell code spans without inserting a GFM-only escape", () => {
+  it.each([false, true])("imports code pipes for native and structural ownership: structural=%s", (structural) => {
     const tick = String.fromCharCode(96);
+    const tag = structural ? "th" : "td";
     const source = structuralSourceFromClipboardHtml(
-      "<table><tr><th>H</th><th>V</th></tr><tr><td>" +
-      tick + "a|b" + tick + "</td><td>KEEP</td></tr></table>");
+      "<table><tr><th>H</th><th>V</th></tr><tr><" + tag + ">" +
+      tick + "a|b" + tick + "</" + tag + "><td>KEEP</td></tr></table>");
     const parsed = parseEditableTables(source ?? "").tables[0]!;
-    expect(parsed).toMatchObject({ valid: true, columnCount: 2 });
-    expect(parsed.rows[1]?.cells[0]?.content).toBe(tick + "a|b" + tick);
+    expect(parsed).toMatchObject({ valid: true, columnCount: 2, structural });
+    expect(parsed.rows[1]?.cells[0]?.content).toBe(structural ? tick + "a|b" + tick : "<code>a&#124;b</code>");
     expect(parsed.rows[1]?.cells[1]?.content).toBe("KEEP");
-    // Structural tables own the pipe-row parse; render the accepted code cell
-    // individually, not as an ordinary GFM table (which splits a bare code pipe).
     expect(new MarkdownIt({ html: true }).renderInline(parsed.rows[1]!.cells[0]!.content)).toBe("<code>a|b</code>");
+    if (!structural) {
+      const rendered = new MarkdownIt({ html: true }).render(source!);
+      expect(rendered).toContain("<code>a|b</code>");
+      expect(rendered).toContain("<td>KEEP</td>");
+      expect((rendered.match(/<td>/gu) ?? []).length).toBe(2);
+    }
+  });
+
+  it.each([1, 2, 3])("preserves 0–7 code slashes in native HTML import using %i backticks", (ticks) => {
+    const fence = String.fromCharCode(96).repeat(ticks);
+    for (let count = 0; count <= 7; count += 1) {
+      const visible = "a" + "\\".repeat(count) + "|b & <c>";
+      const escaped = visible.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;");
+      const source = structuralSourceFromClipboardHtml("<table><tr><th>H</th><th>V</th></tr><tr><td>"
+        + fence + escaped + fence + "</td><td>KEEP</td></tr></table>");
+      const parsed = parseEditableTables(source ?? "").tables[0]!;
+      expect(parsed).toMatchObject({ valid: true, structural: false, columnCount: 2 });
+      const native = new MarkdownIt({ html: true }).render(source!);
+      const owned = new MarkdownIt({ html: true }).renderInline(parsed.rows[1]!.cells[0]!.content);
+      expect(native, source!).toContain("<code>" + escaped + "</code>");
+      expect(owned, source!).toBe("<code>" + escaped + "</code>");
+      expect(native).toContain("<td>KEEP</td>");
+      expect((native.match(/<td>/gu) ?? []).length).toBe(2);
+    }
   });
 
   it.each([0, 1, 2, 3] as const)("preserves %i literal slashes from an HTML text cell", (count) => {

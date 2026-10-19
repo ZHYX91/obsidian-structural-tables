@@ -49,6 +49,34 @@ describe("source containers", () => {
   });
 
   it.each([
+    ["Paragraph\n    continuation\n<span id='literal'>", "", false],
+    ["Paragraph\n\tcontinuation\n<span id='literal'>", "", false],
+    ["- Paragraph\n      continuation\n  <span id='literal'>", "  ", false],
+    ["> Paragraph\n<span id='literal'>", "", false],
+    ["- Paragraph\n<span id='literal'>", "", false],
+    ["- First item\n- <span id='literal'>", "  ", true],
+    ["- Outer\n  - First item\n  - <span id='literal'>", "    ", true],
+    ["> - First item\n> - <span id='literal'>", ">   ", true],
+    ["[Name]: /url\n<span id='literal'>", "", true],
+    ["[Name]: <https://example.com> \"Title\"\n<span id='literal'>", "", true],
+    ["[Name]: /url(with-nesting)\n<span id='literal'>", "", true],
+    ["Paragraph\n[Name]: /url\n<span id='literal'>", "", false],
+    ["[Name]: /url unexpected text\n<span id='literal'>", "", false],
+    ["[Name]: /url(unclosed\n<span id='literal'>", "", false],
+    ["    code\n<span id='literal'>", "", true],
+  ] as const)("matches native HTML ownership at paragraph/container boundary %s", (head, prefix, ownsHtml) => {
+    const nested = ["| Fake | < |", "| --- | --- |", "| literal | KEEP |", "</span>"]
+      .map((line) => prefix + line).join("\n");
+    const source = head + "\n" + nested + "\n\n" + tableSource;
+    const nativeHtml = new MarkdownIt({ html: true }).parse(source, {}).some((token) =>
+      token.type === "html_block" && token.content.includes("<span id='literal'>"));
+    expect(nativeHtml).toBe(ownsHtml);
+    const tables = parseEditableTables(source).tables;
+    expect(tables.some((table) => table.source.includes("| Fake | < |"))).toBe(!ownsHtml);
+    expect(tables.some((table) => table.source === tableSource)).toBe(true);
+  });
+
+  it.each([
     ["> # Heading\n> <span id='literal'>", "> "],
     ["- # Heading\n  <span id='literal'>", "  "],
     ["> Paragraph\n> <span id='literal'>", "> "],

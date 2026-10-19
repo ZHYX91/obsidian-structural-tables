@@ -86,6 +86,37 @@ function scanProtectedLine(line: string, block: ProtectedBlock | null): {
   return { block, ignored: continued || block !== null || (protectedText && visible.trim() === "") };
 }
 
+/** Recognize complete one-line definitions without treating malformed prose as a block. */
+function isSingleLineReferenceDefinition(line: string): boolean {
+  const label = /^ {0,3}\[((?:\\.|[^[\]\\])+)\]:[\t ]*/u.exec(line);
+  if (label === null || label[1]!.trim() === "" || label[1]!.length > 999) return false;
+  let index = label[0].length;
+  if (line[index] === "<") {
+    index += 1;
+    while (index < line.length && line[index] !== ">") {
+      if (line[index] === "\\" && index + 1 < line.length) index += 2;
+      else if (/[<>\s]/u.test(line[index]!)) return false;
+      else index += 1;
+    }
+    if (line[index] !== ">") return false;
+    index += 1;
+  } else {
+    const start = index;
+    let parentheses = 0;
+    while (index < line.length && !/[\t ]/u.test(line[index]!)) {
+      const character = line[index]!;
+      if (character === "\\" && index + 1 < line.length) { index += 2; continue; }
+      if (character === "<" || character === ">" || character.charCodeAt(0) < 32) return false;
+      if (character === "(") parentheses += 1;
+      if (character === ")" && --parentheses < 0) return false;
+      index += 1;
+    }
+    if (index === start || parentheses !== 0) return false;
+  }
+  const tail = line.slice(index);
+  return tail.trim() === "" || /^[\t ]+(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^()\\])*\))[\t ]*$/u.test(tail);
+}
+
 export function ignoredMarkdownLines(
   lines: readonly string[],
   visibleFenceInfo: ReadonlySet<string> = new Set<string>(),
@@ -126,7 +157,9 @@ export function ignoredMarkdownLines(
       rawLiteralHtml = false;
       htmlBlock = false;
       htmlSpecial = null;
-      paragraph = null;
+      // A missing quote prefix can be a lazy continuation of its paragraph.
+      // Block starters below still end that paragraph; a new deeper quote cannot.
+      if (paragraph === null || depth > paragraph.quoteDepth) paragraph = null;
       listIndents = [];
       quoteDepth = depth;
     }
@@ -150,6 +183,8 @@ export function ignoredMarkdownLines(
       // Thematic breaks take precedence over list markers at every container depth.
       const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
       while (list !== null && !thematicBreak(line)) {
+        // Sibling list items may have identical indentation but distinct paragraphs.
+        paragraph = null;
         listIndent += list[0].length;
         listIndents.push(listIndent);
         line = line.slice(list[0].length);
@@ -230,7 +265,7 @@ export function ignoredMarkdownLines(
       }
     }
     const continuesParagraph: boolean = paragraph !== null
-      && paragraph.quoteDepth === quoteDepth && paragraph.listIndent === listIndent;
+      && paragraph.quoteDepth >= quoteDepth && paragraph.listIndent >= listIndent;
     if (!indentedCode && protectedBlock === null
       && (HTML_BLOCK_START.test(line) || (!continuesParagraph && HTML_STANDALONE_TAG.test(line)))) {
       paragraph = null;
@@ -254,14 +289,18 @@ export function ignoredMarkdownLines(
       const protection = scanProtectedLine(line, protectedBlock);
       protectedBlock = protection.block;
       protectedIndent = listIndent;
-      if (protection.ignored) ignored.add(index);
+      if (protection.ignored) { paragraph = null; ignored.add(index); continue; }
     }
     if (indentedCode) ignored.add(index);
     const atxHeading = /^ {0,3}#{1,6}(?:[\t ]|$)/u.test(line);
     const thematicBreak = /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(line);
     const setextUnderline: boolean = continuesParagraph && /^ {0,3}(?:=+|-+)[\t ]*$/u.test(line);
-    paragraph = line.trim() === "" || indentedCode || protectedBlock !== null
-      || atxHeading || thematicBreak || setextUnderline ? null : { quoteDepth, listIndent };
+    // Indentation cannot interrupt an existing paragraph. Complete reference
+    // definitions, unlike ordinary text containing a colon, do not start one.
+    const referenceDefinition: boolean = !continuesParagraph && isSingleLineReferenceDefinition(line);
+    paragraph = line.trim() === "" || (indentedCode && !continuesParagraph) || protectedBlock !== null
+      || atxHeading || thematicBreak || setextUnderline || referenceDefinition
+      ? null : continuesParagraph ? paragraph : { quoteDepth, listIndent };
   }
   return ignored;
 }

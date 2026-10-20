@@ -14,9 +14,11 @@ import { parseEditableTables } from "../src/core/parser";
 import { captureEditorPlainGfmTarget } from "../src/editor/plain-gfm-target";
 import { NativeTableMenuBridge } from "../src/editor/native-table-menu";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
+import { structuralTableSourceFocus } from "../src/editor/table-source-focus";
 import { installReadingOutputMenu } from "../src/reading/table-image-menu";
 import { tableCommandEditor } from "./helpers/table-command-editor";
 import { NativeTableWidget } from "./helpers/native-table-widget";
+import { installSelectionChangeTasks } from "./mocks/selection-events";
 import { lastMenu, notices, TFile } from "./mocks/obsidian";
 
 const SOURCE = "| --- || --- | --- |\n| 姓名 | 张三 | 李四 |\n| 年龄 | 28 | 31 |\n| 城市 | 杭州 | 上海 |";
@@ -38,6 +40,7 @@ function makeModal(f = editor(), index = 0) {
 }
 
 beforeEach(() => {
+  cleanup.push(installSelectionChangeTasks(document));
   HTMLElement.prototype.createEl = function<K extends keyof HTMLElementTagNameMap>(tag: K, options?: { cls?: string; text?: string; value?: string; attr?: Record<string, string> }): HTMLElementTagNameMap[K] {
     const element = this.ownerDocument.createElement(tag);
     if (options?.cls !== undefined) element.className = options.cls;
@@ -296,6 +299,29 @@ describe("GFM preview and editor entry points", () => {
     button(document, "Replace table").click();
     await vi.waitFor(() => expect(f.source()).toBe("before\n\n" + candidate));
     expect(f.writes()).toBe(1);
+  });
+
+  it("restores owned-table keyboard focus after undoing a whole-note GFM conversion", async () => {
+    const f = editor();
+    Object.assign(f.editor, { undo: () => undo(f.cm), redo: () => redo(f.cm) });
+    const service = new PlainGfmConversionService(f.app, () => t); cleanup.push(() => service.close());
+    const controller = new StructuralTableEditorController(f.app, () => DEFAULT_SETTINGS, undefined, undefined,
+      (table, target) => service.open(table, target));
+    f.cm.dispatch({ effects: StateEffect.appendConfig.of(controller.createExtension()) });
+    f.cm.dispatch({ effects: structuralTableSourceFocus.of(false) });
+    const cell = f.containerEl.querySelector<HTMLElement>(".structural-tables-table td")!;
+    cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true }));
+    lastMenu!.items.find((item) => item.title === t("menu.previewGfm"))!.callback!();
+    await vi.waitFor(() => expect(document.querySelector(".structural-tables-gfm-preview table")).not.toBeNull());
+    const candidate = document.querySelector(".structural-tables-gfm-preview pre")!.textContent!;
+    button(document, "Replace table").click();
+    await vi.waitFor(() => expect(f.source()).toBe(candidate));
+    expect(undo(f.cm)).toBe(true);
+    await vi.waitFor(() => expect(f.containerEl.querySelector(".structural-tables-table")!.contains(document.activeElement)).toBe(true));
+    expect(f.source()).toBe(SOURCE);
+    document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(f.source()).toBe(candidate));
+    expect(f.writes()).toBe(3);
   });
 });
 

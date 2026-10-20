@@ -1,4 +1,3 @@
-import { isolateHistory } from "@codemirror/commands";
 import type { MarkdownView, App, Editor, TFile } from "obsidian";
 
 import type { StructuralTable } from "../core/model";
@@ -6,6 +5,7 @@ import type { OperationResult } from "../core/operations";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { validateTableOperationInDocument } from "../core/table-operation-document";
 import { codeMirrorForEditor, markdownViewForEditor } from "./editor-view-context";
+import { tableWriteHistory } from "./table-history";
 
 export interface EditorTableCommandTarget {
   ownerDocument: Document;
@@ -49,7 +49,7 @@ export function captureEditorTableCommandTarget(app: App, editor: Editor, table:
         codeMirror.dispatch({
           changes: { from: current.range.from, to: current.range.to, insert: result.source },
           selection: { anchor: current.range.from + result.source.length },
-          annotations: isolateHistory.of("full"),
+          ...tableWriteHistory(current, result.source, path, { row: 0, column: 0 }, { restorePresentation: true }),
         });
         codeMirror.focus();
       }

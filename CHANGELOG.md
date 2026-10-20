@@ -3,6 +3,7 @@
 ## 0.9.0 - 2026-10-20
 
 - Pad GFM conversion previews before writing so native table formatting cannot create a repeating extra undo step.
+- Restore table keyboard focus across conversion Undo and Redo, including notes containing only a table.
 - Guard native table edits against adjacent prose and keep incremental parsing consistent with full Markdown boundaries.
 - Expose exact versioned source snapshots so cooperating plugins identify the clicked table safely.
 - Preview plain GFM with explicit orientation choices, rendered/source views, loss warnings, copy-only Reading View and one-step undoable replacement.

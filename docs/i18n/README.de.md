@@ -91,7 +91,7 @@ HTML-Tabellen werden nur dann in Markdown umgewandelt, wenn die Zellstruktur sic
 
 ### In einfaches GFM umwandeln
 
-Klicke mit der rechten Maustaste auf die Tabelle und wähle „Vorschau als einfaches Markdown (GFM)…“. Im Editor kannst du den Cursor auch in den Tabellenquelltext setzen und den Befehl zur Umwandlung in einfaches GFM aufrufen.
+Klicke mit der rechten Maustaste auf die Tabelle und wähle „In einfache GFM-Tabelle umwandeln…“. Im Editor kannst du den Cursor auch in den Tabellenquelltext setzen und den Befehl zur Umwandlung in einfaches GFM aufrufen.
 
 Bei Tabellen mit ausschließlich Zeilenüberschriften empfiehlt sich das Tauschen von Zeilen und Spalten: Die Beschriftungen werden zur obersten Kopfzeile. Bleibt die ursprüngliche Ausrichtung ohne Spaltenüberschriften erhalten, wird oben eine leere Kopfzeile ergänzt; alle vorhandenen Datenzeilen bleiben bestehen.
 

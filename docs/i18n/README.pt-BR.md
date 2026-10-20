@@ -91,7 +91,7 @@ A conversão de tabelas HTML só acontece quando é possível manter a estrutura
 
 ### Converter em GFM comum
 
-Clique com o botão direito na tabela e escolha “Prévia como Markdown simples (GFM)…”. No editor, você também pode posicionar o cursor no código da tabela e executar o comando de conversão para GFM simples.
+Clique com o botão direito na tabela e escolha “Converter em tabela GFM simples…”. No editor, você também pode posicionar o cursor no código da tabela e executar o comando de conversão para GFM simples.
 
 Se a tabela tiver apenas cabeçalhos de linha, recomenda-se trocar linhas e colunas para mover esses rótulos ao cabeçalho superior. Ao manter a orientação sem cabeçalhos de coluna, uma linha vazia de cabeçalho é adicionada no topo e todas as linhas de dados são preservadas.
 

@@ -26,10 +26,11 @@
         ]
       },
       "steps": [
-        "Open GFM preview safety. From the command palette and owned-table menu open the row-header-only table: Swap rows and columns is recommended and Name/Age/City become actual GFM column headers. Compare Keep rows and columns, rendered result and source. Copy each result and compare exact clipboard bytes. Cancel leaves the note unchanged.",
+        "Open GFM preview safety. From the command palette and owned-table menu open the row-header-only table: Swap rows and columns is recommended and Name/Age/City become actual GFM column headers. Compare Keep rows and columns, rendered result and source. Copy each result and compare Markdown content, allowing platform clipboard line endings. Cancel leaves the note unchanged.",
         "Keep the source cursor in the first identical table and invoke conversion from the second table native menu with ordinary-table takeover off, then from its owned menu with takeover on. Confirm one replacement of only the clicked table; one undo/redo restores/reapplies the exact complete note.",
         "Inspect merged cells, multiple header layers and alignment warnings in Structural table; check KEEP HIDDEN disables replacement and warns before copy. Convert the list-contained row-header table and preserve its prefix and surrounding text.",
         "In Reading View use the plugin-rendered table menu: preview and copy are available, replacement is absent. Change the saved table while preview is open and require stale refusal. Also open a replacement preview then change file/source or retain a cell draft: confirmation must refuse.",
+        "Check Convert to plain GFM table is grouped with whole-table transpose, while Word / HTML copy and image export remain output actions. Copy the complete table from owned, source, native and plugin-rendered Reading menus. Desktop rich HTML preserves the complete table; Android uses the documented tab-separated fallback notice. Copy writes no Markdown and refuses a source/file change or owner unload during rendering.",
         "Check narrow layout, keyboard focus, Arabic interface with an LTR note, clipboard denial and plugin unload. On Android operate actual touch menus, the soft keyboard and on-screen undo/redo. Record unsupported or unobserved checks independently."
       ],
       "expected": [

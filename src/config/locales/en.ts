@@ -73,7 +73,7 @@ const en = {
   "gfm.warning.rowHeaders": "Row headers become ordinary cells; GFM does not retain their header role.",
   "gfm.warning.emptyHeader": "An empty top header row is added so every existing row remains data.",
   "gfm.warning.hiddenCells": "Extra source cells hidden by Obsidian are omitted from this copy. Replacement is disabled; edit those cells in Markdown first.",
-  "menu.previewGfm": "Preview as plain Markdown (GFM)…",
+  "menu.previewGfm": "Convert to plain GFM table…",
   "modal.convertGfm.desc": "Merged cells and multi-row headers will be flattened. Review the portable GFM before replacing the table.",
   "modal.convertGfm.replace": "Replace table",
   "modal.convertGfm.title": "Convert to plain GFM",

@@ -75,7 +75,7 @@ const catalog = {
   "gfm.warning.rowHeaders": "行見出しは通常のセルになります。GFM では行見出しの役割を保持できません。",
   "gfm.warning.emptyHeader": "先頭に空の見出し行を追加し、既存の行をすべてデータとして保持します。",
   "gfm.warning.hiddenCells": "Obsidian が表示しない余分なソースセルはコピーに含まれません。置換は無効です。先に Markdown でこれらのセルを編集してください。",
-  "menu.previewGfm": "通常の Markdown（GFM）をプレビュー…",
+  "menu.previewGfm": "通常の GFM テーブルに変換…",
   "modal.convertGfm.desc": "結合セルと複数行の列見出しは平坦化されます。テーブルを置き換える前に、他のエディタでも利用できる GFM を確認してください。",
   "modal.convertGfm.replace": "テーブルを置き換え",
   "modal.convertGfm.title": "標準 GFM に変換",

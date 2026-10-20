@@ -39,8 +39,8 @@ import {
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
 import { renderStructuralTable, tableRenderingComplete } from "../rendering/table-renderer";
-import { renderTableClipboard } from "../rendering/table-clipboard";
-import { cellClipboardText, copyHtml } from "./table-interchange";
+import { copyTableForWord } from "../app/table-html-copy";
+import { cellClipboardText } from "./table-interchange";
 import {
   readTableRangeFromDataTransfer,
   readTableRangeFromNavigator,
@@ -1387,12 +1387,15 @@ class StructuralTableInteraction {
       }));
     }
     menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
-      const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
-      if (current === null) { new Notice(t("notice.staleTable")); return; }
-      void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance, direction)
-        .then(({ html, text }) => copyHtml(html, text))
-        .then((mode) => { new Notice(mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", "HTML")); })
-        .catch(() => { new Notice(t("notice.clipboardFailed")); });
+      void copyTableForWord(this.app, tableIdentity, this.getSettings().appearance, {
+        sourcePath: frozen.sourcePath, direction,
+        isCurrent: () => this.host === frozen.host && frozen.host.isConnected
+          && view.dom.isConnected && view.dom.ownerDocument === ownerDocument
+          && view.state.field(editorInfoField, false)?.editor === editorIdentity
+          && view.state.field(editorInfoField, false)?.file === fileIdentity
+          && fileIdentity?.path === frozen.sourcePath
+          && reparseUnchangedTable(view.state.doc.toString(), tableIdentity) !== null,
+      }, t);
     })));
     if (this.exportImage !== undefined) {
       addImageExportMenuItem(menu, t, () => activate(() => {

@@ -213,7 +213,7 @@ describe("native table menu bridge", () => {
     openContextMenu(cell);
 
     expect(lastMenu?.items.map(({ title }) => title)).toEqual([
-      "Native table action", "Transpose whole table (swap rows and columns)", "Upgrade to Base…",
+      "Native table action", "Transpose whole table (swap rows and columns)", "Copy whole table for Word / HTML", "Upgrade to Base…",
     ]);
     lastMenu?.items.find(({ title }) => title === "Upgrade to Base…")?.callback?.();
     expect(promote).toHaveBeenCalledOnce();
@@ -233,7 +233,7 @@ describe("native table menu bridge", () => {
     openContextMenu(cell);
     expect(lastMenu?.items.map(({ title }) => title)).toEqual([
       "Native table action", "Transpose whole table (swap rows and columns)",
-      "Export whole table as image…", "Upgrade to Base…",
+      "Copy whole table for Word / HTML", "Export whole table as image…", "Upgrade to Base…",
     ]);
     lastMenu?.items.find(({ title }) => title === "Export whole table as image…")?.callback?.();
     expect(exportImage).toHaveBeenCalledOnce();

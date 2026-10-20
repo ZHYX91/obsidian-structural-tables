@@ -1,6 +1,6 @@
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { history } from "@codemirror/commands";
+import { history, redo, undo } from "@codemirror/commands";
 import { App, MarkdownView, editorInfoField, editorLivePreviewField, type Editor, type TFile as HostFile } from "obsidian";
 import { TFile } from "../mocks/obsidian";
 
@@ -15,6 +15,8 @@ export function tableCommandEditor(source: string, extension: Extension = [], ow
   const toOffset = ({ line, ch }: { line: number; ch: number }) => cm.state.doc.line(line + 1).from + ch;
   const editor = {
     getValue: () => cm.state.doc.toString(),
+    undo: () => undo(cm),
+    redo: () => redo(cm),
     getCursor: () => { const line = cm.state.doc.lineAt(cm.state.selection.main.head); return { line: line.number - 1, ch: cm.state.selection.main.head - line.from }; },
     getLine: (line: number) => cm.state.doc.line(line + 1).text,
     posToOffset: toOffset,

@@ -2,6 +2,8 @@
 
 ## 0.9.0 - 2026-10-20
 
+- Offer whole-table Word / HTML copy in source, native-table and Reading View menus, with captured-target checks before clipboard writes. Group GFM conversion with whole-table transpose and use an explicit conversion label.
+
 - Pad GFM conversion previews before writing so native table formatting cannot create a repeating extra undo step.
 - Restore table keyboard focus across conversion Undo and Redo, including notes containing only a table.
 - Guard native table edits against adjacent prose and keep incremental parsing consistent with full Markdown boundaries.

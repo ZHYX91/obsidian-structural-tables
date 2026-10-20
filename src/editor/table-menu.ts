@@ -32,8 +32,13 @@ export function addImageExportMenuItem(menu: Menu, t: Translate, exportImage: ()
 }
 
 export function addPlainGfmMenuItem(menu: Menu, t: Translate, preview: () => void): void {
-  menu.addItem((item) => item.setSection("structural-tables-output")
+  menu.addItem((item) => item.setSection("structural-tables-transform")
     .setTitle(t("menu.previewGfm")).setIcon("table").onClick(preview));
+}
+
+export function addTableHtmlCopyMenuItem(menu: Menu, t: Translate, copy: () => void): void {
+  menu.addItem((item) => item.setSection("structural-tables-output")
+    .setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(copy));
 }
 
 export function addWholeTableTransposeMenuItem(menu: Menu, t: Translate, transpose: () => void): void {

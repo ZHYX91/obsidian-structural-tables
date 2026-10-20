@@ -4591,6 +4591,30 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it.each(["source-change", "editor-destroy"])("refuses an owned HTML copy after %s during rendering", async (mode) => {
+    const source = "| Region | Value |\n| --- || --- |\n| North | 1 |";
+    const { parent, view } = mountEditor(source, { anchor: source.length });
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    vi.stubGlobal("ClipboardItem", undefined);
+    const start = notices.length;
+    let changed = false;
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      element.textContent = text;
+      if (changed) return;
+      changed = true;
+      if (mode === "source-change") view.dispatch({ changes: { from: source.indexOf("North"), to: source.indexOf("North") + 5, insert: "South" } });
+      else view.destroy();
+    });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!
+        .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem(createTranslator("en")("menu.copyWholeHtml"), true);
+      await vi.waitFor(() => expect(notices.slice(start)).toEqual([createTranslator("en")("notice.staleTable")]));
+      expect(writeText).not.toHaveBeenCalled();
+    } finally { if (mode !== "editor-destroy" || !changed) view.destroy(); }
+  });
+
   it("provides row and column handles with the full structural-table menu", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const rows = parent.querySelectorAll<HTMLElement>("[data-structural-row-handle]");

@@ -91,7 +91,7 @@ Plugin chỉ chuyển bảng HTML sang Markdown khi có thể giữ cấu trúc 
 
 ### Chuyển sang GFM thông thường
 
-Nhấp chuột phải vào bảng và chọn “Xem trước dưới dạng Markdown thông thường (GFM)…”. Trong trình soạn thảo, bạn cũng có thể đặt con trỏ trong mã nguồn bảng rồi chạy lệnh chuyển sang GFM thông thường.
+Nhấp chuột phải vào bảng và chọn “Chuyển sang bảng GFM thông thường…”. Trong trình soạn thảo, bạn cũng có thể đặt con trỏ trong mã nguồn bảng rồi chạy lệnh chuyển sang GFM thông thường.
 
 Nếu bảng chỉ có tiêu đề hàng, nên hoán đổi hàng và cột để chuyển các nhãn đó lên hàng tiêu đề trên cùng. Nếu giữ nguyên hướng mà không có tiêu đề cột, một hàng tiêu đề trống được thêm ở trên và mọi hàng dữ liệu được giữ lại.
 

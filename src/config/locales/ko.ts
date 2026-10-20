@@ -75,7 +75,7 @@ const ko = {
   "gfm.warning.rowHeaders": "행 머리글은 일반 셀이 됩니다. GFM은 행 머리글 역할을 유지하지 못합니다.",
   "gfm.warning.emptyHeader": "기존의 모든 행을 데이터로 유지하도록 맨 위에 빈 머리글 행이 추가됩니다.",
   "gfm.warning.hiddenCells": "Obsidian이 숨긴 추가 소스 셀은 복사에 포함되지 않습니다. 바꾸기 기능이 비활성화됩니다. 먼저 Markdown에서 해당 셀을 편집하세요.",
-  "menu.previewGfm": "일반 Markdown(GFM) 미리 보기…",
+  "menu.previewGfm": "일반 GFM 표로 변환…",
   "modal.convertGfm.desc": "병합된 셀과 여러 줄의 머리글은 일반 셀로 펼쳐집니다. 표를 바꾸기 전에 GFM 미리보기를 확인하세요.",
   "modal.convertGfm.replace": "표 바꾸기",
   "modal.convertGfm.title": "일반 GFM으로 변환",

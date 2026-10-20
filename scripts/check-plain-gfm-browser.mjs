@@ -46,6 +46,8 @@ try {
     await command("Input.dispatchKeyEvent", { type: "keyUp", key: value, windowsVirtualKeyCode: virtual, modifiers }); await settle();
   };
   const action = (name) => click(`window.gfmBrowser.action(${JSON.stringify(name)})`);
+  // Windows normalizes text clipboard newlines to CRLF; compare the Markdown content.
+  const clipboardMarkdown = async () => (await evaluate("navigator.clipboard.readText()")).replaceAll("\r\n", "\n");
   const orientation = async (value) => {
     await click("document.querySelector('.structural-tables-gfm-preview select')");
     await key(value === "keep" ? "Home" : "End", value === "keep" ? 36 : 35);
@@ -73,7 +75,7 @@ try {
     await action("source"); state = await evaluate("window.gfmBrowser.state()");
     assert.equal(state.sourceVisible, true); assert.equal(state.previewVisible, false);
     await action("copy"); await waitFor("window.gfmBrowser.state().copyReady");
-    assert.equal(await evaluate("navigator.clipboard.readText()"), candidate);
+    assert.equal(await clipboardMarkdown(), candidate);
     await action("preview"); state = await evaluate("window.gfmBrowser.state()");
     assert.equal(state.previewVisible, true); assert.equal(state.sourceVisible, false);
     await action("replace"); await waitFor("!window.gfmBrowser.state().modal");
@@ -89,7 +91,7 @@ try {
   await waitFor("window.gfmBrowser.state().copyReady"); await orientation("keep");
   let state = await evaluate("window.gfmBrowser.state()"); assert.deepEqual(state.headers, ["", "", ""]);
   await action("copy"); await waitFor("window.gfmBrowser.state().copyReady");
-  assert.equal(await evaluate("navigator.clipboard.readText()"), state.previewSource); assert.equal(state.writes, 0);
+  assert.equal(await clipboardMarkdown(), state.previewSource); assert.equal(state.writes, 0);
   await evaluate("window.gfmBrowser.switchFile()"); await action("replace");
   state = await evaluate("window.gfmBrowser.state()"); assert.equal(state.writes, 0); assert.equal(state.source, state.initialSource);
   assert.ok(state.notices.some((notice) => notice.includes("changed")));
@@ -100,7 +102,7 @@ try {
   await click("document.querySelector('#gfm-menu-item')"); await waitFor("window.gfmBrowser.state().copyReady");
   state = await evaluate("window.gfmBrowser.state()"); assert.equal(state.replaceAvailable, false);
   await action("copy"); await waitFor("window.gfmBrowser.state().copyReady");
-  assert.equal(await evaluate("navigator.clipboard.readText()"), state.previewSource);
+  assert.equal(await clipboardMarkdown(), state.previewSource);
   assert.equal((await evaluate("window.gfmBrowser.state()")).writes, 0);
   results.push({ mode: "reading", exactCopy: true, noReplacementAction: true, writes: 0 });
 

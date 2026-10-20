@@ -1,5 +1,7 @@
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import type { ExportTableImage } from "../app/table-image-modal";
+import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
+import { captureEditorPlainGfmTarget } from "./plain-gfm-target";
 import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { captureEditorTransposeTarget } from "./table-transpose-target";
 import { EditorView } from "@codemirror/view";
@@ -16,6 +18,7 @@ import { nativeTableDomSelection } from "./native-table-selection";
 import {
   addBasePromotionMenuItem,
   addImageExportMenuItem,
+  addPlainGfmMenuItem,
   addSelectionMenuItems,
   addWholeTableTransposeMenuItem,
   hasSelectionMenuItems,
@@ -37,6 +40,7 @@ export class NativeTableMenuBridge {
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly promote: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
+    private readonly previewGfm?: PreviewPlainGfm,
   ) {}
 
   register(component: Component): void {
@@ -142,6 +146,14 @@ export class NativeTableMenuBridge {
       if (transposeTarget === null) { new Notice(t("notice.staleTable")); return; }
       requestWholeTableTranspose(this.app, t, table, transposeTarget);
     });
+    if (this.previewGfm !== undefined) {
+      const gfmTarget = captureEditorPlainGfmTarget(this.app, markdownView.editor, table, markdownView,
+        () => !this.disposed && target.isCurrent());
+      addPlainGfmMenuItem(menu, t, () => {
+        if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
+        this.previewGfm?.(table, gfmTarget);
+      });
+    }
     if (this.exportImage !== undefined) {
       const sourcePath = markdownView.file?.path ?? "";
       addImageExportMenuItem(menu, t, () => this.exportImage?.(table, sourcePath,

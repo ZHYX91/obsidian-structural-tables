@@ -8,8 +8,9 @@ import type { StructuralTable } from "../core/model";
 import { withoutSourcePrefixes } from "../core/source-lines";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import type { ExportTableImage } from "../app/table-image-modal";
+import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
 import { createTranslator } from "../config/i18n";
-import { installReadingImageMenu } from "./table-image-menu";
+import { installReadingOutputMenu } from "./table-image-menu";
 
 const barriers = ".callout, .internal-embed:not(.image-embed), .markdown-embed, pre, code, .cm-editor, .structural-tables-container";
 
@@ -183,7 +184,7 @@ export class ReadingBlockMapper {
   private readonly sections = new WeakMap<HTMLElement, Section>();
 
   constructor(private readonly app: App, private readonly getSettings: () => StructuralTablesSettings,
-    private readonly exportImage?: ExportTableImage) {}
+    private readonly exportImage?: ExportTableImage, private readonly previewGfm?: PreviewPlainGfm) {}
 
   process(element: HTMLElement, context: MarkdownPostProcessorContext, info: MarkdownSectionInformation,
     tables: readonly StructuralTable[]): void {
@@ -291,8 +292,8 @@ export class ReadingBlockMapper {
     wrapper.dataset.tableKind = "structural";
     wrapper.dataset.structuralTablesProcessed = "true";
     component.containerEl = wrapper;
-    installReadingImageMenu(this.app, wrapper, table, owner.context.sourcePath, component,
-      () => createTranslator(this.getSettings().language), this.exportImage);
+    installReadingOutputMenu(this.app, wrapper, table, owner.context.sourcePath, component,
+      () => createTranslator(this.getSettings().language), this.exportImage, this.previewGfm);
     targets.forEach((target, index) => replaceTarget(target, index === 0 ? wrapper : undefined));
     ownReadingLayout(wrapper, component);
     owner.context.addChild(component);

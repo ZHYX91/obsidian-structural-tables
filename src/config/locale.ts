@@ -4,14 +4,14 @@ export const LOCALES = [
   { id: "zh-CN", name: "简体中文", direction: "ltr" },
   { id: "zh-TW", name: "繁體中文", direction: "ltr" },
   { id: "ja", name: "日本語", direction: "ltr" },
+  { id: "ko", name: "한국어", direction: "ltr" },
   { id: "de", name: "Deutsch", direction: "ltr" },
-  { id: "es", name: "Español", direction: "ltr" },
-  { id: "ar", name: "العربية", direction: "rtl" },
   { id: "fr", name: "Français", direction: "ltr" },
+  { id: "es", name: "Español", direction: "ltr" },
   { id: "pt-BR", name: "Português (Brasil)", direction: "ltr" },
   { id: "ru", name: "Русский", direction: "ltr" },
-  { id: "ko", name: "한국어", direction: "ltr" },
   { id: "vi", name: "Tiếng Việt", direction: "ltr" },
+  { id: "ar", name: "العربية", direction: "rtl" },
 ] as const;
 
 export type LocaleId = typeof LOCALES[number]["id"];

@@ -48,6 +48,7 @@ export type OperationCode =
   | "split"
   | "split-unsafe"
   | "table-deleted"
+  | "table-converted"
   | "table-invalid"
   | "table-transposed"
   | "transpose-boundary-unsafe"

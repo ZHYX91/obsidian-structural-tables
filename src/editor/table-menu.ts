@@ -31,6 +31,11 @@ export function addImageExportMenuItem(menu: Menu, t: Translate, exportImage: ()
     .setIcon("image").setTitle(t("menu.exportImage")).onClick(exportImage));
 }
 
+export function addPlainGfmMenuItem(menu: Menu, t: Translate, preview: () => void): void {
+  menu.addItem((item) => item.setSection("structural-tables-output")
+    .setTitle(t("menu.previewGfm")).setIcon("table").onClick(preview));
+}
+
 export function addWholeTableTransposeMenuItem(menu: Menu, t: Translate, transpose: () => void): void {
   menu.addItem((item) => item
     .setSection("structural-tables-transform")

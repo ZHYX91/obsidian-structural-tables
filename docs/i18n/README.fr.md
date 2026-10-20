@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
 Ce guide de prise en main résume les fonctions principales et les limites importantes. Consultez la documentation complète en [English](../../README.md) ou en [简体中文](README.zh-CN.md).
 
@@ -88,6 +88,16 @@ Maj+Entrée insère un saut de ligne visuel qui est enregistré sous une forme `
 ### Collage et copie
 
 Le collage de tableaux HTML ne convertit que les structures pouvant être conservées sans perte. Si un format ne peut pas être repris, la version complète en texte brut peut être insérée ou le collage est laissé à Obsidian. Le texte brut ne conserve pas les cellules fusionnées ni la mise en forme. Vérifiez toujours le résultat lorsque vous convertissez un tableau en GFM ordinaire.
+
+### Convertir en GFM standard
+
+Faites un clic droit sur le tableau et choisissez « Aperçu en Markdown simple (GFM)… ». Dans l’éditeur, vous pouvez aussi placer le curseur dans le code du tableau et lancer la commande de conversion en GFM simple.
+
+Pour un tableau qui n’a que des en-têtes de ligne, il est recommandé d’échanger les lignes et les colonnes : ces libellés deviennent la ligne d’en-tête supérieure. Si vous conservez l’orientation sans en-têtes de colonne, une ligne d’en-tête vide est ajoutée en haut et toutes les lignes de données sont conservées.
+
+Les cellules fusionnées sont séparées. Leur contenu est répété à chaque position auparavant couverte. Les différentes lignes d’en-tête sont réunies en une seule. Les niveaux sont séparés par « / ». Les en-têtes de ligne qui restent sur le côté deviennent des cellules ordinaires ; GFM ne conserve pas leur rôle d’en-tête.
+
+Alternez entre l’aperçu du résultat et la source Markdown, puis copiez le résultat courant ou remplacez le tableau d’origine. Le mode lecture propose uniquement la copie. Le remplacement constitue une seule modification, annulable en une fois ; fermer la fenêtre ne modifie pas la source. Terminez d’abord les modifications de cellule. Si le tableau ou son fichier a changé, rouvrez l’aperçu. La commande de copie directe en GFM utilise l’orientation recommandée.
 
 ### Limites PNG et restauration de Base
 

@@ -1,6 +1,6 @@
 # Structural Tables
 
-[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [Deutsch](README.de.md) · [Español](README.es.md) · [العربية](README.ar.md) · [Français](README.fr.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [한국어](README.ko.md) · [Tiếng Việt](README.vi.md)
+[English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
 這是精簡入門指南，涵蓋常用操作與重要限制。完整說明請參閱 [English](../../README.md) 或[简体中文](README.zh-CN.md)。
 
@@ -88,6 +88,16 @@
 ### 貼上與複製
 
 HTML 貼上只在能安全保留儲存格結構時轉換成 Markdown。遇到無法保留的格式時，可能改用剪貼簿中的完整純文字，或交回 Obsidian 原生貼上；純文字不保證保留合併與格式。將結構表格複製成一般 GFM 後，請在目標編輯器預覽，因為 GFM 無法表示所有跨列與跨欄合併。
+
+### 轉換為一般 GFM
+
+在表格上按右鍵，選擇「預覽一般 Markdown（GFM）…」；也可以在編輯器中將游標放入表格，再執行轉換為一般 GFM 的命令。
+
+如果表格只有列標題，建議交換列與欄，讓標題成為頂端表頭。若維持原方向且沒有欄標題，會新增空白的頂端表頭，原有資料列全部保留。
+
+合併儲存格會拆開，每個原先被涵蓋的位置都會重複填入合併儲存格的內容。 多列表頭會合成一列，各層標題以「 / 」連接。 仍留在側邊的列標題會變成一般儲存格，GFM 無法保留其標題作用。
+
+可以切換結果預覽與 Markdown 原始碼，再複製目前結果或取代原表格。閱讀檢視只提供複製。取代只修改一次，並可用一次復原還原；關閉視窗不會改動原始碼。請先完成儲存格編輯；若原表格或檔案已改變，請重新開啟預覽。快速複製為一般 GFM 的命令會直接使用建議方向。
 
 ### 圖片、Base 與還原
 

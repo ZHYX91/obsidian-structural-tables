@@ -306,16 +306,12 @@ describe("live command localization", () => {
   });
 });
 
+// GFM ownership/Undo tests now exercise the real modal and CodeMirror in plain-gfm-modal.test.ts.
 describe.each([
   [
     "format",
     (surface: ReturnType<typeof pluginHarness>["plugin"], editor: Editor, file: TFile) => surface.formatCurrent(editor, file),
     "Structural table formatted.",
-  ],
-  [
-    "GFM",
-    (surface: ReturnType<typeof pluginHarness>["plugin"], editor: Editor, file: TFile) => surface.previewPlainGfmConversion(editor, file),
-    "Table converted to plain GFM.",
   ],
 ] as const)("conversion preview target identity (%s)", (_name, openPreview, successNotice) => {
   it("confirms an unchanged table while the original editor and file identity remain current", () => {
@@ -385,17 +381,12 @@ describe("GFM command boundaries", () => {
     "$5",
     String.raw`$\lvert x\rvert$`,
     String.raw`$P(A\mid B)$`,
-  ])("opens and copies existing source containing %s", async (content) => {
+  ])("copies existing source containing %s", async (content) => {
     const source = `| Label | Amount |\n| --- | --- |\n| A | ${content} |`;
     const editor = editorHarness(source);
     const file = new MockTFile("A.md");
     const harness = pluginHarness(editor.editor, file);
-    const preview = capturePreview();
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
-
-    harness.plugin.previewPlainGfmConversion(editor.editor, file as unknown as TFile);
-    expect(preview().source).toContain(content);
-    expect(notices).toEqual([]);
 
     harness.plugin.copyCurrentTable(editor.editor, "GFM");
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
@@ -403,7 +394,7 @@ describe("GFM command boundaries", () => {
     expect(notices).toContain("Table copied as GFM.");
   });
 
-  it("blocks destructive rewrites with hidden GFM overflow while keeping copy non-destructive", async () => {
+  it("blocks formatting hidden GFM overflow while keeping quick copy non-destructive", async () => {
     const source = "| A | B |\n| --- | --- |\n| 1 | 2 | KEEP |";
     const editor = editorHarness(source);
     const file = new MockTFile("A.md");
@@ -412,12 +403,11 @@ describe("GFM command boundaries", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
 
     harness.plugin.formatCurrent(editor.editor, file as unknown as TFile);
-    harness.plugin.previewPlainGfmConversion(editor.editor, file as unknown as TFile);
 
     expect(open).not.toHaveBeenCalled();
     expect(editor.source()).toBe(source);
     expect(editor.replaceRange).not.toHaveBeenCalled();
-    expect(notices.filter((notice) => notice.includes("extra source cells"))).toHaveLength(2);
+    expect(notices.filter((notice) => notice.includes("extra source cells"))).toHaveLength(1);
 
     harness.plugin.copyCurrentTable(editor.editor, "GFM");
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
@@ -450,15 +440,5 @@ describe("GFM command boundaries", () => {
     await vi.waitFor(() => expect(notices).toContain("Could not write to the clipboard."));
   });
 
-  it("reports a synchronous failure while confirming GFM replacement", () => {
-    const editor = editorHarness();
-    const file = new MockTFile("A.md");
-    const harness = pluginHarness(editor.editor, file);
-    const preview = capturePreview();
-    harness.plugin.previewPlainGfmConversion(editor.editor, file as unknown as TFile);
-    editor.replaceRange.mockImplementation(() => { throw new Error("write failed"); });
 
-    preview().onConfirm();
-    expect(notices).toContain("Could not convert the table: write failed");
-  });
 });

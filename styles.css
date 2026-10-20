@@ -155,7 +155,7 @@
   background: transparent;
   color: var(--text-muted);
   font-size: var(--font-ui-medium);
-  cursor: pointer;
+  cursor: var(--cursor, default);
   touch-action: manipulation;
   opacity: 0;
   pointer-events: none;
@@ -370,7 +370,7 @@
   box-shadow: none;
   color: var(--text-faint);
   line-height: 1;
-  cursor: pointer;
+  cursor: var(--cursor, default);
   touch-action: none;
   opacity: 0;
   transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
@@ -584,7 +584,7 @@
   box-sizing: border-box;
   box-shadow: none;
   color: var(--text-muted);
-  cursor: pointer;
+  cursor: var(--cursor, default);
   flex: 0 0 auto;
   font-family: inherit;
   font-size: var(--font-ui-small);
@@ -703,6 +703,40 @@
   user-select: text;
 }
 
+.structural-tables-gfm-orientation,
+.structural-tables-gfm-modes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-block: var(--size-4-3);
+}
+
+.structural-tables-gfm-orientation select { max-inline-size: 100%; }
+.structural-tables-gfm-preview :is(button, select) { cursor: var(--cursor, default); }
+.structural-tables-gfm-modes button[aria-pressed="true"] {
+  color: var(--text-accent);
+  box-shadow: inset 0 -2px var(--interactive-accent);
+}
+
+.structural-tables-gfm-rendered {
+  max-block-size: min(50vh, 30rem);
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  overflow: auto;
+  user-select: text;
+}
+
+.structural-tables-gfm-preview [hidden] { display: none; }
+.structural-tables-gfm-warnings { padding-inline-start: var(--size-4-5); }
+.structural-tables-gfm-status { color: var(--text-muted); }
+
+@media (pointer: coarse) {
+  .structural-tables-gfm-preview :is(button, select) { min-block-size: 44px; }
+}
+
 .structural-tables-promotion-modal > * {
   flex-shrink: 0;
 }
@@ -807,3 +841,12 @@
   border: var(--structural-visual-border);
   direction: var(--structural-visual-direction);
 }
+
+.structural-tables-settings-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-4);
+  margin-block: 0 var(--size-4-4);
+}
+
+.structural-tables-settings-help a { cursor: var(--cursor, default); }

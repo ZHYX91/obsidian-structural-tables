@@ -1,0 +1,101 @@
+{
+  "schema": "structural-tables.source-snapshot.v1",
+  "cases": [
+    {
+      "id": "headerless-before-ordinary",
+      "sourcePath": "Notes/contract.md",
+      "source": "| --- || --- |\n| Left | Right |\n\n| Name | Value |\n| --- | --- |\n| B | 2 |",
+      "tables": [
+        {
+          "from": 0,
+          "to": 31,
+          "source": "| --- || --- |\n| Left | Right |",
+          "numberSuiteCaptionSupported": false
+        },
+        {
+          "from": 33,
+          "to": 73,
+          "source": "| Name | Value |\n| --- | --- |\n| B | 2 |",
+          "numberSuiteCaptionSupported": true
+        }
+      ]
+    },
+    {
+      "id": "short-delimiter-before-ordinary",
+      "sourcePath": "Notes/contract.md",
+      "source": "| Item | Qty |\n| - || - |\n| A | 1 |\n\n| Name | Value |\n| --- | --- |\n| B | 2 |",
+      "tables": [
+        {
+          "from": 0,
+          "to": 35,
+          "source": "| Item | Qty |\n| - || - |\n| A | 1 |",
+          "numberSuiteCaptionSupported": false
+        },
+        {
+          "from": 37,
+          "to": 77,
+          "source": "| Name | Value |\n| --- | --- |\n| B | 2 |",
+          "numberSuiteCaptionSupported": true
+        }
+      ]
+    },
+    {
+      "id": "identical-tables-have-distinct-ranges",
+      "sourcePath": "Notes/contract.md",
+      "source": "| Name | Value |\n| --- || --- |\n| Same | 2 |\n\n| Name | Value |\n| --- || --- |\n| Same | 2 |",
+      "tables": [
+        {
+          "from": 0,
+          "to": 44,
+          "source": "| Name | Value |\n| --- || --- |\n| Same | 2 |",
+          "numberSuiteCaptionSupported": true
+        },
+        {
+          "from": 46,
+          "to": 90,
+          "source": "| Name | Value |\n| --- || --- |\n| Same | 2 |",
+          "numberSuiteCaptionSupported": true
+        }
+      ]
+    },
+    {
+      "id": "external-block-id-is-outside-visual-range",
+      "sourcePath": "Notes/contract.md",
+      "source": "| Name | Value |\n| --- || --- |\n| Same | 2 |\n^table-id",
+      "tables": [
+        {
+          "from": 0,
+          "to": 44,
+          "source": "| Name | Value |\n| --- || --- |\n| Same | 2 |",
+          "numberSuiteCaptionSupported": true
+        }
+      ]
+    },
+    {
+      "id": "utf16-and-crlf",
+      "sourcePath": "Notes/contract.md",
+      "source": "😀 Introduction\r\n\r\n| Name | Value |\r\n| --- || --- |\r\n| Same | 2 |",
+      "tables": [
+        {
+          "from": 19,
+          "to": 65,
+          "source": "| Name | Value |\r\n| --- || --- |\r\n| Same | 2 |",
+          "numberSuiteCaptionSupported": true
+        }
+      ]
+    },
+    {
+      "id": "quoted-structural-table",
+      "sourcePath": "Notes/contract.md",
+      "source": "> | A | B |\n> | --- || --- |\n> | 1 | 2 |",
+      "tables": [
+        {
+          "from": 0,
+          "to": 40,
+          "source": "> | A | B |\n> | --- || --- |\n> | 1 | 2 |",
+          "numberSuiteCaptionSupported": false
+        }
+      ]
+    }
+  ]
+}

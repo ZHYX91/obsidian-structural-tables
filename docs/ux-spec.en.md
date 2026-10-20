@@ -68,6 +68,8 @@ Render with `thead`, `tbody`, `th`, `td`, `rowspan`, `colspan`, and suitable `sc
 
 Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TSV/CSV, preview and flatten to plain GFM, migrate a Sheets Extended separator, and migrate legacy Structural Tables Base properties are available in the command palette. Formatting and flattening to GFM first show a scrollable, selectable result preview and reparse the unchanged source table when the user confirms; neither changes source before confirmation. A merge from a non-empty cell explains the refusal and preserves source.
 
+Plain GFM has one top header row. Its conversion preview offers keep-orientation and transpose, recommending transpose only for row-header-only input. The result pane renders the actual final GFM and can switch to its selectable source. Copy uses that exact candidate; editor replacement commits it once with isolated Undo and complete source/file/view revalidation. Reading previews can only copy. Changes to merged cells, header levels, row-header roles, empty compatibility headers and alignment are listed before replacement. Hidden overflow permits an explicitly explained visible-cell copy but disables replacement.
+
 ### Whole-table transposition
 
 The context menu keeps row actions next to column actions (including column alignment), followed by a separate "Transpose whole table (swap rows and columns)" group before whole-table copy/export. The action always targets the complete logical table, not the selected range. The command palette and the native ordinary-GFM table menu expose the same behavior. Active cell drafts block transposition; no edit may be silently committed or lost. Row-header syntax remains the existing `||` delimiter, without a special marker column.
@@ -171,7 +173,7 @@ Press and drag any row/column handle to move its newly selected merge-closed axi
 
 ### Menu operations
 
-Owned Live Preview menus group actions in this order: selected-cell Copy/Cut/Paste; available Merge/Split and header roles; rows; columns including column alignment; whole-table transpose; whole-table Word/HTML copy and PNG export; source and Base; Clear selected cells; Delete table. Whole-table outputs share a group. Row and column deletion stays last in its respective group, while Delete table has its own final group and warning styling.
+Owned Live Preview menus group actions in this order: selected-cell Copy/Cut/Paste; available Merge/Split and header roles; rows; columns including column alignment; whole-table transpose; whole-table GFM preview, Word/HTML copy and PNG export; source and Base; Clear selected cells; Delete table. Whole-table outputs share a group. Row and column deletion stays last in its respective group, while Delete table has its own final group and warning styling.
 
 Column alignment shows a check only when all selected columns have that alignment; mixed alignment has no check. Header-role actions omit setting the current number of header rows or columns, while eligible header removal remains available. Opening a menu freezes the logical selection; activation revalidates it before acting.
 
@@ -179,7 +181,7 @@ A rectangular multi-cell selection can merge; a single merged cell can split. Re
 
 Whole rows from the top can become column headers. Selecting the complete current column-header area can **Remove column headers** while preserving all text; this is separate from deleting rows. Whole columns from the start of source-column order can become row headers. With a complete column selected, **Stop using columns as row headers** removes all row-header roles while preserving every cell's content.
 
-Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled; the plugin contributes its applicable items. Reading View keeps its brief whole-table PNG entry.
+Ordinary GFM keeps Obsidian's native menus and handles while takeover is disabled; the plugin contributes its applicable items. Reading View keeps brief GFM preview/copy and whole-table PNG entries.
 
 <!-- section: diagnostics -->
 ## Diagnostics

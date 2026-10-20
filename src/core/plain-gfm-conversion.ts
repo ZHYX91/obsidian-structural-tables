@@ -33,7 +33,7 @@ function projectionPlan(original: StructuralTable, projected: StructuralTable,
   if (resetsAlignment) warnings.push("alignment");
   const canReplace = !hasHiddenGfmOverflow(original);
   if (!canReplace) warnings.push("hidden-cells");
-  return { orientation, source: structuralTableToPlainGfm(projected), warnings, canReplace };
+  return { orientation, source: structuralTableToPlainGfm(projected, "aligned"), warnings, canReplace };
 }
 
 /** Reuse the table's transpose and portable projection; no intermediate source write. */

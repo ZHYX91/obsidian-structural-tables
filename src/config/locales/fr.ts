@@ -75,7 +75,7 @@ const fr = {
   "gfm.warning.rowHeaders": "Les en-têtes de ligne deviennent des cellules ordinaires ; GFM ne conserve pas leur rôle d’en-tête.",
   "gfm.warning.emptyHeader": "Une ligne d’en-tête vide est ajoutée en haut pour conserver toutes les lignes existantes comme données.",
   "gfm.warning.hiddenCells": "Les cellules source supplémentaires masquées par Obsidian ne sont pas copiées. Le remplacement est désactivé ; modifiez d’abord ces cellules en Markdown.",
-  "menu.previewGfm": "Aperçu en Markdown simple (GFM)…",
+  "menu.previewGfm": "Convertir en tableau GFM simple…",
   "modal.convertGfm.desc": "Les cellules fusionnées et les en-têtes sur plusieurs lignes seront aplatis. Vérifiez l’aperçu GFM avant de remplacer le tableau.",
   "modal.convertGfm.replace": "Remplacer le tableau",
   "modal.convertGfm.title": "Convertir en GFM standard",

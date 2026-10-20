@@ -733,6 +733,23 @@
 .structural-tables-gfm-warnings { padding-inline-start: var(--size-4-5); }
 .structural-tables-gfm-status { color: var(--text-muted); }
 
+.structural-tables-gfm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--size-4-2);
+  padding-block-start: var(--size-4-4);
+  border-block-start: 1px solid var(--background-modifier-border);
+}
+
+.structural-tables-gfm-actions button {
+  max-inline-size: 100%;
+  block-size: auto;
+  min-block-size: var(--input-height);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 @media (pointer: coarse) {
   .structural-tables-gfm-preview :is(button, select) { min-block-size: 44px; }
 }

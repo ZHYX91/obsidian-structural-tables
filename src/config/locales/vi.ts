@@ -75,7 +75,7 @@ const vi = {
   "gfm.warning.rowHeaders": "Tiêu đề hàng trở thành ô thông thường; GFM không giữ vai trò tiêu đề của chúng.",
   "gfm.warning.emptyHeader": "Thêm một hàng tiêu đề trống ở trên cùng để giữ mọi hàng hiện có làm dữ liệu.",
   "gfm.warning.hiddenCells": "Các ô nguồn bổ sung bị Obsidian ẩn không được sao chép. Không thể thay thế bảng; hãy sửa các ô này trong Markdown trước.",
-  "menu.previewGfm": "Xem trước dưới dạng Markdown thông thường (GFM)…",
+  "menu.previewGfm": "Chuyển sang bảng GFM thông thường…",
   "modal.convertGfm.desc": "Các ô gộp và tiêu đề nhiều hàng sẽ được trải phẳng. Hãy kiểm tra bản xem trước GFM trước khi thay bảng.",
   "modal.convertGfm.replace": "Thay thế bảng",
   "modal.convertGfm.title": "Chuyển sang GFM thông thường",

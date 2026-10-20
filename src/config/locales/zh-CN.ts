@@ -75,7 +75,7 @@ const zhCN = {
   "gfm.warning.rowHeaders": "行标题会变成普通单元格，GFM 无法保留它们的标题作用。",
   "gfm.warning.emptyHeader": "顶部会增加一行空表头，原有各行都保留为数据。",
   "gfm.warning.hiddenCells": "此次复制不包含 Obsidian 隐藏的额外源码单元格。为保留这些内容，替换按钮已禁用；请先在 Markdown 中处理这些单元格。",
-  "menu.previewGfm": "预览普通 Markdown（GFM）…",
+  "menu.previewGfm": "转换为普通 GFM 表格…",
   "modal.convertGfm.desc": "合并单元格和多行表头将被展开。请在替换表格前检查普通 GFM 预览。",
   "modal.convertGfm.replace": "替换表格",
   "modal.convertGfm.title": "转换为普通 GFM",

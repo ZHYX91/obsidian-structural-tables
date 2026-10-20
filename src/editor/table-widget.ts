@@ -39,8 +39,8 @@ import {
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
 import { renderStructuralTable, tableRenderingComplete } from "../rendering/table-renderer";
-import { renderTableClipboard } from "../rendering/table-clipboard";
-import { cellClipboardText, copyHtml } from "./table-interchange";
+import { copyTableForWord } from "../app/table-html-copy";
+import { cellClipboardText } from "./table-interchange";
 import {
   readTableRangeFromDataTransfer,
   readTableRangeFromNavigator,
@@ -842,6 +842,14 @@ class StructuralTableInteraction {
 
   private startPointerSelection(event: PointerEvent, view: EditorView): void {
     this.clickEditCandidate = null;
+    if (event.isPrimary && event.button === 2) {
+      const target = event.target !== null && "closest" in event.target ? event.target as Element : null;
+      // Native focus can scroll a different source caret into view between
+      // right-button press and contextmenu, moving the clicked cell away.
+      // Keep this gesture on its rendered target; contextmenu captures it.
+      if (target?.closest("textarea, input, a, button") == null && this.coordinateFor(event.target) !== null) event.preventDefault();
+      return;
+    }
     if (!event.isPrimary || event.button !== 0) return;
     const targetElement = event.target !== null && "closest" in event.target ? event.target as Element : null;
     const link = targetElement?.closest("a") ?? null;
@@ -1369,20 +1377,25 @@ class StructuralTableInteraction {
       this.app, t, tableIdentity, transposeRequest,
     )));
     if (this.previewGfm !== undefined && info?.editor !== undefined) {
-      const gfmTarget = captureEditorPlainGfmTarget(this.app, info.editor, tableIdentity, undefined,
-        () => view.dom.isConnected && this.host === frozen.host && frozen.host.isConnected);
+      // The dialog can outlive this presentation widget during source-focus
+      // changes. Its captured editor/file/source owns the write; the service
+      // closes open dialogs when the plugin unloads.
+      const gfmTarget = captureEditorPlainGfmTarget(this.app, info.editor, tableIdentity);
       addPlainGfmMenuItem(menu, t, () => activate(() => {
         if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
         this.previewGfm?.(tableIdentity, gfmTarget);
       }));
     }
     menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
-      const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
-      if (current === null) { new Notice(t("notice.staleTable")); return; }
-      void renderTableClipboard(this.app, current, this.sourcePath, this.getSettings().appearance, direction)
-        .then(({ html, text }) => copyHtml(html, text))
-        .then((mode) => { new Notice(mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", "HTML")); })
-        .catch(() => { new Notice(t("notice.clipboardFailed")); });
+      void copyTableForWord(this.app, tableIdentity, this.getSettings().appearance, {
+        sourcePath: frozen.sourcePath, direction,
+        isCurrent: () => this.host === frozen.host && frozen.host.isConnected
+          && view.dom.isConnected && view.dom.ownerDocument === ownerDocument
+          && view.state.field(editorInfoField, false)?.editor === editorIdentity
+          && view.state.field(editorInfoField, false)?.file === fileIdentity
+          && fileIdentity?.path === frozen.sourcePath
+          && reparseUnchangedTable(view.state.doc.toString(), tableIdentity) !== null,
+      }, t);
     })));
     if (this.exportImage !== undefined) {
       addImageExportMenuItem(menu, t, () => activate(() => {

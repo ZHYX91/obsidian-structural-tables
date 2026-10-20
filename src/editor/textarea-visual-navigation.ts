@@ -31,10 +31,17 @@ function visualProbe(editor: HTMLTextAreaElement): Probe | null {
   const mirror = owner.body.createDiv({ cls: "structural-tables-visual-text-measure" });
   mirror.setAttribute("aria-hidden", "true");
   mirror.dir = editor.dir;
-  // clientWidth excludes a vertical scrollbar. Including that gutter would
-  // wrap the mirror later than the actual textarea in tall/narrow drafts.
-  const layoutWidth = editor.clientWidth + (Number.parseFloat(style.borderLeftWidth) || 0)
-    + (Number.parseFloat(style.borderRightWidth) || 0);
+  // Keep subpixel layout width: integer clientWidth can wrap a word one line
+  // earlier at an exact glyph boundary. Still subtract a real scrollbar gutter.
+  const borders = (Number.parseFloat(style.borderLeftWidth) || 0) + (Number.parseFloat(style.borderRightWidth) || 0);
+  const padding = (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+  const cssWidth = Number.parseFloat(style.width);
+  const scrollbar = Math.max(0, editor.offsetWidth - editor.clientWidth - borders);
+  // A content-box used width already excludes its scrollbar; a border-box
+  // width includes it. Avoid subtracting the gutter twice for native controls.
+  const layoutWidth = Number.isFinite(cssWidth)
+    ? style.boxSizing === "border-box" ? cssWidth - scrollbar : cssWidth + padding + borders
+    : editor.clientWidth + borders;
   mirror.setCssProps({
     "--structural-visual-width": layoutWidth + "px",
     "--structural-visual-word-break": style.wordBreak,

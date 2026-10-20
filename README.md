@@ -148,7 +148,7 @@ On mobile, range Copy/Cut writes a plain Markdown table and checks that the syst
 
 For other applications, range Copy also provides HTML and plain Markdown. Range HTML represents spans and shows the cell's Markdown as raw text. Plain Markdown uses the first copied row as a header and retains structural markers where representable; it does not guarantee the same merge layout in other applications, including vertical merges.
 
-Use **Copy whole table for Word / HTML** or **Copy current table as HTML** for applications such as Word. You can also copy as plain GFM, TSV, or CSV. The plain GFM preview lets you choose how header roles and orientation are converted.
+Use **Copy whole table for Word / HTML** from a source, Live Preview, native-table or Reading View menu, or run **Copy current table as HTML** for applications such as Word. The menu action keeps the table you opened it from and refuses to copy if that target changes. You can also copy as plain GFM, TSV, or CSV. The plain GFM preview lets you choose how header roles and orientation are converted.
 
 Copied HTML records which headers belong to each data cell. Word may discard those associations when saving a DOCX, even if the table still looks correct. Tables with several row-header columns may therefore lose some header information.
 
@@ -156,7 +156,7 @@ On mobile, or when rich clipboard support is unavailable, the HTML copy commands
 
 ### Convert to plain Markdown (GFM)
 
-Right-click the table and choose **Preview as plain Markdown (GFM)…**. In an editor, you can also place the source cursor inside the table and run **Convert current table to plain GFM**. The preview belongs to the table you opened it from, even if you later move the cursor to another table.
+Right-click the table and choose **Convert to plain GFM table…**. In an editor, you can also place the source cursor inside the table and run **Convert current table to plain GFM**. The preview belongs to the table you opened it from, even if you later move the cursor to another table.
 
 1. Choose **Keep rows and columns** or **Swap rows and columns**. For a table with only row headers, swapping is recommended: those labels become the top header row that GFM supports.
 2. Check **Result preview**, switch to **Markdown source**, and review the listed changes. Merged-cell contents repeat across the formerly merged area. Multiple header levels are joined with ` / `; row-header roles that remain on the side become ordinary cells. Keeping a table without column headers adds an empty top header row and preserves every existing data row.
@@ -246,6 +246,8 @@ Use Node 24.19.0 and npm 11.17.0.
 npm ci
 npm run check
 ```
+
+Run `npm run test:browser -- /path/to/chromium` for the separate browser gate used by CI. It requires an installed Chromium and a loadable local font; the [testing strategy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/testing-strategy.en.md#browser-fixtures) explains focused suites and retained diagnostics. These local fixtures do not run Obsidian.
 
 Developer references:
 

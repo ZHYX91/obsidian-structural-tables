@@ -42,6 +42,26 @@ describe("table interchange", () => {
 | North | 8 | 11 |`);
   });
 
+  it("pads all four alignments with native UTF-16 widths, including short delimiters", () => {
+    const source = "| A | B | C | D |\n| --- | :--- | :---: | ---: |\n| 中 | 😀 | é | x |";
+    const gfm = structuralTableToPlainGfm(table(source), "aligned");
+    expect(gfm).toBe("| A   | B   |  C  |   D |\n| --- | :-- | :-: | --: |\n| 中   | 😀  | é  |   x |");
+    expect(structuralTableToPlainGfm(table(gfm), "aligned")).toBe(gfm);
+    const html = new MarkdownIt().render(gfm);
+    expect((html.match(/<td/gu) ?? []).length).toBe(4);
+    expect(html).toContain("😀");
+  });
+
+  it("pads empty headers and portable escaped or HTML source before conversion writes", () => {
+    const source = "| --- || --- |\n| `a|b` | a\\|b |";
+    const gfm = structuralTableToPlainGfm(table(source), "aligned");
+    expect(gfm).toBe("|                       |      |\n| --------------------- | ---- |\n| <code>a&#124;b</code> | a\\|b |");
+    expect(table(gfm)).toMatchObject({ valid: true, structural: false, headerRowCount: 1, columnCount: 2 });
+    const html = new MarkdownIt({ html: true }).render(gfm);
+    expect(html).toContain("<code>a|b</code>");
+    expect(html).toContain("<td>a|b</td>");
+  });
+
   it.each([
     "$5",
     String.raw`$\lvert x\rvert$`,

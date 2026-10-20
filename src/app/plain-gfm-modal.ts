@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Component, MarkdownRenderer, Modal, Notice, Setting } from "obsidian";
+import { App, ButtonComponent, Component, MarkdownRenderer, Modal, Notice } from "obsidian";
 
 import { applyInterfaceLocale, operationNotice, type Translate } from "../config/i18n";
 import type { StructuralTable } from "../core/model";
@@ -93,17 +93,12 @@ export class PlainGfmModal extends Modal {
     this.sourceEl.setAttribute("dir", "ltr");
     this.sourceEl.tabIndex = 0;
     this.statusEl = this.contentEl.createEl("p", { cls: "structural-tables-gfm-status", attr: { role: "status", "aria-live": "polite" } });
-    const actions = new Setting(this.contentEl);
-    actions.addButton((button) => button.setButtonText(this.t("gfm.close")).onClick(() => this.close()));
-    actions.addButton((button) => {
-      this.copyButton = button;
-      button.setButtonText(this.t("gfm.copy")).onClick(() => this.perform("copy"));
-      if (this.target.replace === undefined) button.setCta();
-    });
-    if (this.target.replace !== undefined) actions.addButton((button) => {
-      this.replaceButton = button;
-      button.setButtonText(this.t("modal.convertGfm.replace")).setCta().onClick(() => this.perform("replace"));
-    });
+    const actions = this.contentEl.createEl("div", { cls: "structural-tables-gfm-actions" });
+    new ButtonComponent(actions).setButtonText(this.t("gfm.close")).onClick(() => this.close());
+    this.copyButton = new ButtonComponent(actions).setButtonText(this.t("gfm.copy")).onClick(() => this.perform("copy"));
+    if (this.target.replace === undefined) this.copyButton.setCta();
+    if (this.target.replace !== undefined) this.replaceButton = new ButtonComponent(actions)
+      .setButtonText(this.t("modal.convertGfm.replace")).setCta().onClick(() => this.perform("replace"));
     this.showMode();
     void this.updatePreview();
   }

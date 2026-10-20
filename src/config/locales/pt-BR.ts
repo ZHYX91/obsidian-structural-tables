@@ -75,7 +75,7 @@ const ptBR = {
   "gfm.warning.rowHeaders": "Os cabeçalhos de linha viram células comuns; o GFM não mantém sua função de cabeçalho.",
   "gfm.warning.emptyHeader": "Uma linha vazia de cabeçalho é adicionada no topo para manter todas as linhas existentes como dados.",
   "gfm.warning.hiddenCells": "As células adicionais do código que o Obsidian oculta não são copiadas. A substituição está desativada; edite essas células em Markdown primeiro.",
-  "menu.previewGfm": "Prévia como Markdown simples (GFM)…",
+  "menu.previewGfm": "Converter em tabela GFM simples…",
   "modal.convertGfm.desc": "As células mescladas e os cabeçalhos de várias linhas serão convertidos em uma estrutura simples. Confira a prévia GFM antes de substituir a tabela.",
   "modal.convertGfm.replace": "Substituir tabela",
   "modal.convertGfm.title": "Converter em GFM comum",

@@ -77,6 +77,7 @@ import { showRecoveredCellDrafts } from "../editor/cell-draft-recovery";
 import { TableImageExportService } from "./table-image-modal";
 import { PlainGfmConversionService } from "./plain-gfm-modal";
 import { captureEditorPlainGfmTarget } from "../editor/plain-gfm-target";
+import { addEditorTableHtmlCopyMenuItem } from "../editor/table-html-menu";
 import { planPlainGfmConversion } from "../core/plain-gfm-conversion";
 
 const TEMPLATE = `| Region | Sales | < |
@@ -385,6 +386,8 @@ export class StructuralTablesPlugin extends Plugin {
         if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
         this.plainGfm?.open(current.table, gfmTarget);
       });
+      addEditorTableHtmlCopyMenuItem(menu, this.app, editor, current.table, () => this.settings, targetView,
+        () => this.transposeRequestsActive);
       addImageExportMenuItem(menu, t, () => this.exportImage(editor, () => info, current.table));
       addBasePromotionMenuItem(menu, t, current.table, () => {
         this.previewBasePromotion(editor, () => info, current.table);

@@ -75,7 +75,7 @@ const catalog = {
   "gfm.warning.rowHeaders": "列標題會變成一般儲存格，GFM 無法保留其標題作用。",
   "gfm.warning.emptyHeader": "頂端會增加一列空表頭，原有各列都保留為資料。",
   "gfm.warning.hiddenCells": "此次複製不包含 Obsidian 隱藏的額外原始碼儲存格。為保留這些內容，取代按鈕已停用；請先在 Markdown 中處理這些儲存格。",
-  "menu.previewGfm": "預覽一般 Markdown（GFM）…",
+  "menu.previewGfm": "轉換為一般 GFM 表格…",
   "modal.convertGfm.desc": "合併儲存格與多列欄標題將展平。取代表格前，請先檢查可在其他編輯器使用的 GFM。",
   "modal.convertGfm.replace": "取代表格",
   "modal.convertGfm.title": "轉換為一般 GFM",

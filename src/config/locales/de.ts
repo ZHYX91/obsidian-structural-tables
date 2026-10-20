@@ -75,7 +75,7 @@ const catalog = {
   "gfm.warning.rowHeaders": "Zeilenüberschriften werden zu normalen Zellen; GFM erhält ihre Überschriftenrolle nicht.",
   "gfm.warning.emptyHeader": "Eine leere Kopfzeile wird oben ergänzt, damit alle vorhandenen Zeilen Daten bleiben.",
   "gfm.warning.hiddenCells": "Zusätzliche, von Obsidian ausgeblendete Quellzellen werden nicht mitkopiert. Ersetzen ist deaktiviert; bearbeite diese Zellen zuerst in Markdown.",
-  "menu.previewGfm": "Vorschau als einfaches Markdown (GFM)…",
+  "menu.previewGfm": "In einfache GFM-Tabelle umwandeln…",
   "modal.convertGfm.desc": "Verbundene Zellen und mehrzeilige Spaltenüberschriften werden in eine flache Struktur umgewandelt. Prüfen Sie das übertragbare GFM, bevor Sie die Tabelle ersetzen.",
   "modal.convertGfm.replace": "Tabelle ersetzen",
   "modal.convertGfm.title": "In einfaches GFM umwandeln",

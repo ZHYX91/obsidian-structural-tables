@@ -366,6 +366,28 @@ function visualCaretProbe() {
   } finally { textarea.remove(); }
 }
 
+function fractionalCaretProbe() {
+  const results = [];
+  for (const boxSizing of ["border-box", "content-box"]) for (const overflow of ["hidden", "scroll"]) {
+    const textarea = document.body.createEl("textarea");
+    textarea.value = "BetaFirst visual line with enough words to wrap across this cell\nLast visual line";
+    textarea.style.cssText = `position:fixed;top:25px;left:25px;width:${boxSizing === "border-box" ? "93.0625" : "77.0625"}px;height:60px;padding:4px 8px;border:0;font:16px/22.4px monospace;box-sizing:${boxSizing};overflow-y:${overflow};white-space:pre-wrap`;
+    try {
+      textarea.setSelectionRange(0, 0);
+      const first = textareaVisualExit(textarea, "up");
+      const middleOffset = textarea.value.indexOf("enough");
+      textarea.setSelectionRange(middleOffset, middleOffset);
+      const middle = textareaVisualExit(textarea, "down");
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      const last = textareaVisualExit(textarea, "down");
+      results.push({ boxSizing, overflow, first, middle, last,
+        width: textarea.getBoundingClientRect().width, cssWidth: getComputedStyle(textarea).width, clientWidth: textarea.clientWidth,
+        scrollbar: textarea.offsetWidth - textarea.clientWidth, scrollHeight: textarea.scrollHeight });
+    } finally { textarea.remove(); }
+  }
+  return results;
+}
+
 async function setupPointerText(raw: string, visible: string, tag: "span" | "strong" | "em" | "code" | "a") {
   setupAlignment({ direction: "ltr", alignment: "left", raw, visible, role: "body" });
   const table = cm!.dom.querySelector<HTMLTableElement>(".structural-tables-live-preview table")!;
@@ -376,7 +398,7 @@ async function setupPointerText(raw: string, visible: string, tag: "span" | "str
   if (tag === "a") rendered.setAttribute("href", "#gesture-link");
 }
 
-(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, switchState, visualCaretProbe, interfaceBidi, setupAlignment, alignmentState, setupPointerText,
+(window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, switchState, visualCaretProbe, fractionalCaretProbe, interfaceBidi, setupAlignment, alignmentState, setupPointerText,
   currentVisualExit: () => textareaVisualExit(document.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor")!, "down"),
   refresh: () => cm!.dispatch({ effects: structuralTableSourceFocus.of(true) }),
   holdRendering: () => { holdCommitRendering = true; },

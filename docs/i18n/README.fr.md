@@ -91,7 +91,7 @@ Le collage de tableaux HTML ne convertit que les structures pouvant être conser
 
 ### Convertir en GFM standard
 
-Faites un clic droit sur le tableau et choisissez « Aperçu en Markdown simple (GFM)… ». Dans l’éditeur, vous pouvez aussi placer le curseur dans le code du tableau et lancer la commande de conversion en GFM simple.
+Faites un clic droit sur le tableau et choisissez « Convertir en tableau GFM simple… ». Dans l’éditeur, vous pouvez aussi placer le curseur dans le code du tableau et lancer la commande de conversion en GFM simple.
 
 Pour un tableau qui n’a que des en-têtes de ligne, il est recommandé d’échanger les lignes et les colonnes : ces libellés deviennent la ligne d’en-tête supérieure. Si vous conservez l’orientation sans en-têtes de colonne, une ligne d’en-tête vide est ajoutée en haut et toutes les lignes de données sont conservées.
 

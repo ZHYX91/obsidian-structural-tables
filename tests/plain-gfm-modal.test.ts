@@ -2,7 +2,7 @@
 import MarkdownIt from "markdown-it";
 import { history, undo, redo, undoDepth } from "@codemirror/commands";
 import { Decoration, EditorView } from "@codemirror/view";
-import { StateEffect } from "@codemirror/state";
+import { Compartment, StateEffect } from "@codemirror/state";
 import { App, Component, MarkdownRenderer } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PlainGfmConversionService, PlainGfmModal, type PlainGfmTarget } from "../src/app/plain-gfm-modal";
@@ -14,9 +14,11 @@ import { parseEditableTables } from "../src/core/parser";
 import { captureEditorPlainGfmTarget } from "../src/editor/plain-gfm-target";
 import { NativeTableMenuBridge } from "../src/editor/native-table-menu";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
+import { structuralTableSourceFocus } from "../src/editor/table-source-focus";
 import { installReadingOutputMenu } from "../src/reading/table-image-menu";
 import { tableCommandEditor } from "./helpers/table-command-editor";
 import { NativeTableWidget } from "./helpers/native-table-widget";
+import { installSelectionChangeTasks } from "./mocks/selection-events";
 import { lastMenu, notices, TFile } from "./mocks/obsidian";
 
 const SOURCE = "| --- || --- | --- |\n| 姓名 | 张三 | 李四 |\n| 年龄 | 28 | 31 |\n| 城市 | 杭州 | 上海 |";
@@ -38,6 +40,7 @@ function makeModal(f = editor(), index = 0) {
 }
 
 beforeEach(() => {
+  cleanup.push(installSelectionChangeTasks(document));
   HTMLElement.prototype.createEl = function<K extends keyof HTMLElementTagNameMap>(tag: K, options?: { cls?: string; text?: string; value?: string; attr?: Record<string, string> }): HTMLElementTagNameMap[K] {
     const element = this.ownerDocument.createElement(tag);
     if (options?.cls !== undefined) element.className = options.cls;
@@ -277,6 +280,48 @@ describe("GFM preview and editor entry points", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]!.table.source).toBe(SOURCE);
     expect(requests[0]!.target.isCurrent()).toBe(true);
+  });
+
+  it("keeps an owned-table preview usable when the unchanged presentation widget is rebuilt", async () => {
+    const f = editor("before\n\n" + SOURCE);
+    const service = new PlainGfmConversionService(f.app, () => t); cleanup.push(() => service.close());
+    const controller = new StructuralTableEditorController(f.app, () => DEFAULT_SETTINGS, undefined, undefined,
+      (table, target) => service.open(table, target));
+    const presentation = new Compartment();
+    f.cm.dispatch({ effects: StateEffect.appendConfig.of(presentation.of(controller.createExtension())) });
+    const cell = f.containerEl.querySelector<HTMLElement>(".structural-tables-table td")!;
+    cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true }));
+    lastMenu!.items.find((item) => item.title === t("menu.previewGfm"))!.callback!();
+    await vi.waitFor(() => expect(document.querySelector(".structural-tables-gfm-preview table")).not.toBeNull());
+    const candidate = document.querySelector(".structural-tables-gfm-preview pre")!.textContent!;
+    // Source mode removes the widget while the same attached editor, file and bytes survive.
+    f.cm.dispatch({ effects: presentation.reconfigure([]) });
+    button(document, "Replace table").click();
+    await vi.waitFor(() => expect(f.source()).toBe("before\n\n" + candidate));
+    expect(f.writes()).toBe(1);
+  });
+
+  it("restores owned-table keyboard focus after undoing a whole-note GFM conversion", async () => {
+    const f = editor();
+    Object.assign(f.editor, { undo: () => undo(f.cm), redo: () => redo(f.cm) });
+    const service = new PlainGfmConversionService(f.app, () => t); cleanup.push(() => service.close());
+    const controller = new StructuralTableEditorController(f.app, () => DEFAULT_SETTINGS, undefined, undefined,
+      (table, target) => service.open(table, target));
+    f.cm.dispatch({ effects: StateEffect.appendConfig.of(controller.createExtension()) });
+    f.cm.dispatch({ effects: structuralTableSourceFocus.of(false) });
+    const cell = f.containerEl.querySelector<HTMLElement>(".structural-tables-table td")!;
+    cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true }));
+    lastMenu!.items.find((item) => item.title === t("menu.previewGfm"))!.callback!();
+    await vi.waitFor(() => expect(document.querySelector(".structural-tables-gfm-preview table")).not.toBeNull());
+    const candidate = document.querySelector(".structural-tables-gfm-preview pre")!.textContent!;
+    button(document, "Replace table").click();
+    await vi.waitFor(() => expect(f.source()).toBe(candidate));
+    expect(undo(f.cm)).toBe(true);
+    await vi.waitFor(() => expect(f.containerEl.querySelector(".structural-tables-table")!.contains(document.activeElement)).toBe(true));
+    expect(f.source()).toBe(SOURCE);
+    document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(f.source()).toBe(candidate));
+    expect(f.writes()).toBe(3);
   });
 });
 

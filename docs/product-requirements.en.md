@@ -44,4 +44,4 @@ The plugin does not provide spreadsheet-style formula calculations; safe TeX mat
 <!-- section: success -->
 ## Acceptance
 
-Pure-core tests cover positive, negative, and canonical serialization cases; packages are reproducible and offline; real Obsidian acceptance stays distinct from automation. Android emulator checks are optional quality checks and must identify the exact tested candidate. Android physical devices and iOS are out of scope.
+Pure-core tests cover positive, negative, and canonical serialization cases; packages are reproducible and offline; real Obsidian acceptance stays distinct from automation. Mobile interaction or shared runtime behavior affecting mobile requires representative Android emulator acceptance on the exact candidate; other changes record the reason for omission. Confirmed serious product defects affecting a release block that release. Missing host/tool evidence stays unverified and is assessed by risk; it does not automatically block publication or add a separate approval step. Untested scope cannot be claimed as passed. Android physical devices and iOS are out of scope.

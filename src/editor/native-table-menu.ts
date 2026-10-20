@@ -27,6 +27,7 @@ import {
 import { replaceTableSource } from "./table-replacement";
 import { structuralTableSelectionFromCoordinates } from "./table-selection";
 import { attachedEditorContext } from "./editor-view-context";
+import { addEditorTableHtmlCopyMenuItem } from "./table-html-menu";
 
 export class NativeTableMenuBridge {
   private readonly contributedEvents = new WeakSet<Event>();
@@ -154,6 +155,8 @@ export class NativeTableMenuBridge {
         this.previewGfm?.(table, gfmTarget);
       });
     }
+    addEditorTableHtmlCopyMenuItem(menu, this.app, markdownView.editor, table, this.getSettings, markdownView,
+      () => !this.disposed && target.isCurrent());
     if (this.exportImage !== undefined) {
       const sourcePath = markdownView.file?.path ?? "";
       addImageExportMenuItem(menu, t, () => this.exportImage?.(table, sourcePath,

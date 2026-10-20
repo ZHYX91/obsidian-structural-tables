@@ -75,7 +75,7 @@ const catalog = {
   "gfm.warning.rowHeaders": "Los encabezados de fila pasan a ser celdas normales; GFM no conserva su función de encabezado.",
   "gfm.warning.emptyHeader": "Se añade una fila vacía de encabezados arriba para conservar todas las filas existentes como datos.",
   "gfm.warning.hiddenCells": "Las celdas adicionales del código que Obsidian oculta no se copian. El reemplazo está desactivado; edita primero esas celdas en Markdown.",
-  "menu.previewGfm": "Vista previa como Markdown simple (GFM)…",
+  "menu.previewGfm": "Convertir a tabla GFM simple…",
   "modal.convertGfm.desc": "Las celdas combinadas y los encabezados de columna de varias filas se convertirán en una estructura plana. Revisa el GFM portable antes de reemplazar la tabla.",
   "modal.convertGfm.replace": "Reemplazar tabla",
   "modal.convertGfm.title": "Convertir a GFM simple",

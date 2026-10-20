@@ -1,6 +1,6 @@
 {
   "name": "obsidian-structural-tables",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "Render semantic Markdown tables with merged cells, multi-row headers, and row headers in Obsidian.",
   "type": "module",
   "main": "dist/main.js",
@@ -16,6 +16,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser-transpose": "node scripts/check-table-transpose-browser.mjs",
+    "test:browser": "node scripts/check-browser.mjs",
+    "test:browser-image": "node scripts/check-table-image-browser.mjs",
+    "test:browser-gfm": "node scripts/check-plain-gfm-browser.mjs",
     "test:coverage": "vitest run --coverage",
     "clean": "node scripts/clean.mjs",
     "clean:deps": "node scripts/clean.mjs --deps",

@@ -91,7 +91,7 @@ Las tablas HTML solo se convierten cuando es posible conservar su estructura de 
 
 ### Convertir a GFM simple
 
-Haz clic derecho en la tabla y elige «Vista previa como Markdown simple (GFM)…». En el editor también puedes colocar el cursor en el código de la tabla y ejecutar el comando de conversión a GFM simple.
+Haz clic derecho en la tabla y elige «Convertir a tabla GFM simple…». En el editor también puedes colocar el cursor en el código de la tabla y ejecutar el comando de conversión a GFM simple.
 
 Si la tabla solo tiene encabezados de fila, se recomienda intercambiar filas y columnas para llevar esas etiquetas al encabezado superior. Si mantienes la orientación sin encabezados de columna, se añade una fila vacía de encabezados arriba y se conservan todas las filas de datos.
 

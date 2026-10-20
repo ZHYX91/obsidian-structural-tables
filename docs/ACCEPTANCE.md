@@ -162,3 +162,7 @@ For the desktop `theme-corner-export` scenario, use these representative combina
 Use `Theme corners and export.md` unchanged, hash its bytes before and after render/export checks, and inspect saved PNG files separately from exporter previews. Record a separate result for each exercised theme, mode, view/output, appearance and takeover combination, including evidence and omitted checks. A scenario with uncovered combinations is partial or unverified; provider previews, existing screenshots and missing exporter dependencies cannot stand in for real saved-image acceptance. None of these desktop observations proves Android coverage.
 
 Table appearance (Follow theme/Grid/Three-line), density and layout are separate dimensions. Use representative combinations and change-directed coverage instead of rerunning every combination for unrelated changes. Check long text and empty merged cells before/during/after editing, measuring table width, column boundaries and local/page overflow alongside visual inspection.
+
+## Current safety regressions
+
+Run the `plain-gfm-preview-safety` and `native-boundary-and-navigation` scenarios with `GFM preview safety.md` in the exact candidate. Keep desktop, Android and companion-plugin observations separate. Follow the executable steps and expected results in `acceptance/product-scenarios.json`; preserve full-note baselines and actual undo/redo observations.

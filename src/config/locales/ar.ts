@@ -75,7 +75,7 @@ const catalog = {
   "gfm.warning.rowHeaders": "تصبح عناوين الصفوف خلايا عادية؛ لا يحتفظ GFM بدورها كعناوين.",
   "gfm.warning.emptyHeader": "يُضاف صف عناوين فارغ في الأعلى لتبقى جميع الصفوف الحالية بيانات.",
   "gfm.warning.hiddenCells": "لا تُنسخ خلايا المصدر الإضافية التي يخفيها Obsidian. الاستبدال معطل؛ عدّل هذه الخلايا في Markdown أولًا.",
-  "menu.previewGfm": "معاينة بتنسيق Markdown العادي (GFM)…",
+  "menu.previewGfm": "تحويل إلى جدول GFM عادي…",
   "modal.convertGfm.desc": "سيُفك دمج الخلايا وتُبسّط رؤوس الأعمدة متعددة الصفوف. راجع جدول GFM المتوافق مع المحررات الأخرى قبل استبدال الجدول.",
   "modal.convertGfm.replace": "استبدال الجدول",
   "modal.convertGfm.title": "التحويل إلى GFM عادي",

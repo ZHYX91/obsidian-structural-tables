@@ -293,10 +293,11 @@ export class PluginSettingTab {
 export class ButtonComponent {
   readonly buttonEl: HTMLButtonElement;
 
-  constructor() {
+  constructor(containerEl?: HTMLElement) {
     this.buttonEl = typeof document === "undefined"
       ? {} as HTMLButtonElement
       : document.createElement("button");
+    containerEl?.appendChild(this.buttonEl);
   }
 
   setButtonText(text: string): this { this.buttonEl.textContent = text; return this; }

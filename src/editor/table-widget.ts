@@ -62,7 +62,7 @@ import {
 } from "./table-selection";
 
 import { retainCellDraft } from "./cell-draft-recovery";
-import { tableCellSourceOffset } from "./table-source-binding";
+import { bindTableSourceSnapshot, tableCellSourceOffset } from "./table-source-binding";
 import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus, tableSourcePointerPending } from "./table-source-focus";
 
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
@@ -362,7 +362,7 @@ class StructuralTableInteraction {
       && this.table.range.to === table.range.to
       && this.table.sourceTableIndex === table.sourceTableIndex;
     this.table = table;
-    if (this.host !== null) this.host.dataset.structuralSourceTableIndex = String(table.sourceTableIndex);
+    if (this.host !== null && !sameSourceIdentity) bindTableSourceSnapshot(this.host, table, sourcePath);
     this.updateSelection(!sameSourceIdentity);
     return true;
   }
@@ -378,7 +378,7 @@ class StructuralTableInteraction {
     host.dataset.density = this.settings.density;
     host.dataset.zebra = String(this.settings.zebraRows);
     host.dataset.tableKind = this.table.structural ? "structural" : "ordinary";
-    host.dataset.structuralSourceTableIndex = String(this.table.sourceTableIndex);
+    bindTableSourceSnapshot(host, this.table, this.sourcePath);
     this.host = host;
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
     if (host.style.minHeight !== "") {

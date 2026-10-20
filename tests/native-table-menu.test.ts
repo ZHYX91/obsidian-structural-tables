@@ -21,12 +21,26 @@ const SOURCE = `| Name | Status |
 const cleanupCallbacks: (() => void)[] = [];
 const editors: EditorView[] = [];
 
-function nativeView(containerEl: HTMLElement): MarkdownView {
+function nativeView(containerEl: HTMLElement, source = SOURCE): MarkdownView {
   const file = new TFile(`Note${editors.length}.md`);
-  const editor = { getValue: () => SOURCE } as unknown as Editor;
-  const cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: SOURCE, extensions: [
+  let cm: EditorView;
+  const offset = (position: { line: number; ch: number }): number => cm.state.doc.line(position.line + 1).from + position.ch;
+  const editor = {
+    getValue: () => cm.state.doc.toString(),
+    offsetToPos: (value: number) => {
+      const line = cm.state.doc.lineAt(value);
+      return { line: line.number - 1, ch: value - line.from };
+    },
+    posToOffset: offset,
+    replaceRange: (insert: string, from: { line: number; ch: number }, to: { line: number; ch: number }) => {
+      cm.dispatch({ changes: { from: offset(from), to: offset(to), insert } });
+    },
+    setCursor: (position: { line: number; ch: number }) => cm.dispatch({ selection: { anchor: offset(position) } }),
+  } as unknown as Editor;
+  const table = parseEditableTables(source).tables[0]!;
+  cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: source, extensions: [
     editorInfoField.init(() => ({ editor, file: file as unknown as HostFile, app: {} as App, hoverPopover: null })),
-    EditorView.decorations.of(Decoration.set([Decoration.replace({ widget: new NativeTableWidget(parseEditableTables(SOURCE).tables[0]!), block: true }).range(0, SOURCE.length)])),
+    EditorView.decorations.of(Decoration.set([Decoration.replace({ widget: new NativeTableWidget(table), block: true }).range(table.range.from, table.range.to)])),
   ] }) });
   editors.push(cm);
   return Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file });
@@ -36,7 +50,8 @@ function openContextMenu(target: HTMLElement): void {
   target.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true }));
 }
 
-function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage, existingPopout = false): {
+function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage, existingPopout = false, source = SOURCE): {
+  markdownView: MarkdownView;
   cell: HTMLTableCellElement;
   popoutCell: HTMLTableCellElement | null;
   popoutWindow: Window | null;
@@ -52,7 +67,7 @@ function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage,
   const popoutWindow = iframe?.contentWindow ?? null;
   if (popoutWindow !== null) popoutWindow.document.body.innerHTML = `
     <div class="markdown-view"></div>`;
-  const markdownView = nativeView(container);
+  const markdownView = nativeView(container, source);
   const popoutView = popoutWindow === null ? null : nativeView(popoutWindow.document.querySelector<HTMLElement>(".markdown-view")!);
   const popoutCell = popoutWindow?.document.querySelector<HTMLTableCellElement>("tbody td") ?? null;
   const windowCallbacks = new Map<string, (workspaceWindow: unknown, window: Window) => void>();
@@ -97,6 +112,7 @@ function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage,
     exportImage,
   ).register(component);
   return {
+    markdownView,
     cell,
     popoutCell,
     popoutWindow,
@@ -113,6 +129,36 @@ afterEach(() => {
 });
 
 describe("native table menu bridge", () => {
+  it.each([false, true])("checks full-note boundaries when removing native column headers (separated=%s)", (separated) => {
+    const preceding = "| outside | prose | extra |\n" + (separated ? "\n" : "");
+    const source = preceding + "| H | V |\n| --- | --- |\n| a | b |\n| c | d |";
+    const { markdownView } = fixture(false, undefined, false, source);
+    const before = parseEditableTables(source).tables[0]!;
+    expect(before.valid).toBe(true);
+    expect(before.structural).toBe(false);
+    const write = vi.spyOn(markdownView.editor, "replaceRange");
+    const headers = [...markdownView.containerEl.querySelectorAll<HTMLElement>("th")];
+    headers.forEach((cell) => cell.classList.add("is-selected"));
+    openContextMenu(headers[0]!);
+    const remove = lastMenu?.items.find((item) => item.title === "Remove column headers");
+    expect(remove).toBeDefined();
+    remove!.callback!();
+    const afterSource = markdownView.editor.getValue();
+    if (!separated) {
+      expect(write).not.toHaveBeenCalled();
+      expect(afterSource).toBe(source);
+    } else {
+      expect(write).toHaveBeenCalledOnce();
+      expect(afterSource.startsWith(preceding)).toBe(true);
+      const after = parseEditableTables(afterSource).tables[0]!;
+      expect(after.valid).toBe(true);
+      expect(after.range.from).toBe(before.range.from);
+      expect(after.headerRowCount).toBe(0);
+      expect(after.rows.map((row) => row.cells.map((cell) => cell.content))).toEqual([
+        ["H", "V"], ["a", "b"], ["c", "d"],
+      ]);
+    }
+  });
   it("observes independent existing non-Markdown windows before their later Markdown transition", async () => {
     const realms = [new JSDOM("<body><div class='view'></div></body>"), new JSDOM("<body><div class='view'></div></body>")];
     const leaves = realms.map((realm) => ({ view: { containerEl: realm.window.document.querySelector<HTMLElement>(".view")! } }));

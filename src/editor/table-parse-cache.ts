@@ -1,6 +1,5 @@
 import type { Transaction } from "@codemirror/state";
 import type { StructuralTable } from "../core/model";
-import { endsRawLiteralHtmlBlock, startsRawLiteralHtmlBlock } from "../core/source-lines";
 
 /** Reuse only edits whose entire old and new line cannot carry Markdown structure. */
 export function mapTablesThroughProseEdit(
@@ -9,10 +8,14 @@ export function mapTablesThroughProseEdit(
 ): readonly StructuralTable[] | null {
   if (tables === null) return null;
   const prose = (text: string): boolean => text.trim() !== ""
-    && !/[|`~:]/u.test(text)
+    // Any angle bracket can open/close literal HTML ownership, including a
+    // declaration begun on an earlier line. Reparse rather than duplicating
+    // the context-sensitive HTML rules from the complete Markdown scanner.
+    && !/[|`~:<>]/u.test(text)
     && !/(?:%%|<!--|-->|\$\$)/u.test(text)
-    && !startsRawLiteralHtmlBlock(text)
-    && !endsRawLiteralHtmlBlock(text)
+    // Headings and thematic/setext lines can end a paragraph, allowing a
+    // following standalone HTML tag to start a block without a blank line.
+    && !/^ {0,3}(?:#{1,6}(?:[\t ]|$)|(?:\*[\t ]*){3,}$|(?:_[\t ]*){3,}$|(?:=+|-+)[\t ]*$)/u.test(text)
     && !/^(?:\uFEFF?(?:---|\.\.\.)[\t ]*$| {0,3}>| {4}|\t| {0,3}(?:[-+*]|\d{1,9}[.)])[\t ]{1,4}(?=\S))/u.test(text);
   let safe = true;
   transaction.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {

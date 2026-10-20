@@ -3,6 +3,17 @@ import { sourceLines } from "../core/source-lines";
 import { tableCellContentOffset } from "../core/table-cell-syntax";
 import type { TableCellCoordinate } from "./table-selection";
 
+/** One exact UTF-16 source snapshot per owned table, for cooperating plugins. */
+export function bindTableSourceSnapshot(host: HTMLElement, table: StructuralTable, sourcePath: string): void {
+  host.dataset.structuralSourceTableIndex = String(table.sourceTableIndex);
+  host.dataset.structuralSourceFrom = String(table.range.from);
+  host.dataset.structuralSourceTo = String(table.range.to);
+  host.dataset.structuralSourcePath = sourcePath;
+  // A prose edit can move a table without changing its potentially large source.
+  if (host.dataset.structuralSource !== table.source) host.dataset.structuralSource = table.source;
+  host.dataset.structuralSourceVersion = "1";
+}
+
 export function tableCellSourceOffset(
   source: string,
   table: StructuralTable,

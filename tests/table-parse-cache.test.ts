@@ -15,6 +15,9 @@ describe("prose edit cache", () => {
     "\n", "|", "---", "> ", "```", ":", "%%", "<!--", "-->", "$$", "$$x", "x$$", "", "    code",
     "<pre>", '<PRE class="literal">', "</pre>", "<script", "</SCRIPT>", "<style>", "</STYLE>",
     "<textarea>", "</TEXTAREA>",
+    "<div>", "</details>", "<span>", "<?xml", "?>", "<![CDATA[", "]]>", "<!DOCTYPE", ">",
+    "# Heading", "***", "___", "=", "--",
+    "ordinary prose <pre> inline", "<prelude> is not a literal raw tag",
   ])("reparses potential structure %j", (insert) => {
     const state = EditorState.create({ doc: source });
     const transaction = state.update({ changes: { from: 0, to: 17, insert } });
@@ -34,13 +37,30 @@ describe("prose edit cache", () => {
     expect(mapTablesThroughProseEdit(tables, transaction)).not.toBeNull();
   });
 
-  it.each(["ordinary prose <pre> inline", "<prelude> is not a literal raw tag"])(
-    "does not invalidate snapshots for non-boundary raw-tag text %j",
-    (prose) => {
-      const start = EditorState.create({ doc: source });
-      const transaction = start.update({ changes: { from: 0, to: 17, insert: prose } });
-      expect(mapTablesThroughProseEdit(parseEditableTables(source).tables, transaction)).not.toBeNull();
-    },
-  );
+  const table = "| A | < |\n| --- | --- |\n| x | y |";
+  it.each([
+    { name: "block HTML", prefix: "", suffix: "", edits: ["<div>", "text", "</details>", "text"] },
+    { name: "standalone HTML", prefix: "", suffix: "", edits: ["<span>", "text"] },
+    { name: "processing instruction", prefix: "", suffix: "", edits: ["<?xml", "text"] },
+    { name: "CDATA", prefix: "", suffix: "", edits: ["<![CDATA[", "text"] },
+    { name: "HTML declaration", prefix: "", suffix: "", edits: ["<!DOCTYPE", "text"] },
+    { name: "declaration ending", prefix: "<!DOCTYPE\n", suffix: "", edits: [">", "text"] },
+    { name: "processing instruction ending", prefix: "<?xml\n", suffix: "", edits: ["?>", "text"] },
+    { name: "CDATA ending", prefix: "<![CDATA[\n", suffix: "", edits: ["]]>", "text"] },
+    { name: "paragraph boundary", prefix: "", suffix: "\n<span>", edits: ["# Heading", "text", "***", "text", "___", "text"] },
+    { name: "setext boundary", prefix: "Title\n", suffix: "\n<span>", edits: ["=", "text", "--", "text"] },
+  ])("matches a complete parse through successive $name edits", ({ prefix, suffix, edits }) => {
+    let state = EditorState.create({ doc: `${prefix}text${suffix}\n${table}` });
+    let cached = parseEditableTables(state.doc.toString()).tables;
+    for (const insert of edits) {
+      const line = state.doc.lineAt(prefix.length);
+      const transaction = state.update({ changes: { from: line.from, to: line.to, insert } });
+      const complete = parseEditableTables(transaction.state.doc.toString()).tables;
+      const mapped = mapTablesThroughProseEdit(cached, transaction);
+      cached = [...(mapped ?? parseEditableTables(transaction.state.doc.toString()).tables)];
+      expect(cached, `${prefix}${insert}${suffix}`).toEqual(complete);
+      state = transaction.state;
+    }
+  });
 
 });

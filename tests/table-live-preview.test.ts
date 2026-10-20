@@ -290,6 +290,52 @@ function dispatchPointerDown(
 }
 
 describe("StructuralTableEditorController", () => {
+  it.each([
+    { before: "text", after: "<div>", beforeCount: 1, afterCount: 0 },
+    { before: "<div>", after: "text", beforeCount: 0, afterCount: 1 },
+  ])("updates table ownership after $before becomes $after", ({ before, after, beforeCount, afterCount }) => {
+    const source = `${before}\n| A | < |\n| --- | --- |\n| x | y |`;
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      expect(parent.querySelectorAll(".structural-tables-live-preview")).toHaveLength(beforeCount);
+      view.dispatch({ changes: { from: 0, to: before.length, insert: after } });
+      const complete = parseEditableTables(view.state.doc.toString()).tables;
+      expect(complete).toHaveLength(afterCount);
+      expect(parent.querySelectorAll(".structural-tables-live-preview")).toHaveLength(complete.length);
+    } finally { view.destroy(); }
+  });
+
+  it("publishes distinct exact source snapshots and rebinds offsets without recopying table source", () => {
+    const fragment = "| --- || --- |\n| Label | value |";
+    const source = `Intro\n\n${fragment}\n\n^table-id\n\n${fragment}\n\nAfter`;
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    const observer = new MutationObserver(() => {});
+    const hosts = [...parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview")];
+    try {
+      expect(hosts).toHaveLength(2);
+      const verify = (): void => {
+        const tables = parseEditableTables(view.state.doc.toString()).tables;
+        for (const [index, host] of hosts.entries()) {
+          const table = tables[index]!;
+          expect(host.dataset.structuralSourceVersion).toBe("1");
+          expect(host.dataset.structuralSourcePath).toBe("Test.md");
+          expect(host.dataset.structuralSourceFrom).toBe(String(table.range.from));
+          expect(host.dataset.structuralSourceTo).toBe(String(table.range.to));
+          expect(host.dataset.structuralSource).toBe(view.state.doc.sliceString(table.range.from, table.range.to));
+          expect(host.dataset.structuralSource).toBe(fragment);
+          expect(host.querySelector("[data-structural-source]")).toBeNull();
+        }
+        expect(hosts[0]!.dataset.structuralSourceFrom).not.toBe(hosts[1]!.dataset.structuralSourceFrom);
+      };
+      verify();
+      observer.observe(parent, { subtree: true, attributes: true });
+      view.dispatch({ changes: { from: 0, to: 5, insert: "Longer introduction" } });
+      expect([...parent.querySelectorAll(".structural-tables-live-preview")]).toEqual(hosts);
+      verify();
+      expect(observer.takeRecords().filter((record) => record.attributeName === "data-structural-source")).toHaveLength(0);
+    } finally { observer.disconnect(); view.destroy(); }
+  });
+
   it("renders and edits a source-owned Callout when native HTML lexing leaves it raw", async () => {
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
       const native = nativeTableForSource(markdown, target.ownerDocument);

@@ -35,6 +35,10 @@ function note(parent: HTMLElement, source = SOURCE) {
   const editor = { getValue: () => cm.state.doc.toString(), getCursor: () => ({ line: 2, ch: 2 }),
     posToOffset, offsetToPos: (offset: number) => { const line = cm.state.doc.lineAt(offset); return { line: line.number - 1, ch: offset - line.from }; },
     replaceRange: (insert: string, from: EditorPosition, to: EditorPosition) => cm.dispatch({ changes: { from: posToOffset(from), to: posToOffset(to), insert } }),
+    transaction: ({ changes }: { changes: { from: EditorPosition; to: EditorPosition; text: string }[] }, origin: string) => cm.dispatch({
+      changes: changes.map(({ from, to, text }) => ({ from: posToOffset(from), to: posToOffset(to), insert: text })),
+      userEvent: origin,
+    }),
   } as unknown as Editor;
   const tables = parseEditableTables(source).tables;
   const widgets = tables.map((table) => new NativeTableWidget(table, true));

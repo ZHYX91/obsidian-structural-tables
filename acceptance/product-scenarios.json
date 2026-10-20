@@ -13,6 +13,56 @@
   },
   "scenarios": [
     {
+      "id": "plain-gfm-preview-safety",
+      "title": "GFM orientation preview, exact targets and safe replacement",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open GFM preview safety. From the command palette and owned-table menu open the row-header-only table: Swap rows and columns is recommended and Name/Age/City become actual GFM column headers. Compare Keep rows and columns, rendered result and source. Copy each result and compare exact clipboard bytes. Cancel leaves the note unchanged.",
+        "Keep the source cursor in the first identical table and invoke conversion from the second table native menu with ordinary-table takeover off, then from its owned menu with takeover on. Confirm one replacement of only the clicked table; one undo/redo restores/reapplies the exact complete note.",
+        "Inspect merged cells, multiple header layers and alignment warnings in Structural table; check KEEP HIDDEN disables replacement and warns before copy. Convert the list-contained row-header table and preserve its prefix and surrounding text.",
+        "In Reading View use the plugin-rendered table menu: preview and copy are available, replacement is absent. Change the saved table while preview is open and require stale refusal. Also open a replacement preview then change file/source or retain a cell draft: confirmation must refuse.",
+        "Check narrow layout, keyboard focus, Arabic interface with an LTR note, clipboard denial and plugin unload. On Android operate actual touch menus, the soft keyboard and on-screen undo/redo. Record unsupported or unobserved checks independently."
+      ],
+      "expected": [
+        "Rendered/source/copy/replacement reflect the selected orientation. Loss of structure is explained; hidden source cells prevent replacement.",
+        "Cancel and refused stale/draft paths write nothing. Successful replacement preserves unrelated tables and prose, restores focus, and forms one independent history step. Reading mode is copy-only."
+      ]
+    },
+    {
+      "id": "native-boundary-and-navigation",
+      "title": "Native table boundary, right-click target and visual-line navigation",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.doubleTap",
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "In GFM preview safety use the native ordinary table menu in Boundary to insert a column or change headers; KEEP BEFORE and KEEP AFTER remain exact unrelated prose, then undo. Edit nearby HTML/paragraph boundaries and compare table ownership after view switch/full reparse.",
+        "On desktop leave an old source caret elsewhere, then right-click a rendered cell. The viewport must not jump to the old caret or open a different target menu. Inputs, links and buttons retain native context behavior.",
+        "Use a narrow cell with long wrapped text, hard breaks and a fractional CSS width. Up/Down leaves only the actual first/last visual line; interior visual lines, selection and uncertain bidi remain native. Verify normal edits and undo/redo.",
+        "On Android repeat the affected shared editor/navigation and menu paths with actual touch and soft-keyboard input. Right mouse-button behavior is desktop-only; do not infer mobile input from Chromium or mouse tests."
+      ],
+      "expected": [
+        "Native operations cannot absorb adjacent pipe prose; parser-cache ownership agrees with a complete reparse.",
+        "Context-menu targets stay under the actual gesture and visual navigation preserves native guards. Full-note source and history remain bounded."
+      ]
+    },
+    {
       "id": "html-boundary-code-interchange",
       "title": "Native HTML boundaries and exact code clipboard text",
       "surfaces": [

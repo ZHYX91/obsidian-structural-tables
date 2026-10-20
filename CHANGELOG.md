@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0 - 2026-10-20
+
+- Guard native table edits against adjacent prose and keep incremental parsing consistent with full Markdown boundaries.
+- Expose exact versioned source snapshots so cooperating plugins identify the clicked table safely.
+- Preview plain GFM with explicit orientation choices, rendered/source views, loss warnings, copy-only Reading View and one-step undoable replacement.
+- Preserve visual-line navigation at fractional widths and prevent rendered-cell right-clicks from scrolling to an old source caret.
+- Expand isolated Chromium interaction checks and localized guidance.
+
 ## 0.8.1 - 2026-10-19
 
 - Render source-owned Callout tables even when native Live Preview leaves the Callout as raw source after HTML; preserve complete quote source, editing and undo/redo without acquiring protected HTML or code.

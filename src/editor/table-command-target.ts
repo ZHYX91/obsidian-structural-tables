@@ -46,8 +46,15 @@ export function captureEditorTableCommandTarget(app: App, editor: Editor, table:
       if (current === null) return null;
       const result = validateTableOperationInDocument(source, current, operation(source, current));
       if (result.changed) {
+        // The host Editor owns note history, including native-table editors.
+        // A direct CM change can update the note without entering that history.
+        codeMirror.dispatch({ annotations: isolateHistory.of("full") });
+        editor.transaction({ changes: [{
+          from: editor.offsetToPos(current.range.from),
+          to: editor.offsetToPos(current.range.to),
+          text: result.source,
+        }] }, "structural-tables");
         codeMirror.dispatch({
-          changes: { from: current.range.from, to: current.range.to, insert: result.source },
           selection: { anchor: current.range.from + result.source.length },
           annotations: isolateHistory.of("full"),
         });

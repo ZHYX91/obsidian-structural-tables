@@ -30,10 +30,6 @@ function editorState(initial = SOURCE) {
     getValue: () => cm?.state.doc.toString() ?? source,
     offsetToPos: (offset: number) => ({ line: 0, ch: offset }),
     replaceRange,
-    transaction: ({ changes }: { changes: { from: { ch: number }; to: { ch: number }; text: string }[] }, origin: string) => cm?.dispatch({
-      changes: changes.map(({ from, to, text }) => ({ from: from.ch, to: to.ch, insert: text })),
-      userEvent: origin,
-    }),
     setCursor: vi.fn(),
   } as unknown as Editor;
   return {

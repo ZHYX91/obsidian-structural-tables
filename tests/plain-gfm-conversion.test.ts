@@ -18,7 +18,7 @@ describe("plain GFM conversion plans", () => {
     expect([...rendered(conversion.transpose!.source).querySelectorAll("td")].map((cell) => cell.textContent)).toEqual(["张三", "28", "杭州", "李四", "31", "上海"]);
     expect([...rendered(conversion.keep.source).querySelectorAll("th")].map((cell) => cell.textContent)).toEqual(["", "", ""]);
     expect(conversion.keep.warnings).toEqual(["row-headers", "empty-header"]);
-    expect(conversion.keep.source).toContain("| 姓名 | 张三 | 李四 |");
+    expect(conversion.keep.source).toContain("| 姓名  | 张三  | 李四  |");
     expect(table(conversion.transpose!.source)).toMatchObject({ valid: true, structural: false, headerRowCount: 1, rowHeaderColumnCount: 0 });
   });
 
@@ -28,7 +28,7 @@ describe("plain GFM conversion plans", () => {
     expect(conversion.recommended).toBe("keep");
     expect(conversion.keep.warnings).toEqual(["merged-cells", "multiple-headers", "row-headers"]);
     expect(conversion.keep.source).toContain("| Region / Quarter | Sales / Q1 | Sales / Q2 |");
-    expect(conversion.keep.source).toContain("| North | 8 | 11 |");
+    expect(conversion.keep.source).toContain("| North            | 8          | 11         |");
     expect(conversion.transpose!.warnings).toEqual(["merged-cells", "row-headers"]);
     expect(rendered(conversion.keep.source).querySelectorAll("[rowspan], [colspan]")).toHaveLength(0);
   });
@@ -52,14 +52,14 @@ describe("plain GFM conversion plans", () => {
   it("keeps an untransposable all-header table available for ordinary export", () => {
     const conversion = planPlainGfmConversion(table("| A | B |\n| --- | --- |"))!;
     expect(conversion.transpose).toBeNull();
-    expect(conversion.keep.source).toBe("| A | B |\n| --- | --- |");
+    expect(conversion.keep.source).toBe("| A   | B   |\n| --- | --- |");
   });
 
   it("explains alignment reset only when choosing a transpose with mixed column alignment", () => {
     const conversion = planPlainGfmConversion(table("| ---: || :--- |\n| Name | Alice |\n| Age | 28 |"))!;
     expect(conversion.transpose!.warnings).toContain("alignment");
     expect(conversion.keep.warnings).not.toContain("alignment");
-    expect(conversion.keep.source).toContain("| ---: | :--- |");
+    expect(conversion.keep.source).toContain("| ---: | :---- |");
   });
 
   it("offers copy with an explicit hidden-cell warning but refuses replacement or transpose", () => {

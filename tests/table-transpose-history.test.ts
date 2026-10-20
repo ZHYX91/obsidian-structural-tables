@@ -50,10 +50,6 @@ describe("transpose editor entry history", () => {
       listSelections: () => [{ anchor: offsetToPos(cm.state.selection.main.anchor), head: offsetToPos(cm.state.selection.main.head) }],
       posToOffset, offsetToPos,
       replaceRange: (insert: string, from: EditorPosition, to: EditorPosition) => cm.dispatch({ changes: { from: posToOffset(from), to: posToOffset(to), insert } }),
-      transaction: ({ changes }: { changes: { from: EditorPosition; to: EditorPosition; text: string }[] }, origin: string) => cm.dispatch({
-        changes: changes.map(({ from, to, text }) => ({ from: posToOffset(from), to: posToOffset(to), insert: text })),
-        userEvent: origin,
-      }),
       setCursor: (position: EditorPosition) => cm.dispatch({ selection: { anchor: posToOffset(position) } }),
     } as unknown as Editor;
     cm = new EditorView({ parent: containerEl, state: EditorState.create({

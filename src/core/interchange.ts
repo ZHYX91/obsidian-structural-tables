@@ -147,17 +147,37 @@ export function projectStructuralTable(table: StructuralTable): TabularProjectio
   };
 }
 
-export function structuralTableToPlainGfm(table: StructuralTable): string {
+export function structuralTableToPlainGfm(table: StructuralTable, layout: "compact" | "aligned" = "compact"): string {
   const projection = projectStructuralTable(table);
   const header = table.headerRowCount === 0
     ? Array.from({ length: table.columnCount }, () => "")
     : projection.columnNames;
-  const lines = [
-    `| ${header.map(portableCell).join(" | ")} |`,
+  const rows = [header, ...projection.rows].map((row) => row.map(portableCell));
+  const lines = layout === "aligned" ? alignedGfmLines(rows, projection.alignments) : [
+    `| ${rows[0]!.join(" | ")} |`,
     `| ${projection.alignments.map(delimiterFor).join(" | ")} |`,
-    ...projection.rows.map((row) => `| ${row.map(portableCell).join(" | ")} |`),
+    ...rows.slice(1).map((row) => `| ${row.join(" | ")} |`),
   ];
   return lines.join(table.source.includes("\r\n") ? "\r\n" : table.source.includes("\r") ? "\r" : "\n");
+}
+
+/** Match native GFM padding up front so rendering cannot add a second history step. */
+function alignedGfmLines(rows: string[][], alignments: ColumnAlignment[]): string[] {
+  // Native table widths count raw UTF-16 source, including portable escapes and HTML.
+  const widths = alignments.map((_alignment, column) => Math.max(5,
+    ...rows.map((row) => (row[column] ?? "").length + 2)));
+  const rowLine = (row: string[]): string => row.map((cell, column) => {
+    const padding = widths[column]! - cell.length;
+    const alignment = alignments[column];
+    const left = alignment === "right" ? padding - 1 : alignment === "center" ? Math.floor(padding / 2) : 1;
+    return `|${" ".repeat(left)}${cell}${" ".repeat(padding - left)}`;
+  }).join("") + "|";
+  const delimiter = alignments.map((alignment, column) => {
+    const left = alignment === "left" || alignment === "center" ? ":" : "";
+    const right = alignment === "right" || alignment === "center" ? ":" : "";
+    return `| ${left}${"-".repeat(widths[column]! - 2 - left.length - right.length)}${right} `;
+  }).join("") + "|";
+  return [rowLine(rows[0]!), delimiter, ...rows.slice(1).map(rowLine)];
 }
 
 function delimitedCell(value: string, delimiter: "," | "\t"): string {

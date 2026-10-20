@@ -21,10 +21,6 @@ export function tableCommandEditor(source: string, extension: Extension = [], ow
     offsetToPos: (offset: number) => { const line = cm.state.doc.lineAt(offset); return { line: line.number - 1, ch: offset - line.from }; },
     setCursor: (position: { line: number; ch: number }) => cm.dispatch({ selection: { anchor: toOffset(position) } }),
     replaceRange: (insert: string, from: { line: number; ch: number }, to: { line: number; ch: number }) => cm.dispatch({ changes: { from: toOffset(from), to: toOffset(to), insert } }),
-    transaction: ({ changes }: { changes: { from: { line: number; ch: number }; to: { line: number; ch: number }; text: string }[] }, origin: string) => cm.dispatch({
-      changes: changes.map(({ from, to, text }) => ({ from: toOffset(from), to: toOffset(to), insert: text })),
-      userEvent: origin,
-    }),
   } as unknown as Editor;
   const app = Object.assign(new App(), {
     vault: {

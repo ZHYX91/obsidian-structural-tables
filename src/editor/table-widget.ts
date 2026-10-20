@@ -1377,8 +1377,10 @@ class StructuralTableInteraction {
       this.app, t, tableIdentity, transposeRequest,
     )));
     if (this.previewGfm !== undefined && info?.editor !== undefined) {
-      const gfmTarget = captureEditorPlainGfmTarget(this.app, info.editor, tableIdentity, undefined,
-        () => view.dom.isConnected && this.host === frozen.host && frozen.host.isConnected);
+      // The dialog can outlive this presentation widget during source-focus
+      // changes. Its captured editor/file/source owns the write; the service
+      // closes open dialogs when the plugin unloads.
+      const gfmTarget = captureEditorPlainGfmTarget(this.app, info.editor, tableIdentity);
       addPlainGfmMenuItem(menu, t, () => activate(() => {
         if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
         this.previewGfm?.(tableIdentity, gfmTarget);

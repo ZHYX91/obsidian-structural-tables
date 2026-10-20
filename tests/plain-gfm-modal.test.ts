@@ -2,7 +2,7 @@
 import MarkdownIt from "markdown-it";
 import { history, undo, redo, undoDepth } from "@codemirror/commands";
 import { Decoration, EditorView } from "@codemirror/view";
-import { StateEffect } from "@codemirror/state";
+import { Compartment, StateEffect } from "@codemirror/state";
 import { App, Component, MarkdownRenderer } from "obsidian";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PlainGfmConversionService, PlainGfmModal, type PlainGfmTarget } from "../src/app/plain-gfm-modal";
@@ -277,6 +277,25 @@ describe("GFM preview and editor entry points", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]!.table.source).toBe(SOURCE);
     expect(requests[0]!.target.isCurrent()).toBe(true);
+  });
+
+  it("keeps an owned-table preview usable when the unchanged presentation widget is rebuilt", async () => {
+    const f = editor("before\n\n" + SOURCE);
+    const service = new PlainGfmConversionService(f.app, () => t); cleanup.push(() => service.close());
+    const controller = new StructuralTableEditorController(f.app, () => DEFAULT_SETTINGS, undefined, undefined,
+      (table, target) => service.open(table, target));
+    const presentation = new Compartment();
+    f.cm.dispatch({ effects: StateEffect.appendConfig.of(presentation.of(controller.createExtension())) });
+    const cell = f.containerEl.querySelector<HTMLElement>(".structural-tables-table td")!;
+    cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2, cancelable: true }));
+    lastMenu!.items.find((item) => item.title === t("menu.previewGfm"))!.callback!();
+    await vi.waitFor(() => expect(document.querySelector(".structural-tables-gfm-preview table")).not.toBeNull());
+    const candidate = document.querySelector(".structural-tables-gfm-preview pre")!.textContent!;
+    // Source mode removes the widget while the same attached editor, file and bytes survive.
+    f.cm.dispatch({ effects: presentation.reconfigure([]) });
+    button(document, "Replace table").click();
+    await vi.waitFor(() => expect(f.source()).toBe("before\n\n" + candidate));
+    expect(f.writes()).toBe(1);
   });
 });
 

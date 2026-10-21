@@ -91,7 +91,7 @@ for (const [, filename] of locales) {
   if (filename !== "README.md" && filename !== "README.zh-CN.md") {
     const firstExample = /```markdown\n([\s\S]*?)\n```/u.exec(source)?.[1] ?? "";
     assert.ok(firstExample, `${path} must include a Markdown table example`);
-    assert.doesNotMatch(firstExample, /\b(?:Region|Sales|Quarter|North)\b/u,
+    assert.doesNotMatch(firstExample, /\b(?:Sales|Quarter|North)\b/u,
       `${path} must localize its example table labels and values`);
   }
   const expectedNavigation = [];

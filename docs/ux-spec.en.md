@@ -195,7 +195,7 @@ Use native Obsidian controls with **General**, **Views**, and **Appearance** tab
 
 ### General
 
-- language: Follow Obsidian, English, 简体中文, 繁體中文, 日本語, Deutsch, Español, العربية;
+- language: Follow Obsidian, English, 简体中文, 繁體中文, 日本語, 한국어, Deutsch, Français, Español, Português (Brasil), Русский, Tiếng Việt, العربية;
 - HTML-table paste conversion;
 - warnings about overlapping table-plugin syntax.
 

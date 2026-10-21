@@ -166,18 +166,18 @@ For example, this table has only row headers:
 
 ```markdown
 | --- || --- | --- |
-| 姓名 | 张三 | 李四 |
-| 年龄 | 28 | 31 |
-| 城市 | 杭州 | 上海 |
+| Name | Alice | Bob |
+| Age | 28 | 31 |
+| City | Hangzhou | Shanghai |
 ```
 
 The recommended result is ordinary GFM, with the labels retained as column headers:
 
 ```markdown
-| 姓名 | 年龄 | 城市 |
+| Name | Age | City |
 | --- | --- | --- |
-| 张三 | 28 | 杭州 |
-| 李四 | 31 | 上海 |
+| Alice | 28 | Hangzhou |
+| Bob | 31 | Shanghai |
 ```
 
 **Copy current table as plain GFM** uses the recommended orientation directly. Use the preview when you want to choose the orientation. Neither option changes the source until you choose **Replace table**. If Obsidian hides extra source cells, the preview explains that they are absent from the copy and disables replacement; correct the source first to include them.

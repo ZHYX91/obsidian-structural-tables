@@ -13,6 +13,7 @@ import {
   wholeTableClipboardImport,
 } from "../src/editor/table-interchange";
 import { parseEditableTables } from "../src/core/parser";
+import { editCellContent } from "../src/core/operations";
 
 const originalDomParser = globalThis.DOMParser;
 const originalHtmlTable = globalThis.HTMLTableElement;
@@ -156,6 +157,28 @@ describe("HTML table clipboard import", () => {
     expect(rows[3]?.cells[1]?.textContent).toBe("\u00a0\u00a0");
     expect(rows[4]?.cells[1]?.textContent).toBe("\u202fX\u202f");
     expect(rows[5]?.cells[1]?.textContent).toBe("A\u00a0B");
+  });
+
+  it.each([
+    ["&nbsp;A&nbsp;", "\u00a0A\u00a0", "&#160;A&#160;"],
+    ["&nbsp;&nbsp;", "\u00a0\u00a0", "&#160;&#160;"],
+    ["&#8199;A&#8199;", "\u2007A\u2007", "&#8199;A&#8199;"],
+    ["&#8239;A&#8239;", "\u202fA\u202f", "&#8239;A&#8239;"],
+  ])("retains HTML single-cell paste %s after commit and reopening", (html, text, expected) => {
+    const imported = cellClipboardText(`<td>${html}</td>`, text);
+    expect(imported).toEqual({ kind: "text", text, fallback: false });
+    if (imported.kind !== "text") throw new Error("Expected an HTML cell draft");
+    const original = "| Value | Guard |\n| --- || --- |\n| original | KEEP |";
+    const table = parseEditableTables(original).tables[0]!;
+    const committed = editCellContent(table, 1, 0, imported.text);
+    expect(committed.changed).toBe(true);
+    const reopened = parseEditableTables(committed.source).tables[0]!;
+    expect(reopened.valid).toBe(true);
+    expect(reopened.rows[1]?.cells[0]?.content).toBe(expected);
+    expect(reopened.rows[1]?.cells[1]?.content).toBe("KEEP");
+    expect(editCellContent(reopened, 1, 0, expected).changed).toBe(false);
+    const rendered = new DOMParser().parseFromString(new MarkdownIt({ html: true }).render(`| Value | Guard |\n| --- | --- |\n| ${expected} | KEEP |`), "text/html");
+    expect(rendered.querySelector("tbody tr")?.firstElementChild?.textContent).toBe(text);
   });
 
   it.each([

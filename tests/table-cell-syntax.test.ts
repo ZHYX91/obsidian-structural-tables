@@ -27,6 +27,16 @@ describe("table cell syntax", () => {
       .toBe("before \\| `code|span` \\| after");
   });
 
+  it.each(["\u00a0", "\u2007", "\u202f"])("preserves nonbreaking edge spaces %j while trimming ordinary padding", (space) => {
+    const entity = `&#${space.codePointAt(0)};`;
+    expect(normalizeTableCellInput(` \t${space} A ${space}\t `)).toBe(`${entity} A ${entity}`);
+    expect(normalizeTableCellInput(space + space)).toBe(entity + entity);
+    expect(normalizeTableCellInput(`A${space}B`)).toBe(`A${space}B`);
+    expect(normalizeTableCellInput(`\`A${space}B\``)).toBe(`\`A${space}B\``);
+    expect(normalizeTableCellInput(`[[A${space}B]]`)).toBe(`[[A${space}B]]`);
+    expect(normalizeTableCellInput(entity + "A" + entity)).toBe(entity + "A" + entity);
+  });
+
   it("maps visible cell content offsets back to the parser's column boundaries", () => {
     for (const [line, expected] of [
       ["| A | B |", [0, 1]],

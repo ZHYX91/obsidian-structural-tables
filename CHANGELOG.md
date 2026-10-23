@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1 - 2026-10-23
+
+- Refuse Sheets Extended migration when removing its separator column would absorb unrelated adjacent pipe rows.
+- Preserve nonbreaking, figure and narrow nonbreaking spaces in HTML table imports and committed cell drafts, including edge-only whitespace; keep code and Wiki-link interior text intact.
+- Keep empty HTML body rows as data while respecting explicitly empty table-header rows.
+
 ## 0.9.0 - 2026-10-20
 
 - Offer whole-table Word / HTML copy in source, native-table and Reading View menus, with captured-target checks before clipboard writes. Group GFM conversion with whole-table transpose and use an explicit conversion label.

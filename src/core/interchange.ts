@@ -1,7 +1,7 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
-import { closedCodeSpanEnd, existingTableCellText, mathCellInputProblem } from "./table-cell-syntax";
+import { closedCodeSpanEnd, existingTableCellText, mathCellInputProblem, trimTableCellWhitespace } from "./table-cell-syntax";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
 
 export interface TabularProjection {
@@ -94,10 +94,7 @@ function importedHtmlCellText(content: string, nativeGfm: boolean): string {
   // Markdown cell parsing trims raw Unicode whitespace at the edges. Encode
   // nonbreaking edge spaces as character references while leaving interior
   // characters intact (including inside code spans and Wiki link targets).
-  const source = content.replace(/\r\n|\r|\n/gu, "<br>")
-    .replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/gu, "")
-    .replace(/^[\u00a0\u2007\u202f]+|[\u00a0\u2007\u202f]+$/gu, (spaces) =>
-      Array.from(spaces, (space) => `&#${space.codePointAt(0)};`).join(""));
+  const source = trimTableCellWhitespace(content.replace(/\r\n|\r|\n/gu, "<br>"));
   let result = "";
   for (let index = 0; index < source.length;) {
     const character = source[index] ?? "";

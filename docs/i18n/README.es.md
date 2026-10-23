@@ -2,7 +2,7 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
-Esta guía resumida explica las funciones principales y sus límites. Consulta las instrucciones completas en [English](../../README.md) o [简体中文](README.zh-CN.md).
+Aquí tienes las operaciones habituales y las precauciones principales. Para los casos menos comunes, consulta las guías en [inglés](../../README.md) o [chino simplificado](README.zh-CN.md).
 
 Añade celdas combinadas, varias filas de encabezados, encabezados de fila y tablas sin encabezados a Markdown. Abrir o leer una tabla nunca reescribe el Markdown de la nota.
 
@@ -67,6 +67,8 @@ Crea una tabla Markdown y usa la siguiente sintaxis:
 
 `<` combina con la columna anterior del texto fuente; `^` combina hacia arriba. El `||` de la fila separadora marca el límite de encabezados de fila sin añadir otra columna.
 
+Si una tabla no se ve bien, usa **Validar las tablas estructurales de la nota actual**. El comando muestra los problemas de sintaxis sin modificar Markdown.
+
 Haz clic en una celda en Vista previa. Enter guarda y avanza; Mayús+Enter inserta un salto de línea; Escape cancela. Arrastra un controlador para mover filas o columnas.
 
 Con una selección de celdas, Supr o Retroceso solo borra el contenido, no las filas ni las combinaciones. Usa el menú contextual para eliminar filas, columnas o tablas. Puedes deshacer los cambios.
@@ -76,6 +78,8 @@ Los rangos copiados o cortados solo se pegan si puede conservarse la estructura 
 En escritorio puedes previsualizar, copiar o guardar un PNG de la tabla completa. Los cambios de celda sin guardar no aparecen en la imagen. La exportación de PNG no está disponible en móvil.
 
 Guarda la nota y saca la tabla de listas o citas antes de convertirla en Base. La conversión aplana las combinaciones; restaurar la tabla original no elimina las notas de registro creadas.
+
+Antes de convertir a Base, separa las celdas combinadas del área de datos. Después, sitúa el cursor dentro del bloque Base y ejecuta **Crear un registro para la Base actual** para añadir un registro vacío.
 
 ### Tablas Markdown normales
 

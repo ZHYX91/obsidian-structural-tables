@@ -1,7 +1,7 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
-import { closedCodeSpanEnd, existingTableCellText, mathCellInputProblem } from "./table-cell-syntax";
+import { closedCodeSpanEnd, existingTableCellText, mathCellInputProblem, trimTableCellWhitespace } from "./table-cell-syntax";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
 
 export interface TabularProjection {
@@ -91,7 +91,10 @@ function portableCell(content: string): string {
 
 /** HTML clipboard cells are literal text, not already-escaped GFM source. */
 function importedHtmlCellText(content: string, nativeGfm: boolean): string {
-  const source = content.replace(/\r\n|\r|\n/gu, "<br>").trim();
+  // Markdown cell parsing trims raw Unicode whitespace at the edges. Encode
+  // nonbreaking edge spaces as character references while leaving interior
+  // characters intact (including inside code spans and Wiki link targets).
+  const source = trimTableCellWhitespace(content.replace(/\r\n|\r|\n/gu, "<br>"));
   let result = "";
   for (let index = 0; index < source.length;) {
     const character = source[index] ?? "";
@@ -379,7 +382,7 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
   }
   let headerRowCount = 0;
   for (const [rowIndex, row] of rows.entries()) {
-    if (row.section !== "head" && !row.cells.every((cell) => cell.header)) break;
+    if (row.section !== "head" && (row.cells.length === 0 || !row.cells.every((cell) => cell.header))) break;
     headerRowCount = rowIndex + 1;
   }
   const bodyOwners = owners.slice(headerRowCount);

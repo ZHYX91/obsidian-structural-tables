@@ -186,9 +186,15 @@ export function mathPipeSuggestions(source: string): MathPipeSuggestion[] {
 
   return suggestions;
 }
+/** Keep meaningful nonbreaking edge spaces through Markdown's whitespace trimming. */
+export function trimTableCellWhitespace(input: string): string {
+  return input.replace(/^\s+|\s+$/gu, (spaces) => spaces.replace(/[\u00a0\u2007\u202f]/gu,
+    (space) => `&#${space.codePointAt(0)};`)).trim();
+}
+
 function escapedTableCellText(input: string): string {
   const withBreaks = input.replace(/\r\n|\r|\n/gu, "<br>");
-  const source = withBreaks.trim();
+  const source = trimTableCellWhitespace(withBreaks);
   let output = "";
   let escaped = false;
   for (let index = 0; index < source.length; index += 1) {

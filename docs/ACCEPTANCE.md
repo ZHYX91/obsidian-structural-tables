@@ -2,6 +2,14 @@
 
 Automated checks prove source-level behavior and package integrity. They do not prove behavior in a real Obsidian host.
 
+For nonbreaking-space import and Sheets Extended migration changes, select
+`clipboard-fidelity-and-migration`. Use `Clipboard fidelity and migration.md` and
+copy the actual browser-rendered `Clipboard fidelity.html` table on desktop.
+The provider's sample command only seeds plain clipboard input for cell-paste
+checks, including Android; it does not paste, commit or issue a verdict. Record
+source and rendered code points after actual product paste/commit, reopen and
+undo/redo. Keep rich HTML import and mobile plain-text paste claims separate.
+
 When one note contains multiple tables, verify in Reading View that every native and owned table is rendered from its own reported source-line range rather than from an earlier table in the note.
 
 For a full optional regression, test the packaged candidate in an explicitly named disposable Vault on the minimum supported Obsidian version and the current stable version. Select the modules affected by the change; a full regression covers the complete checklist.

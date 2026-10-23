@@ -694,6 +694,28 @@
         "One gesture reorders the complete selected axis; header, merge, pointercancel and Escape blockers preserve source",
         "Anchored paste expands only as necessary, preserves source syntax and unrelated values, refuses partial merges and unsafe owner topology, and commits once with undo/redo focus"
       ]
+    },
+    {
+      "id": "clipboard-fidelity-and-migration",
+      "title": "Clipboard nonbreaking spaces and bounded Sheets migration",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Clipboard fidelity and migration. Use the acceptance provider sample command to copy edge NBSP, only NBSP, figure spaces and narrow NBSP as setup; paste each into the product cell editor and commit. Leave/reopen the note and record the source and rendered code points. Exercise actual undo/redo and preserve KEEP-CELL, KEEP-ROW and the complete surrounding note.",
+        "On desktop copy the browser-rendered Clipboard fidelity.html table and paste into the note through the product. Verify interior and edge spaces, space-only cells, code and Wiki text. Repeat a real single HTML-cell copy into an active cell and commit; do not replace real clipboard input with a synthetic paste event. Android covers native plain-text cell paste and commit; record rich HTML clipboard scope separately.",
+        "Invoke Sheets Extended migration on the standalone table, then undo and redo. Invoke migration on the table immediately below KEEP-BEFORE and confirm refusal without a source/history change. Preserve KEEP-AFTER and other tables.",
+        "Record clipboard fidelity observations after the relevant actions. On Android use actual touch, native Paste and host Undo/Redo controls; provider setup and observation never substitute for product interaction."
+      ],
+      "expected": [
+        "Nonbreaking edge and space-only characters survive actual paste, commit, reopen and rendering; code/Wiki interior text remains unchanged.",
+        "Valid migration changes only its table, one undo restores the complete baseline, and the boundary-risk migration writes nothing."
+      ]
     }
   ]
 }

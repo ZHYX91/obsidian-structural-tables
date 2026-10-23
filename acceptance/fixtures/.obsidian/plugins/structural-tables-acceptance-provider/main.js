@@ -1,6 +1,35 @@
 const { Plugin, MarkdownView, Notice, TFile, Component, MarkdownRenderer, Modal } = require("obsidian");
 module.exports = class extends Plugin {
   onload() {
+    this.addCommand({ id: "clipboard-fidelity-samples", name: "Prepare clipboard fidelity samples", callback: () => {
+      const modal = new Modal(this.app);
+      modal.setTitle("Clipboard fidelity input samples");
+      for (const [label, value] of [["Edge NBSP", "\u00a0A\u00a0"], ["Only NBSP", "\u00a0\u00a0"],
+        ["Figure spaces", "\u2007A\u2007"], ["Narrow NBSP", "\u202fA\u202f"]]) {
+        const button = modal.contentEl.createEl("button", { text: label });
+        button.addEventListener("click", () => { void navigator.clipboard.writeText(value).then(() => {
+          new Notice(`${label} copied as input`); modal.close();
+        }); });
+      }
+      modal.open();
+    } });
+    this.addCommand({ id: "record-clipboard-fidelity", name: "Record clipboard fidelity observation", callback: async () => {
+      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (view?.file?.path !== "Clipboard fidelity and migration.md") return;
+      const source = await this.app.vault.read(view.file);
+      if (!source.includes("<!-- structural-tables-clipboard-fidelity -->")) return;
+      const cells = Array.from(view.containerEl.querySelectorAll("th, td"))
+        .filter((cell) => cell.getClientRects().length > 0).map((cell) => ({
+          text: cell.textContent,
+          codePoints: Array.from(cell.textContent ?? "", (character) => character.codePointAt(0)),
+        }));
+      await this.app.vault.adapter.write(`_clipboard-fidelity-${Date.now()}.json`, JSON.stringify({
+        observedAt: new Date().toISOString(), hostVersion: require("obsidian").apiVersion,
+        mobile: require("obsidian").Platform.isMobileApp, file: view.file.path,
+        view: view.getMode(), source, cells,
+      }, null, 2));
+      new Notice("Clipboard fidelity observation recorded.");
+    } });
     this.addCommand({
       id: "record-html-boundary-observation",
       name: "Record HTML boundary observation",

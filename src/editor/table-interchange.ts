@@ -9,9 +9,16 @@ function positiveSpan(value: number): number {
 
 const HTML_BLOCK_ELEMENTS = new Set(["ADDRESS", "ARTICLE", "BLOCKQUOTE", "DIV", "LI", "P"]);
 
+// CSS-collapsible ASCII whitespace is distinct from nonbreaking Unicode spaces.
+const COLLAPSIBLE_HTML_WHITESPACE = /[ \t\r\n\f\v]+/gu;
+
+function trimCollapsibleHtmlWhitespace(value: string): string {
+  return value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/gu, "");
+}
+
 function appendHtmlCellText(node: Node, parts: string[]): void {
   if (node.nodeType === 3) {
-    parts.push((node.textContent ?? "").replace(/\s+/gu, " "));
+    parts.push((node.textContent ?? "").replace(COLLAPSIBLE_HTML_WHITESPACE, " "));
     return;
   }
   if (node.nodeType !== 1) return;
@@ -29,7 +36,7 @@ function appendHtmlCellText(node: Node, parts: string[]): void {
 function htmlCellText(cell: HTMLTableCellElement): string {
   const parts: string[] = [];
   for (const child of cell.childNodes) appendHtmlCellText(child, parts);
-  return parts.join("").replace(/[ \t]*\n[ \t]*/gu, "\n").trim();
+  return trimCollapsibleHtmlWhitespace(parts.join("").replace(/[ \t]*\n[ \t]*/gu, "\n"));
 }
 
 interface ClipboardTable {

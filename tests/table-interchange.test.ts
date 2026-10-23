@@ -13,6 +13,7 @@ import {
   wholeTableClipboardImport,
 } from "../src/editor/table-interchange";
 import { parseEditableTables } from "../src/core/parser";
+import { editCellContent } from "../src/core/operations";
 
 const originalDomParser = globalThis.DOMParser;
 const originalHtmlTable = globalThis.HTMLTableElement;
@@ -128,6 +129,56 @@ describe("HTML table clipboard import", () => {
     expect(cellClipboardText("", "")).toEqual({ kind: "unsupported" });
     expect(cellClipboardText("", "plain")).toEqual({ kind: "text", text: "plain", fallback: false });
     expect(cellClipboardText("<td>A<br>B</td>", '"A\nB"\r\n')).toEqual({ kind: "text", text: "A\nB", fallback: false });
+  });
+
+  it("preserves nonbreaking HTML spaces in cells and at Markdown cell edges", () => {
+    const html = `<table>
+      <tr><th>Case</th><th>Value</th></tr>
+      <tr><td>Inside</td><td>A&nbsp;&nbsp;B</td></tr>
+      <tr><td>Edges</td><td>&nbsp;A&nbsp;</td></tr>
+      <tr><td>Only spaces</td><td>&nbsp;&nbsp;</td></tr>
+      <tr><td>Narrow</td><td>\u202fX\u202f</td></tr>
+      <tr><td>Code</td><td>\`A&nbsp;B\`</td></tr>
+    </table>`;
+    const source = structuralSourceFromClipboardHtml(html);
+    expect(source).not.toBeNull();
+    const table = parseEditableTables(source!).tables[0]!;
+    expect(table.valid).toBe(true);
+    expect(table.rows[1]?.cells[1]?.content).toBe("A\u00a0\u00a0B");
+    expect(table.rows[2]?.cells[1]?.content).toBe("&#160;A&#160;");
+    expect(table.rows[3]?.cells[1]?.content).toBe("&#160;&#160;");
+    expect(table.rows[4]?.cells[1]?.content).toBe("&#8239;X&#8239;");
+    expect(table.rows[5]?.cells[1]?.content).toBe("`A\u00a0B`");
+
+    const rendered = new DOMParser().parseFromString(new MarkdownIt({ html: true }).render(source!), "text/html");
+    const rows = rendered.querySelectorAll<HTMLTableRowElement>("tr");
+    expect(rows[1]?.cells[1]?.textContent).toBe("A\u00a0\u00a0B");
+    expect(rows[2]?.cells[1]?.textContent).toBe("\u00a0A\u00a0");
+    expect(rows[3]?.cells[1]?.textContent).toBe("\u00a0\u00a0");
+    expect(rows[4]?.cells[1]?.textContent).toBe("\u202fX\u202f");
+    expect(rows[5]?.cells[1]?.textContent).toBe("A\u00a0B");
+  });
+
+  it.each([
+    ["&nbsp;A&nbsp;", "\u00a0A\u00a0", "&#160;A&#160;"],
+    ["&nbsp;&nbsp;", "\u00a0\u00a0", "&#160;&#160;"],
+    ["&#8199;A&#8199;", "\u2007A\u2007", "&#8199;A&#8199;"],
+    ["&#8239;A&#8239;", "\u202fA\u202f", "&#8239;A&#8239;"],
+  ])("retains HTML single-cell paste %s after commit and reopening", (html, text, expected) => {
+    const imported = cellClipboardText(`<td>${html}</td>`, text);
+    expect(imported).toEqual({ kind: "text", text, fallback: false });
+    if (imported.kind !== "text") throw new Error("Expected an HTML cell draft");
+    const original = "| Value | Guard |\n| --- || --- |\n| original | KEEP |";
+    const table = parseEditableTables(original).tables[0]!;
+    const committed = editCellContent(table, 1, 0, imported.text);
+    expect(committed.changed).toBe(true);
+    const reopened = parseEditableTables(committed.source).tables[0]!;
+    expect(reopened.valid).toBe(true);
+    expect(reopened.rows[1]?.cells[0]?.content).toBe(expected);
+    expect(reopened.rows[1]?.cells[1]?.content).toBe("KEEP");
+    expect(editCellContent(reopened, 1, 0, expected).changed).toBe(false);
+    const rendered = new DOMParser().parseFromString(new MarkdownIt({ html: true }).render(`| Value | Guard |\n| --- | --- |\n| ${expected} | KEEP |`), "text/html");
+    expect(rendered.querySelector("tbody tr")?.firstElementChild?.textContent).toBe(text);
   });
 
   it.each([
@@ -264,6 +315,28 @@ describe("HTML table clipboard import", () => {
     expect(parsed?.valid).toBe(true);
     expect(parsed?.headerRowCount).toBe(2);
     expect(parsed?.rowHeaderColumnCount).toBe(1);
+  });
+
+  it("keeps an empty tbody row in a headerless HTML table as data", () => {
+    const source = structuralSourceFromClipboardHtml(
+      "<table><tbody><tr></tr><tr><td>A</td><td>B</td></tr></tbody></table>",
+    );
+    const table = parseEditableTables(source ?? "").tables[0]!;
+    expect(table.valid).toBe(true);
+    expect(table.headerRowCount).toBe(0);
+    expect(table.rows).toHaveLength(2);
+    expect(table.rows[0]?.cells.map((cell) => cell.content)).toEqual(["", ""]);
+    expect(table.rows[1]?.cells.map((cell) => cell.content)).toEqual(["A", "B"]);
+  });
+
+  it("still respects an explicit empty thead row", () => {
+    const source = structuralSourceFromClipboardHtml(
+      "<table><thead><tr></tr></thead><tbody><tr><td>A</td><td>B</td></tr></tbody></table>",
+    );
+    const table = parseEditableTables(source ?? "").tables[0]!;
+    expect(table.valid).toBe(true);
+    expect(table.headerRowCount).toBe(1);
+    expect(table.rows).toHaveLength(2);
   });
 
   it("keeps pasted HTML with only td cells headerless", () => {

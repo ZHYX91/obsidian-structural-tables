@@ -75,6 +75,8 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 
 Use the **+** controls, row/column handles, and context menu for structural changes. To import a supported HTML table, paste it into the note's Markdown editor. Reading view remains display-only.
 
+If the table looks wrong, run **Validate structural tables in current note** from the command palette. It reports syntax problems without editing Markdown.
+
 ### Advanced editing and safe deletion
 
 Click a cell in Live Preview to edit it. If its rendered text has a unique position in Markdown (including links, bold, italic, code, and emoji), the caret follows your click. Otherwise it starts at the end of the cell rather than selecting and replacing everything. Alt-click a link label to edit it without following the link.

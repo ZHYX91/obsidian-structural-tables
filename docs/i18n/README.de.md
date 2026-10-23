@@ -2,7 +2,7 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
-Dieser kompakte Einstieg erklärt die wichtigsten Funktionen und Grenzen. Ausführliche Anleitungen gibt es auf [English](../../README.md) und [简体中文](README.zh-CN.md).
+Hier finden Sie die wichtigsten Handgriffe und Einschränkungen. Details stehen in der [englischen](../../README.md) und [chinesischen Anleitung](README.zh-CN.md).
 
 Erweitert Markdown-Tabellen um verbundene Zellen, mehrere Kopfzeilen, Zeilenüberschriften und Tabellen ohne Spaltenüberschriften. Das Anzeigen einer Tabelle verändert den Markdown-Text nicht.
 
@@ -65,7 +65,9 @@ Eine Markdown-Tabelle anlegen und folgende Syntax verwenden:
 | ^ | 8 | 11 |
 ```
 
-`<` verbindet nach links in Quellreihenfolge, `^` nach oben. Das `||` in der Trennzeile kennzeichnet die Grenze der Zeilenüberschriften und fügt keine Spalte hinzu.
+`<` verbindet mit der vorherigen Quellspalte (bei RTL-Darstellung kann diese rechts liegen), `^` mit der Zelle darüber. `||` in der Trennzeile kennzeichnet die Zeilenüberschriften, ohne eine Spalte hinzuzufügen.
+
+Wenn eine Tabelle falsch dargestellt wird, verwenden Sie **Strukturtabellen in der aktuellen Notiz prüfen**. Der Befehl meldet Syntaxfehler, ohne den Markdown-Text zu ändern.
 
 In der Live-Vorschau eine Zelle anklicken. Enter speichert und wechselt, Shift+Enter fügt einen Umbruch ein, Escape bricht ab. Zeilen oder Spalten lassen sich am Griff ziehen.
 
@@ -76,6 +78,8 @@ Bereiche lassen sich kopieren, ausschneiden und nur bei passender Verbindungsstr
 Auf dem Desktop können Sie die komplette Tabelle als PNG prüfen, kopieren und speichern. Ungespeicherte Zellbearbeitungen fehlen im Bild. Auf Mobilgeräten steht der PNG-Export nicht zur Verfügung.
 
 Vor der Base-Umwandlung die Notiz speichern und Tabellen aus Zitaten oder Listen auf die oberste Ebene verschieben. Verbindungen werden aufgelöst. Das Wiederherstellen der Ursprungstabelle löscht erzeugte Datensatznotizen nicht.
+
+Enthält der Datenbereich verbundene Zellen, müssen Sie diese vor der Base-Umwandlung trennen. Danach können Sie den Cursor in den Base-Block setzen und mit **Datensatz für die aktuelle Base erstellen** einen leeren Datensatz anlegen.
 
 ### Normale Markdown-Tabellen
 
@@ -91,13 +95,13 @@ HTML-Tabellen werden nur dann in Markdown umgewandelt, wenn die Zellstruktur sic
 
 ### In einfaches GFM umwandeln
 
-Klicke mit der rechten Maustaste auf die Tabelle und wähle „In einfache GFM-Tabelle umwandeln…“. Im Editor kannst du den Cursor auch in den Tabellenquelltext setzen und den Befehl zur Umwandlung in einfaches GFM aufrufen.
+Klicken Sie mit der rechten Maustaste auf die Tabelle und wählen Sie „In einfache GFM-Tabelle umwandeln…“. Im Editor können Sie den Cursor auch in den Tabellenquelltext setzen und den Befehl zur Umwandlung aufrufen.
 
 Bei Tabellen mit ausschließlich Zeilenüberschriften empfiehlt sich das Tauschen von Zeilen und Spalten: Die Beschriftungen werden zur obersten Kopfzeile. Bleibt die ursprüngliche Ausrichtung ohne Spaltenüberschriften erhalten, wird oben eine leere Kopfzeile ergänzt; alle vorhandenen Datenzeilen bleiben bestehen.
 
 Verbundene Zellen werden getrennt. Ihr Inhalt wird an jeder zuvor überdeckten Position wiederholt. Mehrere Kopfzeilen werden zu einer Zeile zusammengeführt. Die Ebenen werden mit „ / “ verbunden. An der Seite verbleibende Zeilenüberschriften werden zu normalen Zellen; GFM erhält ihre Überschriftenrolle nicht.
 
-Wechsle zwischen Ergebnisvorschau und Markdown-Quelltext und kopiere das aktuelle Ergebnis oder ersetze die ursprüngliche Tabelle. Die Leseansicht bietet nur Kopieren. Ersetzen ist eine einzelne Änderung, die sich mit einmal Rückgängig wiederherstellen lässt; Schließen ändert den Quelltext nicht. Beende zuerst offene Zellbearbeitungen. Hat sich die ursprüngliche Tabelle oder Datei geändert, öffne die Vorschau erneut. Der direkte GFM-Kopierbefehl verwendet die empfohlene Ausrichtung.
+Wechseln Sie zwischen Ergebnisvorschau und Markdown-Quelltext. Sie können das Ergebnis kopieren oder die ursprüngliche Tabelle ersetzen; in der Leseansicht ist nur das Kopieren möglich. Ein Ersetzen lässt sich mit einem Undo rückgängig machen. Schließen allein ändert nichts. Beenden Sie zuvor offene Zellenbearbeitungen. Wenn sich die Tabelle oder Datei geändert hat, öffnen Sie die Vorschau erneut. Der direkte GFM-Kopierbefehl nutzt die empfohlene Ausrichtung.
 
 ### PNG-Grenzen und Base-Wiederherstellung
 

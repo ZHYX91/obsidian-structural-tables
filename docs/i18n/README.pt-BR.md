@@ -2,7 +2,7 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
-Este guia resumido apresenta as funções principais e as limitações importantes. Consulte as instruções completas em [English](../../README.md) ou [简体中文](README.zh-CN.md).
+Veja aqui como realizar as tarefas mais comuns e quais cuidados tomar. Os guias completos em [inglês](../../README.md) e [chinês simplificado](README.zh-CN.md) cobrem os casos especiais.
 
 Adicione células mescladas, várias linhas de cabeçalho, cabeçalhos de linha e tabelas sem cabeçalho às tabelas Markdown. Apenas visualizar uma tabela não reescreve a nota.
 
@@ -67,6 +67,8 @@ Crie uma tabela Markdown e use a sintaxe abaixo:
 
 `<` mescla com a coluna anterior no código-fonte; `^` mescla com a célula acima. O `||` da linha separadora delimita os cabeçalhos de linha sem adicionar uma coluna.
 
+Se a tabela não aparecer como esperado, use **Verificar tabelas estruturais da nota atual**. O comando aponta problemas de sintaxe sem alterar o Markdown.
+
 Clique numa célula na pré-visualização. Enter salva e avança, Shift+Enter insere quebra de linha e Escape cancela. Arraste a alça para mover linhas ou colunas.
 
 Com um intervalo de células selecionado, Delete/Backspace apaga apenas o texto, preservando linhas e mesclagens. Para excluir linhas, colunas ou toda a tabela, use o menu de contexto. As alterações podem ser desfeitas.
@@ -76,6 +78,8 @@ Copie ou recorte intervalos e cole apenas onde a estrutura de células mescladas
 No desktop, visualize, copie ou salve o PNG da tabela inteira. Edições de células ainda não salvas não aparecem na imagem. A exportação para PNG não está disponível no celular.
 
 Salve a nota e mova as tabelas para fora de listas ou citações antes de convertê-las em Base. As mesclagens são achatadas, e restaurar a tabela não exclui as notas de registro criadas.
+
+Separe as células mescladas na área de dados antes de converter a tabela em Base. Depois, coloque o cursor no bloco Base e execute **Criar registro na Base atual** para adicionar um registro vazio.
 
 ### Tabelas Markdown comuns
 

@@ -2,9 +2,9 @@
 
 [English](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/README.md) · [简体中文](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-CN.md) · [繁體中文](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.zh-TW.md) · [日本語](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.ja.md) · [한국어](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.ko.md) · [Deutsch](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.de.md) · [Français](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.fr.md) · [Español](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.es.md) · [Português (Brasil)](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.pt-BR.md) · [Русский](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.ru.md) · [Tiếng Việt](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.vi.md) · [العربية](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/i18n/README.ar.md)
 
-Add merged cells, multiple header rows, and row headers to Markdown tables. You can also make tables without column headers. Your notes stay in Markdown, and opening a table never rewrites them.
+Structural Tables adds merged cells, multi-row headers, row headers, and headerless tables to Obsidian's Markdown. Your notes stay in Markdown; simply viewing a table never rewrites its source.
 
-Tables work inside quotes, callouts, and lists. Editing one does not move it elsewhere. To convert a nested table into an Obsidian Base, move it outside the quote or list first.
+Edit cells and rearrange tables in Live Preview, or read them without controls in Reading view. Tables can stay inside quotes, callouts, and lists. To convert one to an Obsidian Base, first move it outside those containers.
 
 ## Screenshots
 
@@ -29,17 +29,16 @@ Choose Follow theme, Grid, or Three-line table independently of table layout and
 <!-- section: features -->
 ## Features
 
-- Put `<` in a cell to merge it with the previous source column, or `^` to merge it with the row above.
-- Use multiple rows for column headers, mark the first source columns as row headers with `||`, or create a table with no column header at all.
-- Render the same table structure in Reading view and Live Preview.
-- Swap an entire table’s rows and columns, including its headers and merged cells. A confirmation prompt appears if column alignment must be reset or ordinary Markdown needs Structural Tables syntax.
-- Edit cells directly in Live Preview, add or reorder rows and columns, change alignment, merge or split selections, and change header roles without deleting their text.
-- Paste supported HTML tables from browsers, Excel, and Google Sheets while keeping row and column spans.
-- Copy tables as HTML, plain GFM, TSV, or CSV.
-- Export a complete table as a PNG with a preview, image copy, and Vault attachment saving on desktop.
-- Optionally use the Structural Tables editor for ordinary GFM tables. Turning the option off restores Obsidian's native table UI without changing Markdown.
-- Convert a table to an Obsidian Base after reviewing the generated records and Property mapping. Moving or renaming those record notes does not break their Base membership.
-- Refuse unintended writes that would discard unselected or hidden source content, while allowing explicit clear/delete actions on the visible selection. Invalid structural syntax stays visible with diagnostics instead of being silently rewritten.
+- Merge cells with `<` (previous source column) and `^` (above). Use `||` for row headers, several column-header rows, or no column headers.
+- Keep the same table structure in Reading view and Live Preview, including inside quotes, callouts, and lists.
+- Edit cells in Live Preview; add, move, align, merge, split, or remove rows and columns through table controls.
+- Transpose a whole table, keeping its headers and merged cells. Changes to column alignment or Markdown syntax require confirmation.
+- Paste supported HTML tables from browsers, Excel, and Google Sheets with their row and column spans.
+- Copy or cut selected cells, paste compatible ranges, and copy whole tables as HTML, plain GFM, TSV, or CSV.
+- Export a complete PNG on desktop, with a preview and options to copy the image or save it as a Vault attachment.
+- Optionally edit ordinary GFM tables with Structural Tables controls; switching back to Obsidian's native UI does not alter Markdown.
+- Turn a table into an Obsidian Base after previewing the generated record notes and Property mapping. Base membership survives moving those records.
+- Protect hidden and unselected source content. Unsafe edits stop rather than dropping text; deliberate clearing and deletion remain available.
 
 <!-- section: requirements-and-compatibility -->
 ## Requirements and compatibility
@@ -48,11 +47,7 @@ Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidia
 
 Inside a Structural Table, exact `<`, `^`, and delimiter `||` tokens have special meanings. If another enabled table plugin is known to use the same syntax, Structural Tables shows a one-time conflict warning.
 
-Image exporters that use Obsidian's Markdown renderer can render merged tables with **Reading view rendering** enabled. Save the note before exporting and check the preview. If an exported fragment cannot be matched uniquely to the saved source, the plugin leaves it unchanged rather than guessing a merge.
-
-On Obsidian 1.13.7, some desktop combinations with FakeLink can leave a newly opened separate window blank in Reading view. Switch to Obsidian's main window once, then return to the separate window; this can let the note finish rendering. If it remains blank, use the main window or Live Preview.
-
-To use source-based commands from plugins such as Advanced Tables, right-click a cell and choose **Edit table source**. Opening a toolbar or dialog keeps your source selection in place. Advanced Tables controls its own Tab/Enter behavior; use Obsidian's Source mode when those bindings require it. After third-party sorting or row/column moves, check the cell values and merge relationships: valid syntax alone does not guarantee that their meaning was preserved. Invalid structural syntax remains visible with diagnostics; Structural Tables does not silently repair or undo another plugin's changes.
+For Advanced Tables, FakeLink, and Markdown-based image exporters, see the [compatibility notes](docs/compatibility.en.md). They cover the source-editing handoff, third-party sorting risks, and the Obsidian 1.13.7 separate-window workaround.
 
 <!-- section: installation -->
 ## Installation
@@ -64,21 +59,31 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 <!-- section: usage -->
 ## Usage
 
-**Quick start:** Create a Markdown table, enter `<` in a cell to merge with the previous source column or `^` to merge with the row above, then move the source cursor outside the table in Live Preview or switch to Reading view. Click a rendered cell in Live Preview to edit it.
+### Choose a workflow
 
-1. Create or paste a normal Markdown pipe table.
-2. Put `<` in a cell to merge it with the previous cell in source-column order, or `^` to merge it with the cell above.
-3. Put one adjacent `||` in the delimiter row to mark the source columns before it as row headers.
-4. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the rendered result. To edit raw Markdown again, right-click a rendered cell and choose **Edit table source**.
-5. Click a cell in Live Preview to edit its text. Enter saves and advances; Escape cancels. See **Advanced editing and safe deletion** below for other shortcuts and undo behavior.
-6. Use the **+** controls, row/column handles, and the context menu to add, move, merge, split, or remove cells and rows. Delete/Backspace clears selected cell text rather than deleting table structure.
-7. Paste a supported HTML table directly into the Markdown editor to import it. Use the command palette for formatting, copying, and Sheets Extended migration. Convert a table to Base from either the command palette or the table context menu.
+- **Edit in the note:** use Live Preview. Reading view displays the table but does not edit it.
+- **Share with Word or another app:** use the whole-table HTML copy command; PNG export is available on desktop.
+- **Need ordinary Markdown:** preview a plain GFM conversion before copying or replacing the table. Merges and extra header roles will be flattened.
+- **Need an Obsidian Base:** save the note and move any nested table to the top level, then review the conversion preview.
 
-Reading view is display-only. In-place editing and table controls are available in Live Preview.
+### Quick start
+
+1. Create or paste a Markdown pipe table.
+2. Put `<` in a cell to merge with the previous source column, `^` to merge upward, or adjacent `||` in the delimiter row to mark row-header columns.
+3. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the layout.
+4. Click a rendered cell in Live Preview to edit it, or right-click and choose **Edit table source** to return to Markdown.
+
+Use the **+** controls, row/column handles, and context menu for structural changes. To import a supported HTML table, paste it into the note's Markdown editor. Reading view remains display-only.
+
+If the table looks wrong, run **Validate structural tables in current note** from the command palette. It reports syntax problems without editing Markdown.
 
 ### Advanced editing and safe deletion
 
-A single click edits a cell. When rendered text maps uniquely to Markdown (including bold, italic, inline code, emoji and link labels), the caret follows the clicked character; otherwise it opens at the end, without selecting and replacing the whole cell. To edit a link label without following its link, Alt-click it. Enter saves and moves to the next row, appending at the bottom; Shift+Enter inserts a line break, and Tab moves to the next visible cell. Up/Down moves to the next cell only at the first or last displayed line. If line wrapping cannot be measured reliably, the cursor stays in the current cell. Cmd/Ctrl+B and Cmd/Ctrl+I change draft bold/italic; typing, IME, paste and formatting use draft-local undo/redo until save. For other formatting, choose **Edit table source**.
+Click a cell in Live Preview to edit it. If its rendered text has a unique position in Markdown (including links, bold, italic, code, and emoji), the caret follows your click. Otherwise it starts at the end of the cell rather than selecting and replacing everything. Alt-click a link label to edit it without following the link.
+
+Enter saves and moves down one row, adding a row at the bottom. Shift+Enter inserts a line break, and Tab moves to the next visible cell. Up/Down crosses into the next cell only from the first or last displayed line. If line wrapping cannot be measured safely, the caret stays in the current cell.
+
+Cmd/Ctrl+B and Cmd/Ctrl+I format the active draft. Typing, IME, paste, and formatting use draft-local undo/redo until you save. Use **Edit table source** for other Markdown formatting.
 
 Shift+Arrow extends or shrinks a logical grid selection. With that selection focused, Delete/Backspace clears cell contents without removing rows, columns, header roles, or merges. For structural removal, right-click and choose **Delete selected rows**, **Delete selected columns**, or **Delete table**. Clearing or explicitly deleting is undoable in one step; non-empty rows do not need to be cleared first.
 
@@ -134,11 +139,15 @@ A body row can contain fewer or more cells than the header row. Missing cells di
 
 ### Pasting and copying
 
+#### Import an HTML table
+
 When pasting into the note's Markdown editor with **Preserve pasted HTML table spans** enabled, a supported multi-column HTML table can be converted while keeping row and column spans and visual line breaks. HTML that cannot be converted safely is left to Obsidian, or uses the clipboard's complete plain-text form when that fallback is known to be safe.
 
 For text with preserved spaces, tabs, line breaks or heading boundaries, the plugin uses the complete plain-text alternative. This keeps the text but may lose table layout or rich formatting. If no safe alternative is available, the paste is blocked and your current selection is kept.
 
 A body-only HTML table stays headerless instead of having its first row turned into a header. Real `thead`/`th` markup is used when the source provides it.
+
+#### Copy or cut selected cells
 
 Select cells and choose **Copy selected cells** or **Cut selected cells**. To paste, either select a destination rectangle with the same merged layout, or select just one unmerged cell as the top-left anchor. A single-cell anchor can grow the table right/down. It overwrites only content completely inside the destination rectangle, never the outside of an existing merge; roles, existing alignments, unrelated cells and raw Markdown remain intact. Unsupported merges or unsafe source are refused. Copy never edits the note; Cut clears only after verified clipboard success. Paste is a single undoable change.
 
@@ -147,6 +156,8 @@ Range menu Copy/Cut needs platform clipboard-write support; menu Paste separatel
 On mobile, range Copy/Cut writes a plain Markdown table and checks that the system clipboard contains that exact text before Cut can clear anything. The plugin remembers the copied merge layout for the current session. Range Paste works while the clipboard still matches that copy; replacing the clipboard content or restarting Obsidian or the plugin makes that copied merge layout unavailable. Text copied elsewhere belongs in a cell editor or the note editor.
 
 For other applications, range Copy also provides HTML and plain Markdown. Range HTML represents spans and shows the cell's Markdown as raw text. Plain Markdown uses the first copied row as a header and retains structural markers where representable; it does not guarantee the same merge layout in other applications, including vertical merges.
+
+#### Copy the whole table
 
 Use **Copy whole table for Word / HTML** from a source, Live Preview, native-table or Reading View menu, or run **Copy current table as HTML** for applications such as Word. The menu action keeps the table you opened it from and refuses to copy if that target changes. You can also copy as plain GFM, TSV, or CSV. The plain GFM preview lets you choose how header roles and orientation are converted.
 
@@ -199,6 +210,8 @@ New records are created under `<note-folder>/_structural-table-records/<table-id
 If conversion fails after creating files, the plugin leaves those files in place and reports their folder so you can inspect them. **Restore table from current Base** restores the original table snapshot from `_promotion.json` but deliberately keeps the generated notes.
 
 Blank headers become `column_n`; non-empty headers, including numeric and leading-zero names, are kept as Property names when possible. Duplicate or reserved names receive a numeric suffix.
+
+After conversion, place the cursor inside the Base block and run **Create record for current Base** to add a blank record. New records go into the current note's `_structural-table-records/<table-id>/` folder, but their membership is not tied to that location. For Bases created by older plugin versions, **Migrate legacy Structural Tables Base properties…** previews a membership-property update before you confirm it.
 
 ### Recovering an interrupted edit
 

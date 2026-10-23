@@ -10,10 +10,10 @@ function positiveSpan(value: number): number {
 const HTML_BLOCK_ELEMENTS = new Set(["ADDRESS", "ARTICLE", "BLOCKQUOTE", "DIV", "LI", "P"]);
 
 // CSS-collapsible ASCII whitespace is distinct from nonbreaking Unicode spaces.
-const COLLAPSIBLE_HTML_WHITESPACE = /[\u0009-\u000d\u0020]+/gu;
+const COLLAPSIBLE_HTML_WHITESPACE = /[ \t\r\n\f\v]+/gu;
 
 function trimCollapsibleHtmlWhitespace(value: string): string {
-  return value.replace(/^[\u0009-\u000d\u0020]+|[\u0009-\u000d\u0020]+$/gu, "");
+  return value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/gu, "");
 }
 
 function appendHtmlCellText(node: Node, parts: string[]): void {

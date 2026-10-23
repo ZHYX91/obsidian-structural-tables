@@ -2,7 +2,7 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
-Ce guide de prise en main résume les fonctions principales et les limites importantes. Consultez la documentation complète en [English](../../README.md) ou en [简体中文](README.zh-CN.md).
+Voici les opérations courantes et les précautions à connaître. Les guides [anglais](../../README.md) et [chinois simplifié](README.zh-CN.md) détaillent les cas particuliers.
 
 Ajoutez des cellules fusionnées, plusieurs lignes d’en-têtes, des en-têtes de lignes et des tableaux sans en-tête à vos tableaux Markdown. Afficher une table ne réécrit jamais le Markdown de la note.
 
@@ -67,6 +67,8 @@ Créez un tableau Markdown et utilisez cette syntaxe :
 
 `<` fusionne avec la colonne précédente dans l’ordre du code source ; `^` fusionne vers le haut. Le `||` de la ligne de séparation délimite les en-têtes de lignes, sans ajouter de colonne.
 
+Si un tableau s’affiche mal, lancez **Vérifier les tableaux de cette note** depuis la palette de commandes. La vérification signale les erreurs sans modifier le Markdown.
+
 Cliquez une cellule en aperçu en direct. Entrée enregistre et passe à la suivante, Maj+Entrée insère un saut de ligne, Échap annule. Faites glisser les poignées pour déplacer les lignes et colonnes.
 
 Avec une sélection de cellules, Suppr/Retour arrière efface uniquement le texte sans supprimer les lignes ou fusions. Utilisez le menu contextuel pour supprimer lignes, colonnes ou tableau. Les modifications peuvent être annulées.
@@ -76,6 +78,8 @@ La copie, la coupe et le collage de plages conservent la structure fusionnée lo
 Sur ordinateur, prévisualisez, copiez ou enregistrez une image PNG du tableau entier. Les modifications de cellule non enregistrées sont exclues. L’export PNG n’est pas disponible sur mobile.
 
 Enregistrez la note et sortez les tableaux des listes ou citations avant une conversion en Base. Les fusions sont aplaties ; la restauration de la table initiale conserve les notes créées.
+
+Les cellules fusionnées dans les lignes de données doivent être séparées avant la conversion en Base. Après conversion, placez le curseur dans le bloc Base et lancez **Créer un enregistrement dans la Base actuelle** pour ajouter un enregistrement vide.
 
 ### Tableaux Markdown ordinaires
 

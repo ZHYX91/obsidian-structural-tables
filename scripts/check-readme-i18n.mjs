@@ -78,6 +78,26 @@ for (const [file, source] of [[englishPath, english], [chinesePath, chinese]]) {
     `${file} must not contain local or workspace-only paths`);
 }
 
+// README actions are part of the localized UI contract, not freehand menu
+// guesses. Keep the full references and compact guides aligned with actual
+// command names when a translation changes.
+const declaredLocaleIds = [...(await readFile("src/config/locale.ts", "utf8"))
+  .matchAll(/\{ id: "([^"]+)", name: "[^"]+", direction: "(?:ltr|rtl)" \}/gu)]
+  .map((match) => match[1]);
+assert.equal(declaredLocaleIds.length, 12, "Expected the current twelve supported interface locales");
+for (const localeId of declaredLocaleIds) {
+  const path = localeId === "en" ? "README.md" : `docs/i18n/README.${localeId}.md`;
+  const source = path === englishPath ? english : path === chinesePath
+    ? chinese : await readFile(path, "utf8");
+  const catalog = await readFile(`src/config/locales/${localeId}.ts`, "utf8");
+  for (const key of ["command.createBaseRecord", "command.validate"]) {
+    const match = catalog.match(new RegExp(`"${key.replaceAll(".", "\\.")}"\\s*:\\s*"([^"]+)"`, "u"));
+    assert.ok(match?.[1], `Missing ${key} from ${localeId} catalog`);
+    assert.ok(source.includes(`**${match[1]}**`),
+      `${path} must explain the real localized ${key} command`);
+  }
+}
+
 const locales = [["English","README.md"],["简体中文","README.zh-CN.md"],["繁體中文","README.zh-TW.md"],["日本語","README.ja.md"],["한국어","README.ko.md"],["Deutsch","README.de.md"],["Français","README.fr.md"],["Español","README.es.md"],["Português (Brasil)","README.pt-BR.md"],["Русский","README.ru.md"],["Tiếng Việt","README.vi.md"],["العربية","README.ar.md"]];
 for (const [, filename] of locales) {
   const path = filename === "README.md" ? filename : "docs/i18n/" + filename;

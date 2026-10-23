@@ -415,6 +415,31 @@ describe("GFM command boundaries", () => {
     expect(writeText.mock.calls[0]?.[0]).not.toContain("KEEP");
   });
 
+  it("migrates a standalone Sheets Extended table without altering its boundaries", () => {
+    const source = "| Person | - | Q1 |\n| --- | --- | --- |\n| Alice | - | 1 |";
+    const editor = editorHarness(source);
+    const harness = pluginHarness(editor.editor, new MockTFile("A.md"));
+
+    harness.plugin.migrateSheetsExtended(editor.editor);
+
+    expect(editor.replaceRange).toHaveBeenCalledOnce();
+    expect(editor.source()).toContain("||");
+    expect(notices).toContain(createTranslator("en")("notice.sheetsMigrated"));
+  });
+
+  it("refuses Sheets migration that would absorb a preceding pipe row", () => {
+    const source = "| Note | Text |\n| Person | - | Q1 |\n| --- | --- | --- |\n| Alice | - | 1 |";
+    const editor = editorHarness(source);
+    vi.spyOn(editor.editor, "getCursor").mockReturnValue({ line: 1, ch: 4 });
+    const harness = pluginHarness(editor.editor, new MockTFile("A.md"));
+
+    harness.plugin.migrateSheetsExtended(editor.editor);
+
+    expect(editor.source()).toBe(source);
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+    expect(notices).toContain(createTranslator("en")("operation.invalidResult"));
+  });
+
   it("blocks Sheets migration when a hidden GFM overflow cell would be discarded", () => {
     const source = "| Person | - | Q1 |\n| --- | --- | --- |\n| Alice | - | 1 | KEEP |";
     const editor = editorHarness(source);

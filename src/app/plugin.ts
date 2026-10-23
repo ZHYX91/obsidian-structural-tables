@@ -564,7 +564,19 @@ export class StructuralTablesPlugin extends Plugin {
       new Notice(t("notice.sheetsNotDetected"));
       return;
     }
-    this.replaceTable(editor, current.table, migration.source);
+    // Removing the separator column must not absorb neighboring pipe rows
+    // that did not belong to the original table.
+    const validated = validateTableOperationInDocument(editor.getValue(), current.table, {
+      changed: true,
+      code: "table-converted",
+      message: "Sheets Extended table converted.",
+      source: migration.source,
+    });
+    if (!validated.changed) {
+      new Notice(operationNotice(t, validated.code));
+      return;
+    }
+    this.replaceTable(editor, current.table, validated.source);
     new Notice(t("notice.sheetsMigrated"));
   }
 

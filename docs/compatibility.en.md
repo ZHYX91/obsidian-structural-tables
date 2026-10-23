@@ -4,7 +4,7 @@ This page collects version-specific workarounds and interactions with other Obsi
 
 ## Advanced Tables and other source-editing plugins
 
-Structural Tables uses the exact \`<\`, \`^\`, and delimiter-row \`||\` tokens for merges and row headers. Another table plugin may interpret those same characters differently.
+Structural Tables uses the exact `<`, `^`, and delimiter-row `||` tokens for merges and row headers. Another table plugin may interpret those same characters differently.
 
 For source-based commands such as Advanced Tables, right-click a rendered cell and choose **Edit table source**. Opening a toolbar or dialog keeps the original source selection in place. Advanced Tables controls its own Tab/Enter bindings; switch to Obsidian Source mode when necessary.
 

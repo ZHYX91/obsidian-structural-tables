@@ -95,7 +95,7 @@ function importedHtmlCellText(content: string, nativeGfm: boolean): string {
   // nonbreaking edge spaces as character references while leaving interior
   // characters intact (including inside code spans and Wiki link targets).
   const source = content.replace(/\r\n|\r|\n/gu, "<br>")
-    .replace(/^[\u0009-\u000d\u0020]+|[\u0009-\u000d\u0020]+$/gu, "")
+    .replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/gu, "")
     .replace(/^[\u00a0\u2007\u202f]+|[\u00a0\u2007\u202f]+$/gu, (spaces) =>
       Array.from(spaces, (space) => `&#${space.codePointAt(0)};`).join(""));
   let result = "";

@@ -2,7 +2,7 @@
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [Tiếng Việt](README.vi.md) · [العربية](README.ar.md)
 
-Hướng dẫn ngắn này trình bày các chức năng chính và những giới hạn quan trọng. Xem hướng dẫn đầy đủ bằng [English](../../README.md) hoặc [简体中文](README.zh-CN.md).
+Trang này hướng dẫn những thao tác thường dùng và các giới hạn cần lưu ý. Trường hợp nâng cao được giải thích trong bản [tiếng Anh](../../README.md) và [tiếng Trung giản thể](README.zh-CN.md).
 
 Thêm ô gộp, nhiều hàng tiêu đề cột, tiêu đề hàng và bảng không có tiêu đề cột vào bảng Markdown. Chỉ xem bảng sẽ không viết lại nội dung Markdown của ghi chú.
 
@@ -67,6 +67,8 @@ Tạo một bảng Markdown rồi dùng cú pháp sau:
 
 `<` gộp với cột phía trước theo thứ tự nguồn, `^` gộp với ô ở trên. Ký hiệu `||` trong hàng phân cách đánh dấu ranh giới tiêu đề hàng và không tạo thêm cột.
 
+Nếu bảng hiển thị không đúng, hãy chạy lệnh **Kiểm tra bảng có cấu trúc trong ghi chú hiện tại**. Lệnh chỉ báo lỗi cú pháp, không sửa Markdown.
+
 Nhấp vào ô trong bản xem trước để sửa. Enter lưu và chuyển ô, Shift+Enter xuống dòng, Escape hủy. Kéo tay nắm hàng hoặc cột để di chuyển.
 
 Khi chọn một vùng ô, Delete/Backspace chỉ xóa nội dung, không xóa hàng, cột hay cấu trúc gộp. Dùng menu chuột phải để xóa hàng, cột hoặc bảng; có thể hoàn tác bằng Undo.
@@ -76,6 +78,8 @@ Có thể sao chép, cắt và dán vùng ô khi bố cục gộp vẫn được
 Trên máy tính có thể xem trước, sao chép hoặc lưu PNG của toàn bộ bảng. Các thay đổi ô chưa lưu không nằm trong ảnh. Di động không hỗ trợ xuất PNG.
 
 Trước khi chuyển thành Base, hãy lưu ghi chú và đưa bảng ra ngoài khối trích dẫn hoặc danh sách. Cấu trúc gộp sẽ được làm phẳng; khôi phục bảng gốc không xóa các ghi chú bản ghi đã tạo.
+
+Hãy tách các ô gộp trong vùng dữ liệu trước khi chuyển bảng thành Base. Sau khi chuyển, đặt con trỏ trong khối Base và chạy **Tạo bản ghi trong Base hiện tại** để thêm một bản ghi trống.
 
 ### Bảng Markdown thông thường
 

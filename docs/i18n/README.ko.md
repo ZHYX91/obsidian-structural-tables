@@ -58,10 +58,10 @@ Obsidian의 «설정 → 커뮤니티 플러그인 → 탐색»에서 Structural
 Markdown 표를 만들고 다음 확장 문법을 사용하세요.
 
 ```markdown
-| Region | Sales | < |
-| Quarter | Q1 | Q2 |
+| 지역 | 매출 | < |
+| 분기 | Q1 | Q2 |
 | --- || --- | --- |
-| North | 10 | 12 |
+| 북부 | 10 | 12 |
 | ^ | 8 | 11 |
 ```
 

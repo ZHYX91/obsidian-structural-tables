@@ -88,6 +88,12 @@ for (const [, filename] of locales) {
   assert.equal(navigationLinks.length, locales.length, `${path} must have exactly ${locales.length} language links`);
   if (filename !== "README.md") assert.doesNotMatch(navigation, /https:\/\/github\.com/u,
     `${path} must use relative links between translated README documents`);
+  if (filename !== "README.md" && filename !== "README.zh-CN.md") {
+    const firstExample = /```markdown\n([\s\S]*?)\n```/u.exec(source)?.[1] ?? "";
+    assert.ok(firstExample, `${path} must include a Markdown table example`);
+    assert.doesNotMatch(firstExample, /\b(?:Sales|Quarter|North)\b/u,
+      `${path} must localize its example table labels and values`);
+  }
   const expectedNavigation = [];
   for (const [otherLabel, otherName] of locales) {
     const href = filename === "README.md"
@@ -106,6 +112,20 @@ for (const [, filename] of locales) {
     if (filename === "README.md" || filename === "README.zh-CN.md") continue;
     // Localized guides must not leave screenshot accessibility text in English.
     assert.ok(!source.includes("![" + image + "]"), `${path} contains an untranslated screenshot label`);
+  }
+}
+const gfmExample = english.split("For example, this table has only row headers:")[1]?.split("### Export a table image")[0];
+assert.ok(gfmExample, "English README must retain the GFM conversion example");
+assert.doesNotMatch(gfmExample, /[\u3400-\u9fff]/u,
+  "English GFM conversion example must use localized content");
+const supportedLocaleNames = [...(await readFile("src/config/locale.ts", "utf8")).matchAll(/\{ id: "[^"]+", name: "([^"]+)"/gu)]
+  .map((match) => match[1]);
+for (const spec of ["docs/ux-spec.en.md", "docs/ux-spec.zh-CN.md"]) {
+  const text = await readFile(spec, "utf8");
+  const languageLine = text.split("\n").find((line) => /^(?:- language:|- 语言：)/u.test(line));
+  assert.ok(languageLine, `${spec} must list interface languages`);
+  for (const name of supportedLocaleNames) {
+    assert.ok(languageLine.includes(name), `${spec} is missing supported interface language ${name}`);
   }
 }
 process.stdout.write(`README i18n contract passed for ${locales.length} languages and ${sections.length} synchronized sections.\n`);

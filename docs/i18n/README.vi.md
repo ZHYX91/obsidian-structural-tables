@@ -58,10 +58,10 @@ Trong Obsidian, mở «Cài đặt → Plugin cộng đồng → Duyệt», tìm
 Tạo một bảng Markdown rồi dùng cú pháp sau:
 
 ```markdown
-| Region | Sales | < |
-| Quarter | Q1 | Q2 |
+| Khu vực | Doanh số | < |
+| Quý | Q1 | Q2 |
 | --- || --- | --- |
-| North | 10 | 12 |
+| Miền Bắc | 10 | 12 |
 | ^ | 8 | 11 |
 ```
 

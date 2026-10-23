@@ -58,10 +58,10 @@ Para la instalación manual, extrae `structural-tables-<version>.zip` en `Vault/
 Crea una tabla Markdown y usa la siguiente sintaxis:
 
 ```markdown
-| Region | Sales | < |
-| Quarter | Q1 | Q2 |
+| Región | Ventas | < |
+| Trimestre | Q1 | Q2 |
 | --- || --- | --- |
-| North | 10 | 12 |
+| Norte | 10 | 12 |
 | ^ | 8 | 11 |
 ```
 

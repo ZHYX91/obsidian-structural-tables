@@ -58,10 +58,10 @@ Zur manuellen Installation `structural-tables-<version>.zip` nach `Vault/.obsidi
 Eine Markdown-Tabelle anlegen und folgende Syntax verwenden:
 
 ```markdown
-| Region | Sales | < |
-| Quarter | Q1 | Q2 |
+| Region | Umsatz | < |
+| Quartal | Q1 | Q2 |
 | --- || --- | --- |
-| North | 10 | 12 |
+| Norden | 10 | 12 |
 | ^ | 8 | 11 |
 ```
 

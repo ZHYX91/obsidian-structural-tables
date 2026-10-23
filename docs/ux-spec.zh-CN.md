@@ -194,7 +194,7 @@ HTML 转换仅接管一张完整且支持的表格。混合正文、多张表、
 
 ### 常规
 
-- 语言：跟随 Obsidian、English、简体中文、繁體中文、日本語、Deutsch、Español、العربية；
+- 语言：跟随 Obsidian、English、简体中文、繁體中文、日本語、한국어、Deutsch、Français、Español、Português (Brasil)、Русский、Tiếng Việt、العربية；
 - 是否转换粘贴的 HTML 表格；
 - 是否提示其他表格插件的语法冲突。
 

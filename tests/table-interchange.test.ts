@@ -147,7 +147,7 @@ describe("HTML table clipboard import", () => {
     expect(table.rows[2]?.cells[1]?.content).toBe("&#160;A&#160;");
     expect(table.rows[3]?.cells[1]?.content).toBe("&#160;&#160;");
     expect(table.rows[4]?.cells[1]?.content).toBe("&#8239;X&#8239;");
-    expect(table.rows[5]?.cells[1]?.content).toBe("\`A\u00a0B\`");
+    expect(table.rows[5]?.cells[1]?.content).toBe("`A\u00a0B`");
 
     const rendered = new DOMParser().parseFromString(new MarkdownIt({ html: true }).render(source!), "text/html");
     const rows = rendered.querySelectorAll<HTMLTableRowElement>("tr");

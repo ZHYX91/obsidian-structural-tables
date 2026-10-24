@@ -24,6 +24,8 @@ Haz clic en una celda en el escritorio o tócala dos veces en una pantalla táct
 
 ![Ajustes de apariencia de Structural Tables](../assets/structural-tables-settings-en.png)
 
+La imagen de apariencia muestra los componentes reales de ajustes y tabla en un navegador de pruebas; no es una captura de Obsidian.
+
 <!-- section: features -->
 ## Funciones
 
@@ -55,7 +57,7 @@ Para la instalación manual, extrae `structural-tables-<version>.zip` en `Vault/
 <!-- section: usage -->
 ## Uso
 
-Crea una tabla Markdown y usa la siguiente sintaxis:
+Sitúa el cursor en una línea vacía, sin texto seleccionado, y ejecuta **Insertar tabla estructural** desde la paleta de comandos. El ejemplo se inserta directamente. Mueve el cursor fuera de la tabla en la vista previa o cambia a la vista de lectura para verla. Puedes adaptar este ejemplo con la misma estructura:
 
 ```markdown
 | Región | Ventas | < |
@@ -113,6 +115,8 @@ El PNG tiene un límite de 8192 píxeles por lado y 16 megapíxeles en total. Si
 «General»: idioma, pegado HTML y conflictos. «Vistas»: lectura, vista previa, diagnósticos y uso del editor en tablas GFM normales. «Apariencia»: estilo, ancho, espaciado y filas alternas.
 
 Elige Seguir tema, Cuadrícula o Tabla de tres líneas. Cambiar la apariencia o el idioma de la interfaz no modifica Markdown ni la dirección de la nota.
+
+Debajo de «Líneas y fondo» y «Diseño y espaciado», una tabla de ejemplo refleja los cambios al instante. Usa texto fijo y no lee ni edita notas. Los ajustes se aplican a las tablas de toda la bóveda y se guardan automáticamente.
 
 <!-- section: limitations -->
 ## Limitaciones

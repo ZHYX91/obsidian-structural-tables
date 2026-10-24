@@ -26,6 +26,8 @@ Choose Follow theme, Grid, or Three-line table independently of table layout and
 
 ![Appearance settings showing three-line table style, layout, density, and alternating rows](https://raw.githubusercontent.com/ZHYX91/obsidian-structural-tables/main/docs/assets/structural-tables-settings-en.png)
 
+The Appearance image uses the actual settings and table components in a browser fixture, not an Obsidian host capture.
+
 <!-- section: features -->
 ## Features
 
@@ -68,7 +70,7 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 
 ### Quick start
 
-1. Create or paste a Markdown pipe table.
+1. Place the cursor on an empty line with no text selected. Run **Insert structural table** from the command palette to insert a working example. This command writes the example at the cursor; it does not open a dialog.
 2. Put `<` in a cell to merge with the previous source column, `^` to merge upward, or adjacent `||` in the delimiter row to mark row-header columns.
 3. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the layout.
 4. Click a rendered cell in Live Preview to edit it, or right-click and choose **Edit table source** to return to Markdown.
@@ -230,9 +232,11 @@ Choose **Follow Obsidian** or select one of twelve interface languages: English,
 
 **Follow theme** leaves borders, header colors, and typography to the active Obsidian theme, including the outer edges of tables without column headers. **Grid** gives semantic headers a consistent header band, with slightly thicker single lines below the complete column-header area and along the row-header divider declared by `||`. Both boundaries remain visible even before data rows are added. These lines follow merged-cell edges; tables without headers keep a uniform grid. **Three-line table** uses top and bottom rules plus one rule below the complete column-header area, with no vertical body rules. A headerless Three-line table naturally has only the top and bottom rules.
 
+**Style and shading** groups the style and alternating-row controls; **Layout and spacing** groups width/alignment and density. The sample below updates immediately, so you can compare settings before returning to your note. It uses fixed local text and neither reads nor edits a note. Settings still apply to rendered tables throughout the Vault and are saved automatically.
+
 Appearance settings affect only rendering; they never change Markdown.
 
-**Export to Word:** Structural Tables uses extra Markdown syntax for merged cells and header structure. For compatible DOCX conversion, [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) can work with the separate local DocWen application. Enable the Structural Tables **input** extension in DocWen's Markdown syntax settings (and the output extension when converting back to Markdown). Conversion is optional and available only on supported desktop systems.
+**Export to Word:** Structural Tables uses extra Markdown syntax for merged cells and header structure. For compatible DOCX conversion, [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) can work with the separate local DocWen application. Enable the Structural Tables **input** extension in DocWen's Markdown syntax settings (and the output extension when converting back to Markdown). This optional Assistant workflow supports Windows and Linux; it is unavailable on macOS and mobile.
 
 <!-- section: limitations -->
 ## Limitations

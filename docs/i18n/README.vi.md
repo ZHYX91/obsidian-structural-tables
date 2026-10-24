@@ -24,6 +24,8 @@ Nhấp vào ô trên máy tính hoặc chạm hai lần trên màn hình cảm �
 
 ![Cài đặt giao diện của Structural Tables](../assets/structural-tables-settings-en.png)
 
+Ảnh cài đặt giao diện hiển thị các thành phần cài đặt và bảng thực tế trong trình duyệt thử nghiệm, không phải ảnh chụp ứng dụng Obsidian.
+
 <!-- section: features -->
 ## Tính năng
 
@@ -41,12 +43,12 @@ Nhấp vào ô trên máy tính hoặc chạm hai lần trên màn hình cảm �
 
 Cần Obsidian 1.12.7 trở lên. Hỗ trợ máy tính và Android. Muốn chuyển bảng thành Base, hãy bật plugin lõi Bases của Obsidian.
 
-`<`, `^` và `||` là cú pháp mở rộng nên các trình chỉnh sửa Markdown khác có thể hiển thị bảng gộp khác đi. Khi dùng Advanced Tables, chọn «Sửa mã Markdown của bảng» rồi kiểm tra lại dữ liệu sau khi sắp xếp bằng công cụ khác.
+`<`, `^` và `||` là cú pháp mở rộng nên các trình chỉnh sửa Markdown khác có thể hiển thị bảng gộp khác đi. Khi dùng Advanced Tables, chọn “Sửa mã Markdown của bảng” rồi kiểm tra lại dữ liệu sau khi sắp xếp bằng công cụ khác.
 
 <!-- section: installation -->
 ## Cài đặt
 
-Trong Obsidian, mở «Cài đặt → Plugin cộng đồng → Duyệt», tìm Structural Tables, cài đặt và kích hoạt.
+Trong Obsidian, mở “Cài đặt → Plugin cộng đồng → Duyệt”, tìm Structural Tables, cài đặt và kích hoạt.
 
 Để cài thủ công, giải nén `structural-tables-<version>.zip` vào `Vault/.obsidian/plugins/`, tải lại Obsidian rồi bật plugin.
 
@@ -55,7 +57,7 @@ Trong Obsidian, mở «Cài đặt → Plugin cộng đồng → Duyệt», tìm
 <!-- section: usage -->
 ## Cách sử dụng
 
-Tạo một bảng Markdown rồi dùng cú pháp sau:
+Đặt con trỏ trên một dòng trống, không chọn văn bản, rồi chạy **Chèn bảng có cấu trúc** trong bảng lệnh. Lệnh chèn ngay một bảng mẫu. Di chuyển con trỏ ra ngoài bảng trong chế độ xem trước trực tiếp hoặc chuyển sang chế độ đọc để xem kết quả. Bạn có thể sửa nội dung ví dụ cùng cấu trúc dưới đây:
 
 ```markdown
 | Khu vực | Doanh số | < |
@@ -83,7 +85,7 @@ Hãy tách các ô gộp trong vùng dữ liệu trước khi chuyển bảng th
 
 ### Bảng Markdown thông thường
 
-Theo mặc định, bảng GFM thông thường sử dụng trình chỉnh sửa bảng của Obsidian. Bật «Chỉnh sửa cả bảng Markdown thông thường» để dùng các điều khiển của Structural Tables. Nếu một hàng dữ liệu có nhiều ô trong mã nguồn hơn số cột tiêu đề, một số nội dung có thể bị ẩn. Hãy chọn «Sửa mã Markdown của bảng» và xử lý các ô đó trước khi sửa cấu trúc.
+Theo mặc định, bảng GFM thông thường sử dụng trình chỉnh sửa bảng của Obsidian. Bật “Chỉnh sửa cả bảng Markdown thông thường” để dùng các điều khiển của Structural Tables. Nếu một hàng dữ liệu có nhiều ô trong mã nguồn hơn số cột tiêu đề, một số nội dung có thể bị ẩn. Hãy chọn “Sửa mã Markdown của bảng” và xử lý các ô đó trước khi sửa cấu trúc.
 
 ### Công thức và ngắt dòng
 
@@ -110,9 +112,11 @@ Chuyển giữa bản xem trước kết quả và mã nguồn Markdown, rồi s
 <!-- section: settings -->
 ## Cài đặt
 
-«Chung»: ngôn ngữ, dán HTML, cảnh báo xung đột. «Chế độ xem»: đọc, xem trước, kiểm tra lỗi và chỉnh sửa bảng GFM thường. «Giao diện»: kiểu, chiều rộng, khoảng cách và nền xen kẽ.
+“Chung”: ngôn ngữ, dán HTML, cảnh báo xung đột. “Chế độ xem”: đọc, xem trước, kiểm tra lỗi và chỉnh sửa bảng GFM thường. “Giao diện”: kiểu, chiều rộng, khoảng cách và nền xen kẽ.
 
 Chọn Theo chủ đề, Lưới hoặc Bảng ba đường kẻ. Đổi giao diện hay ngôn ngữ plugin không thay đổi Markdown hoặc hướng văn bản của ghi chú.
+
+Bảng mẫu bên dưới “Đường kẻ và nền” và “Bố cục và khoảng cách” phản ánh thay đổi ngay lập tức. Bảng chỉ dùng văn bản cố định, không đọc hay sửa ghi chú. Cài đặt áp dụng cho các bảng trong toàn bộ kho và được lưu tự động.
 
 <!-- section: limitations -->
 ## Giới hạn

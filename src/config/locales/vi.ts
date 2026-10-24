@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const vi = {
+  "settings.group.style": "Đường kẻ và nền",
+  "settings.group.layout": "Bố cục và khoảng cách",
+  "settings.preview.title": "Xem trước giao diện",
+  "settings.preview.description": "Ví dụ này cập nhật theo các tùy chọn phía trên. Không thay đổi ghi chú nào.",
   "operation.transposeBoundaryUnsafe": "Việc đổi hàng và cột sẽ làm thay đổi ranh giới bảng. Thêm một dòng trống trước và sau bảng rồi thử lại.",
   "command.convertGfm": "Chuyển bảng hiện tại sang GFM thông thường",
   "command.createBaseRecord": "Tạo bản ghi trong Base hiện tại",

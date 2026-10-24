@@ -1,16 +1,18 @@
 import type { StructuralTable } from "./model";
 import type { OperationResult } from "./operations";
 import { parseEditableTables } from "./parser";
-import { reparseUnchangedTable } from "./table-snapshot";
+import { reparseUnchangedTable, TableDocumentSnapshot } from "./table-snapshot";
 
 /** A replacement that parses alone may absorb adjacent pipe prose in the complete note. */
-export function validateTableOperationInDocument(source: string, expected: StructuralTable, result: OperationResult): OperationResult {
+export function validateTableOperationInDocument(document: string | TableDocumentSnapshot, expected: StructuralTable, result: OperationResult): OperationResult {
   if (!result.changed) return result;
+  const snapshot = typeof document === "string" ? new TableDocumentSnapshot(document) : document;
+  const source = snapshot.source;
   const refuse: OperationResult = { changed: false, code: "invalid-result",
     message: "The operation would change a neighboring table or its boundary. Add a blank line around the table and retry.",
     source: expected.source };
-  if (reparseUnchangedTable(source, expected) === null) return refuse;
-  const before = parseEditableTables(source).tables;
+  if (reparseUnchangedTable(snapshot, expected) === null) return refuse;
+  const before = snapshot.tables;
   const index = before.findIndex((table) => table.range.from === expected.range.from
     && table.range.to === expected.range.to && table.source === expected.source);
   if (index < 0) return refuse;

@@ -1,19 +1,25 @@
+import { freezeGridSelection, currentFrozenTable, frozenSelectionBounds, copyFrozenRange, pasteFrozenRange,
+  type FrozenGridSelection } from "./range-clipboard-session";
+import { CellDraftSession, type DraftHistoryGroup } from "./cell-draft-session";
+import { pendingCellFocus, activeCellEditors, composingCellEditors, ownsCellEditorFocus, claimCellEditorFocus,
+  releaseCellEditorFocus, focusNativeTable, requestNativeFocus, requestTableFocus, cancelPendingTableFocus,
+  registerTableFocusHost, unregisterTableFocusHost, type PendingCellFocus, type CellEditEntryIntent } from "./table-focus-session";
+export { restoreTableHistoryFocus, cancelPendingTableFocus, mapPendingTableFocus } from "./table-focus-session";
 import type { BaseEditorInfo } from "../app/base-promotion-service";
 import type { ExportTableImage } from "../app/table-image-modal";
 import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
 import { captureEditorPlainGfmTarget } from "./plain-gfm-target";
 import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
-import type { ChangeDesc } from "@codemirror/state";
-import { App, Component, Menu, Notice, Platform, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
+import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { adjacentTableCell, tableCellInDirection, tableCoordinateInDirection, type TableGridDirection } from "../core/table-navigation";
 import { mathPipeSuggestions } from "../core/table-cell-syntax";
-import { tableWriteHistory, type TableHistoryTarget } from "./table-history";
-import { textareaVisualExit, textareaCaretAtVisualEdge, hasComplexBidi, type VisualTextareaExit } from "./textarea-visual-navigation";
+import { tableWriteHistory } from "./table-history";
+import { textareaVisualExit, textareaCaretAtVisualEdge, hasComplexBidi } from "./textarea-visual-navigation";
 import {
   appendTableRow,
   clearTableCells,
@@ -25,11 +31,10 @@ import {
   type TableAxis,
 } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
-import { reparseUnchangedTable } from "../core/table-snapshot";
+import { reparseUnchangedTable, TableDocumentSnapshot } from "../core/table-snapshot";
 import { validateTableOperationInDocument } from "../core/table-operation-document";
 import { transposeTableInDocument } from "../core/table-transpose-validation";
 import { parseEditableTables } from "../core/parser";
-import { sourcePrefix } from "../core/source-lines";
 import {
   sameTableRangeTopology,
   TABLE_RANGE_CLIPBOARD_MIME,
@@ -43,9 +48,7 @@ import { copyTableForWord } from "../app/table-html-copy";
 import { cellClipboardText } from "./table-interchange";
 import {
   readTableRangeFromDataTransfer,
-  readTableRangeFromNavigator,
   writeTableRangeToDataTransfer,
-  writeTableRangeToNavigator,
 } from "./table-range-clipboard";
 import {
   addBasePromotionMenuItem,
@@ -71,20 +74,6 @@ import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, struct
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
 const interactions = new WeakMap<HTMLElement, StructuralTableInteraction>();
-interface PendingCellFocus {
-  from: number;
-  source: string;
-  sourcePath: string;
-  coordinate: TableCellCoordinate;
-  edit: boolean;
-  axisSelection?: AxisSelection;
-  selectionBounds?: { first: TableCellCoordinate; last: TableCellCoordinate };
-  entryIntent?: CellEditEntryIntent;
-}
-const pendingCellFocus = new WeakMap<EditorView, PendingCellFocus>();
-const activeCellEditors = new WeakMap<Document, HTMLTextAreaElement>();
-const composingCellEditors = new WeakSet<HTMLTextAreaElement>();
-
 interface CellCommitViewport {
   document: Document;
   editor: Editor | undefined;
@@ -98,134 +87,8 @@ interface CellCommitViewport {
   doc: EditorView["state"]["doc"];
 }
 
-type CellEditEntryIntent = "select-all" | { caretOffset: number; pointer?: { x: number; y: number; at: number } } | { selectionStart: number; selectionEnd: number; selectionDirection?: "forward" | "backward" } | { visual: VisualTextareaExit };
 
-interface FrozenGridSelection {
-  sourcePath: string;
-  from: number;
-  source: string;
-  doc: EditorView["state"]["doc"];
-  editor: Editor | undefined;
-  file: TFile | null | undefined;
-  host: HTMLElement;
-  epoch: number;
-  selection: StructuralTableSelection;
-  anchor: TableCellCoordinate;
-  head: TableCellCoordinate;
-  axisSelection?: AxisSelection;
-  payload: TableRangeClipboardPayloadV1;
-}
 
-function ownsCellEditorFocus(editor: HTMLTextAreaElement): boolean {
-  return activeCellEditors.get(editor.ownerDocument) === editor;
-}
-
-function claimCellEditorFocus(editor: HTMLTextAreaElement): void {
-  activeCellEditors.set(editor.ownerDocument, editor);
-}
-
-function releaseCellEditorFocus(editor: HTMLTextAreaElement): void {
-  if (ownsCellEditorFocus(editor)) activeCellEditors.delete(editor.ownerDocument);
-}
-
-function focusNativeTable(view: EditorView, table: StructuralTable, coordinate: TableCellCoordinate): void {
-  cancelPendingTableFocus(view);
-  const row = table.rows[Math.min(coordinate.row, table.rows.length - 1)];
-  const line = view.state.doc.line((row?.sourceLine ?? table.startLine) + 1);
-  const anchor = Math.min(line.to, line.from + table.sourcePrefix.length + 1);
-  // Native editing uses the source caret. Move it before focusing, otherwise
-  // mobile keyboards reveal an unrelated old caret (often the document start).
-  view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "nearest" }) });
-  view.focus();
-}
-
-function requestNativeFocus(view: EditorView, pending: PendingCellFocus): void {
-  const state = view.state;
-  pendingCellFocus.set(view, pending);
-  queueMicrotask(() => {
-    if (pendingCellFocus.get(view) !== pending) return;
-    cancelPendingTableFocus(view);
-    if (view.state !== state || !view.dom.isConnected
-      || view.state.field(editorInfoField, false)?.file?.path !== pending.sourcePath) return;
-    const anchor = Math.min(pending.from, state.doc.length);
-    view.dispatch({
-      selection: { anchor },
-      effects: [structuralTableSourceFocus.of(true), EditorView.scrollIntoView(anchor, { y: "nearest" })],
-    });
-    view.focus();
-  });
-}
-
-function requestTableFocus(view: EditorView, pending: PendingCellFocus): void {
-  pendingCellFocus.set(view, pending);
-  queueMicrotask(() => {
-    if (pendingCellFocus.get(view) !== pending) return;
-    if (!view.dom.isConnected || view.state.field(editorInfoField, false)?.file?.path !== pending.sourcePath
-      || view.state.doc.sliceString(pending.from, pending.from + pending.source.length) !== pending.source) {
-      cancelPendingTableFocus(view);
-      return;
-    }
-    for (const host of view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
-      if (interactions.get(host)?.consumePendingFocus(view, pending)) return;
-    }
-    const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
-      candidate.range.from === pending.from && candidate.source === pending.source);
-    cancelPendingTableFocus(view);
-    if (table !== undefined) focusNativeTable(view, table, pending.coordinate);
-  });
-}
-
-export function restoreTableHistoryFocus(view: EditorView,
-  target: TableHistoryTarget,
-  settings: StructuralTablesSettings): void {
-  if (view.state.field(editorInfoField, false)?.file?.path !== target.sourcePath) return;
-  const quotedRemoval = target.restorePresentation === true && target.after.includes(">")
-    && sourcePrefix(target.after) === target.after
-    && view.state.doc.sliceString(target.from, target.from + target.after.length) === target.after;
-  if (target.after === "" || quotedRemoval) {
-    requestNativeFocus(view, {
-      from: target.from, source: target.after, sourcePath: target.sourcePath, coordinate: target.coordinate, edit: false,
-    });
-    return;
-  }
-  const table = parseEditableTables(view.state.doc.toString()).tables.find((candidate) =>
-    candidate.range.from === target.from && candidate.source === target.after);
-  if (table === undefined || !table.valid) return;
-  const state = view.state;
-  const pending: PendingCellFocus = {
-    from: target.from, source: target.after, sourcePath: target.sourcePath, coordinate: target.coordinate, edit: false,
-  };
-  pendingCellFocus.set(view, pending);
-  queueMicrotask(() => {
-    if (pendingCellFocus.get(view) !== pending) return;
-    if (view.state !== state || !view.dom.isConnected) {
-      cancelPendingTableFocus(view);
-      return;
-    }
-    if (!table.structural && !settings.takeOverOrdinaryTables) {
-      focusNativeTable(view, table, target.coordinate);
-      return;
-    }
-    view.dispatch({ effects: EditorView.scrollIntoView(table.range.from, { y: "nearest" }) });
-  });
-}
-
-export function cancelPendingTableFocus(view: EditorView): void {
-  pendingCellFocus.delete(view);
-}
-
-export function mapPendingTableFocus(view: EditorView, changes: ChangeDesc): void {
-  const pending = pendingCellFocus.get(view);
-  if (pending === undefined) return;
-  const to = pending.from + pending.source.length;
-  let targetChanged = false;
-  changes.iterChangedRanges((from, end) => {
-    if (from < to && end > pending.from
-      || (from === end && from > pending.from && from < to)) targetChanged = true;
-  });
-  if (targetChanged) cancelPendingTableFocus(view);
-  else pending.from = changes.mapPos(pending.from, 1);
-}
 
 export function clearTableWidgetSelection(host: HTMLElement): void {
   const EventConstructor = host.ownerDocument.defaultView?.Event;
@@ -271,6 +134,7 @@ export class StructuralTableWidget extends WidgetType {
     );
     const host = interaction.mount(view, this.cellCommitGeometry?.minHeight);
     interactions.set(host, interaction);
+    registerTableFocusHost(host, (view, pending) => interaction.consumePendingFocus(view, pending));
     return host;
   }
 
@@ -281,6 +145,7 @@ export class StructuralTableWidget extends WidgetType {
   override destroy(host: HTMLElement): void {
     interactions.get(host)?.destroy();
     interactions.delete(host);
+    unregisterTableFocusHost(host);
   }
 
   override ignoreEvent(): boolean { return true; }
@@ -1074,55 +939,16 @@ class StructuralTableInteraction {
   }
 
   private freezeGridSelection(view: EditorView): FrozenGridSelection | null {
-    const selection = this.selection;
-    const anchor = this.selectionAnchor;
-    const head = this.selectionHead;
-    const host = this.host;
-    if (selection === null || anchor === null || head === null || host === null || !host.isConnected) return null;
-    const payload = tableRangePayload(this.table, {
-      minRow: selection.minRow,
-      maxRow: selection.maxRow,
-      minColumn: selection.minColumn,
-      maxColumn: selection.maxColumn,
-    });
-    if (payload === null) return null;
-    return {
-      sourcePath: this.sourcePath,
-      from: this.table.range.from,
-      source: this.table.source,
-      doc: view.state.doc,
-      editor: view.state.field(editorInfoField, false)?.editor,
-      file: view.state.field(editorInfoField, false)?.file,
-      host,
-      epoch: this.selectionEpoch,
-      selection,
-      anchor: { ...anchor },
-      head: { ...head },
-      ...(this.axisSelection === null ? {} : { axisSelection: { ...this.axisSelection } }),
-      payload,
-    };
+    return freezeGridSelection(view, { table: this.table, sourcePath: this.sourcePath, host: this.host,
+      selection: this.selection, selectionAnchor: this.selectionAnchor, selectionHead: this.selectionHead,
+      selectionEpoch: this.selectionEpoch, axisSelection: this.axisSelection });
   }
 
-  private currentTableForFrozenSelection(
-    view: EditorView,
-    frozen: FrozenGridSelection,
-  ): StructuralTable | null {
-    const info = view.state.field(editorInfoField, false);
-    if (this.host !== frozen.host || !frozen.host.isConnected || this.selectionEpoch !== frozen.epoch
-      || view.state.doc !== frozen.doc || info?.editor !== frozen.editor || info?.file !== frozen.file
-      || info?.file?.path !== frozen.sourcePath
-      || view.state.doc.sliceString(frozen.from, frozen.from + frozen.source.length) !== frozen.source) return null;
-    return reparseUnchangedTable(view.state.doc.toString(), frozen.selection.table);
+  private currentTableForFrozenSelection(view: EditorView, frozen: FrozenGridSelection, snapshot?: TableDocumentSnapshot): StructuralTable | null {
+    return currentFrozenTable(view, frozen, this.host, this.selectionEpoch, snapshot);
   }
 
-  private frozenBounds(frozen: FrozenGridSelection) {
-    return {
-      minRow: frozen.selection.minRow,
-      maxRow: frozen.selection.maxRow,
-      minColumn: frozen.selection.minColumn,
-      maxColumn: frozen.selection.maxColumn,
-    };
-  }
+  private frozenBounds(frozen: FrozenGridSelection) { return frozenSelectionBounds(frozen); }
 
   private clearFrozenSelection(view: EditorView, frozen: FrozenGridSelection): boolean {
     if (this.currentTableForFrozenSelection(view, frozen) === null) return false;
@@ -1204,42 +1030,12 @@ class StructuralTableInteraction {
     return true;
   }
 
-  private async copyFrozenSelection(
-    view: EditorView,
-    frozen: FrozenGridSelection,
-    cut: boolean,
-  ): Promise<void> {
-    const t = createTranslator(this.getSettings().language);
-    const clipboard = frozen.host.ownerDocument.defaultView?.navigator.clipboard;
-    if (!await writeTableRangeToNavigator(
-      clipboard, frozen.payload, frozen.host.ownerDocument.defaultView,
-      Platform.isMobileApp ? "verified-text" : "rich",
-    )) {
-      new Notice(t("notice.rangeClipboardWriteFailed"));
-      return;
-    }
-    if (cut && !this.clearFrozenSelection(view, frozen)) new Notice(t("notice.staleTable"));
+  private copyFrozenSelection(view: EditorView, frozen: FrozenGridSelection, cut: boolean): Promise<void> {
+    return copyFrozenRange(frozen, cut, () => this.clearFrozenSelection(view, frozen), createTranslator(this.getSettings().language));
   }
 
-  private async pasteFrozenSelectionFromNavigator(
-    view: EditorView,
-    frozen: FrozenGridSelection,
-  ): Promise<void> {
-    const t = createTranslator(this.getSettings().language);
-    const result = await readTableRangeFromNavigator(
-      frozen.host.ownerDocument.defaultView?.navigator.clipboard,
-      frozen.host.ownerDocument,
-      Platform.isMobileApp ? "verified-text" : "rich",
-    );
-    if (result.kind === "unsupported") {
-      new Notice(t("notice.rangeClipboardReadFailed"));
-      return;
-    }
-    if (result.kind === "failed") {
-      new Notice(t("notice.rangeClipboardUnsupported"));
-      return;
-    }
-    if (!this.pasteFrozenSelection(view, frozen, result.payload)) new Notice(t("notice.staleTable"));
+  private pasteFrozenSelectionFromNavigator(view: EditorView, frozen: FrozenGridSelection): Promise<void> {
+    return pasteFrozenRange(frozen, (payload) => this.pasteFrozenSelection(view, frozen, payload), createTranslator(this.getSettings().language));
   }
 
   private revealHandlesForPointer(event: PointerEvent): void {
@@ -1542,71 +1338,12 @@ class StructuralTableInteraction {
       editor.setCssProps({ "--structural-table-editor-overflow-y": contentHeight > maxHeight ? "auto" : "hidden" });
     };
     let settled = false;
-    let composing = false;
+    const draft = new CellDraftSession(editor);
     let contextMenuOpen = false;
-    let lastRejectedDraft: string | null = null;
-    type DraftSnapshot = { value: string; start: number; end: number };
-    type DraftHistoryGroup = "typing" | "composition" | "deletion" | "native" | "format" | "paste" | "break";
-    type DraftHistoryEntry = {
-      before: DraftSnapshot;
-      after: DraftSnapshot;
-      group: DraftHistoryGroup;
-    };
-    const draftUndo: DraftHistoryEntry[] = [];
-    const draftRedo: DraftHistoryEntry[] = [];
-    let lastHistorySnapshot: DraftSnapshot;
-    let pendingNativeInput: { before: DraftSnapshot; group: DraftHistoryGroup } | null = null;
-    let allowNativeHistoryMerge = true;
-    const draftSnapshot = (): DraftSnapshot => ({
-      value: editor.value,
-      start: editor.selectionStart,
-      end: editor.selectionEnd,
-    });
-    lastHistorySnapshot = draftSnapshot();
-    const sameDraftSnapshot = (left: DraftSnapshot, right: DraftSnapshot): boolean =>
-      left.value === right.value && left.start === right.start && left.end === right.end;
-    const restoreDraftSnapshot = (snapshot: DraftSnapshot): void => {
-      editor.value = snapshot.value;
-      editor.setSelectionRange(snapshot.start, snapshot.end);
-      lastHistorySnapshot = snapshot;
-      pendingNativeInput = null;
-      lastRejectedDraft = null;
-      resizeEditor();
-      editor.focus({ preventScroll: true });
-    };
-    const recordDraftHistory = (
-      before: DraftSnapshot,
-      after: DraftSnapshot,
-      group: DraftHistoryGroup,
-      merge: boolean,
-    ): void => {
-      if (sameDraftSnapshot(before, after)) {
-        lastHistorySnapshot = after;
-        return;
-      }
-      const previous = draftUndo[draftUndo.length - 1];
-      if (merge && previous?.group === group && sameDraftSnapshot(previous.after, before)) {
-        previous.after = after;
-      } else {
-        draftUndo.push({ before, after, group });
-      }
-      draftRedo.length = 0;
-      lastHistorySnapshot = after;
-    };
     const applyDraftMutation = (group: DraftHistoryGroup, mutate: () => void): void => {
-      const before = draftSnapshot();
-      mutate();
-      recordDraftHistory(before, draftSnapshot(), group, false);
-      lastRejectedDraft = null;
+      draft.mutate(group, mutate);
       resizeEditor();
       editor.focus({ preventScroll: true });
-    };
-    const nativeHistoryGroup = (event: InputEvent): DraftHistoryGroup => {
-      const inputType = event.inputType ?? "";
-      if (composing || event.isComposing || inputType.includes("Composition")) return "composition";
-      if (inputType === "insertText") return "typing";
-      if (inputType === "deleteContentBackward" || inputType === "deleteContentForward") return "deletion";
-      return "native";
     };
     const isEscapedAt = (value: string, index: number): boolean => {
       let backslashes = 0;
@@ -1764,7 +1501,7 @@ class StructuralTableInteraction {
       this.releaseCellScope(scope);
     };
     const retainDraft = (message: string): void => {
-      lastRejectedDraft = editor.value;
+      draft.rejectedValue = editor.value;
       new Notice(message);
       queueMicrotask(() => {
         if (!settled && editor.isConnected && ownsCellEditorFocus(editor)) {
@@ -1780,7 +1517,8 @@ class StructuralTableInteraction {
         restore(focus);
         return;
       }
-      const current = reparseUnchangedTable(view.state.doc.toString(), this.table);
+      const snapshot = new TableDocumentSnapshot(view.state.doc.toString());
+      const current = reparseUnchangedTable(snapshot, this.table);
       if (current === null) {
         retainDraft(t("notice.staleTable"));
         return;
@@ -1790,7 +1528,11 @@ class StructuralTableInteraction {
         : editCellAndTransform(current, anchor.row, anchor.column, editor.value, operation);
       // Cell-draft commits can also alter the complete-note parse boundary.
       // Validate the same full document as other structural write consumers.
-      const result = validateTableOperationInDocument(view.state.doc.toString(), current, candidate);
+      const result = validateTableOperationInDocument(snapshot, current, candidate);
+      if (view.state.doc.toString() !== snapshot.source) {
+        retainDraft(t("notice.staleTable"));
+        return;
+      }
       if (!result.changed && result.code !== "cell-edited") {
         // A refused external paste has no unsaved draft to protect. Keep the
         // unchanged editor usable, including its next single-click handoff.
@@ -1856,7 +1598,7 @@ class StructuralTableInteraction {
       } else if (next !== null || focus) requestTableFocus(view, target);
     };
     this.finishActiveOperation = (operation, next, axis) => {
-      if (!composing) finish(true, next, true, operation, "select-all", undefined, axis);
+      if (!draft.composing) finish(true, next, true, operation, "select-all", undefined, axis);
     };
     const commitToNextRow = (): void => {
       const next = tableCellInDirection(this.table, anchor, "down");
@@ -1881,7 +1623,7 @@ class StructuralTableInteraction {
         && scrollHeight <= lineHeight * 1.5;
     };
     const handleKey = (event: KeyboardEvent): void => {
-      if (composing || event.isComposing || contextMenuOpen) return;
+      if (draft.composing || event.isComposing || contextMenuOpen) return;
       const noModifier = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
       const collapsed = editor.selectionStart === editor.selectionEnd;
       const rtl = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl";
@@ -1951,7 +1693,7 @@ class StructuralTableInteraction {
     // the draft-local shortcuts here so parent editor commands cannot rewrite
     // the saved cell while this textarea has editing ownership.
     scope.register([], "Escape", (event) => {
-      if (composing || event.isComposing || contextMenuOpen) return;
+      if (draft.composing || event.isComposing || contextMenuOpen) return;
       handleKey(event);
       return false;
     });
@@ -1959,7 +1701,7 @@ class StructuralTableInteraction {
       scope.register(["Mod"], key, (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (settled || composing || event.isComposing || contextMenuOpen
+        if (settled || draft.composing || event.isComposing || contextMenuOpen
           || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return false;
         toggleDraftInlineFormat(marker);
         return false;
@@ -1973,11 +1715,11 @@ class StructuralTableInteraction {
       redo: boolean,
     ): void => {
       scope.register(modifiers, key, (event) => {
-        if (settled || composing || event.isComposing || contextMenuOpen
+        if (settled || draft.composing || event.isComposing || contextMenuOpen
           || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return true;
         // A fresh unchanged draft has no local history to protect. Release it
         // before the host transaction so history restores its annotated cell.
-        if (draftUndo.length === 0 && draftRedo.length === 0 && pendingNativeInput === null
+        if (!draft.hasHistory && draft.pendingInput === null
           && editor.value === anchor.raw.trim()
           && reparseUnchangedTable(view.state.doc.toString(), this.table) !== null
           && view.state.field(editorInfoField, false)?.editor !== undefined) {
@@ -1987,15 +1729,9 @@ class StructuralTableInteraction {
         }
         event.preventDefault();
         event.stopPropagation();
-        const from = redo ? draftRedo : draftUndo;
-        const to = redo ? draftUndo : draftRedo;
-        const entry = from.pop();
-        if (entry !== undefined) {
-          to.push(entry);
-          restoreDraftSnapshot(redo ? entry.after : entry.before);
-          // Typing after history navigation starts a new branch. Do not merge
-          // it back into a typing transaction that predates the undo/redo.
-          allowNativeHistoryMerge = false;
+        if (draft.navigateHistory(redo)) {
+          resizeEditor();
+          editor.focus({ preventScroll: true });
         }
         return false;
       });
@@ -2015,7 +1751,7 @@ class StructuralTableInteraction {
     editor.addEventListener("dblclick", (event) => {
       if (entryIntent === "select-all" || !("caretOffset" in entryIntent)
         || entryIntent.pointer === undefined || editor.value !== anchor.raw.trim()
-        || composing || event.timeStamp - entryIntent.pointer.at > TOUCH_DOUBLE_TAP_MAX_MS
+        || draft.composing || event.timeStamp - entryIntent.pointer.at > TOUCH_DOUBLE_TAP_MAX_MS
         || Math.hypot(event.clientX - entryIntent.pointer.x, event.clientY - entryIntent.pointer.y) > 5) return;
       // The first click replaced rendered text with Markdown. Use its proven
       // source position for this double click, not the shifted textarea glyphs.
@@ -2026,19 +1762,7 @@ class StructuralTableInteraction {
       }
     });
     editor.addEventListener("input", (event) => {
-      const inputEvent = event;
-      const after = draftSnapshot();
-      const pending = pendingNativeInput;
-      pendingNativeInput = null;
-      const group = pending?.group ?? nativeHistoryGroup(inputEvent);
-      recordDraftHistory(
-        pending?.before ?? lastHistorySnapshot,
-        after,
-        (pending?.group ?? nativeHistoryGroup(inputEvent)),
-        allowNativeHistoryMerge && (group === "typing" || group === "composition"),
-      );
-      allowNativeHistoryMerge = true;
-      lastRejectedDraft = null;
+      draft.recordInput(event);
       resizeEditor();
     });
     editor.addEventListener("beforeinput", (event) => {
@@ -2048,19 +1772,19 @@ class StructuralTableInteraction {
       if (event.defaultPrevented) return;
       // Gboard may replace the selection with an empty insertText before Enter.
       // Explicit deletion uses delete input types and must remain available.
-      if (!composing && !event.isComposing
+      if (!draft.composing && !event.isComposing
         && event.inputType === "insertText" && event.data === ""
         && editor.selectionStart !== editor.selectionEnd) {
         event.preventDefault();
         return;
       }
-      if (!composing && !event.isComposing
+      if (!draft.composing && !event.isComposing
         && (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph")) {
         event.preventDefault();
         commitToNextRow();
         return;
       }
-      pendingNativeInput = { before: draftSnapshot(), group: nativeHistoryGroup(event) };
+      draft.prepareInput(event);
     });
     editor.addEventListener("paste", (event) => {
       if (event.clipboardData === null) return;
@@ -2075,7 +1799,7 @@ class StructuralTableInteraction {
       }
       if (payload !== null && (payload.rows > 1 || payload.columns > 1)) {
         event.preventDefault(); event.stopPropagation();
-        if (composing || editor.value !== anchor.raw.trim() || pendingNativeInput !== null) {
+        if (draft.composing || editor.value !== anchor.raw.trim() || draft.pendingInput !== null) {
           new Notice(t("notice.rangePasteDraft"));
           return;
         }
@@ -2129,7 +1853,7 @@ class StructuralTableInteraction {
           .setTitle(t(suggestion.kind === "absolute-value"
             ? "menu.useMathAbsoluteSuggestion" : "menu.useMathConditionalSuggestion"))
           .onClick(() => {
-            if (settled || composing || editor.value !== draftAtOpen) return;
+            if (settled || draft.composing || editor.value !== draftAtOpen) return;
             editor.value = suggestion.replacement;
             resizeEditor();
             finish(true);
@@ -2145,12 +1869,12 @@ class StructuralTableInteraction {
       });
     });
     editor.addEventListener("compositionstart", (event) => {
-      composing = true;
+      draft.composing = true;
       composingCellEditors.add(editor);
       event.stopPropagation();
     });
     editor.addEventListener("compositionend", (event) => {
-      composing = false;
+      draft.composing = false;
       composingCellEditors.delete(editor);
       event.stopPropagation();
       resizeEditor();
@@ -2160,8 +1884,8 @@ class StructuralTableInteraction {
       }
     });
     editor.addEventListener("blur", () => {
-      if (!contextMenuOpen && !composing) releaseCellEditorFocus(editor);
-      if (!composing && !contextMenuOpen && lastRejectedDraft !== editor.value) {
+      if (!contextMenuOpen && !draft.composing) releaseCellEditorFocus(editor);
+      if (!draft.composing && !contextMenuOpen && draft.rejectedValue !== editor.value) {
         // Let the native pointer handler finish choosing its source destination
         // before a whole-table replacement maps the old logical cell cursor.
         if (tableSourcePointerPending(view)) {
@@ -2473,9 +2197,10 @@ class StructuralTableInteraction {
       new Notice(t("notice.staleTable"));
       return;
     }
+    const snapshot = new TableDocumentSnapshot(view.state.doc.toString());
     const current = frozen === undefined
-      ? reparseUnchangedTable(view.state.doc.toString(), expected)
-      : this.currentTableForFrozenSelection(view, frozen);
+      ? reparseUnchangedTable(snapshot, expected)
+      : this.currentTableForFrozenSelection(view, frozen, snapshot);
     if (current === null) {
       new Notice(t("notice.staleTable"));
       return;
@@ -2483,7 +2208,11 @@ class StructuralTableInteraction {
     const selection = frozen?.selection ?? this.selection;
     const selectionAnchor = wholeTableAnchor ?? frozen?.anchor ?? this.selectionAnchor;
     const selectionHead = frozen?.head ?? this.selectionHead;
-    const result = validateTableOperationInDocument(view.state.doc.toString(), current, operation(current));
+    const result = validateTableOperationInDocument(snapshot, current, operation(current));
+    if (view.state.doc.toString() !== snapshot.source) {
+      new Notice(t("notice.staleTable"));
+      return;
+    }
     if (!result.changed) {
       if (result.code !== "cells-cleared") new Notice(operationNotice(t, result.code));
       return;

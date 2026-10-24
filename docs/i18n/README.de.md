@@ -24,6 +24,8 @@ Auf dem Desktop eine Zelle anklicken, auf Touchgeräten doppelt antippen, um Tex
 
 ![Darstellungseinstellungen von Structural Tables](../assets/structural-tables-settings-en.png)
 
+Das Darstellungsbild zeigt die echten Einstellungs- und Tabellenkomponenten in einem Browser-Testaufbau, keine Aufnahme aus Obsidian.
+
 <!-- section: features -->
 ## Funktionen
 
@@ -55,7 +57,7 @@ Zur manuellen Installation `structural-tables-<version>.zip` nach `Vault/.obsidi
 <!-- section: usage -->
 ## Verwendung
 
-Eine Markdown-Tabelle anlegen und folgende Syntax verwenden:
+Setzen Sie den Cursor ohne Textauswahl auf eine leere Zeile und führen Sie **Strukturtabelle einfügen** aus der Befehlspalette aus. Der Befehl fügt direkt ein Beispiel ein. Bewegen Sie den Cursor in der Live-Vorschau aus der Tabelle oder wechseln Sie in die Leseansicht. Das folgende Beispiel hat dieselbe Struktur und lässt sich anpassen:
 
 ```markdown
 | Region | Umsatz | < |
@@ -73,7 +75,7 @@ In der Live-Vorschau eine Zelle anklicken. Enter speichert und wechselt, Shift+E
 
 Delete/Backspace leert bei einer Rasterauswahl nur den Zellinhalt. Für Zeilen-, Spalten- oder Tabellenlöschung das Kontextmenü verwenden. Ausdrückliche Änderungen lassen sich rückgängig machen.
 
-Bereiche lassen sich kopieren, ausschneiden und nur bei passender Verbindungsstruktur wieder einfügen. Auf Mobilgeräten gehen die gespeicherten Verbindungsdaten nach einem Neustart oder Wechsel des Zwischenablageninhalts verloren.
+Bereiche lassen sich kopieren und ausschneiden. Zum Einfügen wählen Sie entweder ein Zielrechteck mit gleicher Verbindungsstruktur oder eine einzelne unverbundene Zelle als linke obere Ecke. Bei einer einzelnen Zielzelle kann die Tabelle nach rechts und unten wachsen. Bestehende Verbindungen dürfen nur vollständig innerhalb des Zielrechtecks überschrieben werden. Auf Mobilgeräten gehen die gespeicherten Verbindungsdaten nach einem Neustart oder Wechsel des Zwischenablageninhalts verloren.
 
 Auf dem Desktop können Sie die komplette Tabelle als PNG prüfen, kopieren und speichern. Ungespeicherte Zellbearbeitungen fehlen im Bild. Auf Mobilgeräten steht der PNG-Export nicht zur Verfügung.
 
@@ -113,6 +115,8 @@ PNG-Bilder sind auf 8192 Pixel je Seite und 16 Megapixel begrenzt. Wenn nicht di
 „Allgemein“: Sprache, HTML-Einfügen, Konfliktwarnungen. „Ansichten“: Leseansicht, Live-Vorschau, Hinweise und Übernahme normaler GFM-Tabellen. „Darstellung“: Tabellenstil, Breite, Abstand und wechselnde Zeilenfarben.
 
 Wählen Sie „Dem Theme folgen“, Raster oder Dreilinientabelle. Darstellung und Oberflächensprache verändern weder Markdown noch die Schreibrichtung der Notiz.
+
+Unter „Linien und Schattierung“ und „Layout und Abstände“ zeigt eine Beispieltabelle Änderungen sofort an. Sie verwendet festen Text und liest oder bearbeitet keine Notiz. Die Einstellungen gelten für Tabellen im gesamten Vault und werden automatisch gespeichert.
 
 <!-- section: limitations -->
 ## Einschränkungen

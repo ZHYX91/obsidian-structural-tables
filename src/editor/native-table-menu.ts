@@ -11,7 +11,7 @@ import { createTranslator, operationNotice } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
 import { parseEditableTables } from "../core/parser";
-import { reparseUnchangedTable } from "../core/table-snapshot";
+import { reparseUnchangedTable, TableDocumentSnapshot } from "../core/table-snapshot";
 import { validateTableOperationInDocument } from "../core/table-operation-document";
 
 import { nativeTableDomSelection } from "./native-table-selection";
@@ -195,12 +195,17 @@ export class NativeTableMenuBridge {
 
   private applyMenuOperation(editor: Editor, expected: StructuralTable, operation: TableOperation): void {
     const t = createTranslator(this.getSettings().language);
-    const current = reparseUnchangedTable(editor.getValue(), expected);
+    const snapshot = new TableDocumentSnapshot(editor.getValue());
+    const current = reparseUnchangedTable(snapshot, expected);
     if (current === null) {
       new Notice(t("notice.staleTable"));
       return;
     }
-    const result = validateTableOperationInDocument(editor.getValue(), current, operation(current));
+    const result = validateTableOperationInDocument(snapshot, current, operation(current));
+    if (editor.getValue() !== snapshot.source) {
+      new Notice(t("notice.staleTable"));
+      return;
+    }
     if (result.changed) {
       replaceTableSource(editor, current, result.source);
     }

@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const ru = {
+  "settings.group.style": "Линии и фон",
+  "settings.group.layout": "Размещение и интервалы",
+  "settings.preview.title": "Предпросмотр оформления",
+  "settings.preview.description": "Пример обновляется при изменении настроек. Заметки не изменяются.",
   "operation.transposeBoundaryUnsafe": "Транспонирование изменит границы таблицы. Добавьте пустую строку до и после таблицы и повторите попытку.",
   "command.convertGfm": "Преобразовать текущую таблицу в обычный GFM",
   "command.createBaseRecord": "Создать запись в текущей базе",

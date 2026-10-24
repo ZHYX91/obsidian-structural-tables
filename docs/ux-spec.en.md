@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-15
+last_synced: 2026-10-24
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -65,6 +65,8 @@ Render with `thead`, `tbody`, `th`, `td`, `rowspan`, `colspan`, and suitable `sc
 
 <!-- section: commands -->
 ## Commands
+
+**Insert structural table** directly replaces the editor selection with a working template; the quick start therefore places a collapsed cursor on an empty line first.
 
 Insert template, format, merge left, merge up, split, validate, copy HTML/GFM/TSV/CSV, preview and flatten to plain GFM, migrate a Sheets Extended separator, and migrate legacy Structural Tables Base properties are available in the command palette. Formatting and flattening to GFM first show a scrollable, selectable result preview and reparse the unchanged source table when the user confirms; neither changes source before confirmation. A merge from a non-empty cell explains the refusal and preserves source.
 
@@ -221,5 +223,7 @@ Fresh installs follow the theme. Style, layout, and density are independent:
 - **Three-line table** draws top/bottom rules and one rule below the complete column-header area, without a row-header fill or vertical divider;
 - headerless Three-line tables naturally keep only top and bottom rules;
 - explicit column alignment overrides the default row-header alignment.
+
+Group style and zebra controls under **Style and shading**, and layout/density under **Layout and spacing**. A non-editable merged sample below reflects all four controls immediately, using the real table renderer. Explain that the sample does not read or edit notes, while settings are saved and apply throughout the Vault.
 
 Layout changes table position and width only. Appearance settings never rewrite Markdown.

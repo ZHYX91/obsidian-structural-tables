@@ -24,6 +24,8 @@ Clique numa célula no computador ou toque duas vezes na tela sensível ao toque
 
 ![Configurações de aparência do Structural Tables](../assets/structural-tables-settings-en.png)
 
+A imagem de aparência mostra os componentes reais de configurações e tabela em um navegador de teste; não é uma captura do Obsidian.
+
 <!-- section: features -->
 ## Recursos
 
@@ -41,12 +43,12 @@ Clique numa célula no computador ou toque duas vezes na tela sensível ao toque
 
 Requer Obsidian 1.12.7 ou mais recente. Compatível com desktop e Android. Para converter em Base, ative o plug-in principal Bases do Obsidian.
 
-`<`, `^` e `||` são extensões de sintaxe, então outros editores Markdown podem exibir as mesclagens de forma diferente. Para usar o Advanced Tables, escolha «Editar código Markdown da tabela» e confira os dados depois de ordenar com outro plug-in.
+`<`, `^` e `||` são extensões de sintaxe, então outros editores Markdown podem exibir as mesclagens de forma diferente. Para usar o Advanced Tables, escolha “Editar código Markdown da tabela” e confira os dados depois de ordenar com outro plug-in.
 
 <!-- section: installation -->
 ## Instalação
 
-No Obsidian, abra «Configurações → Plug-ins da comunidade → Explorar», pesquise Structural Tables, instale e ative.
+No Obsidian, abra “Configurações → Plug-ins da comunidade → Explorar”, pesquise Structural Tables, instale e ative.
 
 Para instalar manualmente, extraia `structural-tables-<version>.zip` em `Vault/.obsidian/plugins/`, recarregue o Obsidian e ative o plug-in.
 
@@ -55,7 +57,7 @@ Para instalar manualmente, extraia `structural-tables-<version>.zip` em `Vault/.
 <!-- section: usage -->
 ## Como usar
 
-Crie uma tabela Markdown e use a sintaxe abaixo:
+Coloque o cursor em uma linha vazia, sem selecionar texto, e execute **Inserir tabela estrutural** na paleta de comandos. O exemplo é inserido diretamente. Mova o cursor para fora da tabela na pré-visualização ou mude para o modo de leitura para ver o resultado. Você pode adaptar este exemplo com a mesma estrutura:
 
 ```markdown
 | Região | Vendas | < |
@@ -83,7 +85,7 @@ Separe as células mescladas na área de dados antes de converter a tabela em Ba
 
 ### Tabelas Markdown comuns
 
-As tabelas GFM comuns usam o editor nativo do Obsidian por padrão. Ative «Editar também tabelas Markdown comuns» para usar os controles do Structural Tables. Se uma linha tiver mais células no Markdown que o cabeçalho, parte do conteúdo pode ficar oculta. Abra «Editar código Markdown da tabela» e corrija essas células antes de alterar a estrutura.
+As tabelas GFM comuns usam o editor nativo do Obsidian por padrão. Ative “Editar também tabelas Markdown comuns” para usar os controles do Structural Tables. Se uma linha tiver mais células no Markdown que o cabeçalho, parte do conteúdo pode ficar oculta. Abra “Editar código Markdown da tabela” e corrija essas células antes de alterar a estrutura.
 
 ### Fórmulas e quebras de linha
 
@@ -110,9 +112,11 @@ O limite de exportação PNG é 8192 pixels por lado ou 16 megapixels no total. 
 <!-- section: settings -->
 ## Configurações
 
-«Geral»: idioma, colagem de HTML e avisos de conflito. «Modos de exibição»: leitura, pré-visualização, diagnósticos e edição de tabelas GFM comuns. «Aparência»: estilo, largura, espaçamento e linhas alternadas.
+“Geral”: idioma, colagem de HTML e avisos de conflito. “Modos de exibição”: leitura, pré-visualização, diagnósticos e edição de tabelas GFM comuns. “Aparência”: estilo, largura, espaçamento e linhas alternadas.
 
 Escolha Seguir tema, Grade ou Tabela de três linhas. Mudar a aparência ou o idioma do plug-in não altera o Markdown nem a direção do texto da nota.
+
+Abaixo de “Linhas e fundo” e “Layout e espaçamento”, uma tabela de exemplo mostra as alterações imediatamente. Ela usa texto fixo e não lê nem edita notas. As configurações se aplicam às tabelas de todo o cofre e são salvas automaticamente.
 
 <!-- section: limitations -->
 ## Limitações

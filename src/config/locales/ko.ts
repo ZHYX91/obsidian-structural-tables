@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const ko = {
+  "settings.group.style": "선과 배경",
+  "settings.group.layout": "배치와 간격",
+  "settings.preview.title": "모양 미리 보기",
+  "settings.preview.description": "위 설정을 바꾸면 예시에 반영됩니다. 노트는 변경되지 않습니다.",
   "operation.transposeBoundaryUnsafe": "행과 열을 바꾸면 표의 시작 또는 끝 위치가 달라집니다. 표 앞뒤에 빈 줄을 넣고 다시 시도하세요.",
   "command.convertGfm": "현재 표를 일반 GFM으로 변환",
   "command.createBaseRecord": "현재 Base에 레코드 만들기",

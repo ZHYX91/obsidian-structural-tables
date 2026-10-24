@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "settings.group.style": "罫線と背景",
+  "settings.group.layout": "配置と余白",
+  "settings.preview.title": "外観のプレビュー",
+  "settings.preview.description": "上の設定を変更するとサンプルに反映されます。ノートは変更されません。",
   "operation.transposeBoundaryUnsafe": "転置すると、テーブルの開始位置や終了位置を正しく認識できなくなります。テーブルの前後に空行を 1 行ずつ追加して、もう一度お試しください。",
   "command.convertGfm": "現在のテーブルを標準 GFM に変換",
   "command.createBaseRecord": "現在の Base にレコードを作成",

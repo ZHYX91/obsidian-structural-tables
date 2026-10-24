@@ -551,6 +551,20 @@
   text-align: right;
 }
 
+.structural-tables-appearance-preview {
+  padding: var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  margin-block-start: var(--size-4-4);
+}
+
+.structural-tables-appearance-preview caption {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  caption-side: bottom;
+  padding-block-start: var(--size-4-2);
+}
+
 [data-zebra="true"] .structural-tables-table tbody tr:nth-child(even) {
   background: var(--table-row-alt-background);
 }

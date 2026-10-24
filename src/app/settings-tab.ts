@@ -5,6 +5,8 @@ import { LOCALES, sanitizeInterfaceLanguage } from "../config/locale";
 import { moveSettingsTabIndex } from "./settings-tab-navigation";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import type { StructuralTablesPlugin } from "./plugin";
+import type { StructuralTablesSettings } from "../config/settings";
+import { TableAppearancePreview } from "./table-appearance-preview";
 
 type TabId = "general" | "views" | "appearance";
 
@@ -13,12 +15,15 @@ type TabId = "general" | "views" | "appearance";
 export class StructuralTablesSettingTab extends PluginSettingTab {
   private activeTab: TabId = "general";
   private statusCleanup: (() => void) | null = null;
+  private appearancePreview: TableAppearancePreview | null = null;
 
   constructor(app: App, private readonly structuralPlugin: StructuralTablesPlugin) {
     super(app, structuralPlugin);
   }
 
   override display(): void {
+    this.appearancePreview?.destroy();
+    this.appearancePreview = null;
     this.statusCleanup?.();
     this.statusCleanup = null;
     const { containerEl } = this;
@@ -111,21 +116,26 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         .setValue(this.structuralPlugin.settings.showDiagnostics)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ showDiagnostics: value })));
     } else {
+      new Setting(panels).setName(t("settings.group.style")).setHeading();
       new Setting(panels).setName(t("settings.tableStyle")).setDesc(t("settings.appearance.desc")).addDropdown((dropdown) => dropdown
         .addOption("theme", t("settings.followTheme"))
         .addOption("grid", t("settings.appearance.grid"))
         .addOption("three-line", t("settings.appearance.threeLine"))
         .setValue(this.structuralPlugin.settings.appearance)
-        .onChange(async (value) => this.structuralPlugin.updateSettings({
+        .onChange(async (value) => this.updateAppearance({
           appearance: value === "grid" || value === "three-line" ? value : "theme",
         })));
+      new Setting(panels).setName(t("settings.zebra")).setDesc(t("settings.zebra.desc")).addToggle((toggle) => toggle
+        .setValue(this.structuralPlugin.settings.zebraRows)
+        .onChange(async (value) => this.updateAppearance({ zebraRows: value })));
+      new Setting(panels).setName(t("settings.group.layout")).setHeading();
       new Setting(panels).setName(t("settings.layout")).setDesc(t("settings.layout.desc")).addDropdown((dropdown) => dropdown
         .addOption("theme", t("settings.followTheme"))
         .addOption("content-left", t("settings.layout.contentLeft"))
         .addOption("content-center", t("settings.layout.contentCenter"))
         .addOption("pane", t("settings.layout.pane"))
         .setValue(this.structuralPlugin.settings.layout)
-        .onChange(async (value) => this.structuralPlugin.updateSettings({
+        .onChange(async (value) => this.updateAppearance({
           layout: value === "content-left" || value === "content-center" || value === "pane" ? value : "theme",
         })));
       new Setting(panels).setName(t("settings.density")).setDesc(t("settings.density.desc")).addDropdown((dropdown) => dropdown
@@ -133,18 +143,24 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         .addOption("comfortable", t("settings.density.comfortable"))
         .addOption("compact", t("settings.density.compact"))
         .setValue(this.structuralPlugin.settings.density)
-        .onChange(async (value) => this.structuralPlugin.updateSettings({ density: value === "compact" || value === "comfortable" ? value : "theme" })));
-      new Setting(panels).setName(t("settings.zebra")).setDesc(t("settings.zebra.desc")).addToggle((toggle) => toggle
-        .setValue(this.structuralPlugin.settings.zebraRows)
-        .onChange(async (value) => this.structuralPlugin.updateSettings({ zebraRows: value })));
+        .onChange(async (value) => this.updateAppearance({ density: value === "compact" || value === "comfortable" ? value : "theme" })));
+      this.appearancePreview = new TableAppearancePreview(this.app, panels, this.structuralPlugin.settings, t);
     }
     this.applyReadOnlyState(panels);
   }
 
   override hide(): void {
+    this.appearancePreview?.destroy();
+    this.appearancePreview = null;
     this.statusCleanup?.();
     this.statusCleanup = null;
     super.hide();
+  }
+
+  private async updateAppearance(update: Partial<StructuralTablesSettings>): Promise<void> {
+    const saved = this.structuralPlugin.updateSettings(update);
+    this.appearancePreview?.update(this.structuralPlugin.settings);
+    await saved;
   }
 
   private renderExportGuide(container: HTMLElement, t: Translate): void {

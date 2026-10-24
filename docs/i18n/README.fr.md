@@ -24,6 +24,8 @@ Cliquez une cellule sur ordinateur, ou appuyez deux fois sur un écran tactile, 
 
 ![Réglages de l’apparence de Structural Tables](../assets/structural-tables-settings-en.png)
 
+L’image des réglages montre les composants réels de paramètres et de tableau dans un navigateur de test, pas une capture d’Obsidian.
+
 <!-- section: features -->
 ## Fonctions
 
@@ -55,7 +57,7 @@ Pour l’installation manuelle, extrayez `structural-tables-<version>.zip` dans 
 <!-- section: usage -->
 ## Utilisation
 
-Créez un tableau Markdown et utilisez cette syntaxe :
+Placez le curseur sur une ligne vide, sans texte sélectionné, puis lancez **Insérer un tableau structuré** dans la palette de commandes. Le tableau d’exemple est inséré directement. Sortez le curseur du tableau dans l’aperçu en direct, ou passez en mode lecture, pour voir le résultat. Voici un exemple de même structure à adapter :
 
 ```markdown
 | Région | Ventes | < |
@@ -113,6 +115,8 @@ Un PNG ne peut pas dépasser 8192 pixels par côté ou 16 mégapixels au total. 
 « Général » : langue, collage HTML et avertissements. « Vues » : lecture, aperçu, erreurs et prise en charge des tableaux GFM normaux. « Apparence » : style, largeur, espacement et couleurs alternées.
 
 Choisissez Suivre le thème, Grille ou Tableau à trois lignes. Modifier l’apparence ou la langue de l’interface ne change ni le Markdown ni le sens du texte de la note.
+
+Sous « Traits et fond » et « Disposition et espacement », un tableau d’exemple reflète immédiatement les changements. Il utilise du texte fixe et ne lit ni ne modifie aucune note. Les réglages s’appliquent aux tableaux du coffre et sont enregistrés automatiquement.
 
 <!-- section: limitations -->
 ## Limites

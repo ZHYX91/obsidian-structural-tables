@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0 - 2026-10-25
+
+- Group Appearance controls by style/shading and layout/spacing, with a live table preview that uses fixed local content without reading or editing notes.
+- Reuse the original document parse within one table operation while retaining complete-note validation of neighboring tables and boundaries.
+- Separate cell-draft, range-clipboard, and focus ownership so editing and clipboard actions remain bound to their captured table and editor.
+- Clarify insertion, preview, clipboard, and optional DocWen workflows across all twelve user-guide languages, including both matching-range paste and expansion from one unmerged anchor cell with merge-boundary safeguards.
+- Refresh the Appearance illustration and identify it as a browser fixture using the actual settings and table components.
+
 ## 0.9.1 - 2026-10-23
 
 - Refuse Sheets Extended migration when removing its separator column would absorb unrelated adjacent pipe rows.

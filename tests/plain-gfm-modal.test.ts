@@ -18,6 +18,7 @@ import { structuralTableSourceFocus } from "../src/editor/table-source-focus";
 import { installReadingOutputMenu } from "../src/reading/table-image-menu";
 import { tableCommandEditor } from "./helpers/table-command-editor";
 import { NativeTableWidget } from "./helpers/native-table-widget";
+import { createPopoutFrame } from "./helpers/popout-frame";
 import { installSelectionChangeTasks } from "./mocks/selection-events";
 import { lastMenu, notices, TFile } from "./mocks/obsidian";
 
@@ -141,7 +142,7 @@ describe("GFM preview and editor entry points", () => {
   });
 
   it("uses a popout's clipboard and restores focus to its captured editor after replacement", async () => {
-    const frame = document.body.appendChild(document.createElement("iframe"));
+    const frame = createPopoutFrame();
     const owner = frame.contentDocument!;
     const f = tableCommandEditor(SOURCE, [], owner); cleanup.push(f.destroy);
     const { modal } = makeModal(f);

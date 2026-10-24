@@ -14,6 +14,7 @@ import { NativeTableMenuBridge } from "../src/editor/native-table-menu";
 import { lastMenu, TFile } from "./mocks/obsidian";
 import { parseEditableTables } from "../src/core/parser";
 import { NativeTableWidget } from "./helpers/native-table-widget";
+import { createPopoutFrame } from "./helpers/popout-frame";
 
 const SOURCE = `| Name | Status |
 | --- | --- |
@@ -63,7 +64,7 @@ function fixture(takeOverOrdinaryTables = false, exportImage?: ExportTableImage,
     <div class="markdown-view"></div>
     <p class="outside">Outside</p>`;
   const container = document.querySelector<HTMLElement>(".markdown-view")!;
-  const iframe = existingPopout ? document.body.appendChild(document.createElement("iframe")) : null;
+  const iframe = existingPopout ? createPopoutFrame() : null;
   const popoutWindow = iframe?.contentWindow ?? null;
   if (popoutWindow !== null) popoutWindow.document.body.innerHTML = `
     <div class="markdown-view"></div>`;
@@ -265,7 +266,7 @@ describe("native table menu bridge", () => {
 
   it("releases listeners when a popout window closes without removing its cells", () => {
     const { emitWindow } = fixture(false);
-    const iframe = document.body.appendChild(document.createElement("iframe"));
+    const iframe = createPopoutFrame();
     const popout = iframe.contentWindow!;
     popout.document.body.innerHTML = '<div class="cm-table-widget"><table><tr><td>Popout</td></tr></table></div>';
     const cell = popout.document.querySelector<HTMLElement>("td")!;

@@ -57,17 +57,17 @@
     "@types/jsdom": "30.0.0",
     "@types/markdown-it": "14.1.2",
     "@types/node": "24.19.0",
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "4.1.12",
     "esbuild": "0.28.2",
     "eslint": "10.11.0",
     "eslint-plugin-obsidianmd": "0.4.2",
-    "happy-dom": "20.14.5",
+    "happy-dom": "21.0.4",
     "jsdom": "30.1.2",
-    "markdown-it": "14.3.2",
+    "markdown-it": "14.3.3",
     "obsidian": "1.13.1",
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.1",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   },
   "allowScripts": {
     "esbuild": true

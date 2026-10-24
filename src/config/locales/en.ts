@@ -1,4 +1,8 @@
 const en = {
+  "settings.group.style": "Style and shading",
+  "settings.group.layout": "Layout and spacing",
+  "settings.preview.title": "Appearance preview",
+  "settings.preview.description": "This sample updates as you change the controls. It does not edit a note.",
   "operation.transposeBoundaryUnsafe": "This transpose would change where the table starts or ends. Add a blank line before and after the table, then try again.",
   "command.convertGfm": "Convert current table to plain GFM",
   "command.createBaseRecord": "Create record for current Base",

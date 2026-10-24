@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "settings.group.style": "Líneas y fondo",
+  "settings.group.layout": "Diseño y espaciado",
+  "settings.preview.title": "Vista previa de la apariencia",
+  "settings.preview.description": "Este ejemplo se actualiza al cambiar las opciones. No modifica ninguna nota.",
   "operation.transposeBoundaryUnsafe": "Al transponer, cambiaría dónde empieza o termina la tabla. Añade una línea en blanco antes y otra después de la tabla e inténtalo de nuevo.",
   "command.convertGfm": "Convertir la tabla actual a GFM simple",
   "command.createBaseRecord": "Crear un registro para la Base actual",

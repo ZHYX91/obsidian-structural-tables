@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-10
+last_synced: 2026-10-24
 translation_of: architecture.zh-CN.md
 ---
 
@@ -27,7 +27,7 @@ Row/column reorder is a pure axis permutation shared by menu movement and drag/d
 <!-- section: validation -->
 ## Validation
 
-Merges resolve only left or up, preventing directional cycles. Validation then checks anchors, role boundaries, and rectangular closure. Strict row width applies after structural mode is active.
+Merges resolve only to the previous source column or upward, preventing directional cycles regardless of display direction. Validation then checks anchors, role boundaries, and rectangular closure. Strict row width applies after structural mode is active.
 
 <!-- section: rendering -->
 ## Rendering
@@ -55,10 +55,14 @@ Interrupted dirty editors hand their text to an application-session recovery buf
 
 Reading View also maps a simple merged table when the host leaves its exact raw lines in a paragraph. Acquisition requires a unique complete-line range, unchanged source/section/DOM identity and no intersecting media or widgets. A containing inline HTML span retains its node identity and attributes; ambiguous text and protected HTML remain untouched.
 
+The interaction responsibilities are split into `cell-draft-session` (raw value, selection and draft-local history), `table-focus-session` (ownership and pending focus across remounts), and `range-clipboard-session` (frozen selections and asynchronous clipboard checks). These modules do not dispatch document changes. The widget and captured command target retain the validated commit boundary.
+
 <!-- section: editing -->
 ## Editing
 
 Commands and in-place edits produce candidate source from a pure in-memory ownership grid and parse it again. Row/column transformations rebuild rectangular merge ownership and migrate surviving anchors. Guarded operations refuse invalid boundaries plus unintended loss of unselected or hidden content; explicit clear/remove intents may discard only the user-selected visible owners. Cell input escapes unescaped pipes outside code spans before one whole-table CodeMirror transaction. Every explicit source write aligns separator pipes by terminal display width, including CJK and emoji, while preserving row-header dividers, alignment markers, escaped pipes, Wiki links, code spans, and the note's existing LF, CRLF, or CR line ending. Rendering never calls the serializer or writes source.
+
+A synchronous edit captures the exact original document string in a `TableDocumentSnapshot` and parses that original only once. Target revalidation and neighboring-table checks share this snapshot. Validation still parses the complete result document, checks the intended result and every neighbor, and rechecks the editor's exact source before dispatch. Snapshots are operation-local; they are never reused after an asynchronous gap or a changed document.
 
 <!-- section: interchange -->
 ## Interchange
@@ -67,7 +71,7 @@ Plain GFM conversion has a pure plan for each available orientation. It reuses t
 
 A pure-core projection expands a valid structural table into stable column paths and two-dimensional data. GFM, TSV, CSV, and later record migrations share that projection; semantic HTML uses the validated rowspan, colspan, roles, scope, and real break elements. Whole-note HTML-import wiring normalizes an HTML DOM into cells, spans, th/td roles, and canonical `<br>` visual breaks before the pure core generates and reparses structural Markdown. Sheets Extended migration accepts only one non-edge pseudo-separator column whose cells are all exact `-` tokens.
 
-Owned grid ranges use a separate normalized v1 payload with relative canonical owner IDs and raw owner tokens. Paste accepts only this payload with equal dimensions and owner topology, constructs and validates one complete candidate, and applies a single source transaction. Menu clipboard writes and reads check platform support independently. Unsupported payloads, ordinary text, and HTML never fall through from an owned-grid selection to hidden source. Portable range HTML represents spans with escaped raw text; plain Markdown treats the first copied row as a header and retains structural markers where representable, without guaranteeing merge topology in external GFM.
+Owned grid ranges use a separate normalized v1 payload with relative canonical owner IDs and raw owner tokens. Paste into a rectangular selection requires equal dimensions and owner topology. An unchanged single-cell anchor can expand the destination to fit the copied rectangle; partial merges, changed drafts and invalid role boundaries are refused. Both paths construct and validate one complete candidate and apply a single source transaction. Menu clipboard writes and reads check platform support independently. Unsupported payloads, ordinary text, and HTML never fall through from an owned-grid selection to hidden source. Portable range HTML represents spans with escaped raw text; plain Markdown treats the first copied row as a header and retains structural markers where representable, without guaranteeing merge topology in external GFM.
 
 Whole-table PNG export has its own desktop session. It renders the validated model with the normal semantic renderer in an offscreen shell retaining source cssclass and Callout scopes, waits for cell rendering, the public `finishRenderMath()` barrier, fonts and images, measures complete content, and converts a styled DOM clone through pinned MIT-licensed `html-to-image` SVG foreignObject and canvas. Loaded image attachments are rasterized locally; required SVG symbols, active CSS resources including pseudo-elements, and successfully selected font sources are embedded. Font rules are associated with their specific CSS-connected FontFace by normalized descriptors and document order, distinguishing Unicode subsets, widths and repeated descriptors with different sources; inactive rules are excluded. Font collection follows source priority, retains the note's existing font fallback and never mutates host stylesheets. Resource validation parses attributes and declarations rather than text. The theme guard observes actual source presentation and theme mode, allowing unrelated renderer head updates and render-child replacements in the same verified note. It does not reuse the intentionally simplified Word/HTML projection. Cancellation, render errors, source/theme changes, excessive dimensions/nodes/resources and unsupported dynamic embeds refuse the result. A final PNG Blob supplies preview, clipboard and Vault attachment saving; a repeated request cancels its predecessor, and modal close or plugin unload releases the render component, offscreen DOM, event subscriptions and object URL. No source write or upload occurs.
 
@@ -84,6 +88,8 @@ The recovery manifest records the original table, generated Base, source file, a
 ## Settings
 
 Persisted settings use a schema-1 envelope. The previous unversioned object is the only legacy input: startup sanitizes it once and queues the schema-1 envelope, while current schema-1 data is normalized without another migration. Any explicit unknown or malformed schema is incompatible and read-only, so this plugin version cannot overwrite future fields. Settings saves pass through one serialized coordinator. Each queued save owns an immutable snapshot, failed saves remain visible and retryable, and unload flushes the queue and retries the latest failed snapshot once.
+
+The Appearance tab owns a `TableAppearancePreview` with the shared semantic renderer and a fixed local sample. It updates display attributes immediately and releases its component on tab redisplay or hide. It has no Vault reads, editing handlers, or source-write path.
 
 <!-- section: release -->
 ## Release

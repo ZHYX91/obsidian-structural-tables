@@ -26,6 +26,8 @@ Structural Tables 让 Obsidian 中的 Markdown 表格支持合并单元格、多
 
 ![外观设置中的三线表样式、布局、密度和交替行底色选项](../assets/structural-tables-settings-en.png)
 
+外观设置图来自实际设置和表格组件的浏览器样例，不是真实 Obsidian 宿主截图。
+
 <!-- section: features -->
 ## 功能
 
@@ -68,7 +70,7 @@ Structural Tables 要求 Obsidian 1.12.7 或更高版本，支持桌面版 Obsid
 
 ### 快速上手
 
-1. 创建或粘贴一张 Markdown 管道表格。
+1. 把光标放到空白行，不要选中文字。从命令面板运行**插入结构表格**，即可插入可用示例；这个命令直接在光标处写入表格，不会打开对话框。
 2. 在单元格里写 `<` 与源码顺序中的前一列合并，写 `^` 向上合并；在分隔行中写相邻的 `||` 标记行标题列。
 3. 在实时预览中把源码光标移出表格，或切换到阅读视图，查看表格效果。
 4. 在实时预览中点击单元格修改内容；需要编辑 Markdown 时，右键选择**编辑表格源码**。
@@ -230,9 +232,11 @@ Shift+Enter、单元格右键菜单和多行粘贴都可以插入视觉换行。
 
 **跟随主题**把边框、表头颜色和字重交给当前 Obsidian 主题，没有列标题的表格也遵循主题的外框样式。**网格表**会为列标题和行标题使用一致的轻度标题底色，并用略粗的单实线标明完整列标题区域的下边界，以及 `||` 声明的行标题分界。尚未添加数据行时，这两种分界也会保留。分界线沿合并单元格边缘绘制；没有表头时保持均匀网格。**三线表**只保留顶线、底线和列标题区域下方的一条横线，不增加正文竖线；没有列标题时自然只剩顶线和底线。
 
+**线条与底色**集中设置样式和交替行底色，**布局与间距**集中设置宽度、对齐和密度。下方示例会立即更新，方便调整后再返回笔记查看。示例只使用固定的本地文字，不读取或编辑笔记；设置仍会影响全库的表格显示，并自动保存。
+
 外观设置只影响显示，不会修改 Markdown。
 
-**导出 Word 文档：** 本插件用扩展 Markdown 语法保存合并单元格和复杂表头。需要转换 DOCX 时，可以使用 [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) 搭配另行安装的本机 DocWen，并在 DocWen 的 Markdown 语法设置中开启 **Structural Tables 输入扩展**；如果还需要从 Word 转回结构化 Markdown，则开启相应的输出扩展。转换功能是可选的，仅适用于支持的桌面系统。
+**导出 Word 文档：** 本插件用扩展 Markdown 语法保存合并单元格和复杂表头。需要转换 DOCX 时，可以使用 [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) 搭配另行安装的本机 DocWen，并在 DocWen 的 Markdown 语法设置中开启 **Structural Tables 输入扩展**；如果还需要从 Word 转回结构化 Markdown，则开启相应的输出扩展。这项可选的 Assistant 工作流支持 Windows 和 Linux，不支持 macOS 或移动端。
 
 <!-- section: limitations -->
 ## 局限

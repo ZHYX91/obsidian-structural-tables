@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const fr = {
+  "settings.group.style": "Traits et fond",
+  "settings.group.layout": "Disposition et espacement",
+  "settings.preview.title": "Aperçu de l’apparence",
+  "settings.preview.description": "Cet exemple suit les réglages choisis. Il ne modifie aucune note.",
   "operation.transposeBoundaryUnsafe": "La transposition modifierait les limites du tableau. Ajoutez une ligne vide avant et après, puis réessayez.",
   "command.convertGfm": "Convertir le tableau en GFM standard",
   "command.createBaseRecord": "Créer un enregistrement dans la Base actuelle",

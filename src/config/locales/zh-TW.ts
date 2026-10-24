@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "settings.group.style": "線條與底色",
+  "settings.group.layout": "配置與間距",
+  "settings.preview.title": "外觀預覽",
+  "settings.preview.description": "調整上方選項即可查看範例效果，不會改動任何筆記。",
   "operation.transposeBoundaryUnsafe": "轉置後，將無法正確辨識表格的起訖位置。請在表格前後各加一個空白行，再試一次。",
   "command.convertGfm": "將目前表格轉換為一般 GFM",
   "command.createBaseRecord": "為目前的 Base 建立記錄",

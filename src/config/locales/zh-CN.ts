@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const zhCN = {
+  "settings.group.style": "线条与底色",
+  "settings.group.layout": "布局与间距",
+  "settings.preview.title": "外观预览",
+  "settings.preview.description": "调整上方选项即可查看示例效果，不会改动任何笔记。",
   "operation.transposeBoundaryUnsafe": "转置后，表格的起止位置会变得不明确。请在表格前后各加一行空行，再重试。",
   "command.convertGfm": "将当前表格转换为普通 GFM",
   "command.createBaseRecord": "为当前 Base 新建记录",

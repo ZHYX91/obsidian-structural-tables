@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-10
+last_synced: 2026-10-24
 translation_of: product-requirements.zh-CN.md
 ---
 
@@ -20,7 +20,7 @@ Let users express merged cells, multi-row column headers, and row headers with r
 <!-- section: syntax -->
 ## Syntax contract
 
-An exact `<` merges left, `^` merges up, and `\<` or `\^` is literal text. Every delimiter cell follows GFM and contains one or more hyphens. Contiguous equal-width rows before the delimiter are column headers. At most one whitespace-free `||` inside the delimiter marks columns to its left as row headers and does not add a column.
+An exact `<` merges with the previous source column (visually right in RTL tables), `^` merges up, and `\<` or `\^` is literal text. Every delimiter cell follows GFM and contains one or more hyphens. Contiguous equal-width rows before the delimiter are column headers. At most one whitespace-free `||` inside the delimiter marks columns to its left as row headers and does not add a column.
 
 <!-- section: validity -->
 ## Validity

@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-10-10
+last_synced: 2026-10-24
 ---
 
 [English](product-requirements.en.md)
@@ -19,7 +19,7 @@ last_synced: 2026-10-10
 <!-- section: syntax -->
 ## 语法契约
 
-严格匹配的 `<` 向左合并，`^` 向上合并，`\<` 与 `\^` 表示字面量。每个分隔单元格都遵循 GFM，包含一个或多个连字符。分隔行之前连续且等宽的行均为列表头。分隔行内部最多一个无空格 `||`，其左侧为行表头列，且 `||` 不计入列数。
+严格匹配的 `<` 与源码顺序的前一列合并（RTL 表格中显示在右侧），`^` 向上合并，`\<` 与 `\^` 表示字面量。每个分隔单元格都遵循 GFM，包含一个或多个连字符。分隔行之前连续且等宽的行均为列表头。分隔行内部最多一个无空格 `||`，其左侧为行表头列，且 `||` 不计入列数。
 
 <!-- section: validity -->
 ## 有效性

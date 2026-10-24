@@ -3,8 +3,22 @@ import { editCellContent, insertTableColumn, pasteTableRangeRaw, removeTable, se
 import { validateTableOperationInDocument } from "../src/core/table-operation-document";
 import { parseEditableTables } from "../src/core/parser";
 import { tableRangePayload } from "../src/core/table-range-clipboard";
+import { reparseUnchangedTable, TableDocumentSnapshot } from "../src/core/table-snapshot";
 
 describe("complete-document structural writes", () => {
+  it("shares the original parse while retaining complete-result and neighbor validation", () => {
+    const note = "| outside | prose | extra |\n| H | V |\n| --- || --- |\n| a | b |\n\n| Keep | Me |\n| --- | --- |";
+    const snapshot = new TableDocumentSnapshot(note);
+    const table = snapshot.tables[0]!;
+    expect(reparseUnchangedTable(snapshot, table)).toBe(table);
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot.tables)).toBe(true);
+    expect(validateTableOperationInDocument(snapshot, table, insertTableColumn(table, 1, "after")).changed).toBe(false);
+    expect(validateTableOperationInDocument(snapshot, table, editCellContent(table, 1, 0, "safe")).changed).toBe(true);
+    const changed = new TableDocumentSnapshot(note.replace("| a | b |", "| external | b |"));
+    expect(reparseUnchangedTable(changed, table)).toBeNull();
+    expect(validateTableOperationInDocument(changed, table, editCellContent(table, 1, 0, "stale")).changed).toBe(false);
+  });
   it("refuses to absorb adjacent pipe prose as an extra table header", () => {
     const note = "| outside | prose | extra |\n| H | V |\n| --- || --- |\n| a | b |\n| c | d |";
     const table = parseEditableTables(note).tables[0]!;

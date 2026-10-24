@@ -1,6 +1,10 @@
 import type { TranslationCatalog } from "./en";
 
 const ptBR = {
+  "settings.group.style": "Linhas e fundo",
+  "settings.group.layout": "Layout e espaçamento",
+  "settings.preview.title": "Prévia da aparência",
+  "settings.preview.description": "Este exemplo acompanha as opções escolhidas. Nenhuma nota é alterada.",
   "operation.transposeBoundaryUnsafe": "A transposição alteraria os limites da tabela. Insira uma linha em branco antes e depois e tente novamente.",
   "command.convertGfm": "Converter tabela atual para GFM comum",
   "command.createBaseRecord": "Criar registro na Base atual",

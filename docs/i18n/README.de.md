@@ -75,7 +75,7 @@ In der Live-Vorschau eine Zelle anklicken. Enter speichert und wechselt, Shift+E
 
 Delete/Backspace leert bei einer Rasterauswahl nur den Zellinhalt. Für Zeilen-, Spalten- oder Tabellenlöschung das Kontextmenü verwenden. Ausdrückliche Änderungen lassen sich rückgängig machen.
 
-Bereiche lassen sich kopieren, ausschneiden und nur bei passender Verbindungsstruktur wieder einfügen. Auf Mobilgeräten gehen die gespeicherten Verbindungsdaten nach einem Neustart oder Wechsel des Zwischenablageninhalts verloren.
+Bereiche lassen sich kopieren und ausschneiden. Zum Einfügen wählen Sie entweder ein Zielrechteck mit gleicher Verbindungsstruktur oder eine einzelne unverbundene Zelle als linke obere Ecke. Bei einer einzelnen Zielzelle kann die Tabelle nach rechts und unten wachsen. Bestehende Verbindungen dürfen nur vollständig innerhalb des Zielrechtecks überschrieben werden. Auf Mobilgeräten gehen die gespeicherten Verbindungsdaten nach einem Neustart oder Wechsel des Zwischenablageninhalts verloren.
 
 Auf dem Desktop können Sie die komplette Tabelle als PNG prüfen, kopieren und speichern. Ungespeicherte Zellbearbeitungen fehlen im Bild. Auf Mobilgeräten steht der PNG-Export nicht zur Verfügung.
 

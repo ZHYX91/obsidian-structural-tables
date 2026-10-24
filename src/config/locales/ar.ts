@@ -4,7 +4,7 @@ const catalog = {
   "settings.group.style": "الخطوط والتظليل",
   "settings.group.layout": "التخطيط والتباعد",
   "settings.preview.title": "معاينة المظهر",
-  "settings.preview.description": "يتحدث هذا المثال عند تغيير الخيارات. لا يعدّل أي ملاحظة.",
+  "settings.preview.description": "تتغيّر هذه المعاينة عند تغيير الخيارات، من دون تعديل أي ملاحظة.",
   "operation.transposeBoundaryUnsafe": "سيؤدي تبديل الصفوف والأعمدة إلى تغيير موضع بداية الجدول أو نهايته داخل الملاحظة. أضف سطرًا فارغًا قبل الجدول وآخر بعده، ثم أعد المحاولة.",
   "command.convertGfm": "تحويل الجدول الحالي إلى GFM عادي",
   "command.createBaseRecord": "إنشاء سجل في Base الحالي",

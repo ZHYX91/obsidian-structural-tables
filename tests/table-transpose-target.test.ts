@@ -14,6 +14,7 @@ import { requestWholeTableTranspose } from "../src/app/table-transpose-modal";
 import { notices, TFile } from "./mocks/obsidian";
 import { clickLikeUser } from "./helpers/host-gestures";
 import { NativeCellEditorWidget } from "./helpers/native-cell-editor";
+import { createPopoutFrame } from "./helpers/popout-frame";
 
 const t = createTranslator("en");
 const SOURCE = "| Name | Value |\n| --- | --- |\n| North | 1 |";
@@ -106,7 +107,7 @@ describe("frozen transpose editor ownership", () => {
   });
 
   it("restores focus to the captured editor in its own popout document", () => {
-    const frame = document.body.appendChild(document.createElement("iframe"));
+    const frame = createPopoutFrame();
     const popup = frame.contentWindow!;
     const f = fixture(popup.document);
     const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
@@ -241,7 +242,7 @@ describe("frozen transpose editor ownership", () => {
   });
 
   it("checks drafts in the target popout document, not the main window", () => {
-    const frame = document.body.appendChild(document.createElement("iframe"));
+    const frame = createPopoutFrame();
     const popup = frame.contentWindow!;
     const f = fixture(popup.document);
     const focus = vi.spyOn(f.cm, "focus");

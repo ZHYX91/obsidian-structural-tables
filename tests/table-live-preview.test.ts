@@ -29,6 +29,7 @@ import {
 } from "./mocks/obsidian";
 import { installSelectionChangeTasks } from "./mocks/selection-events";
 import { clickLikeUser } from "./helpers/host-gestures";
+import { createPopoutFrame } from "./helpers/popout-frame";
 
 interface ObsidianElementOptions {
   cls?: string;
@@ -678,7 +679,7 @@ describe("StructuralTableEditorController", () => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | final-cell |\n\nAfter";
     let writes = 0;
     const { app, parent, view } = mountEditor(source, { anchor: 0 }, [history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
-    const frame = document.body.appendChild(document.createElement("iframe"));
+    const frame = createPopoutFrame();
     try {
       parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
       parent.querySelector<HTMLTextAreaElement>("textarea")!.value = "changed-final";
@@ -5606,7 +5607,7 @@ describe("whole-table transpose confirmation and source revalidation", () => {
     try {
       const button = openConfirmation(parent);
       const undoBefore = undoDepth(view.state);
-      const frame = document.body.appendChild(document.createElement("iframe"));
+      const frame = createPopoutFrame();
       frame.contentDocument!.body.appendChild(parent);
       expect(parent.isConnected).toBe(true); expect(parent.ownerDocument).toBe(frame.contentDocument);
       clickLikeUser(button);

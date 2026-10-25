@@ -1,6 +1,8 @@
 const { Plugin, MarkdownView, Notice, TFile, Component, MarkdownRenderer, Modal } = require("obsidian");
 module.exports = class extends Plugin {
   onload() {
+    this.addCommand({ id: "operation-safety-setup", name: "Prepare operation safety boundary", callback: () => this.safetySetup() });
+    this.register(() => this.safetyRestore?.());
     this.addCommand({ id: "clipboard-fidelity-samples", name: "Prepare clipboard fidelity samples", callback: () => {
       const modal = new Modal(this.app);
       modal.setTitle("Clipboard fidelity input samples");
@@ -155,6 +157,124 @@ module.exports = class extends Plugin {
         new Notice("The next cell input will trigger a separate source edit.");
       },
     });
+  }
+
+  safetySetup() {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (view?.file?.path !== "Operation safety.md" || !view.editor.getValue().includes("<!-- structural-tables-operation-safety -->")) return;
+    const modal = new Modal(this.app);
+    modal.setTitle("Operation safety setup (fixture only)");
+    modal.contentEl.createEl("p", { text: "Choose setup, then use the actual Structural Tables command and confirmation. These controls record observations, never a verdict." });
+    const action = (label, callback) => modal.contentEl.createEl("button", { text: label }).addEventListener("click", () => {
+      modal.close(); void Promise.resolve().then(callback).catch(error => new Notice(String(error)));
+    });
+    action("Prepare migration records", () => this.safetyRecords());
+    for (const mode of ["replace-at-process", "dirty-at-process", "rollback-external-edit", "pause-migration", "pause-first-record", "pause-attachment-path"]) {
+      action(`Arm ${mode}`, () => this.safetyArm(mode));
+    }
+    action("Unload Structural Tables in 5 seconds", () => {
+      const timer = setTimeout(() => { void this.app.plugins.disablePlugin("structural-tables"); }, 5000);
+      this.register(() => clearTimeout(timer));
+      new Notice("Open the product preview now; fixture unload is scheduled in 5 seconds.");
+    });
+    action("Reload Structural Tables", () => this.app.plugins.enablePlugin("structural-tables"));
+    action("Record current safety state", () => this.safetyRecord("operator-observation"));
+    action("Disarm wrappers", () => this.safetyRestore?.());
+    modal.open();
+  }
+
+  async safetyRecords() {
+    this.safetyRestore?.();
+    for (const name of ["A", "B"]) {
+      const path = `Operation safety ${name}.md`;
+      const file = this.app.vault.getFileByPath(path);
+      if (!(file instanceof TFile) || !(await this.app.vault.read(file)).includes("<!-- structural-tables-operation-safety-record -->")) throw new Error(`Missing owned fixture: ${path}`);
+      await this.app.vault.modify(file, `---\n# keep leading comment\nstructural_table_ids: [stb_operation_safety] # keep membership comment\nstructural_record_id: str_operation_${name}\nlarge: 900719925474099312345\ndate: 2026-10-25\nflow: {one: 1, two: 'two'} # keep flow layout\nuser: 'keep quoted value'\n---\n<!-- structural-tables-operation-safety-record -->\nBody ${name} remains byte-for-byte.\n`);
+    }
+    this.safetyEvents = [];
+    new Notice("Two owned migration records prepared. Wait for the host metadata cache, then open the product migration preview.");
+  }
+
+  async safetyRecord(stage, extra = {}) {
+    const files = [];
+    for (const name of ["A", "B"]) {
+      const path = `Operation safety ${name}.md`; const file = this.app.vault.getFileByPath(path);
+      if (file instanceof TFile) files.push({ path, source: await this.app.vault.read(file) });
+    }
+    const editors = this.app.workspace.getLeavesOfType("markdown").map(leaf => leaf.view)
+      .filter(view => /^Operation safety(?: [AB])?\.md$/.test(view.file?.path ?? ""))
+      .map(view => ({ path: view.file.path, buffer: view.editor.getValue() }));
+    (this.safetyEvents ??= []).push({ stage, observedAt: new Date().toISOString(), ...extra, files, editors });
+    await this.app.vault.adapter.write("_operation-safety-observations.json", JSON.stringify({ diagnosticOnly: true, events: this.safetyEvents }, null, 2));
+    new Notice(`Operation safety observation: ${stage}`);
+  }
+
+  safetyArm(mode) {
+    this.safetyRestore?.();
+    const vault = this.app.vault;
+    const restores = []; let armed = true; let first = null; let firstPath = null;
+    const patch = (owner, key, wrapper) => {
+      const original = owner[key]; const replacement = wrapper(original);
+      owner[key] = replacement;
+      restores.push(() => { if (owner[key] === replacement) owner[key] = original; });
+    };
+    this.safetyRestore = () => { armed = false; restores.reverse().forEach(restore => restore()); this.safetyRelease?.(); this.safetyRelease = null; };
+    const recordFile = file => file instanceof TFile && /^Operation safety [AB]\.md$/.test(file.path);
+    const gate = async stage => {
+      await this.safetyRecord(stage, { mode });
+      await new Promise(resolve => {
+        this.safetyRelease = resolve;
+        const modal = new Modal(this.app); modal.setTitle(`Paused fixture I/O: ${stage}`);
+        modal.contentEl.createEl("p", { text: "The actual product operation is waiting. Unload, optionally reload, then resume. Inspect the product and files separately." });
+        for (const [label, callback] of [["Unload tested plugin", () => this.app.plugins.disablePlugin("structural-tables")], ["Reload tested plugin", () => this.app.plugins.enablePlugin("structural-tables")], ["Resume I/O", () => { modal.close(); resolve(); }]]) {
+          modal.contentEl.createEl("button", { text: label }).addEventListener("click", () => { void Promise.resolve().then(callback); });
+        }
+        modal.onClose = () => resolve(); modal.open(); this.register(() => modal.close());
+      });
+    };
+    if (mode === "pause-attachment-path") {
+      patch(this.app.fileManager, "getAvailablePathForAttachment", original => async (...args) => {
+        const result = await original.apply(this.app.fileManager, args);
+        if (armed && args[1] === "Operation safety.md") { armed = false; await gate("attachment-path-resolved"); }
+        return result;
+      });
+    } else if (mode === "pause-first-record") {
+      patch(vault, "create", original => async (...args) => {
+        const result = await original.apply(vault, args);
+        if (armed && /^_structural-table-records\/stb_[a-f0-9]+\/Safety Alpha\.md$/.test(args[0])) { armed = false; await gate("first-record-created"); }
+        return result;
+      });
+    } else {
+      patch(vault, "process", original => async (file, callback, ...args) => {
+        if (!recordFile(file) || !armed) return original.call(vault, file, callback, ...args);
+        const originalPath = file.path;
+        if (mode === "rollback-external-edit" && first === null) {
+          const result = await original.call(vault, file, callback, ...args);
+          first = file; firstPath = file.path; await this.safetyRecord("first-migration-write", { mode, originalPath }); return result;
+        }
+        armed = false;
+        if (mode === "replace-at-process") {
+          const source = await vault.read(file);
+          const retainedPath = `${originalPath}.retained-original`;
+          if (vault.getAbstractFileByPath(retainedPath)) throw new Error("Owned retained-original path already exists; use a fresh disposable Vault.");
+          await vault.rename(file, retainedPath); const replacement = await vault.create(originalPath, source);
+          await this.safetyRecord("same-path-identical-replacement", { mode, originalPath, retainedPath, sameTFile: replacement === file });
+        } else if (mode === "dirty-at-process") {
+          const source = await vault.read(file);
+          for (const suffix of ["Unsaved pane one", "Unsaved pane two"]) {
+            const leaf = this.app.workspace.getLeaf("split"); await leaf.openFile(file);
+            leaf.view.editor.setValue(`${source}\n${suffix}\n`);
+          }
+          await this.safetyRecord("different-dirty-pane-buffers", { mode, originalPath });
+        } else if (mode === "rollback-external-edit") {
+          await vault.append(first, "\nExternal edit after migration must survive compensation.\n");
+          await this.safetyRecord("external-edit-before-second-write-failure", { mode, originalPath, firstPath });
+          throw new Error("Fixture injected second migration write failure.");
+        } else if (mode === "pause-migration") await gate("before-migration-process");
+        return original.call(vault, file, callback, ...args);
+      });
+    }
+    new Notice(`Armed fixture boundary: ${mode}. Use the actual product command and confirmation.`);
   }
 
   startFocusTrace() {

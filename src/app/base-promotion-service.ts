@@ -185,12 +185,21 @@ export async function assertRecoveredPromotionOwnership(
 }
 
 export class BasePromotionService {
+  private disposed = false;
+
   constructor(
     private readonly app: App,
     private readonly pluginVersion = "0.4.0",
   ) {}
 
+  dispose(): void { this.disposed = true; }
+
+  assertActive(): void {
+    if (this.disposed) throw new Error("The Base operation stopped because the plugin was unloaded.");
+  }
+
   prepare(table: StructuralTable, sourceFile: TFile): PreparedBasePromotion {
+    this.assertActive();
     let tableId = randomId("stb");
     let directoryPath = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, tableId);
     for (let attempt = 0; attempt < 10 && this.app.vault.getAbstractFileByPath(directoryPath) !== null; attempt += 1) {
@@ -232,6 +241,7 @@ export class BasePromotionService {
     target: BaseEditorTarget,
     acceptance?: BasePromotionContentAcceptance,
   ): Promise<void> {
+    this.assertActive();
     if (prepared.plan.blockers.length > 0) {
       throw new Error("Resolve every blocking structural conversion issue before upgrading this table to a Base.");
     }
@@ -248,15 +258,21 @@ export class BasePromotionService {
     const current = reparseUnchangedTable(editor.getValue(), expected);
     if (current === null) throw new Error("The table changed while the preview was open.");
     await this.ensureFolder(parentPath(prepared.directoryPath));
+    this.assertActive();
     target.assertCurrent();
     const createdDirectory = await this.app.vault.createFolder(prepared.directoryPath);
+    let createdRecords = 0;
     try {
       for (const record of prepared.records) {
+        this.assertActive();
         target.assertCurrent();
         await this.app.vault.create(record.path, record.content);
+        createdRecords += 1;
       }
+      this.assertActive();
       target.assertCurrent();
       await this.app.vault.create(prepared.manifestPath, prepared.manifestContent);
+      this.assertActive();
       const verified = reparseUnchangedTable(editor.getValue(), current);
       if (verified === null) throw new Error("The table changed while records were being created.");
       target.assertCurrent();
@@ -267,17 +283,19 @@ export class BasePromotionService {
       // Retain all partial output and leave cleanup to an explicit user decision.
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Base upgrade failed; generated files were left in place for review. Record folder: ${createdDirectory.path}. Original failure: ${detail}`,
+        `Base upgrade failed; generated files were left in place for review. Completed records: ${createdRecords}/${prepared.records.length}. Record folder: ${createdDirectory.path}. Original failure: ${detail}`,
       );
     }
   }
 
   async restore(editor: Editor, expected: PromotionBlockMetadata, target: BaseEditorTarget, previewSource: string): Promise<void> {
+    this.assertActive();
     target.assertCurrent();
     if (matchingPromotionBlock(editor, expected) === null) {
       throw new Error("The promoted Base changed before it could be restored.");
     }
     const manifest = await this.readManifest(expected);
+    this.assertActive();
     target.assertCurrent();
     if (manifest.originalTableSource !== previewSource) {
       throw new Error("The recovery manifest changed after the preview was opened.");
@@ -294,13 +312,19 @@ export class BasePromotionService {
   }
 
   async restorationSource(expected: PromotionBlockMetadata): Promise<string> {
-    return (await this.readManifest(expected)).originalTableSource;
+    this.assertActive();
+    const manifest = await this.readManifest(expected);
+    this.assertActive();
+    return manifest.originalTableSource;
   }
 
   async createRecord(sourceFile: TFile, metadata: PromotionBlockMetadata): Promise<TFile> {
+    this.assertActive();
     if (metadata.recoveredSourcePath !== undefined) await this.readManifest(metadata);
+    this.assertActive();
     const directory = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, metadata.tableId);
     await this.ensureFolder(directory);
+    this.assertActive();
     let path = joinedPath(directory, "Record.md");
     let suffix = 2;
     while (this.app.vault.getAbstractFileByPath(path) !== null) {
@@ -312,15 +336,20 @@ export class BasePromotionService {
       fileStem: "Record",
       values,
     }, metadata.membershipProperty ?? TABLE_MEMBERSHIP_PROPERTY));
+    if (this.disposed) {
+      throw new Error(`The Base operation stopped because the plugin was unloaded. The created record was retained: ${created.path}`);
+    }
     await this.app.workspace.getLeaf(false).openFile(created);
     return created;
   }
 
   private async ensureFolder(path: string): Promise<void> {
+    this.assertActive();
     if (path === "") return;
     const segments = normalizePath(path).split("/");
     let current = "";
     for (const segment of segments) {
+      this.assertActive();
       current = joinedPath(current, segment);
       const existing = this.app.vault.getAbstractFileByPath(current);
       if (existing instanceof TFile) throw new Error(`A file blocks the target folder: ${current}`);
@@ -329,6 +358,9 @@ export class BasePromotionService {
   }
 
   private async readManifest(expected: PromotionBlockMetadata): Promise<PromotionManifest> {
-    return readPromotionManifest(this.app, expected);
+    this.assertActive();
+    const manifest = await readPromotionManifest(this.app, expected);
+    this.assertActive();
+    return manifest;
   }
 }

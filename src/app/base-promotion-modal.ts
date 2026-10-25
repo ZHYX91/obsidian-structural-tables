@@ -37,12 +37,15 @@ export interface BasePromotionLabels {
 }
 
 export class BasePromotionModal extends Modal {
+  private closed = false;
+
   constructor(
     app: App,
     private readonly prepared: PreparedBasePromotion,
     private readonly labels: BasePromotionLabels,
     private readonly onConfirm: (acceptance?: BasePromotionContentAcceptance) => Promise<void>,
     private readonly onError: (error: unknown) => void,
+    private readonly onClosed: () => void = () => {},
   ) {
     super(app);
   }
@@ -158,7 +161,7 @@ export class BasePromotionModal extends Modal {
         updateDisabled();
         acceptanceInput?.addEventListener("change", updateDisabled);
         button.onClick(async () => {
-          if (submitting
+          if (this.closed || submitting
             || this.prepared.plan.blockers.length > 0
             || (report.requiresAcceptance && acceptanceInput?.checked !== true)) return;
           submitting = true;
@@ -180,6 +183,8 @@ export class BasePromotionModal extends Modal {
   }
 
   override onClose(): void {
+    this.closed = true;
     this.contentEl.empty();
+    this.onClosed();
   }
 }

@@ -45,12 +45,15 @@ export function basePropertyMigrationPreviewText(
 }
 
 export class BasePropertyMigrationModal extends Modal {
+  private closed = false;
+
   constructor(
     app: App,
     private readonly prepared: PreparedBasePropertyMigration,
     private readonly labels: BasePropertyMigrationLabels,
     private readonly onConfirm: (removeLegacyRecordIds: boolean) => Promise<void>,
     private readonly onFailure: (error: unknown) => void,
+    private readonly onClosed: () => void = () => {},
   ) {
     super(app);
   }
@@ -81,6 +84,7 @@ export class BasePropertyMigrationModal extends Modal {
         .setCta()
         .setButtonText(this.labels.confirm)
         .onClick(() => {
+          if (this.closed) return;
           button.setDisabled(true);
           void this.onConfirm(removeLegacyRecordIds)
             .then(() => this.close())
@@ -92,6 +96,8 @@ export class BasePropertyMigrationModal extends Modal {
   }
 
   override onClose(): void {
+    this.closed = true;
     this.contentEl.empty();
+    this.onClosed();
   }
 }

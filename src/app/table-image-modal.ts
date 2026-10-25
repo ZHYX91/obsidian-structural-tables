@@ -24,7 +24,9 @@ export async function copyTableImage(image: TableImage, document: Document): Pro
 }
 
 export async function saveTableImage(app: App, image: TableImage, sourcePath: string, signal: AbortSignal): Promise<string> {
+  signal.throwIfAborted();
   const path = await app.fileManager.getAvailablePathForAttachment(tableImageFilename(sourcePath), sourcePath);
+  signal.throwIfAborted();
   const bytes = await image.blob.arrayBuffer();
   signal.throwIfAborted();
   // createBinary refuses an existing path. Never overwrite or insert a note link.
@@ -139,8 +141,10 @@ export type ExportTableImage = (table: TableImageRequest["table"], sourcePath: s
 /** One export session per plugin; a repeated request cancels the previous one. */
 export class TableImageExportService {
   private modal: TableImageModal | null = null;
+  private disposed = false;
   constructor(private readonly app: App, private readonly options: () => Pick<TableImageModalOptions, "settings" | "t">) {}
   readonly open: ExportTableImage = (table, sourcePath, isCurrent, contextElement) => {
+    if (this.disposed) return;
     this.modal?.close();
     let unchanged = true;
     const events: EventRef[] = [
@@ -150,7 +154,7 @@ export class TableImageExportService {
     ];
     const modal = new TableImageModal(this.app, { ...this.options(), table, sourcePath,
       ...(contextElement === undefined ? {} : { contextElement }),
-      isCurrent: () => unchanged && isCurrent(),
+      isCurrent: () => !this.disposed && unchanged && isCurrent(),
       onClose: () => {
         for (const event of events) this.app.vault.offref(event);
         if (this.modal === modal) this.modal = null;
@@ -159,4 +163,8 @@ export class TableImageExportService {
     modal.open();
   };
   close(): void { this.modal?.close(); }
+  dispose(): void {
+    this.disposed = true;
+    this.close();
+  }
 }

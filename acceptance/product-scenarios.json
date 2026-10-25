@@ -716,6 +716,54 @@
         "Nonbreaking edge and space-only characters survive actual paste, commit, reopen and rendering; code/Wiki interior text remains unchanged.",
         "Valid migration changes only its table, one undo restores the complete baseline, and the boundary-risk migration writes nothing."
       ]
+    },
+    {
+      "id": "operation-runtime-boundaries",
+      "title": "Unload boundaries for real previews and in-flight operations",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Operation safety. Record the full-note baseline. In Prepare operation safety boundary choose Unload Structural Tables in 60 seconds, then open the actual Format preview. Observe the preview open before unload, then automatic closure and zero source changes. Inspect both timed-plugin-unload-armed and timed-plugin-unload-completed observations, including before/after visible previews and actual loaded state; a timer that fired before the preview opened does not prove closure. Reload using the provider and open a fresh Format preview; cancel once, reopen and confirm through the product UI. Record old-preview closure and new-instance success separately.",
+        "Repeat timed unload with the actual Upgrade current table to Base preview. Reload, arm pause-first-record, then use the actual promotion preview and confirmation. At the Paused fixture I/O modal unload, reload and resume. Inspect the source, first generated record and directory: retain created content, report partial completion, and create no later record or manifest. Record the exact paused stage and file inventory.",
+        "On desktop only, reopen the original safety table in a fresh disposable Vault, arm pause-attachment-path first, then open its PNG preview and click the actual Save PNG action. At the I/O gate unload and resume; verify zero new binary files. Reload and use a fresh PNG preview and Save PNG action successfully. Android must record the existing desktop-only PNG limitation rather than claim a PNG save."
+      ],
+      "expected": [
+        "Unloading closes retained product previews and starts no later operation from those previews; reloading registers usable new-instance commands. Cancellation and stale confirmations do not change source.",
+        "The first-record gate is actually observed, already-created files remain, later files and source replacement do not begin after unload, and the error explains partial completion.",
+        "The desktop attachment-path gate actually triggers before the binary write; unloading prevents a saved attachment, while a fresh instance can save an actual PNG. Mobile PNG is explicitly outside the supported surface."
+      ]
+    },
+    {
+      "id": "migration-owner-and-compensation",
+      "title": "Original file ownership, dirty panes and conditional migration compensation",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "In a fresh disposable Vault open Operation safety, choose Prepare migration records, wait for metadata readiness, then arm replace-at-process. Invoke the actual migration command and confirm. Inspect the same-path identical replacement, retained original, error and provider observation. The original TFile must differ from the replacement and neither may receive the stale migration.",
+        "Repeat in a fresh Vault with dirty-at-process. Confirm migration through the real preview, then inspect both open panes and the recorded buffers before dismissing or saving anything. The two differing unsaved buffers must remain intact; stale migration must be refused without forcing either buffer to disk. Record any host auto-save as a separate limitation, never infer unsaved preservation from a disk-only check.",
+        "Repeat in a fresh Vault with pause-migration. Confirm through the actual product preview, unload and reload at the provider I/O gate, then resume. Verify zero membership writes and an unload error. New-instance commands must still work.",
+        "Repeat in a fresh Vault with rollback-external-edit. Confirm through the actual migration preview, observe first completed write and the injected second-write failure, and inspect compensation: original membership and retired ID are restored, the later external body edit remains, and the second target is unchanged.",
+        "Finally prepare the two records in a fresh Vault without arming a wrapper. Preview and confirm migration with retired-ID cleanup enabled. Inspect both actual files: membership migrated and IDs removed, while leading/membership/flow comments, quoted scalar, large integer, date, flow mapping layout and body bytes are preserved. Reopen the records and migration command."
+      ],
+      "expected": [
+        "Same-path identical replacement is refused based on original TFile ownership, with no stale write to either file.",
+        "Conflicting open buffers are detected at the actual process boundary and preserved; the observation records both buffers and the disk state without assigning a verdict.",
+        "Unload during delayed migration prevents any new mutation across reload, while the new plugin instance remains usable.",
+        "Conditional rollback reverses only the migration-owned changes and retains the external edit after an actual partial-write failure.",
+        "Unarmed positive migration succeeds through the product UI and preserves unrelated YAML layout/comments and body bytes. Every injected boundary must have a recorded triggered observation; arming alone is not a pass."
+      ]
     }
   ]
 }

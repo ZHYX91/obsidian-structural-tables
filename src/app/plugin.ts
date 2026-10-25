@@ -2,6 +2,7 @@ import {
   MarkdownView,
   Notice,
   Plugin,
+  type Modal,
   type Command,
   type Editor,
   type TFile,
@@ -125,11 +126,16 @@ export class StructuralTablesPlugin extends Plugin {
   private imageExport: TableImageExportService | null = null;
   private plainGfm: PlainGfmConversionService | null = null;
   private transposeRequestsActive = true;
+  private runtimeEpoch?: object;
+  private operationPreviews?: Set<Modal>;
 
   override async onload(): Promise<void> {
+    this.runtimeEpoch = {};
     this.transposeRequestsActive = true;
+    const isActive = this.captureRuntime();
     registerTableMenuIcons(this);
     const loaded = normalizeStoredSettings(await this.loadData());
+    if (!isActive()) return;
     this.settingsPersistence = new SettingsPersistenceSession(
       loaded,
       (data) => this.saveData(data),
@@ -137,12 +143,14 @@ export class StructuralTablesPlugin extends Plugin {
     this.settings = this.settingsPersistence.initialSettings();
     void this.settingsPersistence.start().catch(() => undefined);
     const promote = (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable): void => {
-      this.previewBasePromotion(editor, getInfo, table);
+      if (isActive()) this.previewBasePromotion(editor, getInfo, table);
     };
     this.imageExport = new TableImageExportService(this.app, () => ({ settings: this.settings, t: createTranslator(this.settings.language) }));
-    this.register(() => this.imageExport?.close());
+    const imageExport = this.imageExport;
+    this.register(() => imageExport.dispose());
     this.plainGfm = new PlainGfmConversionService(this.app, () => createTranslator(this.settings.language));
-    this.register(() => this.plainGfm?.close());
+    const plainGfm = this.plainGfm;
+    this.register(() => plainGfm.close());
     this.editorController = new StructuralTableEditorController(this.app, () => this.settings, promote, this.imageExport.open, this.plainGfm.open);
     const basePromotionService = new BasePromotionService(this.app, this.manifest.version);
     this.basePromotionService = basePromotionService;
@@ -156,17 +164,27 @@ export class StructuralTablesPlugin extends Plugin {
     this.localizedCommands.push(this.addCommand({
       id: "recover-cell-drafts",
       name: createTranslator(this.settings.language)("command.recoverDrafts"),
-      callback: () => showRecoveredCellDrafts(this.app, createTranslator(this.settings.language)),
+      callback: () => { if (isActive()) showRecoveredCellDrafts(this.app, createTranslator(this.settings.language)); },
     }));
     this.registerEditorMenu();
     this.registerHtmlTablePaste();
     this.app.workspace.onLayoutReady(() => {
-      this.warnAboutPluginConflicts();
+      if (isActive()) this.warnAboutPluginConflicts();
     });
+  }
+
+  private captureRuntime(): () => boolean {
+    const epoch = this.runtimeEpoch;
+    return () => this.transposeRequestsActive !== false && this.runtimeEpoch === epoch;
   }
 
   override onunload(): void {
     this.transposeRequestsActive = false;
+    this.basePromotionService?.dispose();
+    this.basePropertyMigrationService?.dispose();
+    this.imageExport?.dispose();
+    for (const modal of this.operationPreviews ?? []) modal.close();
+    this.operationPreviews?.clear();
     void this.settingsPersistence?.flush().catch((error: unknown) => {
       console.error("Structural Tables: failed to flush settings", error);
     });
@@ -199,8 +217,16 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private registerCommands(): void {
+    const isActive = this.captureRuntime();
+    const register = (command: Command): Command => this.addCommand({
+      ...command,
+      ...(command.callback === undefined ? {} : { callback: () => { if (isActive()) command.callback!(); } }),
+      ...(command.editorCallback === undefined ? {} : {
+        editorCallback: ((editor, info) => { if (isActive()) command.editorCallback!(editor, info); }) as NonNullable<Command["editorCallback"]>,
+      }),
+    });
     const t = createTranslator(this.settings.language);
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "export-current-table-as-image", name: t("command.exportImage"),
       editorCallback: (editor, info) => {
         const current = this.currentTable(editor);
@@ -214,7 +240,7 @@ export class StructuralTablesPlugin extends Plugin {
         this.exportImage(editor, () => info, current.table);
       },
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "transpose-current-table", name: t("command.transpose"),
       editorCallback: (editor, context) => {
         const current = this.currentTable(editor);
@@ -222,10 +248,10 @@ export class StructuralTablesPlugin extends Plugin {
         const translator = createTranslator(this.settings.language);
         openEditorTableTranspose(this.app, editor, current.table, translator,
           context instanceof MarkdownView ? context : undefined,
-          () => this.transposeRequestsActive);
+          isActive);
       },
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "insert-structural-table",
       name: t("command.insert"),
       editorCallback: (editor) => {
@@ -233,65 +259,65 @@ export class StructuralTablesPlugin extends Plugin {
         new Notice(createTranslator(this.settings.language)("notice.inserted"));
       },
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "migrate-legacy-base-properties",
       name: t("command.migrateBaseProperties"),
       callback: () => { void this.previewBasePropertyMigration(); },
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "promote-current-table-to-base",
       name: t("command.promoteBase"),
       editorCallback: (editor, context) => this.previewBasePromotion(editor, () => context),
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "restore-current-promoted-base-to-table",
       name: t("command.restorePromotedTable"),
       editorCallback: (editor, info) => { void this.previewPromotedTableRestore(editor, () => info); },
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "create-record-for-current-promoted-base",
       name: t("command.createBaseRecord"),
       editorCallback: (editor, context) => { void this.createPromotedBaseRecord(editor, context.file); },
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "copy-current-table-as-html",
       name: t("command.copyHtml"),
       editorCallback: (editor, context) => this.copyCurrentTable(editor, "HTML", context.file?.path ?? "", context instanceof MarkdownView ? context : undefined),
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "copy-current-table-as-plain-gfm",
       name: t("command.copyGfm"),
       editorCallback: (editor) => this.copyCurrentTable(editor, "GFM"),
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "copy-current-table-as-tsv",
       name: t("command.copyTsv"),
       editorCallback: (editor) => this.copyCurrentTable(editor, "TSV"),
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "copy-current-table-as-csv",
       name: t("command.copyCsv"),
       editorCallback: (editor) => this.copyCurrentTable(editor, "CSV"),
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "convert-current-table-to-plain-gfm",
       name: t("command.convertGfm"),
       editorCallback: (editor, context) => this.previewPlainGfmConversion(editor, context.file),
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "convert-current-sheets-extended-table",
       name: t("command.migrateSheets"),
       editorCallback: (editor) => this.migrateSheetsExtended(editor),
     }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({
       id: "format-current-structural-table",
       name: t("command.format"),
       editorCallback: (editor, context) => this.formatCurrent(editor, context.file),
     }));
-    this.localizedCommands.push(this.addCommand({ id: "merge-current-cell-left", name: t("command.mergeLeft"), editorCallback: (editor) => this.editMerge(editor, "left") }));
-    this.localizedCommands.push(this.addCommand({ id: "merge-current-cell-up", name: t("command.mergeUp"), editorCallback: (editor) => this.editMerge(editor, "up") }));
-    this.localizedCommands.push(this.addCommand({ id: "split-current-merged-cell", name: t("command.split"), editorCallback: (editor) => this.editSplit(editor) }));
-    this.localizedCommands.push(this.addCommand({
+    this.localizedCommands.push(register({ id: "merge-current-cell-left", name: t("command.mergeLeft"), editorCallback: (editor) => this.editMerge(editor, "left") }));
+    this.localizedCommands.push(register({ id: "merge-current-cell-up", name: t("command.mergeUp"), editorCallback: (editor) => this.editMerge(editor, "up") }));
+    this.localizedCommands.push(register({ id: "split-current-merged-cell", name: t("command.split"), editorCallback: (editor) => this.editSplit(editor) }));
+    this.localizedCommands.push(register({
       id: "validate-current-note",
       name: t("command.validate"),
       editorCallback: (editor) => {
@@ -343,7 +369,9 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private registerEditorMenu(): void {
+    const isActive = this.captureRuntime();
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
+      if (!isActive()) return;
       const t = createTranslator(this.settings.language);
       const offset = editor.posToOffset(editor.getCursor());
       const promoted = promotionBlockAt(editor.getValue(), offset, info.file?.path);
@@ -352,12 +380,12 @@ export class StructuralTablesPlugin extends Plugin {
           .setSection("structural-tables-base")
           .setIcon("file-plus-2")
           .setTitle(t("menu.createBaseRecord"))
-          .onClick(() => { void this.createPromotedBaseRecord(editor, info.file); }));
+          .onClick(() => { if (isActive()) void this.createPromotedBaseRecord(editor, info.file); }));
         menu.addItem((item) => item
           .setSection("structural-tables-base")
           .setIcon("rotate-ccw")
           .setTitle(t("menu.restorePromotedTable"))
-          .onClick(() => { void this.previewPromotedTableRestore(editor, () => info); }));
+          .onClick(() => { if (isActive()) void this.previewPromotedTableRestore(editor, () => info); }));
         return;
       }
       const current = this.currentTable(editor);
@@ -365,7 +393,7 @@ export class StructuralTablesPlugin extends Plugin {
       if (selection !== null && selection.table.valid && selection.rectangular && hasSelectionMenuItems(selection)) {
         addSelectionMenuItems(
           menu, t, selection,
-          (operation) => this.applyMenuOperation(editor, selection.table, operation),
+          (operation) => { if (isActive()) this.applyMenuOperation(editor, selection.table, operation); },
           { direction: editorTableDirection(this.app, editor, selection.table, info instanceof MarkdownView ? info : undefined) },
         );
       }
@@ -374,29 +402,33 @@ export class StructuralTablesPlugin extends Plugin {
       // with byte-identical Markdown must not redirect this action.
       const targetView = info instanceof MarkdownView ? info : undefined;
       const transposeTarget = captureEditorTransposeTarget(
-        this.app, editor, current.table, t, targetView, () => this.transposeRequestsActive,
+        this.app, editor, current.table, t, targetView, isActive,
       );
       addWholeTableTransposeMenuItem(menu, t, () => {
+        if (!isActive()) return;
         if (transposeTarget === null) { new Notice(t("notice.staleTable")); return; }
         requestWholeTableTranspose(this.app, t, current.table, transposeTarget);
       });
       const gfmTarget = captureEditorPlainGfmTarget(this.app, editor, current.table, targetView,
-        () => this.transposeRequestsActive);
+        isActive);
       addPlainGfmMenuItem(menu, t, () => {
+        if (!isActive()) return;
         if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
         this.plainGfm?.open(current.table, gfmTarget);
       });
       addEditorTableHtmlCopyMenuItem(menu, this.app, editor, current.table, () => this.settings, targetView,
-        () => this.transposeRequestsActive);
-      addImageExportMenuItem(menu, t, () => this.exportImage(editor, () => info, current.table));
+        isActive);
+      addImageExportMenuItem(menu, t, () => { if (isActive()) this.exportImage(editor, () => info, current.table); });
       addBasePromotionMenuItem(menu, t, current.table, () => {
-        this.previewBasePromotion(editor, () => info, current.table);
+        if (isActive()) this.previewBasePromotion(editor, () => info, current.table);
       });
     }));
   }
 
   private registerHtmlTablePaste(): void {
+    const isActive = this.captureRuntime();
     this.registerEvent(this.app.workspace.on("editor-paste", (event, editor) => {
+      if (!isActive()) return;
       if (!this.settings.convertHtmlTablePaste || event.defaultPrevented || event.clipboardData === null) return;
       const result = replaceSelectionFromClipboardTable(event.clipboardData, editor);
       if (result === "native") return;
@@ -431,6 +463,7 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private exportImage(editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable): void {
+    if (this.transposeRequestsActive === false) return;
     const info = getInfo();
     const sourcePath = info?.file?.path;
     if (sourcePath === undefined) { new Notice(createTranslator(this.settings.language)("notice.noFile")); return; }
@@ -454,7 +487,9 @@ export class StructuralTablesPlugin extends Plugin {
   private captureConversionTarget(editor: Editor, sourceFile: TFile | null): (() => boolean) | null {
     if (sourceFile === null) return null;
     const sourcePath = sourceFile.path;
+    const isActive = this.captureRuntime();
     return () => {
+      if (!isActive()) return false;
       if (sourceFile.path !== sourcePath || this.app.vault.getFileByPath(sourcePath) !== sourceFile) return false;
       let current = false;
       this.app.workspace.iterateAllLeaves((leaf) => {
@@ -483,13 +518,14 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const source = serializeStructuralTable(current.table);
-    new ConversionPreviewModal(this.app, {
+    this.openOperationPreview((onClose) => new ConversionPreviewModal(this.app, {
       language: t.locale ?? "en",
       title: t("modal.format.title"),
       description: t("modal.format.desc"),
       source,
       cancelLabel: t("modal.cancel"),
       confirmLabel: t("modal.format.confirm"),
+      onClose,
       onConfirm: () => {
         if (!targetIsCurrent()) {
           new Notice(t("notice.staleTable"));
@@ -503,7 +539,7 @@ export class StructuralTablesPlugin extends Plugin {
         this.replaceTable(editor, reparsed, source);
         new Notice(t("notice.formatted"));
       },
-    }).open();
+    }));
   }
 
   private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = "", viewHint?: MarkdownView): void {
@@ -585,6 +621,7 @@ export class StructuralTablesPlugin extends Plugin {
     getInfo: BaseEditorInfo,
     expectedTable?: StructuralTable,
   ): void {
+    if (this.transposeRequestsActive === false) return;
     const sourceFile = getInfo()?.file ?? null;
     if (sourceFile === null || this.basePromotionService === null) {
       new Notice(createTranslator(this.settings.language)("notice.noFile"));
@@ -609,9 +646,10 @@ export class StructuralTablesPlugin extends Plugin {
     if (this.blockUnsafeTableWrite(table)) return;
     try {
       const target = captureBaseEditorTarget(editor, getInfo);
-      const prepared = this.basePromotionService.prepare(table, sourceFile);
+      const service = this.basePromotionService;
+      const prepared = service.prepare(table, sourceFile);
       const expandsStructure = table.structural;
-      new BasePromotionModal(
+      this.openOperationPreview((onClosed) => new BasePromotionModal(
         this.app,
         prepared,
         {
@@ -636,18 +674,19 @@ export class StructuralTablesPlugin extends Plugin {
           confirm: t("modal.promoteBase.confirm"),
         },
         async (acceptance?: BasePromotionContentAcceptance) => {
-          if (this.basePromotionService === null) throw new Error("Base promotion service is unavailable.");
-          await this.basePromotionService.execute(editor, table, prepared, target, acceptance);
+          await service.execute(editor, table, prepared, target, acceptance);
           new Notice(t("notice.promoted").replace("{path}", displayPathText(prepared.manifestPath, t.locale)), 8000);
         },
         (error) => new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000),
-      ).open();
+        onClosed,
+      ));
     } catch (error) {
       new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000);
     }
   }
 
   private async previewPromotedTableRestore(editor: Editor, getInfo: BaseEditorInfo): Promise<void> {
+    if (this.transposeRequestsActive === false) return;
     const sourceFile = getInfo()?.file ?? null;
     const service = this.basePromotionService;
     const t = createTranslator(this.settings.language);
@@ -660,14 +699,16 @@ export class StructuralTablesPlugin extends Plugin {
     try {
       const target = captureBaseEditorTarget(editor, getInfo);
       const source = await service.restorationSource(metadata);
+      service.assertActive();
       target.assertCurrent();
-      new ConversionPreviewModal(this.app, {
+      this.openOperationPreview((onClose) => new ConversionPreviewModal(this.app, {
         language: t.locale ?? "en",
         title: t("modal.restoreBase.title"),
         description: t("modal.restoreBase.desc"),
         source,
         cancelLabel: t("modal.cancel"),
         confirmLabel: t("modal.restoreBase.confirm"),
+        onClose,
         onConfirm: () => {
           void service.restore(editor, metadata, target, source)
             .then(() => new Notice(t("notice.restored"), 8000))
@@ -676,18 +717,20 @@ export class StructuralTablesPlugin extends Plugin {
               8000,
             ));
         },
-      }).open();
+      }));
     } catch (error) {
       new Notice(t("notice.restoreFailed").replace("{message}", errorMessage(error)), 8000);
     }
   }
 
   private async previewBasePropertyMigration(): Promise<void> {
+    if (this.transposeRequestsActive === false) return;
     const service = this.basePropertyMigrationService;
     const t = createTranslator(this.settings.language);
     if (service === null) return;
     try {
       const prepared = await service.prepare();
+      service.assertActive();
       if (
         prepared.membershipNoteCount === 0
         && prepared.legacyBaseCount === 0
@@ -696,7 +739,7 @@ export class StructuralTablesPlugin extends Plugin {
         new Notice(t("notice.noBasePropertiesToMigrate"));
         return;
       }
-      new BasePropertyMigrationModal(
+      this.openOperationPreview((onClosed) => new BasePropertyMigrationModal(
         this.app,
         prepared,
         {
@@ -725,7 +768,8 @@ export class StructuralTablesPlugin extends Plugin {
           t("notice.basePropertyMigrationFailed").replace("{message}", errorMessage(error)),
           8000,
         ),
-      ).open();
+        onClosed,
+      ));
     } catch (error) {
       new Notice(
         t("notice.basePropertyMigrationFailed").replace("{message}", errorMessage(error)),
@@ -734,7 +778,16 @@ export class StructuralTablesPlugin extends Plugin {
     }
   }
 
+  private openOperationPreview(create: (onClose: () => void) => Modal): void {
+    if (this.transposeRequestsActive === false) return;
+    const previews = this.operationPreviews ??= new Set<Modal>();
+    const modal = create(() => previews.delete(modal));
+    previews.add(modal);
+    modal.open();
+  }
+
   private async createPromotedBaseRecord(editor: Editor, sourceFile: TFile | null): Promise<void> {
+    if (this.transposeRequestsActive === false) return;
     const t = createTranslator(this.settings.language);
     const service = this.basePromotionService;
     if (sourceFile === null || service === null) {

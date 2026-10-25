@@ -126,9 +126,80 @@ describe("PNG preview and outputs", () => {
     service.close(); expect(harness.offref).toHaveBeenCalledTimes(6);
   });
 
+  it("permanently rejects old export callbacks after disposal and aborts a pending render", async () => {
+    const harness = appHarness();
+    let finish!: (value: typeof png) => void;
+    pipeline.renderTableImage.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const service = new TableImageExportService(harness.app, () => ({ settings: DEFAULT_SETTINGS, t: createTranslator("en") }));
+    const oldMenuCallback = () => service.open(table, "Note.md", () => true);
+    oldMenuCallback();
+    const request = pipeline.renderTableImage.mock.calls[0]![1];
+    expect(request.isCurrent()).toBe(true);
+    service.dispose(); service.dispose();
+    expect(request.signal.aborted).toBe(true);
+    expect(request.isCurrent()).toBe(false);
+    expect(harness.offref).toHaveBeenCalledTimes(3);
+    oldMenuCallback();
+    expect(harness.on).toHaveBeenCalledTimes(3);
+    expect(pipeline.renderTableImage).toHaveBeenCalledOnce();
+    finish(png); await Promise.resolve();
+    expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+    expect(harness.createBinary).not.toHaveBeenCalled();
+  });
+
+  it("allows a fresh service after the old instance was disposed", () => {
+    const harness = appHarness();
+    const settings = () => ({ settings: DEFAULT_SETTINGS, t: createTranslator("en") });
+    const old = new TableImageExportService(harness.app, settings);
+    old.dispose();
+    old.open(table, "Note.md", () => true);
+    expect(harness.on).not.toHaveBeenCalled();
+    const current = new TableImageExportService(harness.app, settings);
+    current.open(table, "Note.md", () => true);
+    expect(pipeline.renderTableImage).toHaveBeenCalledOnce();
+    current.dispose();
+    expect(harness.offref).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops saving when disposal occurs while the attachment path is being prepared", async () => {
+    const harness = appHarness();
+    let finishPath!: (value: string) => void;
+    harness.getAvailablePathForAttachment.mockReturnValue(new Promise((resolve) => { finishPath = resolve; }));
+    const service = new TableImageExportService(harness.app, () => ({ settings: DEFAULT_SETTINGS, t: createTranslator("en") }));
+    const open = vi.spyOn(TableImageModal.prototype, "open");
+    service.open(table, "Note.md", () => true);
+    const modal = open.mock.instances[0] as TableImageModal;
+    await vi.waitFor(() => expect(modal.contentEl.querySelector("img")).not.toBeNull());
+    const arrayBuffer = vi.spyOn(png.blob, "arrayBuffer");
+    modal.contentEl.querySelectorAll("button")[1]!.click();
+    expect(harness.getAvailablePathForAttachment).toHaveBeenCalledOnce();
+    service.dispose();
+    finishPath("attachments/Note-table.png");
+    await Promise.resolve(); await Promise.resolve();
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(harness.createBinary).not.toHaveBeenCalled();
+    expect(harness.offref).toHaveBeenCalledTimes(3);
+  });
+
+  it("preserves the completed PNG snapshot after the source changes", async () => {
+    const harness = appHarness();
+    const service = new TableImageExportService(harness.app, () => ({ settings: DEFAULT_SETTINGS, t: createTranslator("en") }));
+    const open = vi.spyOn(TableImageModal.prototype, "open");
+    service.open(table, "Note.md", () => true);
+    const modal = open.mock.instances[0] as TableImageModal;
+    await vi.waitFor(() => expect(modal.contentEl.querySelector("img")).not.toBeNull());
+    harness.on.mock.calls.find(([name]) => name === "modify")![1](new TFile("Note.md"));
+    expect(pipeline.renderTableImage.mock.calls[0]![1].isCurrent()).toBe(false);
+    modal.contentEl.querySelectorAll("button")[1]!.click();
+    await vi.waitFor(() => expect(harness.createBinary).toHaveBeenCalledOnce());
+    expect(new Uint8Array(harness.createBinary.mock.calls[0]![1])).toEqual(new Uint8Array(await png.blob.arrayBuffer()));
+    service.dispose();
+  });
+
   it("checks cancellation before the public file write and sanitizes the attachment filename", async () => {
     const harness = appHarness(); const controller = new AbortController(); controller.abort(new Error("closed"));
     await expect(saveTableImage(harness.app, png, "folder/Note.md", controller.signal)).rejects.toThrow("closed");
+    expect(harness.getAvailablePathForAttachment).not.toHaveBeenCalled();
     expect(harness.createBinary).not.toHaveBeenCalled();
     expect(tableImageFilename('folder/a:b?.MD')).toBe("a_b_-table.png");
   });

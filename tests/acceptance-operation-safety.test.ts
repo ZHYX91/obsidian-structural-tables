@@ -3,6 +3,9 @@ import { runInNewContext } from "node:vm";
 import * as host from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { TFile } from "./mocks/obsidian";
+import { parseEditableTables } from "../src/core/parser";
+import { buildBasePromotionPlan } from "../src/core/base-promotion";
+import { serializeStructuralTable } from "../src/core/serializer";
 
 const script = readFileSync("acceptance/fixtures/.obsidian/plugins/structural-tables-acceptance-provider/main.js", "utf8");
 interface Provider {
@@ -38,6 +41,29 @@ function fixture() {
 }
 
 describe("fixture-owned operation safety setup", () => {
+  it("provides one valid row-header table for formatting, PNG and the exact first-record gate", () => {
+    const source = readFileSync("acceptance/fixtures/Operation safety.md", "utf8");
+    const tables = parseEditableTables(source).tables;
+    expect(tables).toHaveLength(1);
+    const table = tables[0]!;
+    expect(table).toMatchObject({ valid: true, structural: true, columnCount: 2, headerRowCount: 1, rowHeaderColumnCount: 1, diagnostics: [] });
+    expect(table.rows.map(row => row.cells.map(cell => [cell.role, cell.content]))).toEqual([
+      [["corner_header", "Name"], ["column_header", "Value"]],
+      [["row_header", "Safety Alpha"], ["data", "First"]],
+      [["row_header", "Safety Beta"], ["data", "Second"]],
+    ]);
+    const plan = buildBasePromotionPlan(table, "stb_operation_fixture");
+    expect(plan.blockers).toEqual([]);
+    expect(plan.records.map(record => record.fileStem)).toEqual(["Safety Alpha", "Safety Beta"]);
+    expect(plan.records.map(record => record.values)).toEqual([
+      { Name: "Safety Alpha", Value: "First" }, { Name: "Safety Beta", Value: "Second" },
+    ]);
+    const formatted = parseEditableTables(serializeStructuralTable(table)).tables[0]!;
+    expect(formatted).toMatchObject({ valid: true, structural: true, columnCount: 2, headerRowCount: 1, rowHeaderColumnCount: 1 });
+    expect(formatted.rows.map(row => row.cells.map(cell => [cell.role, cell.content])))
+      .toEqual(table.rows.map(row => row.cells.map(cell => [cell.role, cell.content])));
+  });
+
   it("passes unrelated files through and restores the original host API", async () => {
     const f = fixture(); f.provider.safetyArm("replace-at-process");
     await f.vault.process(f.other, source => `${source}!`);

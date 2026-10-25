@@ -172,7 +172,7 @@ module.exports = class extends Plugin {
     for (const mode of ["replace-at-process", "dirty-at-process", "rollback-external-edit", "pause-migration", "pause-first-record", "pause-attachment-path"]) {
       action(`Arm ${mode}`, () => this.safetyArm(mode));
     }
-    action("Unload Structural Tables in 20 seconds", async () => {
+    action("Unload Structural Tables in 60 seconds", async () => {
       const armedAt = new Date().toISOString();
       const document = view.containerEl.ownerDocument;
       const previews = () => Array.from(document.querySelectorAll(".structural-tables-conversion-preview, .structural-tables-promotion-modal"))
@@ -183,10 +183,10 @@ module.exports = class extends Plugin {
         await this.app.plugins.disablePlugin("structural-tables");
         await this.safetyRecord("timed-plugin-unload-completed", { armedAt, beforeUnloadAt, before,
           after: previews(), testedPluginLoaded: Boolean(this.app.plugins.plugins["structural-tables"]) });
-      })().catch(error => new Notice(`Fixture timed unload failed: ${String(error)}`)); }, 20000);
+      })().catch(error => new Notice(`Fixture timed unload failed: ${String(error)}`)); }, 60000);
       this.register(() => clearTimeout(timer));
-      await this.safetyRecord("timed-plugin-unload-armed", { armedAt, delayMs: 20000 });
-      new Notice("Open the product preview now; fixture unload is scheduled in 20 seconds.");
+      await this.safetyRecord("timed-plugin-unload-armed", { armedAt, delayMs: 60000 });
+      new Notice("Open the product preview now; fixture unload is scheduled in 60 seconds.");
     });
     action("Reload Structural Tables", () => this.app.plugins.enablePlugin("structural-tables"));
     action("Record current safety state", () => this.safetyRecord("operator-observation"));

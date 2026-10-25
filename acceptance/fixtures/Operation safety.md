@@ -6,8 +6,8 @@ confirm migration/promotion/formatting, and save PNG through the actual product 
 
 Before safety table.
 
-| Name | Value ||
-| --- | --- |
+| Name | Value |
+| --- || --- |
 | Safety Alpha | First |
 | Safety Beta | Second |
 

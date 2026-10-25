@@ -53,6 +53,7 @@ interface PropertyField {
 interface PropertyChange {
   before: PropertyField;
   after: PropertyField | null;
+  deletedFrontmatter?: { before: string; after: string };
 }
 
 function migrationFrontmatter(source: string) {
@@ -102,18 +103,32 @@ function propertyField(source: string, key: string): PropertyField | null {
 function replacePropertyField(source: string, field: PropertyField, replacement: string): string {
   if (field.hasKeyPrefix) throw new Error(`Migration cannot safely change a prefixed YAML property key: ${field.key}.`);
   const frontmatter = migrationFrontmatter(source);
-  let from = field.from;
-  let to = field.to;
+  const patches = [{ from: field.from, to: field.to, replacement }];
   if (replacement === "" && frontmatter.map.flow) {
     const index = frontmatter.map.items.findIndex((pair) => isScalar(pair.key) && pair.key.value === field.key);
     const precedingComma = frontmatter.map.items[index]?.srcToken?.start.find((token) => token.type === "comma");
-    if (precedingComma !== undefined) from = precedingComma.offset;
-    else {
-      const followingComma = frontmatter.map.items[index + 1]?.srcToken?.start.find((token) => token.type === "comma");
-      if (followingComma !== undefined) to = followingComma.offset + 1;
-    }
+    const comma = precedingComma
+      ?? frontmatter.map.items[index + 1]?.srcToken?.start.find((token) => token.type === "comma");
+    // The separator and property are separate tokens; comments between them belong to neither patch.
+    if (comma !== undefined) patches.push({ from: comma.offset, to: comma.offset + comma.source.length, replacement: "" });
   }
-  return source.slice(0, frontmatter.from + from) + replacement + source.slice(frontmatter.from + to);
+  let result = source;
+  for (const patch of patches.sort((left, right) => right.from - left.from)) {
+    result = result.slice(0, frontmatter.from + patch.from) + patch.replacement + result.slice(frontmatter.from + patch.to);
+  }
+  return result;
+}
+
+function removePropertyField(source: string, field: PropertyField): { source: string; change: PropertyChange } {
+  const result = replacePropertyField(source, field, "");
+  return {
+    source: result,
+    change: {
+      before: field,
+      after: null,
+      deletedFrontmatter: { before: migrationFrontmatter(source).text, after: migrationFrontmatter(result).text },
+    },
+  };
 }
 
 function insertPropertyField(source: string, field: PropertyField): string {
@@ -156,10 +171,15 @@ function migrateProperties(source: string, candidate: PropertyMigrationFile, rem
       throw new Error(`Structural Tables membership changed during migration: ${candidate.path}.`);
     }
     const before = propertyField(result, LEGACY_TABLE_MEMBERSHIP_PROPERTY)!;
-    const replacement = candidate.currentMembershipPresent ? ""
-      : TABLE_MEMBERSHIP_PROPERTY + before.source.slice(before.keyTo - before.from);
-    result = replacePropertyField(result, before, replacement);
-    changes.push({ before, after: candidate.currentMembershipPresent ? null : propertyField(result, TABLE_MEMBERSHIP_PROPERTY) });
+    if (candidate.currentMembershipPresent) {
+      const removal = removePropertyField(result, before);
+      result = removal.source;
+      changes.push(removal.change);
+    } else {
+      const replacement = TABLE_MEMBERSHIP_PROPERTY + before.source.slice(before.keyTo - before.from);
+      result = replacePropertyField(result, before, replacement);
+      changes.push({ before, after: propertyField(result, TABLE_MEMBERSHIP_PROPERTY) });
+    }
   }
   if (removeLegacyRecordIds && candidate.hasLegacyRecordId) {
     if (!owns(frontmatter, LEGACY_RECORD_ID_PROPERTY)
@@ -167,8 +187,9 @@ function migrateProperties(source: string, candidate: PropertyMigrationFile, rem
       throw new Error(`Structural Tables record ID changed during migration: ${candidate.path}.`);
     }
     const before = propertyField(result, LEGACY_RECORD_ID_PROPERTY)!;
-    result = replacePropertyField(result, before, "");
-    changes.push({ before, after: null });
+    const removal = removePropertyField(result, before);
+    result = removal.source;
+    changes.push(removal.change);
   }
   // Validate alias references and the resulting mapping before committing a raw patch.
   migrationFrontmatter(result).document.toJS();
@@ -187,7 +208,13 @@ function restoreProperties(source: string, changes: readonly PropertyChange[], c
       const current = propertyField(restored, change.after.key);
       if (current === null || current.source !== change.after.source) throw new Error("property changed after migration wrote it");
       restored = replacePropertyField(restored, current, change.before.source);
-    } else restored = insertPropertyField(restored, change.before);
+    } else {
+      const current = migrationFrontmatter(restored);
+      // Restore trivia exactly only when no subsequent frontmatter edit would be overwritten.
+      if (change.deletedFrontmatter !== undefined && current.text === change.deletedFrontmatter.after) {
+        restored = restored.slice(0, current.from) + change.deletedFrontmatter.before + restored.slice(current.to);
+      } else restored = insertPropertyField(restored, change.before);
+    }
   }
   migrationFrontmatter(restored).document.toJS();
   return restored;

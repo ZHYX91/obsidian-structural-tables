@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import type { App, Command, Editor, MarkdownFileInfo, TAbstractFile, TFile } from "obsidian";
+import { MarkdownView, type App, type Command, type Editor, type MarkdownFileInfo, type TAbstractFile, type TFile } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { BasePromotionModal } from "../src/app/base-promotion-modal";
@@ -71,7 +71,37 @@ beforeAll(() => {
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); notices.length = 0; document.body.replaceChildren(); });
 
-describe("Base command instance ownership", () => {
+describe("Base and formatting command instance ownership", () => {
+  it.each([false, true])("closes formatting previews and rejects their old confirmation after unload (reload=%s)", (reload) => {
+    const f = fixture();
+    const view = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { editor: f.editor, file: f.file });
+    Object.assign(f.app.workspace, { iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => callback({ view }) });
+    const open = vi.spyOn(ConversionPreviewModal.prototype, "open").mockImplementation(() => {});
+    const close = vi.spyOn(ConversionPreviewModal.prototype, "close");
+    const command = f.command("format-current-structural-table");
+    command.editorCallback!(f.editor, f.info);
+    expect(open).toHaveBeenCalledOnce();
+    const confirm = (open.mock.instances[0] as unknown as { options: { onConfirm: () => void } }).options.onConfirm;
+    f.plugin.onunload();
+    expect(close).toHaveBeenCalledOnce();
+    if (reload) Object.assign(f.plugin, { runtimeEpoch: {}, transposeRequestsActive: true });
+    confirm();
+    command.editorCallback!(f.editor, f.info);
+    expect(open).toHaveBeenCalledOnce();
+    expect(f.editor.getValue()).toBe(SOURCE);
+    expect(f.editor.replaceRange).not.toHaveBeenCalled();
+    if (reload) {
+      f.plugin.registerCommands();
+      const replacement = [...f.commands].reverse().find(({ id }) => id === "format-current-structural-table")!;
+      replacement.editorCallback!(f.editor, f.info);
+      expect(open).toHaveBeenCalledTimes(2);
+      (open.mock.instances[1] as unknown as { options: { onConfirm: () => void } }).options.onConfirm();
+      expect(f.editor.replaceRange).toHaveBeenCalledOnce();
+      expect(f.editor.getValue()).toContain("Alice");
+      f.plugin.onunload();
+    }
+  });
+
   it("closes the promotion preview on unload and rejects its captured confirmation", async () => {
     vi.stubGlobal("activeWindow", { crypto: { randomUUID: () => "10000000-0000-4000-8000-000000000001" } });
     const f = fixture();

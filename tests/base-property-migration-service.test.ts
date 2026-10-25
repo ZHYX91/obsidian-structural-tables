@@ -895,6 +895,73 @@ describe("legacy Base property migration", () => {
     expect(host.frontmatters.get(file)?.[LEGACY_RECORD_ID_PROPERTY]).toBe("str_record");
   });
 
+  it.each([
+    {
+      position: "first",
+      before: "{OWNED # comment before comma\n, # comment for title\n title: keep, structural-tables: [stb_people]}",
+      after: "{ # comment before comma\n # comment for title\n title: keep, structural-tables: [stb_people]}",
+    },
+    {
+      position: "middle",
+      before: "{title: keep, # comment for title\n OWNED, # comment for membership\n structural-tables: [stb_people]}",
+      after: "{title: keep # comment for title\n , # comment for membership\n structural-tables: [stb_people]}",
+    },
+    {
+      position: "last",
+      before: "{title: keep, structural-tables: [stb_people], # comment for membership\n OWNED, # collection comment\n}",
+      after: "{title: keep, structural-tables: [stb_people] # comment for membership\n , # collection comment\n}",
+    },
+  ].flatMap((scenario) => ["structural_record_id: id", "structural_table_ids: [stb_people]"].flatMap((owned) => (
+    ["\n", "\r\n"].flatMap((ending) => [false, true].map((failure) => ({ ...scenario, owned, ending, failure })))
+  ))))("preserves adjacent flow comments ($position, $owned, ending=$ending, failure=$failure)", async ({ before, after, owned, ending, failure }) => {
+    const host = migrationHost();
+    const { file } = legacyRecord(host);
+    const later = legacyRecord(host, "Later.md");
+    const mapping = before.replace("OWNED", owned).replace(/\n/gu, ending);
+    const source = `---${ending}${mapping}${ending}---${ending}Body${ending}`;
+    host.sources.set(file, source);
+    host.frontmatters.set(file, parseDocument(mapping).toJS() as Record<string, unknown>);
+    if (failure) host.failProcessPath = later.file.path;
+    const service = new BasePropertyMigrationService(host.app);
+    if (failure) {
+      await expect(service.execute(await service.prepare(), true)).rejects.toThrow("Every completed file was restored");
+      expect(host.sources.get(file)).toBe(source);
+    } else {
+      await service.execute(await service.prepare(), true);
+      const expected = `---${ending}${after.replace(/\n/gu, ending)}${ending}---${ending}Body${ending}`;
+      expect(host.sources.get(file)).toBe(expected);
+      expect(host.frontmatters.get(file)?.[LEGACY_RECORD_ID_PROPERTY]).toBeUndefined();
+      expect(host.frontmatters.get(file)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toBeUndefined();
+    }
+    expect(host.frontmatters.get(file)?.title).toBe("keep");
+    expect(host.frontmatters.get(file)?.[TABLE_MEMBERSHIP_PROPERTY]).toEqual(["stb_people"]);
+  });
+
+  it("preserves later edits to unrelated flow comments and body during compensation", async () => {
+    const host = migrationHost();
+    const { file } = legacyRecord(host);
+    const later = legacyRecord(host, "Later.md");
+    const mapping = "{title: keep, # comment for title\r\n structural_record_id: id, # membership comment\r\n structural-tables: [stb_people]}";
+    const source = `---\r\n${mapping}\r\n---\r\nBody\r\n`;
+    host.sources.set(file, source);
+    host.frontmatters.set(file, parseDocument(mapping).toJS() as Record<string, unknown>);
+    host.beforeProcess = (target) => {
+      if (target !== later.file) return;
+      host.sources.set(file, host.sources.get(file)!.replace("# comment for title", "# edited by user").replace("Body", "Later body"));
+      throw new Error("later write failed");
+    };
+    const service = new BasePropertyMigrationService(host.app);
+    await expect(service.execute(await service.prepare(), true)).rejects.toThrow("Every completed file was restored");
+    const restored = host.sources.get(file)!;
+    expect(restored).toContain("# edited by user\r\n");
+    expect(restored).not.toContain("# comment for title");
+    expect(restored).toContain("# membership comment\r\n");
+    expect(restored).toContain("\r\nLater body\r\n");
+    expect(host.frontmatters.get(file)?.[LEGACY_RECORD_ID_PROPERTY]).toBe("id");
+    expect(host.frontmatters.get(file)?.title).toBe("keep");
+    expect(host.sources.get(later.file)).toBe(later.source);
+  });
+
   it.each(["anchor", "tag", "explicit"].flatMap((prefix) => ["rename", "duplicate", "record"].flatMap((operation) => (
     (prefix === "explicit" ? [false] : [false, true]).map((flow) => ({ prefix, operation, flow }))
   ))))("refuses a $prefix key before any write ($operation, flow=$flow)", async ({ prefix, operation, flow }) => {

@@ -127,7 +127,7 @@ export class StructuralTablesPlugin extends Plugin {
   private plainGfm: PlainGfmConversionService | null = null;
   private transposeRequestsActive = true;
   private runtimeEpoch?: object;
-  private basePreviews?: Set<Modal>;
+  private operationPreviews?: Set<Modal>;
 
   override async onload(): Promise<void> {
     this.runtimeEpoch = {};
@@ -183,8 +183,8 @@ export class StructuralTablesPlugin extends Plugin {
     this.basePromotionService?.dispose();
     this.basePropertyMigrationService?.dispose();
     this.imageExport?.dispose();
-    for (const modal of this.basePreviews ?? []) modal.close();
-    this.basePreviews?.clear();
+    for (const modal of this.operationPreviews ?? []) modal.close();
+    this.operationPreviews?.clear();
     void this.settingsPersistence?.flush().catch((error: unknown) => {
       console.error("Structural Tables: failed to flush settings", error);
     });
@@ -487,7 +487,9 @@ export class StructuralTablesPlugin extends Plugin {
   private captureConversionTarget(editor: Editor, sourceFile: TFile | null): (() => boolean) | null {
     if (sourceFile === null) return null;
     const sourcePath = sourceFile.path;
+    const isActive = this.captureRuntime();
     return () => {
+      if (!isActive()) return false;
       if (sourceFile.path !== sourcePath || this.app.vault.getFileByPath(sourcePath) !== sourceFile) return false;
       let current = false;
       this.app.workspace.iterateAllLeaves((leaf) => {
@@ -516,13 +518,14 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const source = serializeStructuralTable(current.table);
-    new ConversionPreviewModal(this.app, {
+    this.openOperationPreview((onClose) => new ConversionPreviewModal(this.app, {
       language: t.locale ?? "en",
       title: t("modal.format.title"),
       description: t("modal.format.desc"),
       source,
       cancelLabel: t("modal.cancel"),
       confirmLabel: t("modal.format.confirm"),
+      onClose,
       onConfirm: () => {
         if (!targetIsCurrent()) {
           new Notice(t("notice.staleTable"));
@@ -536,7 +539,7 @@ export class StructuralTablesPlugin extends Plugin {
         this.replaceTable(editor, reparsed, source);
         new Notice(t("notice.formatted"));
       },
-    }).open();
+    }));
   }
 
   private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = "", viewHint?: MarkdownView): void {
@@ -646,7 +649,7 @@ export class StructuralTablesPlugin extends Plugin {
       const service = this.basePromotionService;
       const prepared = service.prepare(table, sourceFile);
       const expandsStructure = table.structural;
-      this.openBasePreview((onClosed) => new BasePromotionModal(
+      this.openOperationPreview((onClosed) => new BasePromotionModal(
         this.app,
         prepared,
         {
@@ -698,7 +701,7 @@ export class StructuralTablesPlugin extends Plugin {
       const source = await service.restorationSource(metadata);
       service.assertActive();
       target.assertCurrent();
-      this.openBasePreview((onClose) => new ConversionPreviewModal(this.app, {
+      this.openOperationPreview((onClose) => new ConversionPreviewModal(this.app, {
         language: t.locale ?? "en",
         title: t("modal.restoreBase.title"),
         description: t("modal.restoreBase.desc"),
@@ -736,7 +739,7 @@ export class StructuralTablesPlugin extends Plugin {
         new Notice(t("notice.noBasePropertiesToMigrate"));
         return;
       }
-      this.openBasePreview((onClosed) => new BasePropertyMigrationModal(
+      this.openOperationPreview((onClosed) => new BasePropertyMigrationModal(
         this.app,
         prepared,
         {
@@ -775,9 +778,9 @@ export class StructuralTablesPlugin extends Plugin {
     }
   }
 
-  private openBasePreview(create: (onClose: () => void) => Modal): void {
+  private openOperationPreview(create: (onClose: () => void) => Modal): void {
     if (this.transposeRequestsActive === false) return;
-    const previews = this.basePreviews ??= new Set<Modal>();
+    const previews = this.operationPreviews ??= new Set<Modal>();
     const modal = create(() => previews.delete(modal));
     previews.add(modal);
     modal.open();

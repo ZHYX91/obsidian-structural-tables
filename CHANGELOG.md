@@ -2,7 +2,7 @@
 
 ## 0.10.1 - 2026-10-25
 
-- Stop pending Base upgrades, restores, new-record creation and property migrations when the plugin is unloaded. Close their previews and retain any records already created with a clear partial-completion error.
+- Stop pending Base upgrades, restores, new-record creation and property migrations when the plugin is unloaded. Close their previews and stale formatting previews, and retain any records already created with a clear partial-completion error.
 - Refuse legacy-property migration when the original file is replaced or renamed, or an open editor has different unsaved content. Check again inside the actual source mutation and preserve unrelated YAML and Markdown bytes.
 - Prevent old PNG menus from reopening an unloaded export service, and cancel pending attachment preparation before it starts a new write.
 

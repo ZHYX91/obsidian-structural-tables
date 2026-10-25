@@ -12,7 +12,7 @@ import { parseEditableTables } from "../src/core/parser";
 import * as clipboard from "../src/rendering/table-clipboard";
 import { Menu, TFile } from "./mocks/obsidian";
 import { NativeCellEditorWidget } from "./helpers/native-cell-editor";
-import { TableImageExportService } from "../src/app/table-image-modal";
+import { TableImageExportService, TableImageModal } from "../src/app/table-image-modal";
 import * as images from "../src/rendering/table-image";
 
 const raster = vi.hoisted(() => ({ toSvg: vi.fn() }));
@@ -70,9 +70,9 @@ function fixture(outer: "ltr" | "rtl", inner: "ltr" | "rtl", language: "en" | "a
   } as unknown as App;
   const commands: Command[] = [];
   const plugin = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
-    app, settings: { ...DEFAULT_SETTINGS, language }, localizedCommands: [], transposeRequestsActive: true,
+    app, settings: { ...DEFAULT_SETTINGS, language }, localizedCommands: [], transposeRequestsActive: true, runtimeEpoch: {},
     addCommand: (command: Command) => { commands.push(command); return command; },
-  }) as unknown as { registerCommands: () => void; registerEditorMenu: () => void };
+  }) as unknown as { registerCommands: () => void; registerEditorMenu: () => void; onunload: () => void };
   return { app, cm, decoy, view, editor, commands, plugin, menu: () => {
     plugin.registerEditorMenu(); const menu = new Menu(); editorMenu!(menu, editor, view); return menu;
   } };
@@ -149,6 +149,71 @@ describe("registered table entries use their exact editor direction", () => {
       expect(document.querySelector(".structural-tables-image-preview img")).toBeNull(); expect(f.editor.getValue()).toBe(SOURCE);
     } finally { service.close(); }
   });
+
+  it.each(["command", "source-menu"] as const)("rejects an old %s PNG callback after the plugin unloads", async (entry) => {
+    const f = fixture("ltr", "rtl", "en");
+    const on = vi.fn(() => ({}));
+    const offref = vi.fn();
+    const createBinary = vi.fn();
+    Object.assign(f.app.vault, { on, offref, createBinary });
+    const service = new TableImageExportService(f.app, () => ({ settings: DEFAULT_SETTINGS, t: createTranslator("en") }));
+    Object.assign(f.plugin, { imageExport: service });
+    const pipeline = vi.spyOn(images, "renderTableImage");
+    const open = vi.spyOn(TableImageModal.prototype, "open");
+    let oldCallback: () => unknown;
+    if (entry === "command") {
+      f.plugin.registerCommands();
+      const command = f.commands.find((candidate) => candidate.id === "export-current-table-as-image")!;
+      oldCallback = () => command.editorCallback!(f.editor, f.view);
+    } else {
+      oldCallback = f.menu().items.find((item) => item.title === createTranslator("en")("menu.exportImage"))!.callback!;
+    }
+    try {
+      f.plugin.onunload();
+      oldCallback();
+      await Promise.resolve();
+      expect(open).not.toHaveBeenCalled();
+      expect(pipeline).not.toHaveBeenCalled();
+      expect(on).not.toHaveBeenCalled();
+      expect(offref).not.toHaveBeenCalled();
+      expect(createBinary).not.toHaveBeenCalled();
+      expect(document.querySelector(".structural-tables-image-modal")).toBeNull();
+      expect(f.editor.getValue()).toBe(SOURCE);
+      expect(f.decoy.state.doc.toString()).toBe(SOURCE);
+    } finally { service.dispose(); }
+  });
+
+  it.each(["command", "source-menu"] as const)("keeps an old %s PNG action bound to its original runtime after reload", (entry) => {
+    const f = fixture("ltr", "rtl", "en");
+    const on = vi.fn(() => ({}));
+    const createBinary = vi.fn();
+    Object.assign(f.app.vault, { on, offref: vi.fn(), createBinary });
+    const oldService = new TableImageExportService(f.app, () => ({ settings: DEFAULT_SETTINGS, t: createTranslator("en") }));
+    Object.assign(f.plugin, { imageExport: oldService });
+    let oldCallback: () => unknown;
+    if (entry === "command") {
+      f.plugin.registerCommands();
+      const command = f.commands.find((candidate) => candidate.id === "export-current-table-as-image")!;
+      oldCallback = () => command.editorCallback!(f.editor, f.view);
+    } else oldCallback = f.menu().items.find((item) => item.title === createTranslator("en")("menu.exportImage"))!.callback!;
+    f.plugin.onunload();
+    const replacement = new TableImageExportService(f.app, () => ({ settings: DEFAULT_SETTINGS, t: createTranslator("en") }));
+    const open = vi.spyOn(replacement, "open").mockImplementation(() => {});
+    Object.assign(f.plugin, { runtimeEpoch: {}, transposeRequestsActive: true, imageExport: replacement });
+    oldCallback();
+    expect(open).not.toHaveBeenCalled();
+    expect(on).not.toHaveBeenCalled();
+    expect(createBinary).not.toHaveBeenCalled();
+    if (entry === "command") {
+      f.plugin.registerCommands();
+      [...f.commands].reverse().find((command) => command.id === "export-current-table-as-image")!.editorCallback!(f.editor, f.view);
+    } else f.menu().items.find((item) => item.title === createTranslator("en")("menu.exportImage"))!.callback!();
+    expect(open).toHaveBeenCalledOnce();
+    expect(f.editor.getValue()).toBe(SOURCE);
+    expect(f.decoy.state.doc.toString()).toBe(SOURCE);
+    replacement.dispose();
+  });
+
   it.each(["en", "ar"] as const)("copies HTML and maps source menus independently of outer direction and %s UI", async (language) => {
     vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, source, target) => { target.textContent = source; });
     vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn(async () => {}) } });

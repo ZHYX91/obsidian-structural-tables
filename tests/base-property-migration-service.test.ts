@@ -1,5 +1,6 @@
 import type { App, TFile as ObsidianTFile } from "obsidian";
-import { TFile } from "obsidian";
+import { MarkdownView, TFile } from "obsidian";
+import { parseDocument } from "yaml";
 import { describe, expect, it } from "vitest";
 
 import { BasePropertyMigrationService } from "../src/app/base-property-migration-service";
@@ -49,10 +50,13 @@ interface MigrationHost {
   supportFiles: Map<string, TFile>;
   sources: Map<TFile, string>;
   frontmatters: Map<TFile, Record<string, unknown>>;
+  editors: MarkdownView[];
+  processCalls: TFile[];
+  beforeRead?: (file: TFile) => void | Promise<void>;
+  afterProcess?: (file: TFile) => void | Promise<void>;
   failProcessPath?: string;
   failAfterTransformPath?: string;
-  beforeProcess?: (file: TFile) => void;
-  beforeFrontMatter?: (file: TFile, frontmatter: Record<string, unknown>) => void;
+  beforeProcess?: (file: TFile) => void | Promise<void>;
 }
 
 function migrationHost(): MigrationHost {
@@ -60,38 +64,37 @@ function migrationHost(): MigrationHost {
   const supportFiles = new Map<string, TFile>();
   const sources = new Map<TFile, string>();
   const frontmatters = new Map<TFile, Record<string, unknown>>();
-  const host = { files, supportFiles, sources, frontmatters } as MigrationHost;
+  const editors: MarkdownView[] = [];
+  const processCalls: TFile[] = [];
+  const host = { files, supportFiles, sources, frontmatters, editors, processCalls } as MigrationHost;
   host.app = {
     vault: {
       getMarkdownFiles: () => files,
       getFileByPath: (path: string) => files.find((file) => file.path === path) ?? supportFiles.get(path) ?? null,
-      read: async (file: ObsidianTFile) => sources.get(file as TFile) ?? "",
+      read: async (file: ObsidianTFile) => {
+        await host.beforeRead?.(file as TFile);
+        return sources.get(file as TFile) ?? "";
+      },
       process: async (file: ObsidianTFile, update: (source: string) => string) => {
-        host.beforeProcess?.(file as TFile);
+        processCalls.push(file as TFile);
+        await host.beforeProcess?.(file as TFile);
         if (host.failProcessPath === file.path) throw new Error("write failed");
         const current = sources.get(file as TFile) ?? "";
         const next = update(current);
         if (host.failAfterTransformPath === file.path) throw new Error("write failed after transform");
         sources.set(file as TFile, next);
+        const match = /^\uFEFF?---[\t ]*(?:\r\n|\r|\n)([\s\S]*?)^(?:---|\.\.\.)[\t ]*(?=\r\n|\r|\n|$)/mu.exec(next);
+        if (match !== null) frontmatters.set(file as TFile, parseDocument(match[1]!.replace(/\r(?!\n)/gu, "\n")).toJS() as Record<string, unknown>);
+        await host.afterProcess?.(file as TFile);
         return next;
       },
     },
     metadataCache: {
       getFileCache: (file: ObsidianTFile) => ({ frontmatter: frontmatters.get(file as TFile) }),
     },
-    fileManager: {
-      processFrontMatter: async (
-        file: ObsidianTFile,
-        update: (frontmatter: Record<string, unknown>) => void,
-      ) => {
-        const next = { ...frontmatters.get(file as TFile) };
-        host.beforeFrontMatter?.(file as TFile, next);
-        update(next);
-        frontmatters.set(file as TFile, next);
-        const source = sources.get(file as TFile) ?? "";
-        const closing = source.indexOf("\n---\n", 4);
-        const body = closing < 0 ? "" : source.slice(closing + 5);
-        sources.set(file as TFile, yaml(next, body));
+    workspace: {
+      iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => {
+        for (const view of editors) callback({ view });
       },
     },
   } as unknown as App;
@@ -126,6 +129,30 @@ function recoveredPromotionFixture(sourceFilePath: string, tableId: string) {
     records: [],
   }, null, 2)}\n`;
   return { source, manifestPath, manifestContent };
+}
+
+function deferred() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => { release = resolve; });
+  return { promise, release };
+}
+
+function legacyRecord(host: MigrationHost, path = "Record.md") {
+  const file = testFile(path);
+  host.files.push(file);
+  const properties = { [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"], title: "Original" };
+  host.frontmatters.set(file, properties);
+  const source = yaml(properties, "Saved body\n");
+  host.sources.set(file, source);
+  return { file, source, properties };
+}
+
+function openEditor(host: MigrationHost, file: TFile, source: string) {
+  let text = source;
+  const view = Object.create(MarkdownView.prototype) as MarkdownView;
+  Object.assign(view, { file, editor: { getValue: () => text } });
+  host.editors.push(view);
+  return { setValue: (value: string) => { text = value; } };
 }
 
 describe("legacy Base property migration", () => {
@@ -384,7 +411,7 @@ describe("legacy Base property migration", () => {
     expect(host.frontmatters.get(record)).toEqual({ [TABLE_MEMBERSHIP_PROPERTY]: ["stb_current"] });
   });
 
-  it("revalidates membership and record ID inside the frontmatter write", async () => {
+  it("revalidates the complete source inside the atomic property write", async () => {
     const host = migrationHost();
     const record = testFile("Records/Current.md");
     host.files.push(record);
@@ -394,17 +421,16 @@ describe("legacy Base property migration", () => {
     });
     const original = yaml(host.frontmatters.get(record) ?? {});
     host.sources.set(record, original);
-    host.beforeFrontMatter = (_file, frontmatter) => {
-      delete frontmatter[TABLE_MEMBERSHIP_PROPERTY];
+    const changed = yaml({ [LEGACY_RECORD_ID_PROPERTY]: "str_current" });
+    host.beforeProcess = () => {
+      host.sources.set(record, changed);
+      host.frontmatters.set(record, { [LEGACY_RECORD_ID_PROPERTY]: "str_current" });
     };
     const service = new BasePropertyMigrationService(host.app);
 
-    await expect(service.execute(await service.prepare(), true)).rejects.toThrow("membership changed during migration");
-    expect(host.frontmatters.get(record)).toEqual({
-      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_current"],
-      [LEGACY_RECORD_ID_PROPERTY]: "str_current",
-    });
-    expect(host.sources.get(record)).toBe(original);
+    await expect(service.execute(await service.prepare(), true)).rejects.toThrow("changed during migration");
+    expect(host.frontmatters.get(record)).toEqual({ [LEGACY_RECORD_ID_PROPERTY]: "str_current" });
+    expect(host.sources.get(record)).toBe(changed);
   });
 
   it.each(
@@ -609,7 +635,7 @@ describe("legacy Base property migration", () => {
       if (file !== base) return;
       const current = host.frontmatters.get(record);
       if (current !== undefined) current.topic = "concurrent";
-      host.sources.set(record, `${host.sources.get(record)}Concurrent body\n`);
+      host.sources.set(record, yaml(current ?? {}, "Body\nConcurrent body\n"));
     };
     const service = new BasePropertyMigrationService(host.app);
 
@@ -685,5 +711,237 @@ describe("legacy Base property migration", () => {
     });
     expect(host.sources.get(record)).toContain("Body\n");
   });
+
+  it.each(["prepare", "preflight", "write"])("refuses a same-path same-content replacement during %s", async (phase) => {
+    const host = migrationHost();
+    const { file, source, properties } = legacyRecord(host);
+    const service = new BasePropertyMigrationService(host.app);
+    const replace = () => {
+      const replacement = testFile(file.path);
+      host.files.splice(host.files.indexOf(file), 1, replacement);
+      host.sources.set(replacement, source);
+      host.frontmatters.set(replacement, { ...properties });
+    };
+    if (phase === "prepare") {
+      host.beforeRead = replace;
+      await expect(service.prepare()).rejects.toThrow("replaced");
+    } else {
+      const prepared = await service.prepare();
+      if (phase === "preflight") host.beforeRead = replace;
+      else host.beforeProcess = replace;
+      await expect(service.execute(prepared, false)).rejects.toThrow("replaced");
+    }
+    expect(host.sources.get(file)).toBe(source);
+    expect(host.sources.get(host.files[0]!)).toBe(source);
+  });
+
+  it("keeps the preview's original path when the note moves while its read is pending", async () => {
+    const host = migrationHost();
+    const { file, source } = legacyRecord(host);
+    host.beforeRead = () => { file.path = "Renamed.md"; };
+    const service = new BasePropertyMigrationService(host.app);
+    await expect(service.prepare()).rejects.toThrow("moved");
+    expect(host.processCalls).toEqual([]);
+    expect(host.sources.get(file)).toBe(source);
+  });
+
+  it.each(["prepare", "confirm", "callback"])("refuses unsaved text in a second pane at %s", async (phase) => {
+    const host = migrationHost();
+    const { file, source } = legacyRecord(host);
+    openEditor(host, file, source);
+    const second = openEditor(host, file, phase === "prepare" ? `${source}Unsaved` : source);
+    const service = new BasePropertyMigrationService(host.app);
+    if (phase === "prepare") await expect(service.prepare()).rejects.toThrow("unsaved or conflicting");
+    else {
+      const prepared = await service.prepare();
+      if (phase === "confirm") second.setValue(`${source}Unsaved`);
+      else host.beforeProcess = () => { second.setValue(`${source}Unsaved`); };
+      await expect(service.execute(prepared, false)).rejects.toThrow("unsaved or conflicting");
+    }
+    expect(host.sources.get(file)).toBe(source);
+    expect(host.frontmatters.get(file)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toEqual(["stb_people"]);
+  });
+
+  it.each(["prepare", "preflight", "callback"])("stops after a pending %s completes following unload", async (phase) => {
+    const host = migrationHost();
+    const { file, source } = legacyRecord(host);
+    const service = new BasePropertyMigrationService(host.app);
+    const entered = deferred();
+    const gate = deferred();
+    const pause = async () => { entered.release(); await gate.promise; };
+    let operation: Promise<unknown>;
+    if (phase === "prepare") {
+      host.beforeRead = pause;
+      operation = service.prepare();
+    } else {
+      const prepared = await service.prepare();
+      if (phase === "preflight") host.beforeRead = pause;
+      else host.beforeProcess = pause;
+      operation = service.execute(prepared, false);
+    }
+    const rejected = expect(operation).rejects.toThrow("unloaded");
+    await entered.promise;
+    service.dispose();
+    gate.release();
+    await rejected;
+    expect(host.sources.get(file)).toBe(source);
+    expect(host.frontmatters.get(file)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toEqual(["stb_people"]);
+  });
+
+  it("retains the completed file and dispatches neither the next migration nor rollback after unload", async () => {
+    const host = migrationHost();
+    const first = legacyRecord(host, "First.md");
+    const second = legacyRecord(host, "Second.md");
+    const service = new BasePropertyMigrationService(host.app);
+    const prepared = await service.prepare();
+    host.afterProcess = (file) => { if (file === first.file) service.dispose(); };
+    await expect(service.execute(prepared, false)).rejects.toThrow("Completed changes were retained in 1 file(s): First.md");
+    expect(host.processCalls).toEqual([first.file]);
+    expect(host.frontmatters.get(first.file)?.[TABLE_MEMBERSHIP_PROPERTY]).toEqual(["stb_people"]);
+    expect(host.sources.get(second.file)).toBe(second.source);
+    delete host.afterProcess;
+    const replacementService = new BasePropertyMigrationService(host.app);
+    await expect(replacementService.execute(await replacementService.prepare(), false)).resolves.toMatchObject({ fileCount: 1 });
+  });
+
+  it("refuses a retained preview and further discovery on an already disposed service", async () => {
+    const host = migrationHost();
+    legacyRecord(host);
+    const service = new BasePropertyMigrationService(host.app);
+    const prepared = await service.prepare();
+    service.dispose();
+    await expect(service.execute(prepared, false)).rejects.toThrow("unloaded");
+    await expect(service.prepare()).rejects.toThrow("unloaded");
+    expect(host.processCalls).toEqual([]);
+  });
+
+  it.each(["replacement", "dirty", "owned-edit"])("preserves concurrent %s changes during rollback", async (conflict) => {
+    const host = migrationHost();
+    const first = legacyRecord(host, "First.md");
+    const second = legacyRecord(host, "Second.md");
+    const service = new BasePropertyMigrationService(host.app);
+    const prepared = await service.prepare();
+    let replacement: TFile | null = null;
+    host.beforeProcess = (file) => {
+      if (file !== second.file) return;
+      if (conflict === "replacement") {
+        replacement = testFile(first.file.path);
+        host.files.splice(0, 1, replacement);
+        host.sources.set(replacement, host.sources.get(first.file)!);
+      } else if (conflict === "dirty") openEditor(host, first.file, `${host.sources.get(first.file)}Unsaved`);
+      else host.sources.set(first.file, host.sources.get(first.file)!.replace("stb_people", "stb_user"));
+      throw new Error("later write failed");
+    };
+    await expect(service.execute(prepared, false)).rejects.toThrow("Rollback needs attention");
+    expect(host.sources.get(first.file)).toContain("structural-tables:");
+    expect(host.sources.get(second.file)).toBe(second.source);
+    if (replacement !== null) expect(host.sources.get(replacement)).toBe(host.sources.get(first.file));
+    if (conflict === "owned-edit") expect(host.sources.get(first.file)).toContain("stb_user");
+  });
+
+  it.each(["\n", "\r\n", "\r"])("preserves unrelated YAML bytes, unknown tags, aliases and large integers with %j", async (ending) => {
+    const host = migrationHost();
+    const { file } = legacyRecord(host);
+    const source = [
+      "---", "# owned property", '"structural_table_ids": [stb_people] # list comment',
+      "empty:", "900: value", "huge: 9007199254740993123456789", "date: 2026-10-25",
+      "anchor: &value {custom: [1, 2]}", "alias: *value", "tagged: !unknown keep", "---", "Body", "",
+    ].join(ending);
+    host.sources.set(file, source);
+    const service = new BasePropertyMigrationService(host.app);
+    await service.execute(await service.prepare(), false);
+    expect(host.sources.get(file)).toBe(source.replace('"structural_table_ids"', "structural-tables"));
+  });
+
+  it.each([false, true])("patches a flow mapping without changing other bytes and restores after failure=%s", async (failure) => {
+    const host = migrationHost();
+    const { file } = legacyRecord(host);
+    const later = legacyRecord(host, "Later.md");
+    const properties = {
+      [TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      [LEGACY_TABLE_MEMBERSHIP_PROPERTY]: ["stb_people"],
+      [LEGACY_RECORD_ID_PROPERTY]: "str_record",
+    };
+    host.frontmatters.set(file, properties);
+    const source = '---\n{structural_table_ids: [stb_people], huge: 9007199254740993123456789, structural-tables: [stb_people], structural_record_id: str_record}\n---\nBody\n';
+    host.sources.set(file, source);
+    if (failure) host.failProcessPath = later.file.path;
+    const service = new BasePropertyMigrationService(host.app);
+    if (failure) {
+      await expect(service.execute(await service.prepare(), true)).rejects.toThrow("Every completed file was restored");
+      expect(host.frontmatters.get(file)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toEqual(["stb_people"]);
+      expect(host.frontmatters.get(file)?.[LEGACY_RECORD_ID_PROPERTY]).toBe("str_record");
+    } else {
+      await service.execute(await service.prepare(), true);
+      expect(host.frontmatters.get(file)?.[LEGACY_TABLE_MEMBERSHIP_PROPERTY]).toBeUndefined();
+      expect(host.frontmatters.get(file)?.[LEGACY_RECORD_ID_PROPERTY]).toBeUndefined();
+    }
+    expect(host.sources.get(file)).toContain("huge: 9007199254740993123456789");
+    expect(host.sources.get(file)).toContain("\nBody\n");
+  });
+
+  it.each([",", ", # collection comment\n"])("restores a flow mapping with trailing separator %j", async (tail) => {
+    const host = migrationHost();
+    const { file } = legacyRecord(host);
+    const later = legacyRecord(host, "Later.md");
+    const mapping = `{structural_table_ids: [stb_people], structural_record_id: str_record${tail}}`;
+    const source = `---\n${mapping}\n---\nBody\n`;
+    host.sources.set(file, source);
+    host.frontmatters.set(file, parseDocument(mapping).toJS() as Record<string, unknown>);
+    host.failProcessPath = later.file.path;
+    const service = new BasePropertyMigrationService(host.app);
+    await expect(service.execute(await service.prepare(), true)).rejects.toThrow("Every completed file was restored");
+    expect(host.sources.get(file)).toBe(source);
+    expect(host.frontmatters.get(file)?.[LEGACY_RECORD_ID_PROPERTY]).toBe("str_record");
+  });
+
+  it.each(["anchor", "tag", "explicit"].flatMap((prefix) => ["rename", "duplicate", "record"].flatMap((operation) => (
+    (prefix === "explicit" ? [false] : [false, true]).map((flow) => ({ prefix, operation, flow }))
+  ))))("refuses a $prefix key before any write ($operation, flow=$flow)", async ({ prefix, operation, flow }) => {
+    const host = migrationHost();
+    const first = legacyRecord(host, "First.md");
+    const { file } = legacyRecord(host, "Prefixed.md");
+    const key = operation === "record" ? LEGACY_RECORD_ID_PROPERTY : LEGACY_TABLE_MEMBERSHIP_PROPERTY;
+    const value = operation === "record" ? "str_record" : "[stb_people]";
+    const owned = prefix === "explicit" ? `? ${key}\n: ${value}`
+      : `${prefix === "anchor" ? "&key" : "!!str"} ${key}: ${value}`;
+    const fields = [
+      ...(operation === "rename" ? [] : ["structural-tables: [stb_people]"]),
+      owned, "title: keep", ...(prefix === "anchor" ? ["other: *key"] : []),
+    ];
+    const mapping = flow ? `{${fields.join(", ")}}` : fields.join("\n");
+    const source = `---\n${mapping}\n---\nBody\n`;
+    host.sources.set(file, source);
+    host.frontmatters.set(file, parseDocument(mapping).toJS() as Record<string, unknown>);
+    const service = new BasePropertyMigrationService(host.app);
+    await expect(service.execute(await service.prepare(), true)).rejects.toThrow("prefixed YAML property key");
+    expect(host.processCalls).toEqual([]);
+    expect(host.sources.get(first.file)).toBe(first.source);
+    expect(host.sources.get(file)).toBe(source);
+  });
+
+  it.each(["&key title: keep\nother: *key", "!!str title: keep", "? title\n: keep"]
+    .flatMap((unrelated) => [false, true].map((failure) => ({ unrelated, failure }))))(
+    "preserves unrelated key prefixes during migration and rollback (failure=$failure, $unrelated)", async ({ unrelated, failure }) => {
+      const host = migrationHost();
+      const { file } = legacyRecord(host);
+      const later = legacyRecord(host, "Later.md");
+      const mapping = `structural_table_ids: &members [stb_people]\nstructural_record_id: str_record\n${unrelated}\nrelated: *members\n`;
+      const source = `---\n${mapping}---\nBody\n`;
+      host.sources.set(file, source);
+      host.frontmatters.set(file, parseDocument(mapping).toJS() as Record<string, unknown>);
+      if (failure) host.failProcessPath = later.file.path;
+      const service = new BasePropertyMigrationService(host.app);
+      if (failure) {
+        await expect(service.execute(await service.prepare(), true)).rejects.toThrow("Every completed file was restored");
+        expect(host.sources.get(file)).toBe(source);
+      } else {
+        await service.execute(await service.prepare(), true);
+        expect(host.sources.get(file)).toBe(source.replace("structural_table_ids", "structural-tables").replace("structural_record_id: str_record\n", ""));
+      }
+      expect(host.frontmatters.get(file)?.related).toEqual(["stb_people"]);
+      expect(host.frontmatters.get(file)?.title).toBe("keep");
+    },
+  );
 
 });

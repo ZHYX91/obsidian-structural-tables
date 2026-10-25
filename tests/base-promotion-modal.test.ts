@@ -102,6 +102,18 @@ function button(modal: BasePromotionModal, text: string): HTMLButtonElement {
 }
 
 describe("BasePromotionModal content acceptance", () => {
+  it("invalidates the detached confirm button when its preview is closed", () => {
+    const onConfirm = vi.fn(async () => {});
+    const onClosed = vi.fn();
+    const value = prepared(); value.plan.contentReport.requiresAcceptance = false;
+    const modal = new BasePromotionModal(new App(), value, labels, onConfirm, vi.fn(), onClosed);
+    modal.open();
+    const confirm = button(modal, "Confirm");
+    modal.close(); confirm.click();
+    expect(onClosed).toHaveBeenCalledOnce();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it.each([["عنوان عربي", "latinKey"], ["Latin title", "مفتاح"], ["عنوان", "مفتاح"]])("keeps the %s to %s mapping and Arabic paths isolated without modifying prepared bytes", (displayName, key) => {
     const value = prepared(); value.plan.columns[0] = { sourceColumn: 0, displayName: displayName!, key: key! };
     value.directoryPath = "ملاحظات/تقارير/ملخص-2026"; value.records[0]!.path = `${value.directoryPath}/سجل-ABC.md`;

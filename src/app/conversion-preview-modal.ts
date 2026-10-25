@@ -10,9 +10,12 @@ export interface ConversionPreviewOptions {
   cancelLabel: string;
   confirmLabel: string;
   onConfirm: () => void;
+  onClose?: () => void;
 }
 
 export class ConversionPreviewModal extends Modal {
+  private closed = false;
+
   constructor(app: App, private readonly options: ConversionPreviewOptions) {
     super(app);
   }
@@ -33,12 +36,15 @@ export class ConversionPreviewModal extends Modal {
         .setCta()
         .setButtonText(this.options.confirmLabel)
         .onClick(() => {
+          if (this.closed) return;
           this.close();
           this.options.onConfirm();
         }));
   }
 
   override onClose(): void {
+    this.closed = true;
     this.contentEl.empty();
+    this.options.onClose?.();
   }
 }

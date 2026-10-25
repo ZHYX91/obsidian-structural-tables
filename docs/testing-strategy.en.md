@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-24
+last_synced: 2026-10-25
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -145,6 +145,8 @@ Group pure-core coverage by responsibility:
 In-memory Vault transactions must also prove zero writes for blocked plans; preservation of concurrent content after record, manifest, or source-replacement failures; restoration without deleting records; new-record placement after the host note moves; and refusal for missing or mismatched manifests.
 
 Legacy-property migration covers preview, default-off retired-ID cleanup, concurrent-change detection, all three line endings, and rollback that touches only plugin-owned changes.
+
+Pause Base preparation, folder/record/manifest creation and restoration reads, unload the plugin, then resume the pending operation. Old previews must close, completed files must remain, and no later write or note opening may start. Test the actual registered command and source-menu callbacks, including an old PNG callback, rather than only calling a disposed service. Migration tests replace the registered file with identical bytes, rename it, change a related editor buffer, and defer the actual source-mutation callback. Verify rejection before mutation, exact preservation of unrelated YAML and body bytes, and conflict-safe compensation while the instance remains active.
 
 <!-- section: host -->
 ## Real Obsidian acceptance

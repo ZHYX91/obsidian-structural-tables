@@ -200,6 +200,134 @@ function sourceTable() {
   return parsed;
 }
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+describe("Base operation lifetime", () => {
+  it("refuses an old confirmation and prepare after disposal while a new instance remains usable", async () => {
+    const host = memoryHost();
+    const file = memoryFile("Folder/People.md");
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), file);
+    service.dispose();
+    expect(() => service.prepare(sourceTable(), file)).toThrow("unloaded");
+    await expect(service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, file)))
+      .rejects.toThrow("unloaded");
+    expect(host.contents.size).toBe(0);
+    expect(editor.getValue()).toBe(SOURCE);
+    const fresh = new BasePromotionService(host.app);
+    await fresh.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, file));
+    expect(editor.getValue()).toBe(prepared.replacementSource);
+  });
+
+  it.each(["parent-folder", "record-folder", "first-record", "manifest"] as const)(
+    "stops after an already dispatched %s completes and retains partial output", async (stage) => {
+      const host = memoryHost();
+      const file = memoryFile("Folder/People.md");
+      const editor = new MemoryEditor(SOURCE);
+      const service = new BasePromotionService(host.app);
+      const prepared = service.prepare(sourceTable(), file);
+      const entered = deferred();
+      const resume = deferred();
+      const pausedPath = stage === "parent-folder" ? "Folder/_structural-table-records"
+        : stage === "record-folder" ? prepared.directoryPath
+          : stage === "first-record" ? prepared.records[0]!.path : prepared.manifestPath;
+      if (stage === "parent-folder" || stage === "record-folder") {
+        const createFolder = host.app.vault.createFolder.bind(host.app.vault);
+        vi.spyOn(host.app.vault, "createFolder").mockImplementation(async (path) => {
+          const result = await createFolder(path);
+          if (path === pausedPath) { entered.resolve(); await resume.promise; }
+          return result;
+        });
+      } else {
+        const create = host.app.vault.create.bind(host.app.vault);
+        vi.spyOn(host.app.vault, "create").mockImplementation(async (path, content) => {
+          const result = await create(path, content);
+          if (path === pausedPath) { entered.resolve(); await resume.promise; }
+          return result;
+        });
+      }
+      const operation = service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, file));
+      await entered.promise;
+      const retained = [...host.contents];
+      service.dispose();
+      resume.resolve();
+      await expect(operation).rejects.toThrow("unloaded");
+      expect([...host.contents]).toEqual(retained);
+      expect(editor.getValue()).toBe(SOURCE);
+      expect(host.opened).toEqual([]);
+      expect(host.trashed).toEqual([]);
+      expect(prepared.records.filter(({ path }) => host.contents.has(path))).toHaveLength(
+        stage === "first-record" ? 1 : stage === "manifest" ? 2 : 0,
+      );
+      if (stage === "parent-folder") expect(host.files.has(prepared.directoryPath)).toBe(false);
+    },
+  );
+
+  it.each(["preview", "restore"] as const)("refuses a delayed manifest read after disposal during %s", async (stage) => {
+    const host = memoryHost();
+    const file = memoryFile("Folder/People.md");
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), file);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, file));
+    const metadata = promotionBlockAt(editor.getValue(), 1)!;
+    const entered = deferred();
+    const resume = deferred();
+    const read = host.app.vault.read.bind(host.app.vault);
+    vi.spyOn(host.app.vault, "read").mockImplementation(async (target) => {
+      const content = await read(target);
+      entered.resolve(); await resume.promise;
+      return content;
+    });
+    const operation = stage === "preview" ? service.restorationSource(metadata)
+      : service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, file), SOURCE);
+    await entered.promise;
+    service.dispose();
+    resume.resolve();
+    await expect(operation).rejects.toThrow("unloaded");
+    expect(editor.getValue()).toBe(prepared.replacementSource);
+    expect(host.trashed).toEqual([]);
+  });
+
+  it.each(["before-create", "after-create"] as const)("stops new-record creation %s without opening a note", async (stage) => {
+    const host = memoryHost();
+    const file = memoryFile("Folder/People.md");
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), file);
+    const metadata = promotionBlockAt(prepared.replacementSource, 1)!;
+    const entered = deferred();
+    const resume = deferred();
+    const create = host.app.vault.create.bind(host.app.vault);
+    const createSpy = vi.spyOn(host.app.vault, "create").mockImplementation(async (path, content) => {
+      const result = await create(path, content);
+      if (stage === "after-create") { entered.resolve(); await resume.promise; }
+      return result;
+    });
+    if (stage === "before-create") {
+      const createFolder = host.app.vault.createFolder.bind(host.app.vault);
+      vi.spyOn(host.app.vault, "createFolder").mockImplementation(async (path) => {
+        const result = await createFolder(path);
+        entered.resolve(); await resume.promise;
+        return result;
+      });
+    }
+    const operation = service.createRecord(file, metadata);
+    await entered.promise;
+    service.dispose();
+    resume.resolve();
+    await expect(operation).rejects.toThrow("unloaded");
+    expect(createSpy).toHaveBeenCalledTimes(stage === "before-create" ? 0 : 1);
+    expect(host.contents.size).toBe(stage === "before-create" ? 0 : 1);
+    expect(host.opened).toEqual([]);
+    expect(host.trashed).toEqual([]);
+  });
+});
+
 describe("record filename identity", () => {
   it("uses locale-independent case folding for collision checks", () => {
     expect(recordFileNameIdentity("Alice.md")).toBe("alice.md");

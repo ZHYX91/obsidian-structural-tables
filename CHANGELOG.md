@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Avoid repeating a full-note parse while validating a whole-table transpose, retaining unchanged-source and neighboring-table safeguards.
+
 ## 0.10.1 - 2026-10-25
 
 - Stop pending Base upgrades, restores, new-record creation and property migrations when the plugin is unloaded. Close their previews and stale formatting previews, and retain any records already created with a clear partial-completion error.

@@ -1,7 +1,7 @@
 import type { StructuralTable } from "./model";
 import { transposeTable, type OperationResult } from "./operations";
 import { parseEditableTables } from "./parser";
-import { reparseUnchangedTable } from "./table-snapshot";
+import { reparseUnchangedTable, TableDocumentSnapshot } from "./table-snapshot";
 
 function isExactTranspose(before: StructuralTable, after: StructuralTable): boolean {
   if (!after.valid || after.sourcePrefix !== before.sourcePrefix || after.rows.length !== before.columnCount
@@ -24,8 +24,10 @@ export function transposeTableInDocument(source: string, table: StructuralTable)
   if (!result.changed) return result;
   const refusal: OperationResult = { changed: false, code: "transpose-boundary-unsafe", source: table.source,
     message: "This transpose would change where the table starts or ends. Add a blank line before and after the table, then try again." };
-  if (reparseUnchangedTable(source, table) === null) return refusal;
-  const before = parseEditableTables(source).tables;
+  if (source.slice(table.range.from, table.range.to) !== table.source) return refusal;
+  const snapshot = new TableDocumentSnapshot(source);
+  if (reparseUnchangedTable(snapshot, table) === null) return refusal;
+  const before = snapshot.tables;
   const updated = source.slice(0, table.range.from) + result.source + source.slice(table.range.to);
   const after = parseEditableTables(updated).tables;
   const index = before.findIndex((candidate) => candidate.range.from === table.range.from && candidate.range.to === table.range.to);

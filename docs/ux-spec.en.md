@@ -160,6 +160,8 @@ Legacy-property migration runs only on explicit user request. Its preview lists 
 ### Row and column handles
 
 - On pointer devices, hovering a cell reveals only its matching row and column handles.
+- Handles use fixed-size decorative icons and native table-handle theme colors. Reveal, hover, selection and keyboard focus have distinct visual layers; dragging retains selection and its feedback.
+- The grip and its background sit inside the hit region: a smaller visual outline does not shrink the existing button target. Icons add no focus stops and do not intercept button pointer events.
 - Keyboard-focused or selected handles stay visible.
 - Touch handles remain large enough to tap and must not cover preceding text.
 - Handles live outside the table box and must not change table alignment.

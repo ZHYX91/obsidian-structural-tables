@@ -2,6 +2,12 @@ import { StateField } from "@codemirror/state";
 
 export const Platform = { isMobileApp: false };
 export function getIcon(_id: string): SVGSVGElement | null { return null; }
+export function setIcon(parent: HTMLElement, id: string): void {
+  const svg = parent.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.classList.add("svg-icon");
+  svg.dataset.icon = id;
+  parent.replaceChildren(svg);
+}
 export function addIcon(_id: string, _svg: string): void {}
 export function removeIcon(_id: string): void {}
 export async function finishRenderMath(): Promise<void> {}

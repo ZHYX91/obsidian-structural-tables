@@ -11,7 +11,7 @@ import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
 import { captureEditorPlainGfmTarget } from "./plain-gfm-target";
 import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
-import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
+import { App, Component, Menu, Notice, Scope, editorInfoField, setIcon, type Editor, type TFile } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -2029,7 +2029,7 @@ class StructuralTableInteraction {
       handle.type = "button";
       handle.className = "structural-tables-row-handle";
       handle.dataset.structuralRowHandle = String(row);
-      handle.textContent = "⋮";
+      this.appendHandleIcon(handle, "grip-vertical");
       handle.setAttribute("aria-label", withCount(t("handle.row"), row + 1));
       handle.title = t("handle.dragHint");
       installAxisHandle(handle, "row", row);
@@ -2041,7 +2041,7 @@ class StructuralTableInteraction {
       handle.type = "button";
       handle.className = "structural-tables-column-handle";
       handle.dataset.structuralColumnHandle = String(column);
-      handle.textContent = "⋯";
+      this.appendHandleIcon(handle, "grip-horizontal");
       handle.setAttribute("aria-label", withCount(t("handle.column"), column + 1));
       handle.title = t("handle.dragHint");
       installAxisHandle(handle, "column", column);
@@ -2102,6 +2102,18 @@ class StructuralTableInteraction {
       this.resizeObserver.observe(rendered);
       if (scroller !== null) this.resizeObserver.observe(scroller, { box: "border-box" });
     }
+  }
+
+  private appendHandleIcon(handle: HTMLElement, icon: string): void {
+    const decoration = handle.ownerDocument.createElement("span");
+    decoration.className = "structural-tables-handle-icon";
+    decoration.setAttribute("aria-hidden", "true");
+    setIcon(decoration, icon);
+    const svg = decoration.querySelector("svg");
+    svg?.setAttribute("aria-hidden", "true");
+    svg?.setAttribute("focusable", "false");
+    svg?.setAttribute("tabindex", "-1");
+    handle.appendChild(decoration);
   }
 
   private installRovingHandles(

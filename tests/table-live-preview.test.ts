@@ -4622,6 +4622,16 @@ describe("StructuralTableEditorController", () => {
     const columns = parent.querySelectorAll<HTMLElement>("[data-structural-column-handle]");
     expect(rows).toHaveLength(5);
     expect(columns).toHaveLength(5);
+    for (const handle of [...rows, ...columns]) {
+      const decoration = handle.querySelector(".structural-tables-handle-icon")!;
+      const icon = decoration.querySelector("svg")!;
+      expect(decoration.getAttribute("aria-hidden")).toBe("true");
+      expect(icon.ownerDocument).toBe(handle.ownerDocument);
+      expect(icon.getAttribute("focusable")).toBe("false");
+      expect(icon.getAttribute("tabindex")).toBe("-1");
+      expect(handle.querySelectorAll("button")).toHaveLength(0);
+      expect(handle.getAttribute("aria-label")).toMatch(/(?:row|column) \d+/iu);
+    }
 
     rows[2]?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
     expect(rows[2]?.classList.contains("is-selected")).toBe(true);

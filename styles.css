@@ -364,16 +364,49 @@
   place-items: center;
   margin: 0;
   padding: 0;
-  border: 0;
-  border-radius: var(--radius-s);
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-faint);
   line-height: 1;
   cursor: var(--cursor, default);
   touch-action: none;
   opacity: 0;
   transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+/* The transparent button retains its hit region; only its inner grip is painted. */
+.structural-tables-live-preview button:is(.structural-tables-row-handle, .structural-tables-column-handle),
+.structural-tables-live-preview button:is(.structural-tables-row-handle, .structural-tables-column-handle):hover,
+.structural-tables-live-preview button:is(.structural-tables-row-handle, .structural-tables-column-handle):focus-visible {
+  appearance: none;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  box-shadow: none;
+  font-size: inherit;
+}
+
+.structural-tables-handle-icon {
+  display: grid;
+  place-items: center;
+  inline-size: 1rem;
+  block-size: 1.25rem;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--table-drag-handle-color, var(--text-muted));
+  transition: background-color 120ms ease, color 120ms ease;
+  pointer-events: none;
+}
+
+.structural-tables-column-handle .structural-tables-handle-icon {
+  inline-size: 1.25rem;
+  block-size: 1rem;
+}
+
+.structural-tables-handle-icon svg {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  pointer-events: none;
 }
 
 .structural-tables-row-handle.is-selected,
@@ -426,16 +459,17 @@
   opacity: 1;
 }
 
-.structural-tables-row-handle:hover,
-.structural-tables-column-handle:hover,
-.structural-tables-row-handle.is-revealed,
-.structural-tables-column-handle.is-revealed,
-.structural-tables-row-handle:focus-visible,
-.structural-tables-column-handle:focus-visible,
-.structural-tables-row-handle.is-selected,
-.structural-tables-column-handle.is-selected {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
+.structural-tables-row-handle:hover .structural-tables-handle-icon,
+.structural-tables-column-handle:hover .structural-tables-handle-icon,
+.structural-tables-row-handle:focus-visible .structural-tables-handle-icon,
+.structural-tables-column-handle:focus-visible .structural-tables-handle-icon {
+  background: var(--table-drag-handle-background, var(--background-modifier-hover));
+}
+
+.structural-tables-row-handle.is-selected .structural-tables-handle-icon,
+.structural-tables-column-handle.is-selected .structural-tables-handle-icon {
+  background: var(--table-drag-handle-background-active, var(--interactive-accent));
+  color: var(--table-drag-handle-color-active, var(--text-on-accent));
 }
 
 .structural-tables-row-handle:focus-visible,
@@ -695,6 +729,10 @@
     width: 2.75rem;
     height: 2.75rem;
     opacity: 1;
+  }
+
+  .structural-tables-handle-icon {
+    background: var(--table-drag-handle-background, var(--background-modifier-hover));
   }
 
   .structural-tables-cell-editor {

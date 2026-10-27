@@ -13,6 +13,33 @@
   },
   "scenarios": [
     {
+      "id": "handle-appearance-and-input",
+      "title": "Native-aligned handle appearance, selection and first-gesture dragging",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": [
+          "touch.longPress"
+        ]
+      },
+      "steps": [
+        "Open Theme corners and export in Live Preview with ordinary-table takeover disabled and Follow theme selected. Compare its native ordinary table with the structural tables in the same note, host and theme. Record the original note bytes and the exact host/theme identities.",
+        "On desktop, hover a structural cell and then each revealed row/column handle. Inspect quiet, hover, selected and keyboard-focus states in Default light and dark mode, adding a pinned third-party theme when available. The fixed-size grip is decorative, only its compact inner background is painted, and the transparent outer button retains its target. No unwanted native button border, shadow or size override may remain. Do not infer current native icon dimensions from old media.",
+        "Click a row handle and a column handle, then use Tab and arrow keys to navigate their groups. Selection remains distinct from hover and focus stays visible; the icon adds no focus stop or accessible name. Clear selection by leaving the table and check ordinary native handles remain unchanged.",
+        "In Interaction batches, make the first pointer gesture a text selection inside a cell. It must not activate a nearby handle. Press and drag an unselected row handle in one gesture, inspect the exact move, then Undo and Redo once; restore the full-note baseline. Repeat with a column handle and check values, alignment, merged owners and unrelated prose.",
+        "Attempt a move that splits a merged owner or crosses header/data roles. It must show the existing blocked feedback without a source write. Check Escape cancellation, a horizontally scrolled table and the Callout table; use Language and RTL for the corresponding physical-direction and keyboard checks.",
+        "On Android, use actual touch to inspect the larger row/column targets, select axes, extend a range and drag an eligible selection, then use on-screen Undo. Inspect selected/drag feedback and ensure the compact grip has not reduced the touch target or covered preceding text. Keep mobile observations separate from desktop and browser checks; record unavailable or unobserved combinations as not-run."
+      ],
+      "expected": [
+        "Owned handles use native table-handle theme colors and fixed decorative grip icons, with distinct reveal, hover, selection and focus states. Native ordinary tables, table alignment and source text remain unchanged by presentation.",
+        "Existing pointer/touch targets, one Tab stop per group, first-gesture text selection and same-gesture axis dragging remain intact. Valid moves form one reversible operation; blocked or cancelled moves preserve the complete note.",
+        "The result covers only the actual candidate, host, theme, mode and input combinations observed; omitted native or mobile checks are not reported as passed."
+      ]
+    },
+    {
       "id": "plain-gfm-preview-safety",
       "title": "GFM orientation preview, exact targets and safe replacement",
       "surfaces": [

@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const ko = {
+  "menu.undo": "실행 취소",
+  "menu.redo": "다시 실행",
+  "menu.cut": "잘라내기",
+  "menu.copy": "복사",
+  "menu.paste": "붙여넣기",
+  "menu.pastePlainText": "일반 텍스트로 붙여넣기",
+  "menu.selectAll": "모두 선택",
+  "menu.bold": "굵게",
+  "menu.italic": "기울임꼴",
+  "menu.finishEditing": "편집 완료",
+  "menu.cancelEditing": "편집 취소",
+  "menu.tableOperations": "표 작업",
   "settings.group.style": "선과 배경",
   "settings.group.layout": "배치와 간격",
   "settings.preview.title": "모양 미리 보기",

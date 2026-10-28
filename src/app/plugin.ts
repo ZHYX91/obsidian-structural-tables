@@ -53,17 +53,18 @@ import {
   addSelectionMenuItems,
   addWholeTableTransposeMenuItem,
   hasSelectionMenuItems,
-  type TableOperation,
 } from "../editor/table-menu";
 import { replaceTableSource } from "../editor/table-replacement";
 import { copyHtml, copyText, replaceSelectionFromClipboardTable } from "../editor/table-interchange";
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
 import { renderTableClipboard } from "../rendering/table-clipboard";
-import { editorTableContext, editorTableDirection } from "../editor/editor-view-context";
+import { attachedEditorContext, editorTableContext, editorTableDirection } from "../editor/editor-view-context";
 import { StructuralTablesSettingTab } from "./settings-tab";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import { SettingsPersistenceSession } from "./settings-persistence-session";
+import { settingsStoreScheduler } from "./settings-store-queue";
+import { captureEditorTableCommandTarget } from "../editor/table-command-target";
 import { ConversionPreviewModal } from "./conversion-preview-modal";
 import { BasePromotionModal } from "./base-promotion-modal";
 import {
@@ -134,11 +135,13 @@ export class StructuralTablesPlugin extends Plugin {
     this.transposeRequestsActive = true;
     const isActive = this.captureRuntime();
     registerTableMenuIcons(this);
-    const loaded = normalizeStoredSettings(await this.loadData());
+    const schedule = settingsStoreScheduler(this.app);
+    const loaded = normalizeStoredSettings(await schedule(() => this.loadData()));
     if (!isActive()) return;
     this.settingsPersistence = new SettingsPersistenceSession(
       loaded,
       (data) => this.saveData(data),
+      schedule,
     );
     this.settings = this.settingsPersistence.initialSettings();
     void this.settingsPersistence.start().catch(() => undefined);
@@ -185,7 +188,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.imageExport?.dispose();
     for (const modal of this.operationPreviews ?? []) modal.close();
     this.operationPreviews?.clear();
-    void this.settingsPersistence?.flush().catch((error: unknown) => {
+    void this.settingsPersistence?.close().catch((error: unknown) => {
       console.error("Structural Tables: failed to flush settings", error);
     });
   }
@@ -373,6 +376,19 @@ export class StructuralTablesPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
       if (!isActive()) return;
       const t = createTranslator(this.settings.language);
+      const sourceAtOpen = editor.getValue();
+      const fileAtOpen = info.file;
+      const pathAtOpen = fileAtOpen?.path;
+      const owner = attachedEditorContext(this.app, editor, info instanceof MarkdownView ? info : undefined);
+      const menuIsCurrent = (): boolean => isActive() && editor.getValue() === sourceAtOpen
+        && owner !== null && owner.isCurrent()
+        && info.file === fileAtOpen && fileAtOpen?.path === pathAtOpen
+        && (fileAtOpen == null || this.app.vault.getFileByPath(pathAtOpen!) === fileAtOpen)
+        && (!(info instanceof MarkdownView) || (info.editor === editor && info.containerEl.isConnected));
+      const requireMenu = (action: () => void): void => {
+        if (menuIsCurrent()) action();
+        else new Notice(t("notice.staleTable"));
+      };
       const offset = editor.posToOffset(editor.getCursor());
       const promoted = promotionBlockAt(editor.getValue(), offset, info.file?.path);
       if (promoted !== null) {
@@ -380,20 +396,26 @@ export class StructuralTablesPlugin extends Plugin {
           .setSection("structural-tables-base")
           .setIcon("file-plus-2")
           .setTitle(t("menu.createBaseRecord"))
-          .onClick(() => { if (isActive()) void this.createPromotedBaseRecord(editor, info.file); }));
+          .onClick(() => { requireMenu(() => { void this.createPromotedBaseRecord(editor, fileAtOpen); }); }));
         menu.addItem((item) => item
           .setSection("structural-tables-base")
           .setIcon("rotate-ccw")
           .setTitle(t("menu.restorePromotedTable"))
-          .onClick(() => { if (isActive()) void this.previewPromotedTableRestore(editor, () => info); }));
+          .onClick(() => { requireMenu(() => { void this.previewPromotedTableRestore(editor, () => menuIsCurrent() ? info : null); }); }));
         return;
       }
       const current = this.currentTable(editor);
       const selection = selectedStructuralTableCells(editor);
       if (selection !== null && selection.table.valid && selection.rectangular && hasSelectionMenuItems(selection)) {
+        const target = captureEditorTableCommandTarget(this.app, editor, selection.table,
+          info instanceof MarkdownView ? info : undefined, isActive);
         addSelectionMenuItems(
           menu, t, selection,
-          (operation) => { if (isActive()) this.applyMenuOperation(editor, selection.table, operation); },
+          (operation) => {
+            if (!isActive()) return;
+            const result = target?.apply((_source, table) => operation(table));
+            new Notice(result == null ? t("notice.staleTable") : operationNotice(t, result.code));
+          },
           { direction: editorTableDirection(this.app, editor, selection.table, info instanceof MarkdownView ? info : undefined) },
         );
       }
@@ -418,9 +440,9 @@ export class StructuralTablesPlugin extends Plugin {
       });
       addEditorTableHtmlCopyMenuItem(menu, this.app, editor, current.table, () => this.settings, targetView,
         isActive);
-      addImageExportMenuItem(menu, t, () => { if (isActive()) this.exportImage(editor, () => info, current.table); });
+      addImageExportMenuItem(menu, t, () => requireMenu(() => this.exportImage(editor, () => menuIsCurrent() ? info : null, current.table)));
       addBasePromotionMenuItem(menu, t, current.table, () => {
-        if (isActive()) this.previewBasePromotion(editor, () => info, current.table);
+        requireMenu(() => this.previewBasePromotion(editor, () => menuIsCurrent() ? info : null, current.table));
       });
     }));
   }
@@ -827,18 +849,6 @@ export class StructuralTablesPlugin extends Plugin {
     new Notice(operationNotice(createTranslator(this.settings.language), verified.code));
   }
 
-  private applyMenuOperation(
-    editor: Editor,
-    expected: StructuralTable,
-    operation: TableOperation,
-  ): void {
-    const current = reparseUnchangedTable(editor.getValue(), expected);
-    if (current === null) {
-      new Notice(createTranslator(this.settings.language)("notice.staleTable"));
-      return;
-    }
-    this.applyOperation(editor, current, operation(current));
-  }
 
   private noTable(): void {
     new Notice(createTranslator(this.settings.language)("notice.noTable"));

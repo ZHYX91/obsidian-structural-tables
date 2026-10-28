@@ -59,7 +59,7 @@ function parsedClipboardTable(html: string): ClipboardTable | null {
 }
 
 const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, embed, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
-const TEXT_SEMANTIC_CONTENT = "pre, sup, sub, h1, h2, h3, h4, h5, h6";
+const TEXT_SEMANTIC_CONTENT = "code, pre, sup, sub, h1, h2, h3, h4, h5, h6";
 
 function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
   const ancestors: HTMLElement[] = [];
@@ -75,9 +75,6 @@ function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
 function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {
   return table.matches(HARD_UNSUPPORTED_CONTENT)
     || table.querySelector(HARD_UNSUPPORTED_CONTENT) !== null
-    // Text-node whitespace normalization is not a TeX parser. Preserve the
-    // clipboard's original plain-text alternative for source math as well.
-    || (table.textContent ?? "").includes("$")
     || Array.from(table.querySelectorAll("caption")).some((caption) => (caption.textContent ?? "").trim() !== "");
 }
 

@@ -5043,7 +5043,7 @@ describe("StructuralTableEditorController", () => {
 
     const paste = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(paste, "clipboardData", {
-      value: { getData: () => "[[Target|Alias]]" },
+      value: { getData: (type: string) => type === "text/plain" ? "[[Target|Alias]]" : "" },
     });
     editor.dispatchEvent(paste);
     expect(editor.value).toBe("[[Target|Alias]]");
@@ -5068,10 +5068,10 @@ describe("StructuralTableEditorController", () => {
     });
     editor.dispatchEvent(paste);
     expect(paste.defaultPrevented).toBe(true);
-    expect(editor.value).toBe('"First"\nSecond');
+    expect(editor.value).toBe('&#34;First&#34;<br>Second');
     editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await Promise.resolve();
-    expect(view.state.doc.toString()).toContain('"First"<br>Second');
+    expect(view.state.doc.toString()).toContain('&#34;First&#34;<br>Second');
     view.destroy();
   });
 
@@ -5208,7 +5208,7 @@ describe("StructuralTableEditorController", () => {
     expect(editor.value).toBe("First\n");
 
     const paste = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(paste, "clipboardData", { value: { getData: () => "Second\r\nThird" } });
+    Object.defineProperty(paste, "clipboardData", { value: { getData: (type: string) => type === "text/plain" ? "Second\r\nThird" : "" } });
     editor.dispatchEvent(paste);
     expect(editor.value).toBe("First\nSecond\r\nThird");
 
@@ -5959,4 +5959,243 @@ describe("interaction batches one and two: real event ownership", () => {
       view.destroy();
     }
   });
+  it.each(["editor", "other"] as const)("hands a changed draft to a real grid drag from %s", async (origin) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const cell = (r: number, c: number) => parent.querySelector<HTMLElement>(`[data-structural-row='${r}'][data-structural-column='${c}']`)!;
+    try {
+      mouseGesture(cell(1, 0));
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, "Changed Alpha");
+      dispatchPointerDown(origin === "editor" ? editor : cell(2, 1), "mouse");
+      (origin === "editor" ? cell(2, 1) : cell(1, 0)).dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      window.dispatchEvent(new Event("pointerup"));
+      await Promise.resolve();
+      cell(2, 1).dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      expect(view.state.doc.toString()).toContain("Changed Alpha");
+      const transfer = new DataTransfer();
+      cell(1, 0).dispatchEvent(gridClipboardEvent("copy", transfer));
+      expect(transfer.getData(TABLE_RANGE_CLIPBOARD_MIME)).toContain("Changed Alpha");
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toContain("Changed Alpha");
+    } finally { view.destroy(); }
+  });
+
+  it.each(["ime", "invalid"] as const)("refuses drag ownership transfer for an %s draft", (kind) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n| C | D |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const first = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      mouseGesture(first);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      if (kind === "ime") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      else editor.value = "$x|y$";
+      dispatchPointerDown(editor, "mouse");
+      parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!
+        .dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      window.dispatchEvent(new Event("pointerup"));
+      expect(editor.isConnected).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(1);
+    } finally { view.destroy(); }
+  });
+
+  it("commits cross-cell right-click once and keeps later clicks in grid mode", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const cell = (c: number) => parent.querySelector<HTMLElement>(`[data-structural-row='1'][data-structural-column='${c}']`)!;
+    try {
+      mouseGesture(cell(0));
+      typeDraftText(parent.querySelector<HTMLTextAreaElement>("textarea")!, "Changed");
+      cell(1).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(lastMenu?.items.some((entry) => entry.title === "Copy selected cells")).toBe(true);
+      lastMenu?.hide(); await Promise.resolve();
+      cell(0).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(lastMenu?.items.some((entry) => entry.title === "Copy selected cells")).toBe(true);
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+    } finally { view.destroy(); }
+  });
+
+  it("uses the same literal HTML classifier for native and menu paste", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const rich = "<table><tr><td>[[Plan]] &lt;!--VISIBLE--&gt; &amp;copy;</td></tr></table>";
+    const read = vi.fn(async () => [{ types: ["text/html", "text/plain"], getType: async (type: string) => new Blob([type === "text/html" ? rich : "[[Plan]] <!--VISIBLE--> &copy;"]) }]);
+    vi.stubGlobal("navigator", { clipboard: { read, readText: vi.fn(async () => "[[Plan]] <!--VISIBLE--> &copy;") } });
+    for (const menu of [false, true]) {
+      const { parent, view } = mountEditor(source, { anchor: 0 });
+      try {
+        const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+        mouseGesture(cell);
+        const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+        editor.select();
+        if (menu) {
+          editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+          lastMenu!.items.find((entry) => entry.title === "Paste")!.callback!();
+          await vi.waitFor(() => expect(editor.value).toContain("&#91;"));
+        } else {
+          const transfer = new DataTransfer(); transfer.setData("text/html", rich); transfer.setData("text/plain", "[[Plan]] <!--VISIBLE--> &copy;");
+          editor.dispatchEvent(gridClipboardEvent("paste", transfer));
+        }
+        expect(editor.value).toContain("&#91;");
+        expect(editor.value).toContain("&#60;");
+        expect(editor.value).toContain("&#38;copy");
+        lastMenu?.hide(); await new Promise((resolve) => setTimeout(resolve, 1));
+        editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+        expect(view.state.doc.toString()).toContain("&#91;");
+        expect(parseEditableTables(view.state.doc.toString()).tables[0]!.columnCount).toBe(2);
+      } finally { view.destroy(); }
+    }
+    vi.unstubAllGlobals();
+  });
+
+  it.each([false, true])("combines a draft and submenu command atomically; rejected=%s", (rejected) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, rejected ? "$x|y$" : "Changed");
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(view.state.doc.toString()).toBe(source);
+      const submenu = lastMenu!.items.find((entry) => entry.title === "Table operations")!.submenu!;
+      submenu.items.find((entry) => entry.title === "Insert row below")!.callback!();
+      if (rejected) {
+        expect(view.state.doc.toString()).toBe(source);
+        expect(editor.isConnected).toBe(true);
+        expect(editor.value).toBe("$x|y$");
+        expect(undo(view)).toBe(false);
+      } else {
+        expect(view.state.doc.toString()).toContain("Changed");
+        expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows).toHaveLength(3);
+        expect(view.state.doc.toString()).toContain("KEEP");
+        expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+        expect(undo(view)).toBe(false);
+      }
+    } finally { view.destroy(); }
+  });
+
+  it.each(["success", "denied", "context"] as const)("keeps plain-text menu paste bounded: %s", async (mode) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
+    const readText = vi.fn(async () => { if (mode === "denied") throw new Error("denied"); return "甲 | 乙\n[[Plan]] <br>"; });
+    vi.stubGlobal("navigator", { clipboard: { readText } });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select();
+      if (mode === "context") { editor.value = "`code`"; editor.setSelectionRange(2, 2); }
+      const before = editor.value;
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.items.find((entry) => entry.title === "Paste as plain text")!.callback!();
+      await vi.waitFor(() => expect(readText).toHaveBeenCalledOnce());
+      await Promise.resolve(); await Promise.resolve();
+      if (mode !== "success") { expect(editor.value).toBe(before); expect(view.state.doc.toString()).toBe(source); return; }
+      expect(editor.value).toContain("&#124;"); expect(editor.value).toContain("<br>");
+      lastMenu!.hide(); await new Promise((resolve) => setTimeout(resolve, 1));
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      expect(parseEditableTables(view.state.doc.toString()).tables[0]!.columnCount).toBe(2);
+      expect(view.state.doc.toString()).toContain("KEEP");
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); vi.unstubAllGlobals(); }
+  });
+
+  it("allows one merged owner for plain-text grid paste and disables multiple owners", async () => {
+    const source = "Before\n\n| H | V | X |\n| --- || --- | --- |\n| KEEP | Merged | < |\n| A | B | C |\n\nEnd";
+    const readText = vi.fn(async () => "< ^ | literal");
+    vi.stubGlobal("navigator", { clipboard: { readText } });
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const merged = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      merged.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const entry = lastMenu!.items.find((item) => item.title === "Paste as plain text")!;
+      expect(entry.disabled).toBe(false);
+      entry.callback!(); await vi.waitFor(() => expect(view.state.doc.toString()).toContain("&#124;"));
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(table.rows[1]!.cells[1]!.columnSpan).toBe(2);
+      expect(table.rows[1]!.cells[0]!.content).toBe("KEEP");
+      const first = parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='0']")!;
+      dispatchPointerDown(first, "mouse");
+      parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='1']")!
+        .dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      window.dispatchEvent(new Event("pointerup"));
+      first.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(lastMenu!.items.find((item) => item.title === "Paste as plain text")!.disabled).toBe(true);
+    } finally { view.destroy(); vi.unstubAllGlobals(); }
+  });
+
+  it.each(["valid", "invalid", "ime"] as const)("safely transfers a cross-table right click: %s", async (kind) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nBetween\n\n| H | V |\n| --- || --- |\n| B | OTHER |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      const hosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+      mouseGesture(hosts[0]!.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, kind === "invalid" ? "$x|y$" : "Changed A");
+      if (kind === "ime") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+      hosts[1]!.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!.dispatchEvent(event);
+      await Promise.resolve();
+      if (kind !== "valid") { expect(editor.isConnected).toBe(true); expect(view.state.doc.toString()).toBe(source); return; }
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(lastMenu?.items.some((entry) => entry.title === "Copy selected cells")).toBe(true);
+      expect(parseEditableTables(view.state.doc.toString()).tables[1]!.rows[1]!.cells[0]!.content).toBe("B");
+      expect(view.state.doc.toString()).toContain("Changed A");
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source); expect(undo(view)).toBe(false);
+    } finally { view.destroy(); }
+  });
+
+  it.each((["ltr", "rtl"] as const).flatMap((direction) => (["insert", "move"] as const).map((action) => ({ direction, action }))))("uses table direction for submenu $action: $direction", ({ direction, action }) => {
+    const source = "Before\n\n| H | V | X |\n| --- || --- | --- |\n| A | B | C |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      parent.querySelector<HTMLElement>(".structural-tables-table")!.style.direction = direction;
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, "Changed B");
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.items.find((entry) => entry.title === "Table operations")!.submenu!.items
+        .find((entry) => entry.title === (action === "insert" ? "Insert column left" : "Move selected columns left"))!.callback!();
+      if (action === "move" && direction === "ltr") {
+        expect(view.state.doc.toString()).toBe(source); expect(editor.isConnected).toBe(true);
+        expect(editor.value).toBe("Changed B"); expect(undo(view)).toBe(false); return;
+      }
+      const values = parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells.map((cell) => cell.content);
+      expect(values).toEqual(action === "move" ? ["A", "C", "Changed B"]
+        : direction === "rtl" ? ["A", "Changed B", "", "C"] : ["A", "", "Changed B", "C"]);
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("uses committed history from the fresh unchanged draft menu", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n| Next | Other |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    Object.assign(view.state.field(editorInfoField).editor!, { undo: () => undo(view), redo: () => redo(view) });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      let editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, "Changed A");
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await Promise.resolve();
+      editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(editor.value).toBe("Next");
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.items.find((entry) => entry.title === "Undo")!.callback!();
+      expect(view.state.doc.toString()).toBe(source);
+      await Promise.resolve();
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='2'][data-structural-column='0']")!);
+      editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.items.find((entry) => entry.title === "Redo")!.callback!();
+      expect(view.state.doc.toString()).toContain("Changed A");
+    } finally { view.destroy(); }
+  });
+
 });

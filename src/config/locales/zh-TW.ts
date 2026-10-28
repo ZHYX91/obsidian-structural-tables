@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "menu.undo": "復原",
+  "menu.redo": "重做",
+  "menu.cut": "剪下",
+  "menu.copy": "複製",
+  "menu.paste": "貼上",
+  "menu.pastePlainText": "貼上純文字",
+  "menu.selectAll": "全選",
+  "menu.bold": "粗體",
+  "menu.italic": "斜體",
+  "menu.finishEditing": "完成編輯",
+  "menu.cancelEditing": "取消編輯",
+  "menu.tableOperations": "表格操作",
   "settings.group.style": "線條與底色",
   "settings.group.layout": "配置與間距",
   "settings.preview.title": "外觀預覽",

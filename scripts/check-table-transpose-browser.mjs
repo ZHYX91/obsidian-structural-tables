@@ -339,6 +339,36 @@ try {
     assert.ok(editing.source.includes("Beta!"), JSON.stringify({mode,editing}));
     results.push({ mode:mode+"-first-pointer-switch", changes:editing.changes, firstClickEditsB:true, crossTable:true });
   }
+  // A real held mouse gesture crosses the textarea/remount boundary.
+  for (const origin of ["editor", "other", "cancel"]) {
+    await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+    await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='0']"));
+    await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select()");
+    await command("Input.insertText", { text:"Range changed Alpha" }); await settle();
+    const points = await evaluate("(()=>{const root=document.querySelector('[data-structural-source-table-index=\"0\"]');const point=e=>{const r=e.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}};return{editor:point(root.querySelector('textarea')),other:point(root.querySelector('[data-structural-row=\"2\"][data-structural-column=\"1\"]'))}})()");
+    const start = origin === "other" ? points.other : points.editor;
+    const end = origin === "other" ? points.editor : points.other;
+    await command("Input.dispatchMouseEvent", { type:"mouseMoved", ...start });
+    await command("Input.dispatchMouseEvent", { type:"mousePressed", ...start, button:"left", clickCount:1 });
+    await command("Input.dispatchMouseEvent", { type:"mouseMoved", ...end, button:"left", buttons:1 });
+    await settle();
+    const ranged = await evaluate("({draft:document.querySelector('textarea.structural-tables-cell-editor')?.value??null,count:document.querySelectorAll('[data-structural-source-table-index=\"0\"] [aria-selected=\"true\"]').length,state:window.transposeBrowser.switchState()})");
+    assert.equal(ranged.draft, null, JSON.stringify({origin,ranged}));
+    assert.equal(ranged.count, 4, JSON.stringify({origin,ranged}));
+    assert.ok(ranged.state.source.includes("Range changed Alpha"));
+    assert.equal(ranged.state.changes, 1, JSON.stringify({origin,ranged}));
+    if (origin === "cancel") {
+      await command("Input.dispatchKeyEvent", { type:"keyDown", key:"Escape", code:"Escape", windowsVirtualKeyCode:27 });
+      await command("Input.dispatchKeyEvent", { type:"keyUp", key:"Escape", code:"Escape", windowsVirtualKeyCode:27 });
+    }
+    await command("Input.dispatchMouseEvent", { type:"mouseReleased", ...end, button:"left", clickCount:1 });
+    await settle();
+    const after = await evaluate("({draft:document.querySelector('textarea.structural-tables-cell-editor')?.value??null,count:document.querySelectorAll('[data-structural-source-table-index=\"0\"] [aria-selected=\"true\"]').length,state:window.transposeBrowser.switchState()})");
+    assert.equal(after.draft, null, JSON.stringify({origin,after}));
+    assert.equal(after.count, origin === "cancel" ? 1 : 4, JSON.stringify({origin,after}));
+    assert.equal(after.state.changes, 1);
+    results.push({mode:"mouse-draft-grid-"+origin, selected:after.count, oneCommit:true, noTrailingEdit:true});
+  }
   // Direct, unselected handle press and movement must reorder on its own.
   await evaluate("window.transposeBrowser.reset('switch')"); await settle();
   const beforeDrag = await evaluate("window.transposeBrowser.switchState()");

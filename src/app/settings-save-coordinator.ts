@@ -1,3 +1,5 @@
+import type { SettingsTaskScheduler } from "./settings-store-queue";
+
 export type WritableSettingsSaveState = "saved" | "saving" | "pending";
 
 export interface WritableSettingsSaveStatus {
@@ -19,14 +21,19 @@ export class SettingsSaveCoordinator<T> {
   private latestRevision = 0;
   private status: WritableSettingsSaveStatus = { state: "saved", error: null };
   private tail: Promise<void> = Promise.resolve();
+  private closed = false;
 
-  constructor(private readonly persist: (snapshot: T) => Promise<void>) {}
+  constructor(private readonly persist: (snapshot: T) => Promise<void>,
+    private readonly schedule?: SettingsTaskScheduler) {}
 
   save(value: T): Promise<void> {
+    if (this.closed) return Promise.reject(new Error("Settings session is closed."));
     const snapshot = structuredClone(value);
     const revision = ++this.latestRevision;
     this.setStatus({ state: "saving", error: null });
-    const operation = this.tail.then(() => this.persist(snapshot));
+    const operation = this.schedule === undefined
+      ? this.tail.then(() => this.persist(snapshot))
+      : this.schedule(() => this.persist(snapshot));
     this.tail = operation.then(
       () => this.finishSave(revision),
       (error: unknown) => this.failSave(revision, snapshot, error),
@@ -35,6 +42,7 @@ export class SettingsSaveCoordinator<T> {
   }
 
   retry(): Promise<void> {
+    if (this.closed) return Promise.reject(new Error("Settings session is closed."));
     return this.failedSnapshot == null
       ? Promise.resolve()
       : this.save(this.failedSnapshot);
@@ -48,6 +56,21 @@ export class SettingsSaveCoordinator<T> {
       if (this.failedSnapshot != null) await this.save(this.failedSnapshot);
       return;
     }
+  }
+
+  close(): Promise<void> {
+    if (this.closed) return this.tail;
+    this.closed = true;
+    // Reserve the final retry before the next instance can reserve its load.
+    const finish = async (): Promise<void> => {
+      if (this.failedSnapshot === null) return;
+      const snapshot = structuredClone(this.failedSnapshot);
+      try { await this.persist(snapshot); this.finishSave(this.latestRevision); }
+      catch (error) { this.failSave(this.latestRevision, snapshot, error); throw error; }
+    };
+    const operation = this.schedule === undefined ? this.tail.then(finish) : this.schedule(finish);
+    this.tail = operation;
+    return operation;
   }
 
   snapshot(): SettingsSaveStatus {

@@ -13,6 +13,7 @@ import {
   wholeTableClipboardImport,
 } from "../src/editor/table-interchange";
 import { parseEditableTables } from "../src/core/parser";
+import { literalTableCellText } from "../src/core/literal-cell-text";
 import { editCellContent } from "../src/core/operations";
 
 const originalDomParser = globalThis.DOMParser;
@@ -96,8 +97,12 @@ describe("whole-table clipboard copy", () => {
 });
 
 describe("HTML table clipboard import", () => {
-  it.each(["&lt;!--", "%%"])("does not import a truncated table containing %s", content => {
-    expect(structuralSourceFromClipboardHtml(`<table><tr><th>H</th><th>V</th></tr><tr><td>${content}</td><td>KEEP-1</td></tr><tr><td>B</td><td>KEEP-2</td></tr></table>`)).toBeNull();
+  it.each(["&lt;!--", "%%"])("imports literal comment openers without hiding later rows: %s", (token) => {
+    const source = structuralSourceFromClipboardHtml(`<table><tr><th>H</th><th>V</th></tr><tr><td>${token}</td><td>KEEP-1</td></tr><tr><td>B</td><td>KEEP-2</td></tr></table>`)!;
+    const dom = new DOMParser().parseFromString(new MarkdownIt({ html: true }).render(source), "text/html");
+    expect(dom.querySelectorAll("td")).toHaveLength(4);
+    expect(dom.querySelector("td")!.textContent).toBe(token === "%%" ? token : "<!--");
+    expect(dom.body.textContent).toContain("KEEP-2");
   });
   it.each([
     "<p>Before</p><table><tr><td>A</td></tr></table><p>After</p>",
@@ -144,11 +149,11 @@ describe("HTML table clipboard import", () => {
     expect(source).not.toBeNull();
     const table = parseEditableTables(source!).tables[0]!;
     expect(table.valid).toBe(true);
-    expect(table.rows[1]?.cells[1]?.content).toBe("A\u00a0\u00a0B");
+    expect(table.rows[1]?.cells[1]?.content).toBe("A&#160;&#160;B");
     expect(table.rows[2]?.cells[1]?.content).toBe("&#160;A&#160;");
     expect(table.rows[3]?.cells[1]?.content).toBe("&#160;&#160;");
     expect(table.rows[4]?.cells[1]?.content).toBe("&#8239;X&#8239;");
-    expect(table.rows[5]?.cells[1]?.content).toBe("`A\u00a0B`");
+    expect(table.rows[5]?.cells[1]?.content).toBe("&#96;A&#160;B&#96;");
 
     const rendered = new DOMParser().parseFromString(new MarkdownIt({ html: true }).render(source!), "text/html");
     const rows = rendered.querySelectorAll<HTMLTableRowElement>("tr");
@@ -156,7 +161,7 @@ describe("HTML table clipboard import", () => {
     expect(rows[2]?.cells[1]?.textContent).toBe("\u00a0A\u00a0");
     expect(rows[3]?.cells[1]?.textContent).toBe("\u00a0\u00a0");
     expect(rows[4]?.cells[1]?.textContent).toBe("\u202fX\u202f");
-    expect(rows[5]?.cells[1]?.textContent).toBe("A\u00a0B");
+    expect(rows[5]?.cells[1]?.textContent).toBe("`A\u00a0B`");
   });
 
   it.each([
@@ -376,7 +381,7 @@ describe("HTML table clipboard import", () => {
 | Bob   | Line one<br>Line two               |`);
   });
 
-  it("escapes HTML cell pipes without losing Wiki links or code spans", () => {
+  it("preserves HTML cell pipes and Wiki-looking text literally", () => {
     const source = structuralSourceFromClipboardHtml(`<table>
       <tr><th>Name</th><th>Note</th></tr>
       <tr><td>Alice</td><td>[[Target|Alias]] | literal</td></tr>
@@ -384,7 +389,10 @@ describe("HTML table clipboard import", () => {
     const parsed = parseEditableTables(source ?? "").tables[0];
 
     expect(parsed?.columnCount).toBe(2);
-    expect(parsed?.rows[1]?.cells[1]?.content).toBe(String.raw`[[Target\|Alias]] \| literal`);
+    const html = new MarkdownIt({ html: true }).render(source!);
+    const cell = new DOMParser().parseFromString(html, "text/html").querySelectorAll("td")[1]!;
+    expect(cell.textContent).toBe("[[Target|Alias]] | literal");
+    expect(cell.querySelector("a,code")).toBeNull();
   });
 
   it.each([false, true])("imports code pipes for native and structural ownership: structural=%s", (structural) => {
@@ -395,12 +403,12 @@ describe("HTML table clipboard import", () => {
       tick + "a|b" + tick + "</" + tag + "><td>KEEP</td></tr></table>");
     const parsed = parseEditableTables(source ?? "").tables[0]!;
     expect(parsed).toMatchObject({ valid: true, columnCount: 2, structural });
-    expect(parsed.rows[1]?.cells[0]?.content).toBe(structural ? tick + "a|b" + tick : "<code>a&#124;b</code>");
+    expect(parsed.rows[1]?.cells[0]?.content).toBe(literalTableCellText(tick + "a|b" + tick));
     expect(parsed.rows[1]?.cells[1]?.content).toBe("KEEP");
-    expect(new MarkdownIt({ html: true }).renderInline(parsed.rows[1]!.cells[0]!.content)).toBe("<code>a|b</code>");
+    expect(new MarkdownIt({ html: true }).renderInline(parsed.rows[1]!.cells[0]!.content)).toBe(tick + "a|b" + tick);
     if (!structural) {
       const rendered = new MarkdownIt({ html: true }).render(source!);
-      expect(rendered).toContain("<code>a|b</code>");
+      expect(rendered).toContain("<td>" + tick + "a|b" + tick + "</td>");
       expect(rendered).toContain("<td>KEEP</td>");
       expect((rendered.match(/<td>/gu) ?? []).length).toBe(2);
     }
@@ -417,8 +425,8 @@ describe("HTML table clipboard import", () => {
       expect(parsed).toMatchObject({ valid: true, structural: false, columnCount: 2 });
       const native = new MarkdownIt({ html: true }).render(source!);
       const owned = new MarkdownIt({ html: true }).renderInline(parsed.rows[1]!.cells[0]!.content);
-      expect(native, source!).toContain("<code>" + escaped + "</code>");
-      expect(owned, source!).toBe("<code>" + escaped + "</code>");
+      expect(native, source!).toContain("<td>" + fence + escaped + fence + "</td>");
+      expect(owned, source!).toBe(fence + escaped + fence);
       expect(native).toContain("<td>KEEP</td>");
       expect((native.match(/<td>/gu) ?? []).length).toBe(2);
     }

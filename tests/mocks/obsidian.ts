@@ -66,6 +66,7 @@ const menusByEvent = new WeakMap<Event, Menu>();
 
 export class Menu {
   readonly items: MenuItem[] = [];
+  showAtPosition(_position: { x: number; y: number }): this { return this; }
   private readonly hideCallbacks: Array<() => void> = [];
 
   static forEvent(event: Event): Menu {
@@ -98,6 +99,8 @@ export class MenuItem {
   section = "";
   checked: boolean | null = null;
   warning = false;
+  disabled = false;
+  submenu: Menu | null = null;
   callback: (() => void) | null = null;
 
   setTitle(title: string): this { this.title = title; return this; }
@@ -105,6 +108,8 @@ export class MenuItem {
   setSection(section: string): this { this.section = section; return this; }
   setChecked(checked: boolean | null): this { this.checked = checked; return this; }
   setWarning(warning: boolean): this { this.warning = warning; return this; }
+  setDisabled(disabled: boolean): this { this.disabled = disabled; return this; }
+  setSubmenu(): Menu { return this.submenu = new Menu(); }
   onClick(callback: () => void): this { this.callback = callback; return this; }
 }
 

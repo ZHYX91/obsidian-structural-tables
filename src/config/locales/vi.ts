@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const vi = {
+  "menu.undo": "Hoàn tác",
+  "menu.redo": "Làm lại",
+  "menu.cut": "Cắt",
+  "menu.copy": "Sao chép",
+  "menu.paste": "Dán",
+  "menu.pastePlainText": "Dán văn bản thuần",
+  "menu.selectAll": "Chọn tất cả",
+  "menu.bold": "Đậm",
+  "menu.italic": "Nghiêng",
+  "menu.finishEditing": "Hoàn tất chỉnh sửa",
+  "menu.cancelEditing": "Hủy chỉnh sửa",
+  "menu.tableOperations": "Thao tác bảng",
   "settings.group.style": "Đường kẻ và nền",
   "settings.group.layout": "Bố cục và khoảng cách",
   "settings.preview.title": "Xem trước giao diện",

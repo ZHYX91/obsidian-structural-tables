@@ -272,7 +272,7 @@ describe("Base and formatting command instance ownership", () => {
     const plugin = f.plugin as unknown as StructuralTablesPlugin;
     const originalService = (plugin as unknown as { basePromotionService: BasePromotionService }).basePromotionService;
     const oldLoad = plugin.onload();
-    expect(loadData).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(loadData).toHaveBeenCalledOnce());
     plugin.onunload();
     const newLoad = reload ? plugin.onload() : null;
     resolvers[0]!(null);
@@ -281,7 +281,7 @@ describe("Base and formatting command instance ownership", () => {
     expect(saveData).not.toHaveBeenCalled();
     expect((plugin as unknown as { basePromotionService: BasePromotionService }).basePromotionService).toBe(originalService);
     if (newLoad !== null) {
-      expect(loadData).toHaveBeenCalledTimes(2);
+      await vi.waitFor(() => expect(loadData).toHaveBeenCalledTimes(2));
       plugin.onunload();
       resolvers[1]!(null);
       await newLoad;

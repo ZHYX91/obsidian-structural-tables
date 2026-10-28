@@ -1,4 +1,4 @@
-import { StateField } from "@codemirror/state";
+import { StateEffect, StateField } from "@codemirror/state";
 
 export const Platform = { isMobileApp: false };
 export function getIcon(_id: string): SVGSVGElement | null { return null; }
@@ -184,9 +184,11 @@ export const editorLivePreviewField = StateField.define<boolean>({
   update: (value) => value,
 });
 
-export const editorInfoField = StateField.define<{ file?: { path: string }; editor?: object }>({
+type MockEditorInfo = { file?: { path: string } | null; editor?: object };
+export const editorInfoChanged = StateEffect.define<MockEditorInfo>();
+export const editorInfoField = StateField.define<MockEditorInfo>({
   create: () => ({ file: { path: "Test.md" }, editor: {} }),
-  update: (value) => value,
+  update: (value, transaction) => transaction.effects.find((effect) => effect.is(editorInfoChanged))?.value ?? value,
 });
 
 export function getLanguage(): string {

@@ -403,6 +403,12 @@ async function setupPointerText(raw: string, visible: string, tag: "span" | "str
 }
 
 (window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, switchState, visualCaretProbe, fractionalCaretProbe, interfaceBidi, setupAlignment, alignmentState, setupPointerText,
+  repeatSourceSelection: () => {
+    const transaction = cm!.state.update({ selection: cm!.state.selection });
+    cm!.dispatch(transaction);
+    return { declared: transaction.selection !== undefined,
+      equal: transaction.state.selection.eq(transaction.startState.selection), docChanged: transaction.docChanged };
+  },
   currentVisualExit: () => textareaVisualExit(document.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor")!, "down"),
   refresh: () => cm!.dispatch({ effects: structuralTableSourceFocus.of(true) }),
   holdRendering: () => { holdCommitRendering = true; },

@@ -423,6 +423,12 @@ try {
   assert.equal(continuous.state.draft, null, JSON.stringify(continuous));
   assert.equal(continuous.state.activeRow, "1", JSON.stringify(continuous));
   assert.equal(continuous.state.activeColumn, "0", JSON.stringify(continuous));
+  // Controlled reproduction: an explicit source-selection declaration can be
+  // logically unchanged. This does not identify the native host's transaction.
+  const repeatedSelection = await evaluate("window.transposeBrowser.repeatSourceSelection()");
+  assert.deepEqual(repeatedSelection, { declared:true, equal:true, docChanged:false });
+  await settle(); continuous = await continuousState();
+  assert.deepEqual(continuous.selected, [[1,0],[1,1],[2,0],[2,1]], JSON.stringify({repeatedSelection,continuous}));
   await evaluate("window.continuousCopy=null;window.continuousCopyCapture=null;window.continuousCopyPostTask=null;document.addEventListener('copy',e=>{window.continuousCopyCapture={trusted:e.isTrusted,prevented:e.defaultPrevented};setTimeout(()=>{window.continuousCopyPostTask={trusted:e.isTrusted,prevented:e.defaultPrevented}},0)},{capture:true,once:true});document.querySelector('[data-structural-source-table-index=\"0\"]').addEventListener('copy',e=>{window.continuousCopy={trusted:e.isTrusted,prevented:e.defaultPrevented,types:[...e.clipboardData.types],text:e.clipboardData.getData('text/plain')}},{once:true})");
   await command("Input.dispatchKeyEvent", { type:"keyDown", key:"c", code:"KeyC", windowsVirtualKeyCode:67, modifiers:2 });
   await command("Input.dispatchKeyEvent", { type:"keyUp", key:"c", code:"KeyC", windowsVirtualKeyCode:67, modifiers:2 }); await settle();

@@ -2,7 +2,7 @@ import type { BaseEditorInfo } from "../src/app/base-promotion-service";
 import type { ExportTableImage } from "../src/app/table-image-modal";
 // @vitest-environment happy-dom
 
-import { EditorState, Prec, StateField, Transaction, type Extension } from "@codemirror/state";
+import { EditorSelection, EditorState, Prec, StateField, Transaction, type Extension } from "@codemirror/state";
 import { history, historyKeymap, redo, undo, undoDepth } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
 import { App, MarkdownRenderer, Platform, editorInfoField, editorLivePreviewField, type Editor } from "obsidian";
@@ -16,12 +16,14 @@ import { calloutRanges } from "../src/core/source-lines";
 import { TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_HTML_ATTRIBUTE } from "../src/core/table-range-clipboard";
 import { recoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
+import { structuralTableSourceFocus } from "../src/editor/table-source-focus";
 import { StructuralTableWidget } from "../src/editor/table-widget";
 import { TableMenuOwner } from "../src/editor/table-menu-session";
 import { CalloutFallbackWidget } from "../src/editor/callout-fallback-widget";
 import {
   activeScopes,
   dispatchScopeCaptureThenDom,
+  editorInfoChanged,
   lastMenu,
   Menu,
   MenuItem,
@@ -6007,6 +6009,97 @@ describe("interaction batches one and two: real event ownership", () => {
       expect(editor.isConnected).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
       expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(1);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["redundant", "affinity", "moved", "moved-back", "source-pointer", "document"] as const)("distinguishes an explicit %s source selection after a completed grid handoff", async (change) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const cell = (row: number, column: number) => parent.querySelector<HTMLElement>(`[data-structural-row='${row}'][data-structural-column='${column}']`)!;
+    try {
+      mouseGesture(cell(1, 0));
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, "Changed Alpha");
+      dispatchPointerDown(editor, "mouse");
+      cell(2, 1).dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+      window.dispatchEvent(new Event("pointerup"));
+      await Promise.resolve();
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      expect(document.activeElement).toBe(cell(1, 0));
+      const committed = view.state.doc.toString();
+      const selection = view.state.selection;
+      if (change === "source-pointer") {
+        view.contentDOM.dispatchEvent(new PointerEvent("pointerdown", {
+          bubbles: true, cancelable: true, pointerType: "mouse", pointerId: 9, isPrimary: true, button: 0,
+        }));
+        view.contentDOM.focus();
+        expect(view.state.selection.eq(selection)).toBe(true);
+      }
+      const repeated = change === "affinity" ? EditorSelection.create([
+        EditorSelection.cursor(selection.main.head, selection.main.assoc === 1 ? -1 : 1),
+      ]) : selection;
+      const first = view.state.update({ selection: change === "moved" || change === "moved-back" ? { anchor: committed.length } : repeated,
+        ...(change === "document" ? { changes: { from: committed.length, insert: " changed" } } : {}) });
+      const transactions = change === "moved-back" ? [first, first.state.update({ selection })] : [first];
+      for (const transaction of transactions) {
+        expect(transaction.selection).toBeDefined();
+        expect(transaction.state.selection.eq(transaction.startState.selection)).toBe(change !== "moved" && change !== "moved-back");
+        expect(transaction.docChanged).toBe(change === "document");
+      }
+      if (change === "affinity") expect(first.state.selection.eq(first.startState.selection, true)).toBe(false);
+      if (change === "moved-back") expect(transactions[1]!.state.selection.eq(view.state.selection)).toBe(true);
+      view.dispatch(transactions);
+      expect(view.state.doc.toString()).toBe(committed + (change === "document" ? " changed" : ""));
+      expect(undoDepth(view.state)).toBe(change === "document" ? 2 : 1);
+      if (change !== "redundant" && change !== "affinity") {
+        expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(0);
+        if (change === "source-pointer") {
+          view.contentDOM.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "mouse", pointerId: 9, button: 0 }));
+          await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).toBeNull());
+        }
+        return;
+      }
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(4);
+      const transfer = new DataTransfer();
+      const copy = gridClipboardEvent("copy", transfer); cell(1, 0).dispatchEvent(copy);
+      expect(copy.defaultPrevented).toBe(true);
+      expect(transfer.getData("text/plain")).toBe("| Changed Alpha | Beta |\n| --- | --- |\n| Gamma | Delta |");
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each([false, true])("clears a range for explicit source focus with an unchanged caret outside the table; split transaction=%s", (split) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.click();
+      expect(view.state.selection.main.anchor).toBe(0);
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(2);
+      const selection = view.state.selection;
+      const first = view.state.update({ selection, ...(split ? {} : { effects: structuralTableSourceFocus.of(true) }) });
+      view.dispatch(split ? [first, first.state.update({ effects: structuralTableSourceFocus.of(true) })] : [first]);
+      expect(view.state.selection.eq(selection)).toBe(true);
+      expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull();
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(0);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["file", "editor"] as const)("clears a range when source %s identity changes and returns within one update", (identity) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.click();
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(2);
+      const info = view.state.field(editorInfoField);
+      const replacement = { ...info, [identity]: identity === "file" ? { path: info.file!.path } : {} };
+      const first = view.state.update({ selection: view.state.selection, effects: editorInfoChanged.of(replacement) });
+      const last = first.state.update({ selection: first.state.selection, effects: editorInfoChanged.of(info) });
+      expect(last.state.field(editorInfoField)).toBe(info);
+      expect(last.state.selection.eq(view.state.selection)).toBe(true);
+      view.dispatch([first, last]);
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(0);
+      expect(view.state.doc.toString()).toBe(source);
     } finally { view.destroy(); }
   });
 

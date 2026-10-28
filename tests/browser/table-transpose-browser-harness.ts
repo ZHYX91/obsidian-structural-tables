@@ -112,14 +112,14 @@ document.addEventListener("contextmenu", (event) => {
   });
 }, true);
 
-function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | `focus-wide${string}` | "switch" | "switch-rtl"): void {
+function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | `focus-wide${string}` | "switch" | "switch-rtl" | "switch-delayed"): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
   alignmentCase = null;
   holdCommitRendering = false; heldRenders.splice(0).forEach((resolve) => resolve()); detachedParent = null;
   focusTrace.length = 0; traceFocus = mode.startsWith("focus-wide");
   commitGeometry.length = 0;
-  delayedCommitRendering = mode.includes("blank") || mode.includes("mouse");
+  delayedCommitRendering = mode.includes("blank") || mode.includes("mouse") || mode === "switch-delayed";
   replacementDraft = mode.includes("shrink") ? "QA" : delayedCommitRendering ? "Stir fried peppers 7 QA" : "last-cell-final-longx";
   files = new Map(); component = new Component();
   const file = new TFile("A.md"); files.set(file.path, file);

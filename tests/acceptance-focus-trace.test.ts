@@ -70,6 +70,84 @@ describe("fixture-only passive focus trace", () => {
     await new Promise((resolve) => setTimeout(resolve, 280)); expect(f.writes).toHaveLength(count);
   });
 
+  it("bounds selected owners and aria-selected mutation details without operating the editor", async () => {
+    const f = fixture(); const first = f.containerEl.querySelector<HTMLTableCellElement>("td")!;
+    const row = first.parentElement as HTMLTableRowElement;
+    const cells = [first];
+    for (let index = 1; index < 70; index += 1) {
+      const cell = row.insertCell();
+      cell.dataset.structuralRow = "24"; cell.dataset.structuralColumn = String(4 + index);
+      cells.push(cell);
+    }
+    for (const cell of cells) cell.setAttribute("aria-selected", "true");
+    const focus = vi.spyOn(first, "focus");
+    f.commands.get("start-final-cell-focus-trace")!();
+    for (const cell of cells) cell.setAttribute("aria-selected", "false");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await f.commands.get("stop-final-cell-focus-trace")!();
+    const report = JSON.parse(f.writes[f.writes.length - 1]!.source) as { entries: Array<{
+      type: string; tables: Array<{ hostId: number; selectedOwnerCount: number;
+        selectedOwners: Array<{ hostId: number; row: string; column: string }>; selectedOwnersDropped: number }>;
+      ariaSelectedCount?: number; ariaSelectedDropped?: number;
+      ariaSelectedChanges?: Array<{ hostId: number; row: string; column: string; connected: boolean;
+        oldValue: string | null; currentValue: string | null }>;
+    }> };
+    const initial = report.entries.find((entry) => entry.type === "start")!.tables[0]!;
+    expect(initial.selectedOwnerCount).toBe(70);
+    expect(initial.selectedOwners).toHaveLength(64); expect(initial.selectedOwnersDropped).toBe(6);
+    expect(initial.selectedOwners[0]).toEqual({ hostId: initial.hostId, row: "24", column: "4" });
+    const mutation = report.entries.find((entry) => entry.type === "mutation" && entry.ariaSelectedCount === 70)!;
+    expect(mutation).toBeDefined(); expect(mutation.ariaSelectedChanges).toHaveLength(32);
+    expect(mutation.ariaSelectedDropped).toBe(38);
+    expect(mutation.ariaSelectedChanges![0]).toEqual({ hostId: initial.hostId, row: "24", column: "4",
+      connected: true, oldValue: "true", currentValue: "false" });
+    expect(mutation.tables[0]!.selectedOwnerCount).toBe(0);
+    expect(f.replaceRange).not.toHaveBeenCalled(); expect(focus).not.toHaveBeenCalled();
+    expect(f.view.editor.getValue()).toBe(f.source);
+  });
+
+  it("records pointer buttons and copy consumption after dispatch without reading clipboard content", async () => {
+    const f = fixture(); const cell = f.containerEl.querySelector<HTMLElement>("td")!;
+    const focus = vi.spyOn(cell, "focus");
+    const getData = vi.fn(() => { throw new Error("Clipboard content must not be read by passive tracing."); });
+    const types = ["text/plain", "text/html", ...Array.from({ length: 8 }, (_unused, index) => `application/x-fixture-${index}`)];
+    f.commands.get("start-final-cell-focus-trace")!();
+    const pointer = new Event("pointerover", { bubbles: true, cancelable: true });
+    Object.defineProperties(pointer, { pointerId: { value: 7 }, pointerType: { value: "mouse" }, buttons: { value: 1 } });
+    cell.dispatchEvent(pointer);
+    cell.addEventListener("copy", (event) => event.preventDefault(), { once: true });
+    const copy = new Event("copy", { bubbles: true, cancelable: true });
+    const clipboardData = vi.fn(() => ({ types, getData }));
+    Object.defineProperty(copy, "clipboardData", { get: clipboardData });
+    const defaultPrevented = Object.getOwnPropertyDescriptor(Event.prototype, "defaultPrevented")!.get!;
+    const consumption = vi.fn(() => defaultPrevented.call(copy) as boolean);
+    Object.defineProperty(copy, "defaultPrevented", { get: consumption });
+    cell.dispatchEvent(copy);
+    const readsAfterDispatch = consumption.mock.calls.length;
+    await Promise.resolve();
+    // No post-task observation runs at the microtask checkpoint.
+    expect(consumption).toHaveBeenCalledTimes(readsAfterDispatch);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(consumption).toHaveBeenCalledTimes(readsAfterDispatch + 1);
+    await f.commands.get("stop-final-cell-focus-trace")!();
+    const report = JSON.parse(f.writes[f.writes.length - 1]!.source) as { entries: Array<{
+      type: string; originalType?: string; event?: { buttons: number | null; defaultPrevented: boolean; clipboardTypes?: string[] };
+    }> };
+    expect(report.entries.find((entry) => entry.type === "pointerover")?.event)
+      .toMatchObject({ buttons: 1, defaultPrevented: false });
+    expect(report.entries.find((entry) => entry.type === "event-settled" && entry.originalType === "pointerover")?.event)
+      .toMatchObject({ buttons: 1, defaultPrevented: false });
+    const capture = report.entries.find((entry) => entry.type === "copy")!.event!;
+    const settled = report.entries.find((entry) => entry.type === "event-settled" && entry.originalType === "copy")!.event!;
+    expect(capture.defaultPrevented).toBe(false); expect(settled.defaultPrevented).toBe(true);
+    expect(capture.clipboardTypes).toEqual(types.slice(0, 8));
+    expect(settled.clipboardTypes).toBeUndefined();
+    expect(copy.defaultPrevented).toBe(true); expect(getData).not.toHaveBeenCalled();
+    expect(clipboardData).toHaveBeenCalledOnce();
+    expect(f.replaceRange).not.toHaveBeenCalled(); expect(focus).not.toHaveBeenCalled();
+    expect(f.view.editor.getValue()).toBe(f.source);
+  });
+
   it("requires the named marked fixture and releases capture on plugin unload", async () => {
     const wrong = fixture("Other.md"); wrong.commands.get("start-final-cell-focus-trace")!();
     expect(wrong.writes).toHaveLength(0);

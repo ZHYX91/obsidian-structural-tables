@@ -297,6 +297,7 @@ module.exports = class extends Plugin {
     const fixturePath = file.path;
     const document = view.containerEl.ownerDocument;
     const window = document.defaultView;
+    const isCurrent = () => view.file === file && file.path === fixturePath && view.containerEl.isConnected && view.containerEl.ownerDocument === document;
     const ids = new WeakMap(); let nextId = 1;
     const id = (node) => { if (!node) return null; if (!ids.has(node)) ids.set(node, nextId++); return ids.get(node); };
     const describe = (node) => {
@@ -307,7 +308,8 @@ module.exports = class extends Plugin {
         row: cell?.getAttribute("data-structural-row") ?? null, column: cell?.getAttribute("data-structural-column") ?? null,
         hostId: id(element.closest(".structural-tables-live-preview")) };
     };
-    const entries = []; const criticalEntries = []; let total = 0; let active = true; let timer = null; let task = null; let frame = null;
+    const entries = []; const criticalEntries = []; const settledEvents = []; let settledEventsDropped = 0;
+    let total = 0; let active = true; let timer = null; let task = null; let frame = null;
     const rect = (element) => { if (!element) return null; const bounds = element.getBoundingClientRect(); return { top: bounds.top, bottom: bounds.bottom, left: bounds.left, width: bounds.width, height: bounds.height }; };
     const snapshot = () => {
       const selection = document.getSelection();
@@ -320,7 +322,11 @@ module.exports = class extends Plugin {
           focus: describe(selection?.focusNode), focusOffset: selection?.focusOffset ?? null, collapsed: selection?.isCollapsed ?? null },
         tables: [...view.containerEl.querySelectorAll(".structural-tables-live-preview")].slice(0, 12).map((host) => {
           const scroller = host.querySelector(".structural-tables-container");
-          return { hostId: id(host), scrollerId: id(scroller), tableIndex: host.getAttribute("data-structural-source-table-index"),
+          const selected = [...host.querySelectorAll('[data-structural-row][data-structural-column][aria-selected="true"]')]
+            .filter((cell) => cell.closest(".structural-tables-live-preview") === host);
+          const selectedOwners = selected.slice(0, 64).map((cell) => ({ hostId: id(host),
+            row: cell.getAttribute("data-structural-row"), column: cell.getAttribute("data-structural-column") }));
+          return { selectedOwnerCount: selected.length, selectedOwners, selectedOwnersDropped: Math.max(0, selected.length - 64), hostId: id(host), scrollerId: id(scroller), tableIndex: host.getAttribute("data-structural-source-table-index"),
             hostRect: rect(host), scrollerRect: rect(scroller), tableRect: rect(host.querySelector("table")),
             connected: host.isConnected, scrollLeft: scroller?.scrollLeft ?? null, scrollWidth: scroller?.scrollWidth ?? null,
             clientWidth: scroller?.clientWidth ?? null, direction: scroller ? window.getComputedStyle(scroller).direction : null };
@@ -328,13 +334,13 @@ module.exports = class extends Plugin {
     };
     const flush = (reason) => {
       const report = JSON.stringify({ schemaVersion: 1, kind: "structural-tables/passive-focus-trace", fixture: fixturePath,
-        reason, totalEntries: total, retainedEntries: entries.length, entries: [...entries], criticalEntries: [...criticalEntries] }, null, 2) + "\n";
+        reason, totalEntries: total, retainedEntries: entries.length, settledEventsDropped, entries: [...entries], criticalEntries: [...criticalEntries] }, null, 2) + "\n";
       this.focusTraceWrites = this.focusTraceWrites.catch(() => {}).then(() => this.app.vault.adapter.write("_structural-tables-focus-trace.json", report));
       return this.focusTraceWrites.catch((error) => { new Notice(`Focus trace write failed: ${String(error)}`); });
     };
     const record = (type, details = {}) => {
       if (!active) return;
-      const current = view.file === file && file.path === fixturePath && view.containerEl.isConnected && view.containerEl.ownerDocument === document;
+      const current = isCurrent();
       if (!current && type !== "stop") { void stop("target-changed"); return; }
       const entry = { sequence: ++total, time: window.performance.now(), type, ...details, ...(current ? snapshot() : { targetUnavailable: true }) };
       entries.push(entry);
@@ -346,19 +352,53 @@ module.exports = class extends Plugin {
     };
     const sampleLater = () => {
       if (!active) return;
-      if (task === null) task = window.setTimeout(() => { task = null; record("task"); }, 0);
+      if (task === null) task = window.setTimeout(() => {
+        task = null;
+        for (const pending of settledEvents.splice(0)) {
+          if (!active) return;
+          if (!isCurrent()) { void stop("target-changed"); return; }
+          const details = { ...pending.details }; delete details.clipboardTypes;
+          record("event-settled", { originalType: pending.type, phase: "settled-task",
+            event: { ...details, defaultPrevented: pending.event.defaultPrevented }, target: pending.target, relatedTarget: pending.relatedTarget });
+        }
+        record("task");
+      }, 0);
       if (frame === null) frame = window.requestAnimationFrame(() => { frame = null; record("frame"); });
     };
-    const listener = (event) => {
-      record(event.type, { event: { isTrusted: event.isTrusted, timeStamp: event.timeStamp, pointerId: event.pointerId ?? null,
+    const eventDetails = (event) => {
+      let clipboardTypes;
+      if (event.type === "copy") {
+        try { clipboardTypes = [...(event.clipboardData?.types ?? [])].slice(0, 8); }
+        catch { clipboardTypes = []; }
+      }
+      return { isTrusted: event.isTrusted, timeStamp: event.timeStamp, pointerId: event.pointerId ?? null,
         pointerType: event.pointerType ?? null, isPrimary: event.isPrimary ?? null, detail: event.detail ?? null,
-        clientX: event.clientX ?? null, clientY: event.clientY ?? null }, target: describe(event.target), relatedTarget: describe(event.relatedTarget) });
+        clientX: event.clientX ?? null, clientY: event.clientY ?? null, buttons: event.buttons ?? null,
+        defaultPrevented: event.defaultPrevented, ...(clipboardTypes === undefined ? {} : { clipboardTypes }) };
+    };
+    const listener = (event) => {
+      const target = describe(event.target); const relatedTarget = describe(event.relatedTarget); const details = eventDetails(event);
+      record(event.type, { phase: "capture", event: details, target, relatedTarget });
+      if (["pointerdown", "pointerover", "pointermove", "pointercancel", "pointerup", "copy"].includes(event.type)) {
+        if (settledEvents.length < 32) settledEvents.push({ type: event.type, event, details, target, relatedTarget });
+        else settledEventsDropped += 1;
+      }
       sampleLater();
     };
-    const events = ["pointerdown", "pointermove", "pointercancel", "pointerup", "touchstart", "touchmove", "touchcancel", "touchend", "mousedown", "click", "dblclick", "focusin", "focusout", "selectionchange", "scroll"];
+    const events = ["pointerdown", "pointerover", "pointermove", "pointercancel", "pointerup", "touchstart", "touchmove", "touchcancel", "touchend", "mousedown", "click", "dblclick", "focusin", "focusout", "selectionchange", "scroll", "copy"];
     const observer = new window.MutationObserver((records) => {
-      record("mutation", { childListRecords: records.length, addedNodes: records.reduce((sum, item) => sum + item.addedNodes.length, 0),
-        removedNodes: records.reduce((sum, item) => sum + item.removedNodes.length, 0) }); sampleLater();
+      if (!active) return;
+      if (!isCurrent()) { void stop("target-changed"); return; }
+      const childList = records.filter((item) => item.type === "childList");
+      const attributes = records.filter((item) => item.type === "attributes" && item.attributeName === "aria-selected"
+        && item.target.matches("[data-structural-row][data-structural-column]"));
+      const ariaSelectedChanges = attributes.slice(0, 32).map((item) => ({
+        hostId: id(item.target.closest(".structural-tables-live-preview")), row: item.target.getAttribute("data-structural-row"),
+        column: item.target.getAttribute("data-structural-column"), connected: item.target.isConnected,
+        oldValue: item.oldValue, currentValue: item.target.getAttribute("aria-selected") }));
+      record("mutation", { childListRecords: childList.length, addedNodes: childList.reduce((sum, item) => sum + item.addedNodes.length, 0),
+        removedNodes: childList.reduce((sum, item) => sum + item.removedNodes.length, 0),
+        ariaSelectedCount: attributes.length, ariaSelectedChanges, ariaSelectedDropped: Math.max(0, attributes.length - 32) }); sampleLater();
     });
     const stop = (reason) => {
       if (!active) return this.focusTraceWrites;
@@ -366,14 +406,14 @@ module.exports = class extends Plugin {
       for (const event of events) document.removeEventListener(event, listener, true);
       window.removeEventListener("blur", listener, true); window.removeEventListener("focus", listener, true); observer.disconnect();
       if (timer !== null) window.clearTimeout(timer); if (task !== null) window.clearTimeout(task); if (frame !== null) window.cancelAnimationFrame(frame);
-      timer = task = frame = null;
+      timer = task = frame = null; settledEvents.length = 0;
       if (this.focusTrace?.stop === stop) this.focusTrace = null;
       return flush(reason);
     };
     this.focusTrace = { stop };
     for (const event of events) document.addEventListener(event, listener, { capture: true, passive: true });
     window.addEventListener("blur", listener, true); window.addEventListener("focus", listener, true);
-    observer.observe(view.containerEl, { childList: true, subtree: true });
+    observer.observe(view.containerEl, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-selected"], attributeOldValue: true });
     record("start"); sampleLater();
     new Notice("Passive focus trace started. Stop it from the command palette after the fixture interaction.");
   }

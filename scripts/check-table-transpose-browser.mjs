@@ -385,6 +385,59 @@ try {
     assert.equal(after.state.changes, 1);
     results.push({mode:"mouse-draft-grid-"+origin, selected:after.count, oneCommit:true, noTrailingEdit:true});
   }
+  // Keep one physical pointer held across the first commit, asynchronous
+  // Markdown remount, and later expansion/shrink moves on the new live DOM.
+  await evaluate("window.transposeBrowser.reset('switch-delayed')"); await settle();
+  await evaluate("window.transposeBrowser.rendered()");
+  const continuousBaseline = (await evaluate("window.transposeBrowser.switchState()")).source;
+  const continuousRoot = "[data-structural-source-table-index='0']";
+  const continuousCell = (row, column) => select(continuousRoot + " [data-structural-row='" + row + "'][data-structural-column='" + column + "']");
+  const livePoint = async (expression) => evaluate("(()=>{const e=" + expression + ",r=e.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()");
+  const continuousState = () => evaluate("({state:window.transposeBrowser.switchState(),selected:[...document.querySelectorAll('[data-structural-source-table-index=\"0\"] [aria-selected=\"true\"]')].map(e=>[Number(e.dataset.structuralRow),Number(e.dataset.structuralColumn)]),remounted:document.querySelector('[data-structural-source-table-index=\"0\"]')!==window.continuousOriginalHost})");
+  await click(continuousCell(1, 0));
+  await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select();void(window.continuousOriginalHost=document.querySelector('[data-structural-source-table-index=\"0\"]'))");
+  await command("Input.insertText", { text:"Range continued Alpha" }); await settle();
+  const continuousStart = await livePoint("document.querySelector('textarea.structural-tables-cell-editor')");
+  const firstCrossing = await livePoint(continuousCell(1, 1));
+  await command("Input.dispatchMouseEvent", { type:"mouseMoved", ...continuousStart });
+  await command("Input.dispatchMouseEvent", { type:"mousePressed", ...continuousStart, button:"left", clickCount:1 });
+  await command("Input.dispatchMouseEvent", { type:"mouseMoved", ...firstCrossing, button:"left", buttons:1 });
+  await evaluate("window.transposeBrowser.rendered()"); await settle();
+  let continuous = await continuousState();
+  assert.equal(continuous.state.draft, null, JSON.stringify(continuous));
+  assert.equal(continuous.state.changes, 1, JSON.stringify(continuous));
+  assert.equal(continuous.remounted, true, JSON.stringify(continuous));
+  assert.deepEqual(continuous.selected, [[1,0],[1,1]], JSON.stringify(continuous));
+  for (const [row, column, expected] of [[2,1,[[1,0],[1,1],[2,0],[2,1]]], [2,0,[[1,0],[2,0]]], [2,1,[[1,0],[1,1],[2,0],[2,1]]]]) {
+    const point = await livePoint(continuousCell(row, column));
+    await command("Input.dispatchMouseEvent", { type:"mouseMoved", ...point, button:"left", buttons:1 });
+    await settle(); continuous = await continuousState();
+    assert.deepEqual(continuous.selected, expected, JSON.stringify(continuous));
+    assert.equal(continuous.state.changes, 1, JSON.stringify(continuous));
+    assert.equal(continuous.state.draft, null, JSON.stringify(continuous));
+  }
+  const continuousEnd = await livePoint(continuousCell(2, 1));
+  await command("Input.dispatchMouseEvent", { type:"mouseReleased", ...continuousEnd, button:"left", clickCount:1 }); await settle();
+  continuous = await continuousState();
+  assert.deepEqual(continuous.selected, [[1,0],[1,1],[2,0],[2,1]], JSON.stringify(continuous));
+  assert.equal(continuous.state.draft, null, JSON.stringify(continuous));
+  assert.equal(continuous.state.activeRow, "1", JSON.stringify(continuous));
+  assert.equal(continuous.state.activeColumn, "0", JSON.stringify(continuous));
+  await evaluate("window.continuousCopy=null;window.continuousCopyCapture=null;window.continuousCopyPostTask=null;document.addEventListener('copy',e=>{window.continuousCopyCapture={trusted:e.isTrusted,prevented:e.defaultPrevented};setTimeout(()=>{window.continuousCopyPostTask={trusted:e.isTrusted,prevented:e.defaultPrevented}},0)},{capture:true,once:true});document.querySelector('[data-structural-source-table-index=\"0\"]').addEventListener('copy',e=>{window.continuousCopy={trusted:e.isTrusted,prevented:e.defaultPrevented,types:[...e.clipboardData.types],text:e.clipboardData.getData('text/plain')}},{once:true})");
+  await command("Input.dispatchKeyEvent", { type:"keyDown", key:"c", code:"KeyC", windowsVirtualKeyCode:67, modifiers:2 });
+  await command("Input.dispatchKeyEvent", { type:"keyUp", key:"c", code:"KeyC", windowsVirtualKeyCode:67, modifiers:2 }); await settle();
+  const continuousCopy = await evaluate("window.continuousCopy");
+  const copyObservation = await evaluate("({capture:window.continuousCopyCapture,postTask:window.continuousCopyPostTask})");
+  assert.deepEqual(copyObservation.capture, { trusted:true, prevented:false });
+  assert.deepEqual(copyObservation.postTask, { trusted:true, prevented:true });
+  assert.ok(continuousCopy, "The real Copy key must reach the live selected grid");
+  assert.equal(continuousCopy.trusted, true); assert.equal(continuousCopy.prevented, true);
+  assert.ok(continuousCopy.types.includes("application/x-structural-tables-range+json"), JSON.stringify(continuousCopy));
+  for (const value of ["Range continued Alpha", "Beta", "Next", "Neighbor"]) assert.ok(continuousCopy.text.includes(value), JSON.stringify(continuousCopy));
+  assert.ok(!continuousCopy.text.includes("Last"), JSON.stringify(continuousCopy));
+  await historyKey();
+  assert.equal((await evaluate("window.transposeBrowser.switchState()")).source, continuousBaseline);
+  results.push({ mode:"mouse-draft-grid-continuous-delayed", realMouse:true, remounted:true, expandedAndShrunk:true, selected:4, trustedCopy:true, oneUndo:true });
   // Direct, unselected handle press and movement must reorder on its own.
   await evaluate("window.transposeBrowser.reset('switch')"); await settle();
   const beforeDrag = await evaluate("window.transposeBrowser.switchState()");

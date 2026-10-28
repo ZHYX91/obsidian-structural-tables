@@ -22,6 +22,8 @@ import {
   activeScopes,
   dispatchScopeCaptureThenDom,
   lastMenu,
+  Menu,
+  MenuItem,
   notices,
   resetMockModKey,
   setMockModKey,
@@ -252,10 +254,11 @@ function clickCurrentMenuItem(title: string, hideBeforeCallback = false): void {
   const item = menu?.items.find((candidate) => candidate.title === title);
   expect(item?.callback).toBeTypeOf("function");
   const button = document.body.appendChild(document.createElement("button"));
-  button.addEventListener("click", () => {
+  button.addEventListener("click", (event) => {
     if (hideBeforeCallback) menu?.hide();
-    item?.callback?.();
+    (item?.callback as ((event: MouseEvent) => void) | null)?.(event);
     if (!hideBeforeCallback) menu?.hide();
+    button.remove();
   });
   dispatchPointerDown(button, "mouse");
   button.focus();
@@ -4247,6 +4250,7 @@ describe("StructuralTableEditorController", () => {
       expect(activeScopes).toHaveLength(0);
 
       lastMenu?.hide();
+      external.remove(); // A real dismissed menu removes its focused surface.
       await vi.waitFor(() => expect(document.activeElement).toBe(editor));
 
       expect(editor.value).toBe("Menu draft");
@@ -6022,6 +6026,286 @@ describe("interaction batches one and two: real event ownership", () => {
       expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
       expect(undo(view)).toBe(false);
     } finally { view.destroy(); }
+  });
+
+  it.each([false, true])("replaces the preceding grid menu without a manual hide; cross-table=%s", async (crossTable) => {
+    const table = "| H | V |\n| --- || --- |\n| A | B |";
+    const source = `Before\n\n${table}\n\nBetween\n\n${table}\n\nEnd`;
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      const hosts = parent.querySelectorAll<HTMLElement>(".structural-tables-live-preview");
+      const first = hosts[0]!.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      first.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const previous = lastMenu!;
+      const hide = vi.spyOn(previous, "hide");
+      const oldClear = previous.items.find((item) => item.title === "Clear selected cells")!.callback!;
+      const next = hosts[crossTable ? 1 : 0]!.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+      next.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(lastMenu).not.toBe(previous);
+      expect(hide).toHaveBeenCalledOnce();
+      oldClear();
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(next.getAttribute("aria-selected")).toBe("true");
+    } finally { view.destroy(); }
+  });
+
+  it.each(["break", "math", "table"] as const)("revokes a replaced text-menu %s callback", (kind) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.value = "$|x|$"; editor.select();
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const oldMenu = lastMenu!;
+      const callback = kind === "table"
+        ? oldMenu.items.find((item) => item.title === "Table operations")!.submenu!.items.find((item) => item.title === "Insert row below")!.callback!
+        : oldMenu.items.find((item) => item.title === createTranslator("en")(kind === "break" ? "menu.insertCellBreak" : "menu.useMathAbsoluteSuggestion"))!.callback!;
+      const hide = vi.spyOn(oldMenu, "hide");
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(hide).toHaveBeenCalledOnce();
+      callback();
+      expect(editor.value).toBe("$|x|$");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["Cut", "Paste as plain text"] as const)("revokes pending text-menu %s when an identical draft menu replaces it", async (action) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
+    let release!: (value: string) => void;
+    const pending = new Promise<string>((resolve) => { release = resolve; });
+    const writeText = vi.fn(() => pending.then(() => {}));
+    const readText = vi.fn(() => pending);
+    vi.stubGlobal("navigator", { clipboard: { writeText, readText } });
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select();
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.items.find((item) => item.title === action)!.callback!();
+      await vi.waitFor(() => expect(action === "Cut" ? writeText : readText).toHaveBeenCalledOnce());
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      release("NEW");
+      await pending; await Promise.resolve(); await Promise.resolve();
+      expect(editor.value).toBe("A");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("accepts a real hide-before-click asynchronous text paste", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
+    vi.stubGlobal("navigator", { clipboard: { readText: vi.fn(async () => "NEW") } });
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select();
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem("Paste as plain text", true);
+      await vi.waitFor(() => expect(editor.value).toBe("NEW"));
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("does not steal an outside input's focus after text-menu dismissal", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const outside = document.body.appendChild(document.createElement("input"));
+      dispatchPointerDown(outside, "mouse"); outside.focus(); lastMenu!.hide();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(document.activeElement).toBe(outside);
+      editor.focus();
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("releases the text-menu guard after an axis menu supersedes it", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.hide(); await new Promise((resolve) => setTimeout(resolve, 5));
+      editor.focus(); editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it("returns focus after a fallback submenu replaces its dismissed parent", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
+    const descriptor = Object.getOwnPropertyDescriptor(MenuItem.prototype, "setSubmenu")!;
+    Object.defineProperty(MenuItem.prototype, "setSubmenu", { ...descriptor, value: undefined });
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const show = vi.spyOn(Menu.prototype, "showAtPosition");
+      clickCurrentMenuItem("Table operations", true);
+      await Promise.resolve();
+      expect(show).toHaveBeenCalledOnce();
+      const child = show.mock.instances[0] as Menu;
+      child.hide();
+      await vi.waitFor(() => expect(document.activeElement).toBe(editor));
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); Object.defineProperty(MenuItem.prototype, "setSubmenu", descriptor); }
+  });
+
+  it.each(["valid", "invalid", "ime"] as const)("combines the draft with a chosen axis-menu command atomically: %s", async (kind) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n| C | D |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, kind === "invalid" ? "$x|y$" : "AlphaX");
+      if (kind === "ime") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(view.state.doc.toString()).toBe(source);
+      clickCurrentMenuItem("Insert row below", true);
+      if (kind !== "valid") {
+        expect(view.state.doc.toString()).toBe(source);
+        expect(editor.isConnected).toBe(true);
+        expect(editor.value).toBe(kind === "invalid" ? "$x|y$" : "AlphaX");
+        expect(undo(view)).toBe(false);
+        return;
+      }
+      await Promise.resolve();
+      const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      expect(table.rows[1]!.cells[0]!.content).toBe("AlphaX");
+      expect(table.rows[1]!.cells[1]!.content).toBe("KEEP");
+      expect(table.rows).toHaveLength(4);
+      expect(parent.querySelector(".structural-tables-row-handle.is-selected")).not.toBeNull();
+      expect(undoDepth(view.state)).toBe(1);
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["Copy selected cells", "Cut selected cells", "Paste into selected cells", "Paste as plain text", "Copy whole table for Word / HTML"].flatMap((action) =>
+    (["changed", "ime"] as const).map((kind) => ({ action, kind }))))("refuses axis clipboard $action with a $kind draft", ({ action, kind }) => {
+    const source = "Before\n\n| H | V |\n| --- | --- |\n| A | < |\n\nEnd";
+    const clipboard = { write: vi.fn(), writeText: vi.fn(), read: vi.fn(), readText: vi.fn() };
+    vi.stubGlobal("navigator", { clipboard });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      if (kind === "changed") { editor.select(); typeDraftText(editor, "AlphaX"); }
+      if (kind === "ime") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const item = lastMenu!.items.find((entry) => entry.title === action)!;
+      expect(item).toBeDefined(); expect(item.disabled).toBe(false);
+      const previousNotices = notices.length;
+      item.callback!();
+      expect(notices.slice(previousNotices)).toContain("Finish editing");
+      for (const method of Object.values(clipboard)) expect(method).not.toHaveBeenCalled();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(editor.isConnected).toBe(true); expect(editor.value).toBe(kind === "changed" ? "AlphaX" : "A");
+      expect(undo(view)).toBe(false);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["Cut selected cells", "Paste as plain text"].flatMap((action) =>
+    (["changed", "ime"] as const).map((kind) => ({ action, kind }))))("rechecks an axis $kind draft after pending $action", async ({ action, kind }) => {
+    const source = "Before\n\n| H | V |\n| --- | --- |\n| A | < |\n\nEnd";
+    let release!: (value: string) => void;
+    const pending = new Promise<string>((resolve) => { release = resolve; });
+    const write = vi.fn(() => pending.then(() => {}));
+    const readText = vi.fn(() => pending);
+    class MockClipboardItem { constructor(readonly data: Record<string, Blob>) {} }
+    vi.stubGlobal("ClipboardItem", MockClipboardItem);
+    Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: { write, readText } });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.items.find((item) => item.title === action)!.callback!();
+      await vi.waitFor(() => expect(action === "Cut selected cells" ? write : readText).toHaveBeenCalledOnce());
+      if (kind === "changed") { editor.select(); typeDraftText(editor, "Late AlphaX"); }
+      else editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      release("NEW"); await pending; await Promise.resolve(); await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(editor.isConnected).toBe(true); expect(editor.value).toBe(kind === "changed" ? "Late AlphaX" : "A");
+      expect(undo(view)).toBe(false);
+    } finally { view.destroy(); Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined }); }
+  });
+
+  it.each([false, true])("keeps native focus and one Undo for a draft plus table deletion; callout=%s", async (callout) => {
+    const table = "| H | V |\n| --- || --- |\n| A | KEEP |";
+    const source = `Before\n\n${callout ? "> [!note]\n" + table.split("\n").map((line) => "> " + line).join("\n") : table}\n\nEnd`;
+    const extensions: Extension[] = [history()];
+    if (callout) {
+      vi.stubGlobal("createDiv", (options: { cls: string }) => {
+        const element = document.createElement("div"); element.className = options.cls; return element;
+      });
+      vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, markdown, target) => {
+        const native = nativeTableForSource(markdown);
+        if (native !== null) target.appendChild(native);
+      });
+      const nativeFor = (text: string) => Decoration.set([
+        Decoration.replace({ widget: new SourceCalloutWidget(text), block: true })
+          .range(text.indexOf("> [!note]"), text.indexOf("\n\nEnd")),
+      ]);
+      extensions.push(StateField.define({
+        create: (state) => nativeFor(state.doc.toString()),
+        update: (value, transaction) => transaction.docChanged ? nativeFor(transaction.newDoc.toString()) : value,
+        provide: (field) => EditorView.decorations.from(field),
+      }));
+    }
+    const { parent, view } = mountEditor(source, { anchor: 0 }, extensions);
+    try {
+      await vi.waitFor(() => expect(parent.querySelector("[data-structural-row='1'][data-structural-column='0']")).not.toBeNull());
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, "AlphaX");
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem("Delete table", true);
+      await Promise.resolve();
+      expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(0);
+      expect(view.hasFocus).toBe(true);
+      expect(undoDepth(view.state)).toBe(1);
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
+      expect(undo(view)).toBe(false);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["Cut selected cells", "Paste as plain text"] as const)("revokes a pending grid %s when the same cell menu reopens", async (action) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    let release!: (value: string) => void;
+    const pending = new Promise<string>((resolve) => { release = resolve; });
+    const write = vi.fn(() => pending.then(() => {}));
+    const readText = vi.fn(() => pending);
+    class MockClipboardItem { constructor(readonly data: Record<string, Blob>) {} }
+    vi.stubGlobal("ClipboardItem", MockClipboardItem);
+    Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: { write, readText } });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!;
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      clickCurrentMenuItem(action, true);
+      await vi.waitFor(() => expect(action === "Cut selected cells" ? write : readText).toHaveBeenCalledOnce());
+      cell.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      release("NEW"); await pending; await Promise.resolve(); await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+    } finally { view.destroy(); Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined }); }
   });
 
   it("uses the same literal HTML classifier for native and menu paste", async () => {

@@ -3,6 +3,7 @@ import { freezeGridSelection, currentFrozenTable, frozenSelectionBounds, copyFro
 import { beginMouseRangeGesture, hasMouseRangeGesture } from "./mouse-range-gesture";
 import { readCellClipboardData } from "./cell-clipboard-actions";
 import { addTableSubmenu } from "./table-submenu";
+import { TableMenuOwner, type TableMenuSession } from "./table-menu-session";
 import { pasteLiteralCellText } from "../core/literal-cell-text";
 import { CellDraftSession, type DraftHistoryGroup } from "./cell-draft-session";
 import { pendingCellFocus, activeCellEditors, composingCellEditors, ownsCellEditorFocus, claimCellEditorFocus,
@@ -183,6 +184,8 @@ class StructuralTableInteraction {
   private selectionMenuOpen = false;
   private selectionMenuSession: FrozenGridSelection | null = null;
   private selectionEpoch = 0;
+  private menuOwner: TableMenuOwner | null = null;
+  private onMenuPointerAway: ((event: PointerEvent) => void) | null = null;
 
   constructor(
     private readonly app: App,
@@ -256,6 +259,9 @@ class StructuralTableInteraction {
     host.dataset.tableKind = this.table.structural ? "structural" : "ordinary";
     bindTableSourceSnapshot(host, this.table, this.sourcePath);
     this.host = host;
+    const menuOwner = new TableMenuOwner(this.app, host.ownerDocument);
+    this.menuOwner = menuOwner;
+    this.component.register(() => menuOwner.dispose());
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
     if (host.style.minHeight !== "") {
       const component = this.component; const document = host.ownerDocument;
@@ -284,6 +290,7 @@ class StructuralTableInteraction {
     host.addEventListener(CLEAR_SELECTION_EVENT, () => this.clearSelection());
     host.addEventListener("focusin", () => host.classList.add("is-add-controls-active"));
     this.component.registerDomEvent(host.ownerDocument, "pointerdown", (event) => {
+      this.onMenuPointerAway?.(event);
       const target = event.target;
       if (target instanceof host.ownerDocument.defaultView!.Node && !host.contains(target)) {
         // A DOM menu item is outside the table too. Its public onClick may
@@ -353,6 +360,8 @@ class StructuralTableInteraction {
     this.touchPointerId = undefined;
     this.component?.unload();
     this.component = null;
+    this.menuOwner = null;
+    this.onMenuPointerAway = null;
   }
 
   private installInteraction(view: EditorView, host: HTMLElement, rendered: HTMLTableElement): void {
@@ -1092,12 +1101,14 @@ class StructuralTableInteraction {
     return true;
   }
 
-  private copyFrozenSelection(view: EditorView, frozen: FrozenGridSelection, cut: boolean): Promise<void> {
-    return copyFrozenRange(frozen, cut, () => this.clearFrozenSelection(view, frozen), createTranslator(this.getSettings().language));
+  private copyFrozenSelection(view: EditorView, frozen: FrozenGridSelection, cut: boolean,
+    isCurrent = (): boolean => true): Promise<void> {
+    return copyFrozenRange(frozen, cut, () => isCurrent() && this.clearFrozenSelection(view, frozen), createTranslator(this.getSettings().language));
   }
 
-  private pasteFrozenSelectionFromNavigator(view: EditorView, frozen: FrozenGridSelection): Promise<void> {
-    return pasteFrozenRange(frozen, (payload) => this.pasteFrozenSelection(view, frozen, payload), createTranslator(this.getSettings().language));
+  private pasteFrozenSelectionFromNavigator(view: EditorView, frozen: FrozenGridSelection,
+    isCurrent = (): boolean => true): Promise<void> {
+    return pasteFrozenRange(frozen, (payload) => isCurrent() && this.pasteFrozenSelection(view, frozen, payload), createTranslator(this.getSettings().language));
   }
 
   private revealHandlesForPointer(event: PointerEvent): void {
@@ -1181,7 +1192,9 @@ class StructuralTableInteraction {
     const menu = Menu.forEvent(event);
     this.selectionMenuSession = frozen;
     this.selectionMenuOpen = true;
-    menu.onHide(() => {
+    const menuSession = this.menuOwner?.open(menu);
+    if (menuSession == null) return;
+    menuSession.onHide(() => {
       if (this.selectionMenuSession !== frozen) return;
       this.selectionMenuOpen = false;
       queueMicrotask(() => {
@@ -1191,8 +1204,16 @@ class StructuralTableInteraction {
       });
     });
     const t = createTranslator(this.getSettings().language);
+    const protectedDraft = (): boolean => {
+      const editor = this.host?.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor");
+      if (editor == null) return false;
+      const coordinate = this.coordinateFor(editor);
+      const cell = coordinate === null ? undefined : this.table.rows[coordinate.row]?.cells[coordinate.column];
+      return composingCellEditors.has(editor) || cell === undefined || editor.value !== cell.raw.trim();
+    };
+    const clipboardCurrent = (): boolean => menuSession.isCurrent() && !protectedDraft();
     const activate = (action: () => void): void => {
-      if (this.selectionMenuSession !== frozen) {
+      if (this.selectionMenuSession !== frozen || !menuSession.canActivate()) {
         new Notice(t("notice.staleTable"));
         return;
       }
@@ -1204,40 +1225,44 @@ class StructuralTableInteraction {
       }
       action();
     };
+    const activateClipboard = (action: () => void): void => activate(() => {
+      if (protectedDraft()) { new Notice(t("menu.finishEditing")); return; }
+      action();
+    });
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
     const direction = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl" ? "rtl" : "ltr";
     const menuOptions = { fullEditor: true, explicitRemoval: true, direction } as const;
-    const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => this.applyMenuOperation(
-      view,
-      operation,
-      undefined,
-      intent === "owned-grid" ? frozen.axisSelection : undefined,
-      intent,
-      frozen,
-    ));
+    const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => {
+      if (this.finishActiveOperation !== null) {
+        this.finishActiveOperation(operation, frozen.anchor, frozen.axisSelection);
+        return;
+      }
+      this.applyMenuOperation(view, operation, undefined,
+        intent === "owned-grid" ? frozen.axisSelection : undefined, intent, frozen);
+    });
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("copy")
       .setTitle(t("menu.copySelection"))
-      .onClick(() => activate(() => { void this.copyFrozenSelection(view, frozen, false); })));
+      .onClick(() => activateClipboard(() => { void this.copyFrozenSelection(view, frozen, false, clipboardCurrent); })));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("scissors")
       .setTitle(t("menu.cutSelection"))
-      .onClick(() => activate(() => { void this.copyFrozenSelection(view, frozen, true); })));
+      .onClick(() => activateClipboard(() => { void this.copyFrozenSelection(view, frozen, true, clipboardCurrent); })));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("clipboard-paste")
       .setTitle(t("menu.pasteSelection"))
-      .onClick(() => activate(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); })));
+      .onClick(() => activateClipboard(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen, clipboardCurrent); })));
     menu.addItem((item) => item.setSection("structural-tables-clipboard").setIcon("clipboard-paste")
       .setTitle(t("menu.pastePlainText")).setDisabled(new Set(selection.cells.map((cell) => `${cell.anchorRow}:${cell.anchorColumn}`)).size !== 1)
-      .onClick(() => activate(() => {
+      .onClick(() => activateClipboard(() => {
         if (new Set(selection.cells.map((cell) => `${cell.anchorRow}:${cell.anchorColumn}`)).size !== 1) return;
         const initial = view.state.doc;
         void Promise.resolve().then(() => (frozen.host.ownerDocument.defaultView?.navigator.clipboard ?? navigator.clipboard).readText()).then((text) => {
-          if (view.state.doc !== initial || this.currentTableForFrozenSelection(view, frozen) === null) {
+          if (!clipboardCurrent() || view.state.doc !== initial || this.currentTableForFrozenSelection(view, frozen) === null) {
             new Notice(t("notice.staleTable")); return;
           }
           const literal = pasteLiteralCellText("", 0, 0, text);
@@ -1283,10 +1308,10 @@ class StructuralTableInteraction {
         this.previewGfm?.(tableIdentity, gfmTarget);
       }));
     }
-    menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
+    menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activateClipboard(() => {
       void copyTableForWord(this.app, tableIdentity, this.getSettings().appearance, {
         sourcePath: frozen.sourcePath, direction,
-        isCurrent: () => this.host === frozen.host && frozen.host.isConnected
+        isCurrent: () => clipboardCurrent() && this.host === frozen.host && frozen.host.isConnected
           && view.dom.isConnected && view.dom.ownerDocument === ownerDocument
           && view.state.field(editorInfoField, false)?.editor === editorIdentity
           && view.state.field(editorInfoField, false)?.file === fileIdentity
@@ -1407,6 +1432,9 @@ class StructuralTableInteraction {
     }
     this.selectionAnchor = { row: anchor.row, column: anchor.column };
     this.selectionHead = this.selectionAnchor;
+    this.selectionMenuSession = null;
+    this.selectionMenuOpen = false;
+    this.menuOwner?.dismiss();
     this.updateSelection();
 
     const draftFile = view.state.field(editorInfoField, false)?.file;
@@ -1450,6 +1478,11 @@ class StructuralTableInteraction {
     let settled = false;
     const draft = new CellDraftSession(editor);
     let contextMenuOpen = false;
+    let contextMenuSession: TableMenuSession | null = null;
+    let menuPointerAway = false;
+    this.onMenuPointerAway = (event) => {
+      if (contextMenuSession?.isVisible() && event.target !== editor) menuPointerAway = true;
+    };
     const applyDraftMutation = (group: DraftHistoryGroup, mutate: () => void): void => {
       draft.mutate(group, mutate);
       resizeEditor();
@@ -1604,6 +1637,7 @@ class StructuralTableInteraction {
     };
     const settle = (): void => {
       settled = true;
+      this.onMenuPointerAway = null;
       composingCellEditors.delete(editor);
       releaseCellEditorFocus(editor);
       this.preserveDraft = null;
@@ -1656,6 +1690,15 @@ class StructuralTableInteraction {
         retainDraft(operationNotice(t, result.code));
         return;
       }
+      if (axis !== undefined && result.code === "rows-deleted") {
+        const row = Math.max(0, Math.min(axis.start, current.rows.length - (axis.end - axis.start + 1) - 1));
+        axis = { axis: "row", start: row, end: row };
+        next = { row, column: Math.min(next?.column ?? 0, current.columnCount - 1) };
+      } else if (axis !== undefined && result.code === "columns-deleted") {
+        const column = Math.max(0, Math.min(axis.start, current.columnCount - (axis.end - axis.start + 1) - 1));
+        axis = { axis: "column", start: column, end: column };
+        next = { row: Math.min(next?.row ?? 0, current.rows.length - 1), column };
+      }
       settle();
       if (!result.changed) {
         restore(focus);
@@ -1665,6 +1708,7 @@ class StructuralTableInteraction {
         return;
       }
       const nativeCallout = this.host?.closest(".callout") != null;
+      const tableDeleted = result.code === "table-deleted";
       const scroller = element.closest<HTMLElement>(".structural-tables-container");
       const info = view.state.field(editorInfoField, false);
       const hostStyle = this.host === null ? null : this.host.ownerDocument.defaultView?.getComputedStyle(this.host);
@@ -1685,7 +1729,7 @@ class StructuralTableInteraction {
       };
       const history = tableWriteHistory(current, result.source, this.sourcePath,
         axis === undefined ? anchor : next ?? anchor,
-        axis === undefined ? {} : { undoCoordinate: anchor });
+        tableDeleted ? { restorePresentation: true } : axis === undefined ? {} : { undoCoordinate: anchor });
       const blurEffect = !focus && next === null && !nativeCallout
         ? structuralTableCellBlurCommit.of({
           from: current.range.from, before: current.source, after: result.source,
@@ -1705,7 +1749,8 @@ class StructuralTableInteraction {
           if (hosts.length === 1) interactions.get(hosts[0]!)?.restoreCellCommitViewport(view, snapshot);
         });
       }
-      if (nativeCallout && (focus || next !== null)) {
+      if (tableDeleted) requestNativeFocus(view, { ...target, edit: false });
+      else if (nativeCallout && (focus || next !== null)) {
         this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null && axis === undefined,
           false, target.from, nextIntent, pastedBounds, axis);
       } else if (next !== null || focus) requestTableFocus(view, target);
@@ -1966,25 +2011,38 @@ class StructuralTableInteraction {
       const end = editor.selectionEnd;
       contextMenuOpen = true;
       const menu = Menu.forEvent(event);
+      const menuSession = this.menuOwner?.open(menu);
+      if (menuSession == null) return;
+      contextMenuSession = menuSession;
+      menuPointerAway = false;
+      const snapshot = draft.snapshot();
+      const sourceAtOpen = view.state.doc;
+      const currentDraft = (): boolean => contextMenuSession === menuSession && menuSession.isCurrent()
+        && !settled && !draft.composing && editor.isConnected && ownsDraftTarget()
+        && view.state.doc === sourceAtOpen && editor.value === snapshot.value
+        && editor.selectionStart === snapshot.start && editor.selectionEnd === snapshot.end;
+      const activate = (action: () => void): void => {
+        if (!menuSession.canActivate() || !currentDraft()) return;
+        menuPointerAway = false;
+        action();
+      };
       menu.addItem((item) => item
         .setSection("structural-tables-cell")
         .setIcon("corner-down-left")
         .setTitle(t("menu.insertCellBreak"))
-        .onClick(() => insertBreak(start, end)));
-      const snapshot = draft.snapshot();
-      const sourceAtOpen = view.state.doc;
-      const currentDraft = (): boolean => !settled && !draft.composing && editor.isConnected && ownsDraftTarget()
-        && view.state.doc === sourceAtOpen && editor.value === snapshot.value
-        && editor.selectionStart === snapshot.start && editor.selectionEnd === snapshot.end;
+        .onClick(() => activate(() => insertBreak(start, end))));
       const clipboard = editor.ownerDocument.defaultView?.navigator.clipboard ?? navigator.clipboard;
       const item = (key: Parameters<typeof t>[0], icon: string, action: () => void): void => {
         menu.addItem((entry) => entry.setSection("structural-tables-cell-edit").setTitle(t(key)).setIcon(icon)
-          .setDisabled(draft.composing).onClick(() => { if (currentDraft()) action(); }));
+          .setDisabled(draft.composing).onClick(() => activate(action)));
       };
       item("menu.undo", "undo", () => navigateDraftHistory(false, new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true })));
       item("menu.redo", "redo", () => navigateDraftHistory(true, new KeyboardEvent("keydown", { key: "y", ctrlKey: true, cancelable: true })));
       const copy = (cut: boolean): void => {
-        void Promise.resolve().then(() => clipboard.writeText(snapshot.value.slice(snapshot.start, snapshot.end))).then(() => {
+        void Promise.resolve().then(() => {
+          if (!currentDraft()) return;
+          return clipboard.writeText(snapshot.value.slice(snapshot.start, snapshot.end));
+        }).then(() => {
           if (cut && currentDraft()) applyDraftMutation("deletion", () => editor.setRangeText("", snapshot.start, snapshot.end, "end"));
         }).catch(() => new Notice(t("notice.clipboardFailed")));
       };
@@ -2017,13 +2075,16 @@ class StructuralTableInteraction {
         const selection = structuralTableSelectionFromBounds(this.table, anchor, anchor);
         if (selection === null) return;
         const apply = (operation: TableOperation): void => {
-          if (currentDraft()) finish(true, null, true, operation);
-          else new Notice(t("notice.staleTable"));
+          activate(() => finish(true, null, true, operation));
         };
         const direction = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl" ? "rtl" : "ltr";
         const options = { fullEditor: true, explicitRemoval: true, direction } as const;
         addSelectionEditingMenuItems(submenu, t, selection, apply, options);
         addSelectionRemovalMenuItems(submenu, t, selection, apply, options);
+      }, (submenu, menuEvent) => {
+        if (!menuSession.canActivate() || !currentDraft()) return;
+        menuPointerAway = false;
+        menuSession.showFallbackMenu(submenu, menuEvent);
       });
       const draftAtOpen = editor.value;
       for (const suggestion of mathPipeSuggestions(draftAtOpen)) {
@@ -2032,19 +2093,23 @@ class StructuralTableInteraction {
           .setIcon("replace")
           .setTitle(t(suggestion.kind === "absolute-value"
             ? "menu.useMathAbsoluteSuggestion" : "menu.useMathConditionalSuggestion"))
-          .onClick(() => {
-            if (settled || draft.composing || editor.value !== draftAtOpen) return;
+          .onClick(() => activate(() => {
             editor.value = suggestion.replacement;
             resizeEditor();
             finish(true);
-          }));
+          })));
       }
-      menu.onHide(() => {
+      menuSession.onHide(() => {
         // Menu dismissal can run before the same Escape reaches the app scope.
         // Keep the guard until that event has finished, then return to the draft.
         (editor.ownerDocument.defaultView ?? window).setTimeout(() => {
+          if (contextMenuSession !== menuSession || menuSession.isVisible()) return;
           contextMenuOpen = false;
-          if (!settled && ownsCellEditorFocus(editor)) editor.focus({ preventScroll: true });
+          if (!menuSession.isCurrent()) return;
+          const document = editor.ownerDocument;
+          const active = document.activeElement;
+          if (!settled && ownsCellEditorFocus(editor) && !menuPointerAway
+            && (active === editor || active === document.body || active === document.documentElement)) editor.focus({ preventScroll: true });
         }, 0);
       });
     });

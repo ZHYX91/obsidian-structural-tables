@@ -91,19 +91,23 @@ document.addEventListener("pointerdown", () => { pointers += 1; }, { capture: tr
 document.addEventListener("keydown", (event) => { dispatchScopeKey(event); }, { capture: true });
 // The host mock contributes real menu buttons while product code still builds
 // and validates its public menu. Chromium supplies pointer/focus/click ordering.
-document.addEventListener("contextmenu", () => {
+document.addEventListener("contextmenu", (event) => {
+  Menu.forEvent(event);
+  const menu = lastMenu!;
+  let wrapper: HTMLElement | null = null;
+  let hidden = false;
+  menu.onHide(() => { hidden = true; wrapper?.remove(); });
   setTimeout(() => {
-    document.querySelector("#host-menu")?.remove();
-    const menu = lastMenu;
+    if (hidden || !event.defaultPrevented) return;
     const t = createTranslator(interfaceLanguage);
     const actions = [["transpose-menu-item", "menu.transposeTable"], ["menu-insert-left", "menu.insertColumnLeft"],
       ["menu-insert-right", "menu.insertColumnRight"], ["menu-move-left", "menu.moveColumnsLeft"], ["menu-move-right", "menu.moveColumnsRight"]] as const;
-    const wrapper = document.body.createDiv(); wrapper.id = "host-menu";
+    const surface = document.body.createDiv(); wrapper = surface; surface.id = "host-menu";
     for (const [id, key] of actions) {
       const item = menu?.items.find((candidate) => candidate.title === t(key));
       if (item === undefined) continue;
-      const button = wrapper.createEl("button", { text: item.title }); button.id = id; button.style.display = "block";
-      button.onclick = () => { item.callback?.(); menu?.hide(); wrapper.remove(); };
+      const button = surface.createEl("button", { text: item.title }); button.id = id; button.style.display = "block";
+      button.onclick = () => { item.callback?.(); menu?.hide(); surface.remove(); };
     }
   });
 }, true);

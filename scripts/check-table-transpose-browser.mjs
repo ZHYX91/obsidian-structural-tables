@@ -303,6 +303,18 @@ try {
   }
   }
   if (selected("editing")) {
+  // Each host menu stays visible until its public hide lifecycle runs. This
+  // deliberately does not auto-remove the previous product menu on right-click.
+  await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+  const menuSource = (await evaluate("window.transposeBrowser.switchState()")).source;
+  await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='0']"));
+  for (const [table, column] of [[0, 1], [0, 0], [2, 1]]) {
+    await click(select("[data-structural-source-table-index='" + table + "'] [data-structural-row='1'][data-structural-column='" + column + "']"), "right");
+    assert.equal(await evaluate("document.querySelectorAll('#host-menu').length"), 1);
+    assert.equal(await evaluate("document.querySelectorAll('textarea.structural-tables-cell-editor').length"), 0);
+    assert.equal((await evaluate("window.transposeBrowser.switchState()")).source, menuSource);
+  }
+  results.push({ mode: "right-click-menu-replacement", singleVisibleMenu: true, sameTable: true, crossTable: true, sourcePreserved: true });
   // Real Chromium dispatches pointerdown, native focus ownership, pointerup
   // and click; invoking dblclick directly would miss the old-widget loss.
   for (const mode of ["switch", "switch-rtl"]) {

@@ -383,6 +383,7 @@
   border-radius: var(--radius-s);
   background: transparent;
   box-shadow: none;
+  outline: none;
   font-size: inherit;
 }
 
@@ -472,10 +473,24 @@
   color: var(--table-drag-handle-color-active, var(--text-on-accent));
 }
 
-.structural-tables-row-handle:focus-visible,
-.structural-tables-column-handle:focus-visible {
+.structural-tables-row-handle:focus-visible .structural-tables-handle-icon,
+.structural-tables-column-handle:focus-visible .structural-tables-handle-icon {
   outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
+}
+
+.structural-tables-row-handle.is-selected:focus-visible .structural-tables-handle-icon,
+.structural-tables-column-handle.is-selected:focus-visible .structural-tables-handle-icon {
+  outline-color: var(--table-drag-handle-color-active, var(--text-on-accent));
+}
+
+@media (forced-colors: active) {
+  .structural-tables-row-handle:focus-visible .structural-tables-handle-icon,
+  .structural-tables-column-handle:focus-visible .structural-tables-handle-icon,
+  .structural-tables-row-handle.is-selected:focus-visible .structural-tables-handle-icon,
+  .structural-tables-column-handle.is-selected:focus-visible .structural-tables-handle-icon {
+    outline-color: Highlight;
+  }
 }
 
 .structural-tables-row-handle {

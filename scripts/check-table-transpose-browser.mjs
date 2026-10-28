@@ -385,6 +385,49 @@ try {
   assert.equal(moved.tables[0][1][0], "Next", JSON.stringify({beforeDrag,moved}));
   assert.equal(moved.tables[0][3][0], "Alpha", JSON.stringify({beforeDrag,moved}));
   results.push({ mode:"axis-first-gesture", sourceChanged:moved.source!==beforeDrag.source, rowsMoved:true });
+  // The transparent hit target must not acquire the host button's outer focus
+  // frame. Real keyboard modality paints its smaller grip, including in HC.
+  for (const axis of ["row", "column"]) {
+    await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+    await evaluate("(()=>{document.body.style.setProperty('--interactive-accent','rgb(124, 58, 237)');document.body.style.setProperty('--text-on-accent','rgb(255, 255, 255)');const s=document.head.appendChild(document.createElement('style'));s.id='handle-focus-theme';s.textContent='button:focus { outline: 3px solid red; box-shadow: 0 0 0 2px red; }';})()");
+    const handle = select("[data-structural-source-table-index='0'] [data-structural-" + axis + "-handle='1']");
+    const gripState = "(()=>{const b=document.activeElement,i=b.querySelector('.structural-tables-handle-icon'),s=getComputedStyle(b),t=getComputedStyle(i),r=b.getBoundingClientRect(),q=i.getBoundingClientRect();return {axis:b.className,selected:b.classList.contains('is-selected'),keyboard:b.matches(':focus-visible'),target:{width:r.width,height:r.height,background:s.backgroundColor,outline:s.outlineStyle,shadow:s.boxShadow},grip:{width:q.width,height:q.height,background:t.backgroundColor,outline:t.outlineStyle,outlineWidth:t.outlineWidth,outlineOffset:t.outlineOffset,outlineColor:t.outlineColor}}})()";
+    await click(handle);
+    await evaluate("Promise.all(document.getAnimations().map(a=>a.finished))");
+    const mouse = await evaluate(gripState);
+    assert.equal(mouse.selected, true, JSON.stringify({axis,mouse}));
+    assert.equal(mouse.target.background, "rgba(0, 0, 0, 0)");
+    assert.equal(mouse.target.outline, "none"); assert.equal(mouse.target.shadow, "none");
+    assert.equal(mouse.grip.background, "rgb(124, 58, 237)");
+    if (mouse.keyboard) {
+      assert.equal(mouse.grip.outlineOffset, "-2px"); assert.equal(mouse.grip.outlineColor, "rgb(255, 255, 255)");
+    } else assert.equal(mouse.grip.outline, "none");
+    assert.ok(mouse.target.width > mouse.grip.width && mouse.target.height > mouse.grip.height, JSON.stringify(mouse));
+    // A point outside the grip still belongs to the larger transparent button.
+    assert.equal(await evaluate("(()=>{const b=" + handle + ",r=b.getBoundingClientRect();return document.elementFromPoint(r.left+1,r.top+1)===b})()"), true);
+    await key(axis === "row" ? "ArrowDown" : "ArrowRight", axis === "row" ? "ArrowDown" : "ArrowRight", axis === "row" ? 40 : 39);
+    await key("Enter", "Enter", 13);
+    const keyboard = await evaluate(gripState);
+    assert.equal(keyboard.keyboard, true, JSON.stringify({axis,keyboard}));
+    assert.equal(keyboard.selected, true, JSON.stringify({axis,keyboard}));
+    assert.equal(keyboard.target.outline, "none"); assert.equal(keyboard.target.shadow, "none");
+    assert.equal(keyboard.grip.outline, "solid"); assert.equal(keyboard.grip.outlineWidth, "2px");
+    assert.equal(keyboard.grip.outlineOffset, "-2px"); assert.equal(keyboard.grip.outlineColor, "rgb(255, 255, 255)");
+    await click(handle);
+    const inheritedMouse = await evaluate(gripState);
+    assert.equal(inheritedMouse.target.outline, "none"); assert.equal(inheritedMouse.target.shadow, "none");
+    if (inheritedMouse.keyboard) assert.equal(inheritedMouse.grip.outlineOffset, "-2px");
+    await key(axis === "row" ? "ArrowDown" : "ArrowRight", axis === "row" ? "ArrowDown" : "ArrowRight", axis === "row" ? 40 : 39);
+    await key("Enter", "Enter", 13);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "forced-colors", value: "active" }] });
+    const highContrast = await evaluate(gripState);
+    const systemHighlight = await evaluate("(()=>{const p=document.body.appendChild(document.createElement('span'));p.style.outline='2px solid Highlight';const c=getComputedStyle(p).outlineColor;p.remove();return c})()");
+    assert.equal(highContrast.target.outline, "none"); assert.equal(highContrast.grip.outline, "solid");
+    assert.equal(highContrast.grip.outlineWidth, "2px"); assert.equal(highContrast.grip.outlineColor, systemHighlight);
+    await command("Emulation.setEmulatedMedia", { features: [] });
+    await evaluate("document.querySelector('#handle-focus-theme').remove()");
+    results.push({ mode: "handle-focus-" + axis, transparentHitTarget: true, mouseSelection: true, inheritedPointerFocusInset: true, innerKeyboardFocus: true, forcedColors: true });
+  }
   // Real browser geometry for soft-wrapped textarea offsets; no synthetic
   // keydown can prove where Chromium actually drew those visual rows.
   const visual = await evaluate("window.transposeBrowser.visualCaretProbe()");

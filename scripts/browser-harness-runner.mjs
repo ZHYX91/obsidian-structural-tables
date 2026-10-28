@@ -6,6 +6,20 @@ import path from "node:path";
 
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+/** Chromium creates this file before both its port and browser endpoint are written. */
+export async function waitForDevToolsPort({ readPortFile, assertRunning, wait = pause }) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    assertRunning();
+    let contents = "";
+    try { contents = await readPortFile(); } catch { /* The file may not exist yet. */ }
+    const [port, endpoint] = contents.split(/\r?\n/u);
+    if (/^[1-9]\d{0,4}$/u.test(port ?? "") && Number(port) <= 65535
+      && /^\/devtools\/browser\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(endpoint ?? "")) return port;
+    await wait(100);
+  }
+  assert.fail("Chromium did not start its isolated debugging endpoint. Check the executable, dependencies and CHROMIUM_ARGS_JSON.");
+}
+
 /** Shared local fixture transport. No Obsidian host, profile or user browser is used. */
 export async function startBrowserHarness({ name, browser = process.argv[2] || process.env.CHROMIUM_PATH, width = 980, height = 740 }) {
   assert.ok(browser, "Provide a Chromium executable as the first argument or set CHROMIUM_PATH.");
@@ -82,14 +96,13 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
     child = spawn(browser, args, { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
     child.on("error", (error) => { launchError = error; });
     child.stderr.on("data", (data) => { stderr = (stderr + data.toString()).slice(-65536); });
-    let port;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      if (launchError !== undefined) throw launchError;
-      if (child.exitCode !== null || child.signalCode !== null) throw new Error("Chromium exited before opening CDP. " + stderr.slice(-2000));
-      try { port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; }
-      catch { await pause(100); }
-    }
-    assert.ok(port, "Chromium did not start its isolated debugging endpoint. Check the executable, dependencies and CHROMIUM_ARGS_JSON.");
+    const port = await waitForDevToolsPort({
+      readPortFile: () => readFile(path.join(profile, "DevToolsActivePort"), "utf8"),
+      assertRunning: () => {
+        if (launchError !== undefined) throw launchError;
+        if (child.exitCode !== null || child.signalCode !== null) throw new Error("Chromium exited before opening CDP. " + stderr.slice(-2000));
+      },
+    });
     const tabs = await (await globalThis.fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(5000) })).json();
     const tab = tabs.find((candidate) => candidate.type === "page");
     assert.ok(tab, "Chromium did not create a fixture page.");

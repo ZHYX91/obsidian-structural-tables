@@ -6,6 +6,13 @@ import path from "node:path";
 
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+/** Geometry fixtures require animation frames from a visible browser page. */
+export async function ensureVisiblePage({ readVisibility, bringToFront }) {
+  if (await readVisibility() === "visible") return;
+  await bringToFront();
+  assert.equal(await readVisibility(), "visible", "Chromium fixture is hidden; geometry checks require a visible page.");
+}
+
 /** Chromium creates this file before both its port and browser endpoint are written. */
 export async function waitForDevToolsPort({ readPortFile, assertRunning, wait = pause }) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -38,6 +45,8 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
   let launchError;
   let stderr = "";
   let sequence = 0;
+  let lastCommand = null;
+  let lastEvaluation = null;
   let metadata = { suite: name, browser, node: process.version, platform: process.platform, extraArgs };
   const pending = new Map();
   const events = [];
@@ -65,19 +74,34 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
   const command = (method, params = {}, timeout = 30000) => new Promise((resolve, reject) => {
     if (socket?.readyState !== WebSocket.OPEN) { reject(new Error("Chromium CDP connection is not open: " + method)); return; }
     const id = ++sequence;
+    lastCommand = { id, method };
     const timer = setTimeout(() => { pending.delete(id); reject(new Error("Chromium command timed out: " + method)); }, timeout);
     pending.set(id, { resolve, reject, timer });
     socket.send(JSON.stringify({ id, method, params }));
   });
 
   const evaluate = async (expression, timeout) => {
+    lastEvaluation = { expression: expression.slice(0, 4000), length: expression.length };
     const result = await command("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, timeout);
     assert.ok(!result.exceptionDetails, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   };
+  const ensureVisible = () => ensureVisiblePage({
+    readVisibility: () => evaluate("document.visibilityState"),
+    bringToFront: () => command("Page.bringToFront"),
+  });
 
   const diagnose = async (error, expression = "null") => {
-    const result = { ...metadata, error: error instanceof Error ? error.stack : String(error), events };
+    // Capture these before diagnostic calls replace the command/evaluation labels.
+    const failedCall = { command: lastCommand, evaluation: lastEvaluation };
+    const result = { ...metadata, error: error instanceof Error ? error.stack : String(error), failedCall, events };
+    try {
+      const status = await command("Runtime.evaluate", {
+        expression: "({visibility:document.visibilityState,hidden:document.hidden,focused:document.hasFocus(),readyState:document.readyState})",
+        returnByValue: true,
+      }, 5000);
+      result.pageStatus = status.result?.value;
+    } catch (failure) { result.pageStatusError = String(failure); }
     try { result.state = await evaluate(expression, 5000); } catch (failure) { result.stateError = String(failure); }
     try {
       const source = await evaluate("document.documentElement.outerHTML", 5000);
@@ -126,6 +150,7 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
       pending.clear();
     });
     await Promise.all([command("Runtime.enable"), command("Log.enable"), command("Page.enable")]);
+    await ensureVisible();
     const version = await command("Browser.getVersion");
     metadata = { ...metadata, version };
     const candidates = process.env.CHROMIUM_LOCAL_FONT ? [process.env.CHROMIUM_LOCAL_FONT]
@@ -136,7 +161,7 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
     await writeFile(path.join(artifacts, "environment.json"), JSON.stringify(metadata, null, 2) + "\n");
     process.stdout.write(`Browser fixture environment: ${JSON.stringify({ suite: name, version: version.product, localFont, artifacts })}\n`);
     return {
-      command, evaluate, diagnose, close, localFont, artifacts, metadata,
+      command, evaluate, ensureVisible, diagnose, close, localFont, artifacts, metadata,
       navigate: async (url, ready = "document.readyState === 'complete'") => {
         await command("Page.navigate", { url });
         for (let attempt = 0; attempt < 150; attempt += 1) {

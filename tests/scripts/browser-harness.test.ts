@@ -1,9 +1,42 @@
 import { describe, expect, it, vi } from "vitest";
 
 // @ts-expect-error The browser test transport is plain ESM.
-import { waitForDevToolsPort } from "../../scripts/browser-harness-runner.mjs";
+import { ensureVisiblePage, waitForDevToolsPort } from "../../scripts/browser-harness-runner.mjs";
 
 const endpoint = "/devtools/browser/12345678-abcd-1234-abcd-1234567890ab";
+
+describe("Chromium fixture visibility", () => {
+  it("does not change an already visible page", async () => {
+    const readVisibility = vi.fn().mockResolvedValue("visible");
+    const bringToFront = vi.fn();
+    await ensureVisiblePage({ readVisibility, bringToFront });
+    expect(readVisibility).toHaveBeenCalledOnce();
+    expect(bringToFront).not.toHaveBeenCalled();
+  });
+
+  it("activates a hidden page before allowing geometry frames", async () => {
+    const readVisibility = vi.fn().mockResolvedValueOnce("hidden").mockResolvedValueOnce("visible");
+    const bringToFront = vi.fn().mockResolvedValue(undefined);
+    await ensureVisiblePage({ readVisibility, bringToFront });
+    expect(bringToFront).toHaveBeenCalledOnce();
+    expect(readVisibility).toHaveBeenCalledTimes(2);
+    expect(readVisibility.mock.invocationCallOrder[0]).toBeLessThan(bringToFront.mock.invocationCallOrder[0]!);
+    expect(bringToFront.mock.invocationCallOrder[0]).toBeLessThan(readVisibility.mock.invocationCallOrder[1]!);
+  });
+
+  it("refuses a page that remains hidden without replacing its frame oracle", async () => {
+    const readVisibility = vi.fn().mockResolvedValue("hidden");
+    const bringToFront = vi.fn().mockResolvedValue(undefined);
+    await expect(ensureVisiblePage({ readVisibility, bringToFront })).rejects.toThrow("geometry checks require a visible page");
+    expect(bringToFront).toHaveBeenCalledOnce();
+  });
+
+  it("preserves browser activation failures", async () => {
+    const failure = new Error("browser disconnected");
+    const bringToFront = vi.fn().mockRejectedValue(failure);
+    await expect(ensureVisiblePage({ readVisibility: async () => "hidden", bringToFront })).rejects.toBe(failure);
+  });
+});
 
 describe("Chromium debugging endpoint readiness", () => {
   it("waits through missing, empty and partially written port/endpoint content", async () => {

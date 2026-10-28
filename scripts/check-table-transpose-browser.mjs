@@ -45,7 +45,10 @@ try {
   localFont = session.localFont;
   const { command, evaluate } = session;
   await session.navigate(url, "typeof window.transposeBrowser === 'object'");
-  const settle = () => evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
+  const settle = async () => {
+    await session.ensureVisible();
+    return evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
+  };
   const click = async (expression, button = "left") => {
     const bounds = await evaluate("(function(){const b=" + expression + ";if(!b)return null;b.scrollIntoView({block:'nearest'});"
       + "const r=b.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};})()");
@@ -196,6 +199,7 @@ try {
   if (selected("focus")) {
   for (const mode of ["focus", "focus-after", "focus-canceled", "focus-wide", "focus-wide-rtl", "focus-wide-edited", "focus-wide-edited-rtl", "focus-wide-edited-blank", "focus-wide-edited-blank-rtl", "focus-wide-edited-mouse", "focus-wide-edited-mouse-rtl", "focus-wide-edited-mouse-double", "focus-wide-edited-mouse-drag", "focus-wide-edited-mouse-shrink", "focus-wide-mouse-external", "focus-wide-mouse-external-rtl", "focus-wide-edited-mouse-shrink-detach",
     ...["mouse-above", "mouse-above-blank", "edited-mouse-above", "edited-mouse-above-blank"].flatMap((suffix) => ["focus-wide-" + suffix, "focus-wide-" + suffix + "-rtl"])]) {
+    process.stdout.write(`Focus mode: ${mode}\n`);
     const asyncMouse = mode.includes("blank") || mode.includes("mouse");
     const nativeRange = mode.includes("double") || mode.includes("drag");
     const above = mode.includes("above");

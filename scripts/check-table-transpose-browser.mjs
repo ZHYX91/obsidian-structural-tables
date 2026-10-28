@@ -401,6 +401,55 @@ try {
   assert.equal(moved.tables[0][1][0], "Next", JSON.stringify({beforeDrag,moved}));
   assert.equal(moved.tables[0][3][0], "Alpha", JSON.stringify({beforeDrag,moved}));
   results.push({ mode:"axis-first-gesture", sourceChanged:moved.source!==beforeDrag.source, rowsMoved:true });
+  for (const axis of ["row", "column"]) {
+    await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+    await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='1']"));
+    await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select()");
+    await command("Input.insertText", { text: "Changed Beta" });
+    await click(select("[data-structural-source-table-index='0'] [data-structural-" + axis + "-handle='1']"));
+    const axisState = await evaluate("({state:window.transposeBrowser.switchState(),selected:document.querySelectorAll('[data-structural-source-table-index=\"0\"] [aria-selected=\"true\"]').length,focus:document.activeElement?.getAttribute('data-structural-" + axis + "-handle')})");
+    assert.equal(axisState.state.draft, null, JSON.stringify({axis,axisState}));
+    assert.equal(axisState.state.changes, 1, JSON.stringify({axis,axisState}));
+    assert.equal(axisState.focus, "1", JSON.stringify({axis,axisState}));
+    assert.equal(axisState.selected, axis === "row" ? 2 : 4, JSON.stringify({axis,axisState}));
+    results.push({ mode:"draft-to-" + axis + "-selection", fullAxis:true, liveFocus:true, oneCommit:true });
+  }
+  await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+  const draftDragBaseline = (await evaluate("window.transposeBrowser.switchState()")).source;
+  await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='0']"));
+  await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select()");
+  await command("Input.insertText", { text: "Changed Alpha" }); await settle();
+  const draftDragPoint = await evaluate("(()=>{const h=document.querySelector('[data-structural-source-table-index=\"0\"] [data-structural-row-handle=\"1\"]'),t=document.querySelector('[data-structural-source-table-index=\"0\"] [data-structural-row-handle=\"3\"]'),a=h.getBoundingClientRect(),b=t.getBoundingClientRect();return {x:a.left+a.width/2,y:a.top+a.height/2,endY:b.bottom+8}})()");
+  await command("Input.dispatchMouseEvent", { type:"mousePressed", x:draftDragPoint.x, y:draftDragPoint.y, button:"left", clickCount:1 });
+  assert.equal((await evaluate("window.transposeBrowser.switchState()")).changes, 0);
+  await command("Input.dispatchMouseEvent", { type:"mouseMoved", x:draftDragPoint.x, y:draftDragPoint.endY, button:"left", buttons:1 });
+  await command("Input.dispatchMouseEvent", { type:"mouseReleased", x:draftDragPoint.x, y:draftDragPoint.endY, button:"left", clickCount:1 });
+  await settle();
+  const draftMoved = await evaluate("({state:window.transposeBrowser.switchState(),focus:document.activeElement?.getAttribute('data-structural-row-handle'),selected:[...document.querySelectorAll('[data-structural-source-table-index=\"0\"] .structural-tables-row-handle.is-selected')].map(x=>x.dataset.structuralRowHandle)})");
+  assert.equal(draftMoved.state.tables[0][3][0], "Changed Alpha", JSON.stringify(draftMoved));
+  assert.equal(draftMoved.state.draft, null, JSON.stringify(draftMoved));
+  assert.equal(draftMoved.state.changes, 1, JSON.stringify(draftMoved));
+  assert.equal(draftMoved.focus, "3", JSON.stringify(draftMoved));
+  assert.deepEqual(draftMoved.selected, ["3"], JSON.stringify(draftMoved));
+  await historyKey();
+  assert.equal((await evaluate("window.transposeBrowser.switchState()")).source, draftDragBaseline);
+  results.push({ mode:"draft-held-axis-drag", realMouse:true, nativeRelease:true, liveFocus:true, oneUndo:true });
+  await evaluate("window.transposeBrowser.reset('switch')"); await settle();
+  await click(select("[data-structural-source-table-index='0'] [data-structural-row='1'][data-structural-column='0']"));
+  await evaluate("document.querySelector('textarea.structural-tables-cell-editor').select()");
+  await command("Input.insertText", { text: "Changed long draft ".repeat(12) });
+  await settle();
+  await evaluate("document.querySelector('[data-structural-source-table-index=\"0\"] [data-structural-row-handle=\"2\"]').scrollIntoView({block:'nearest'})");
+  await settle();
+  const axisHit = await evaluate("(()=>{const h=document.querySelector('[data-structural-source-table-index=\"0\"] [data-structural-row-handle=\"2\"]'),r=h.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)?.closest('[data-structural-row-handle]')?.getAttribute('data-structural-row-handle')})()");
+  assert.equal(axisHit, "2", "The long-draft context menu gesture must hit the live row handle");
+  await click(select("[data-structural-source-table-index='0'] [data-structural-row-handle='2']"), "right");
+  const axisMenu = await evaluate("({state:window.transposeBrowser.switchState(),menus:document.querySelectorAll('#host-menu').length,selected:[...document.querySelectorAll('[data-structural-source-table-index=\"0\"] .structural-tables-row-handle.is-selected')].map(x=>x.dataset.structuralRowHandle)})");
+  assert.equal(axisMenu.state.draft, null, JSON.stringify(axisMenu));
+  assert.equal(axisMenu.state.changes, 1, JSON.stringify(axisMenu));
+  assert.equal(axisMenu.menus, 1, JSON.stringify(axisMenu));
+  assert.deepEqual(axisMenu.selected, ["2"], JSON.stringify(axisMenu));
+  results.push({ mode:"draft-axis-right-click", realMouse:true, longDraft:true, oneCommit:true, menuVisible:true });
   // The transparent hit target must not acquire the host button's outer focus
   // frame. Real keyboard modality paints its smaller grip, including in HC.
   for (const axis of ["row", "column"]) {

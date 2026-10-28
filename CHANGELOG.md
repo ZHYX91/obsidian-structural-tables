@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Safely finish cell editing before completing row or column selection, with complete axis highlighting, grid focus and guarded draft preservation.
 - Avoid repeating a full-note parse while validating a whole-table transpose, retaining unchanged-source and neighboring-table safeguards.
 
 ## 0.10.1 - 2026-10-25

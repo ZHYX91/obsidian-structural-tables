@@ -3,6 +3,11 @@ import type { App, Menu } from "obsidian";
 interface MenuRealm { current: TableMenuSession | null; generation: number }
 const realms = new WeakMap<App, WeakMap<Document, MenuRealm>>();
 
+export function captureTableMenuGeneration(app: App, document: Document): () => boolean {
+  const generation = realms.get(app)?.get(document)?.generation ?? 0;
+  return () => (realms.get(app)?.get(document)?.generation ?? 0) === generation;
+}
+
 /** Owns only menus created by an interactive table, never shared host menus. */
 export class TableMenuOwner {
   private current: TableMenuSession | null = null;

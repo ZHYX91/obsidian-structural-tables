@@ -17,6 +17,7 @@ import { TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_HTML_ATTRIBUTE } from "../src/c
 import { recoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
 import { StructuralTableWidget } from "../src/editor/table-widget";
+import { TableMenuOwner } from "../src/editor/table-menu-session";
 import { CalloutFallbackWidget } from "../src/editor/callout-fallback-widget";
 import {
   activeScopes,
@@ -6164,7 +6165,194 @@ describe("interaction batches one and two: real event ownership", () => {
     } finally { view.destroy(); Object.defineProperty(MenuItem.prototype, "setSubmenu", descriptor); }
   });
 
-  it.each(["valid", "invalid", "ime"] as const)("combines the draft with a chosen axis-menu command atomically: %s", async (kind) => {
+  it.each((["row", "column"] as const).flatMap((axis) => [1, 2].flatMap((index) =>
+    [false, true].map((changed) => ({ axis, index, changed })))))("completes $axis $index selection and releases the draft (changed=$changed)", ({ axis, index, changed }) => {
+    const source = "Before\n\n| H | V | J |\n| --- || --- | --- |\n| Alpha | Beta | KEEP |\n| Gamma | Delta | KEEP-ROW |\n\nEnd";
+    let writes = 0;
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; })]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      if (changed) { editor.select(); typeDraftText(editor, "Changed Beta"); }
+      mouseGesture(parent.querySelector<HTMLElement>(`[data-structural-${axis}-handle='${index}']`)!);
+      expect(parent.querySelector("textarea")).toBeNull();
+      const handle = parent.querySelector<HTMLElement>(`[data-structural-${axis}-handle='${index}']`)!;
+      expect(document.activeElement).toBe(handle);
+      expect(parent.querySelectorAll("[aria-selected='true']")).toHaveLength(3);
+      expect(writes).toBe(changed ? 1 : 0);
+      expect(undoDepth(view.state)).toBe(changed ? 1 : 0);
+      const transfer = new DataTransfer();
+      handle.dispatchEvent(gridClipboardEvent("copy", transfer));
+      expect(transfer.getData("text/plain")).toContain(axis === "row" && index === 2 ? "Gamma" : index === 1 ? (changed ? "Changed Beta" : "Beta") : "KEEP");
+      dispatchOwnedGridKey(handle, "Delete");
+      const selected = parseEditableTables(view.state.doc.toString()).tables[0]!;
+      const contents = axis === "row" ? selected.rows[index]!.cells.map((cell) => cell.content)
+        : selected.rows.map((row) => row.cells[index]!.content);
+      expect(contents).toEqual(["", "", ""]);
+      expect(undo(view)).toBe(true);
+      if (changed) { expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source); }
+    } finally { view.destroy(); }
+  });
+
+  it.each(["invalid", "ime", "stale"] as const)("refuses completed axis selection without changing focus, range or history: %s", async (kind) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, kind === "invalid" ? "$x|y$" : "Changed Beta");
+      if (kind === "ime") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      if (kind === "stale") view.state.field(editorInfoField).file!.path = "Other.md";
+      const before = [...parent.querySelectorAll("[aria-selected='true']")];
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row-handle='2']")!);
+      await Promise.resolve();
+      expect(editor.isConnected).toBe(true); expect(document.activeElement).toBe(editor);
+      expect([...parent.querySelectorAll("[aria-selected='true']")]).toEqual(before);
+      expect(parent.querySelector(".structural-tables-row-handle.is-selected")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source); expect(undo(view)).toBe(false);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["Escape", "pointercancel", "blur"] as const)("rolls back a pending axis preview on %s without committing the draft", (cancel) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, "Changed Beta");
+      const before = [...parent.querySelectorAll("[aria-selected='true']")];
+      dispatchPointerDown(parent.querySelector<HTMLElement>("[data-structural-row-handle='2']")!, "mouse");
+      expect(parent.querySelector(".structural-tables-row-handle.is-selected")).not.toBeNull();
+      if (cancel === "Escape") window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      else if (cancel === "blur") { editor.blur(); window.dispatchEvent(new Event("blur")); }
+      else window.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }));
+      expect(editor.isConnected).toBe(true); expect(editor.value).toBe("Changed Beta");
+      expect([...parent.querySelectorAll("[aria-selected='true']")]).toEqual(before);
+      expect(parent.querySelector(".structural-tables-row-handle.is-selected")).toBeNull();
+      expect(view.state.doc.toString()).toBe(source); expect(undo(view)).toBe(false);
+      // A cancelled mouse tail must not consume the next keyboard activation.
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='2']")!.click();
+      expect(parent.querySelector("textarea")).toBeNull(); expect(undoDepth(view.state)).toBe(1);
+    } finally { view.destroy(); }
+  });
+
+  it.each([false, true])("settles a pending release without a native trailing click; inside=%s", (inside) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, "Changed Beta");
+      const handle = parent.querySelector<HTMLElement>("[data-structural-row-handle='2']")!;
+      vi.spyOn(handle, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 10, 20, 20));
+      handle.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerId: 9, pointerType: "mouse", isPrimary: true, button: 0, clientX: 29, clientY: 20 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId: 9, pointerType: "mouse", clientX: inside ? 29 : 31, clientY: 20 }));
+      expect(parent.querySelector("textarea") === null).toBe(inside);
+      expect(undoDepth(view.state)).toBe(inside ? 1 : 0);
+      expect(parent.querySelector(".structural-tables-row-handle.is-selected") !== null).toBe(inside);
+    } finally { view.destroy(); }
+  });
+
+  it("keeps touch range anchors across draft commit and does not retain a refused first tap", () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n| Last | KEEP |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, "$x|y$");
+      const tap = (index: number): void => {
+        const handle = parent.querySelector<HTMLElement>(`[data-structural-row-handle='${index}']`)!;
+        handle.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerType: "touch", pointerId: 7, isPrimary: true, button: 0 }));
+        window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", pointerId: 7 }));
+        if (handle.isConnected) handle.click();
+      };
+      tap(1); expect(editor.isConnected).toBe(true);
+      editor.select(); typeDraftText(editor, "Changed Beta");
+      tap(3);
+      expect(parent.querySelector("textarea")).toBeNull();
+      expect(parent.querySelectorAll(".structural-tables-row-handle.is-selected")).toHaveLength(1);
+      tap(2);
+      expect([...parent.querySelectorAll<HTMLElement>(".structural-tables-row-handle.is-selected")].map((handle) => handle.dataset.structuralRowHandle)).toEqual(["2", "3"]);
+      expect(undoDepth(view.state)).toBe(1);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["copy", "cut", "paste"] as const)("keeps %s inside its closest owner and respects a consumed event", (type) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.click();
+      const handle = parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!;
+      const host = handle.closest(".structural-tables-live-preview")!;
+      const inner = host.appendChild(document.createElement("div")); inner.className = "structural-tables-live-preview";
+      const target = inner.appendChild(document.createElement("button"));
+      const transfer = new DataTransfer(); transfer.setData("text/plain", "SENTINEL");
+      const write = vi.spyOn(transfer, "setData");
+      const nested = gridClipboardEvent(type, transfer); target.dispatchEvent(nested);
+      expect(nested.defaultPrevented).toBe(false); expect(write).not.toHaveBeenCalled();
+      const consumed = gridClipboardEvent(type, transfer); consumed.preventDefault(); handle.dispatchEvent(consumed);
+      expect(write).not.toHaveBeenCalled(); expect(view.state.doc.toString()).toBe(source);
+      const text = host.appendChild(document.createElement("textarea"));
+      const native = gridClipboardEvent(type, transfer); text.dispatchEvent(native);
+      expect(native.defaultPrevented).toBe(false); expect(write).not.toHaveBeenCalled();
+    } finally { view.destroy(); }
+  });
+
+  it.each(["copy", "cut"] as const)("rejects stale owned %s before writing clipboard data", (type) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.click();
+      const handle = parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!;
+      view.state.field(editorInfoField).file!.path = "Other.md";
+      const transfer = new DataTransfer(); const write = vi.spyOn(transfer, "setData");
+      const event = gridClipboardEvent(type, transfer); handle.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true); expect(write).not.toHaveBeenCalled();
+      expect(view.state.doc.toString()).toBe(source); expect(undo(view)).toBe(false);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["valid", "invalid", "ime"] as const)("guards direct handle focus before keyboard navigation: %s", async (kind) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select(); typeDraftText(editor, kind === "invalid" ? "$x|y$" : "Changed Beta");
+      if (kind === "ime") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.focus();
+      await Promise.resolve();
+      if (kind !== "valid") {
+        expect(document.activeElement).toBe(editor); expect(editor.isConnected).toBe(true);
+        expect(parent.querySelector(".structural-tables-row-handle.is-selected")).toBeNull();
+        expect(view.state.doc.toString()).toBe(source); return;
+      }
+      const live = parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!;
+      expect(document.activeElement).toBe(live); expect(parent.querySelector("textarea")).toBeNull();
+      live.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(parent.querySelector("[data-structural-row-handle='2']"));
+      expect(undoDepth(view.state)).toBe(1);
+    } finally { view.destroy(); }
+  });
+
+  it("retains the logical anchor through a context menu inside a reverse Shift selection", () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | Beta |\n| Gamma | Delta |\n| Last | KEEP |\n\nEnd";
+    const { parent, view } = mountEditor(source, { anchor: 0 });
+    const handle = (index: number) => parent.querySelector<HTMLElement>(`[data-structural-row-handle='${index}']`)!;
+    const shift = (index: number): void => {
+      handle(index).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true, pointerType: "mouse", isPrimary: true, button: 0, shiftKey: true }));
+      handle(index).click();
+    };
+    try {
+      handle(3).click(); shift(1);
+      handle(2).dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.hide(); shift(2);
+      expect([...parent.querySelectorAll<HTMLElement>(".structural-tables-row-handle.is-selected")].map((item) => item.dataset.structuralRowHandle)).toEqual(["2", "3"]);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["valid", "invalid", "ime"] as const)("ends editing before an axis menu, refusing unsafe drafts: %s", async (kind) => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n| C | D |\n\nEnd";
     const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
     try {
@@ -6173,30 +6361,39 @@ describe("interaction batches one and two: real event ownership", () => {
       editor.select(); typeDraftText(editor, kind === "invalid" ? "$x|y$" : "AlphaX");
       if (kind === "ime") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
       editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const textMenu = lastMenu;
       parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-      expect(view.state.doc.toString()).toBe(source);
-      clickCurrentMenuItem("Insert row below", true);
       if (kind !== "valid") {
+        expect(lastMenu).toBe(textMenu);
         expect(view.state.doc.toString()).toBe(source);
         expect(editor.isConnected).toBe(true);
         expect(editor.value).toBe(kind === "invalid" ? "$x|y$" : "AlphaX");
+        expect(parent.querySelector(".structural-tables-row-handle.is-selected")).toBeNull();
         expect(undo(view)).toBe(false);
         return;
       }
+      expect(parent.querySelector("textarea")).toBeNull();
+      const committed = view.state.doc.toString();
+      expect(committed).toContain("AlphaX");
+      expect(undoDepth(view.state)).toBe(1);
+      clickCurrentMenuItem("Insert row below", true);
       await Promise.resolve();
       const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
       expect(table.rows[1]!.cells[0]!.content).toBe("AlphaX");
       expect(table.rows[1]!.cells[1]!.content).toBe("KEEP");
       expect(table.rows).toHaveLength(4);
       expect(parent.querySelector(".structural-tables-row-handle.is-selected")).not.toBeNull();
-      expect(undoDepth(view.state)).toBe(1);
+      expect(document.activeElement).toBe(parent.querySelector("[data-structural-row-handle='1']"));
+      expect(undoDepth(view.state)).toBe(2);
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(committed);
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
       expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
       expect(undo(view)).toBe(false);
     } finally { view.destroy(); }
   });
 
   it.each(["Copy selected cells", "Cut selected cells", "Paste into selected cells", "Paste as plain text", "Copy whole table for Word / HTML"].flatMap((action) =>
-    (["changed", "ime"] as const).map((kind) => ({ action, kind }))))("refuses axis clipboard $action with a $kind draft", ({ action, kind }) => {
+    (["invalid", "ime"] as const).map((kind) => ({ action, kind }))))("keeps axis clipboard $action unavailable with a $kind draft", ({ kind }) => {
     const source = "Before\n\n| H | V |\n| --- | --- |\n| A | < |\n\nEnd";
     const clipboard = { write: vi.fn(), writeText: vi.fn(), read: vi.fn(), readText: vi.fn() };
     vi.stubGlobal("navigator", { clipboard });
@@ -6204,23 +6401,20 @@ describe("interaction batches one and two: real event ownership", () => {
     try {
       mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
       const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
-      if (kind === "changed") { editor.select(); typeDraftText(editor, "AlphaX"); }
+      if (kind === "invalid") { editor.select(); typeDraftText(editor, "$x|y$"); }
       if (kind === "ime") editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
+      const previousMenu = lastMenu;
       parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-      const item = lastMenu!.items.find((entry) => entry.title === action)!;
-      expect(item).toBeDefined(); expect(item.disabled).toBe(false);
-      const previousNotices = notices.length;
-      item.callback!();
-      expect(notices.slice(previousNotices)).toContain("Finish editing");
+      expect(lastMenu).toBe(previousMenu);
       for (const method of Object.values(clipboard)) expect(method).not.toHaveBeenCalled();
       expect(view.state.doc.toString()).toBe(source);
-      expect(editor.isConnected).toBe(true); expect(editor.value).toBe(kind === "changed" ? "AlphaX" : "A");
+      expect(editor.isConnected).toBe(true); expect(editor.value).toBe(kind === "invalid" ? "$x|y$" : "A");
       expect(undo(view)).toBe(false);
     } finally { view.destroy(); }
   });
 
   it.each(["Cut selected cells", "Paste as plain text"].flatMap((action) =>
-    (["changed", "ime"] as const).map((kind) => ({ action, kind }))))("rechecks an axis $kind draft after pending $action", async ({ action, kind }) => {
+    (["changed", "ime"] as const).map((kind) => ({ action, kind }))))("revokes pending axis $action when a new $kind draft starts", async ({ action, kind }) => {
     const source = "Before\n\n| H | V |\n| --- | --- |\n| A | < |\n\nEnd";
     let release!: (value: string) => void;
     const pending = new Promise<string>((resolve) => { release = resolve; });
@@ -6232,10 +6426,12 @@ describe("interaction batches one and two: real event ownership", () => {
     const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
     try {
       mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
-      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
       parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(parent.querySelector("textarea")).toBeNull();
       lastMenu!.items.find((item) => item.title === action)!.callback!();
       await vi.waitFor(() => expect(action === "Cut selected cells" ? write : readText).toHaveBeenCalledOnce());
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
       if (kind === "changed") { editor.select(); typeDraftText(editor, "Late AlphaX"); }
       else editor.dispatchEvent(new Event("compositionstart", { bubbles: true }));
       release("NEW"); await pending; await Promise.resolve(); await Promise.resolve();
@@ -6245,7 +6441,10 @@ describe("interaction batches one and two: real event ownership", () => {
     } finally { view.destroy(); Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined }); }
   });
 
-  it.each([false, true])("keeps native focus and one Undo for a draft plus table deletion; callout=%s", async (callout) => {
+  it.each([
+    { callout: false, cancel: "none" }, { callout: true, cancel: "none" },
+    { callout: true, cancel: "source" }, { callout: true, cancel: "pointer" }, { callout: true, cancel: "menu" }, { callout: true, cancel: "wheel" },
+  ])("opens the axis menu after committing a draft unless superseded; callout=$callout cancel=$cancel", async ({ callout, cancel }) => {
     const table = "| H | V |\n| --- || --- |\n| A | KEEP |";
     const source = `Before\n\n${callout ? "> [!note]\n" + table.split("\n").map((line) => "> " + line).join("\n") : table}\n\nEnd`;
     const extensions: Extension[] = [history()];
@@ -6267,19 +6466,38 @@ describe("interaction batches one and two: real event ownership", () => {
         provide: (field) => EditorView.decorations.from(field),
       }));
     }
-    const { parent, view } = mountEditor(source, { anchor: 0 }, extensions);
+    const { app, parent, view } = mountEditor(source, { anchor: 0 }, extensions);
     try {
       await vi.waitFor(() => expect(parent.querySelector("[data-structural-row='1'][data-structural-column='0']")).not.toBeNull());
       mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
       const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
       editor.select(); typeDraftText(editor, "AlphaX");
       editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const oldMenu = lastMenu;
       parent.querySelector<HTMLElement>("[data-structural-row-handle='1']")!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      if (cancel !== "none") {
+        const show = vi.spyOn(Menu.prototype, "showAtPosition");
+        if (cancel === "source") view.dispatch({ changes: { from: 0, insert: "Changed prefix\n" } });
+        else if (cancel === "pointer") dispatchPointerDown(document.body, "mouse");
+        else if (cancel === "wheel") document.body.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+        else new TableMenuOwner(app, document).open(new Menu() as unknown as import("obsidian").Menu);
+        await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
+        await Promise.resolve(); await Promise.resolve();
+        expect(show).not.toHaveBeenCalled(); expect(lastMenu).toBe(oldMenu);
+        expect(view.state.doc.toString()).toContain("AlphaX");
+        return;
+      }
+      await vi.waitFor(() => expect(lastMenu!.items.some((item) => item.title === "Delete table")).toBe(true));
+      const committed = view.state.doc.toString();
+      expect(committed).toContain("AlphaX");
+      expect(parent.querySelector("textarea")).toBeNull();
       clickCurrentMenuItem("Delete table", true);
       await Promise.resolve();
       expect(parseEditableTables(view.state.doc.toString()).tables).toHaveLength(0);
       expect(view.hasFocus).toBe(true);
-      expect(undoDepth(view.state)).toBe(1);
+      expect(undoDepth(view.state)).toBe(2);
+      expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(committed);
+      await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
       expect(undo(view)).toBe(true); expect(view.state.doc.toString()).toBe(source);
       await vi.waitFor(() => expect(parent.querySelector(".structural-tables-live-preview")).not.toBeNull());
       expect(undo(view)).toBe(false);

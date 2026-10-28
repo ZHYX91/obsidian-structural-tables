@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-28
+last_synced: 2026-10-29
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -121,7 +121,7 @@ A primary mouse drag inside an editing cell remains native text selection until 
 
 Right-clicking inside the selected grid range preserves it; clicking outside chooses that cell after safely ending an old draft. The active textarea keeps its text menu. That menu provides draft-local Undo/Redo, Cut/Copy/Paste, Select all, bold/italic, breaks, finish/cancel and a Table operations submenu. Opening the text menu or its Table operations submenu does not commit. A selected table command validates the draft and complete table together and performs one reversible write, or retains the draft without a partial write. A fresh unchanged draft with no local history uses the same committed-history handoff as keyboard Undo/Redo. Closing a menu with Escape does not cancel its draft.
 
-Only one owned table-menu family is visible in each app document; opening another cell or table menu closes the previous family and invalidates its deferred actions. Popout documents remain independent. A chosen row/column-menu table command also combines a retained draft atomically. With a changed or composing draft still present, axis-menu range clipboard and whole-table HTML copy refuse with a finish-editing notice, rather than copying old saved text or overwriting the draft. Normal cell-text clipboard and completed grid handoffs remain available. Dismissing a menu must not steal focus from an outside control.
+Only one owned table-menu family is visible in each app document; opening another cell or table menu closes the previous family and invalidates its deferred actions. Popout documents remain independent. Right-clicking a row/column handle first completes the axis selection and safely ends any draft. A valid changed draft commits once before the axis menu opens; a later table command is a separate undoable operation. An unchanged draft ends without writing. Invalid, composing or stale drafts retain their complete text and refuse the selection and menu. After a successful handoff, range clipboard and whole-table HTML copy use the committed content. Delayed Callout menus remain bound to the same source and editor and are cancelled by a newer interaction or menu. Dismissing a menu must not steal focus from an outside control.
 
 Paste as plain text inserts literal text into the active cell, replacing only its text selection, or fills one selected visible owner in grid mode. It never infers a TSV rectangle, changes merges or adds rows/columns. Real newlines stay inside the cell; tabs, pipes, backslashes, merge-looking markers, Markdown and HTML-looking text remain literal. Fragment insertion into code, math, link or HTML source is refused when literal meaning cannot be proved. Clipboard failure or a stale target changes nothing. Multi-owner ranges use the separate range-paste command; a merged owner still counts as one target.
 
@@ -181,7 +181,9 @@ Legacy-property migration runs only on explicit user request. Its preview lists 
 
 Mouse drag creates a rectangular cell selection. Touch selects a rectangle by tapping its first and last cells. A completed touch selection must remain intact when the user long-presses inside it.
 
-Press and drag any row/column handle to move its newly selected merge-closed axis in the same gesture. Releasing without dragging selects only; Shift-click or a second touch handle extends the selection, and dragging any already-selected handle moves the complete selected group. Moves cannot split a merged owner or cross header/data role boundaries. Blocked targets leave source unchanged; Escape, pointercancel, blur, leaving the table or a changed source cancels safely. Keep RTL physical coordinates, touch ownership and continuous edge scrolling.
+Completing a row/column selection by click, keyboard, focus, touch or context menu safely ends the active cell edit before selecting the complete merge-closed axis. This applies to both the editing cell's axis and another axis. A valid changed draft commits once and can be undone; an unchanged draft makes no write. Invalid, composing or stale drafts retain their text, focus and prior selection. A completed selection has no active textarea, places focus on its grid/handle, and owns subsequent Copy, Cut, Paste and Clear commands. Shift-click or a second touch handle extends the selection from the original anchor; keyboard movement within an already-selected axis range retains that range.
+
+Pressing a handle starts a pending gesture and may preview its axis while retaining the draft. A held drag moves the newly selected merge-closed axis in that same gesture; a valid changed draft and reorder commit together in one undoable operation. Releasing over the handle without dragging completes selection. Escape, pointer cancellation, blur or releasing away from the handle cancels the pending selection and restores the prior draft, range and anchors without writing. Dragging any already-selected handle moves the complete selected group. Moves cannot split a merged owner or cross header/data role boundaries. Blocked targets, leaving the table or a changed source cancel safely. Keep RTL physical coordinates, touch ownership and continuous edge scrolling.
 
 ### Menu operations
 

@@ -18,6 +18,8 @@ export interface PendingCellFocus {
   coordinate: TableCellCoordinate;
   edit: boolean;
   axisSelection?: AxisSelection;
+  axisFocus?: { index: number; anchor: number; touchAnchor: { axis: "row" | "column"; index: number } | null;
+    isCurrent?: () => boolean; onReady?: () => void };
   selectionBounds?: { first: TableCellCoordinate; last: TableCellCoordinate };
   entryIntent?: CellEditEntryIntent;
 }

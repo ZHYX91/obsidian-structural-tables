@@ -3,7 +3,7 @@ import { freezeGridSelection, currentFrozenTable, frozenSelectionBounds, copyFro
 import { beginMouseRangeGesture, hasMouseRangeGesture } from "./mouse-range-gesture";
 import { readCellClipboardData } from "./cell-clipboard-actions";
 import { addTableSubmenu } from "./table-submenu";
-import { TableMenuOwner, type TableMenuSession } from "./table-menu-session";
+import { TableMenuOwner, captureTableMenuGeneration, type TableMenuSession } from "./table-menu-session";
 import { pasteLiteralCellText } from "../core/literal-cell-text";
 import { CellDraftSession, type DraftHistoryGroup } from "./cell-draft-session";
 import { pendingCellFocus, activeCellEditors, composingCellEditors, ownsCellEditorFocus, claimCellEditorFocus,
@@ -79,6 +79,7 @@ import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, struct
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
 const interactions = new WeakMap<HTMLElement, StructuralTableInteraction>();
+const completedAxisPointers = new WeakSet<EditorView>();
 interface CellCommitViewport {
   document: Document;
   editor: Editor | undefined;
@@ -181,6 +182,9 @@ class StructuralTableInteraction {
   private axisAnchor = 0;
   private touchAxisAnchor: { axis: TableAxis; index: number } | null = null;
   private axisDrag: TableAxisDrag | null = null;
+  private axisPreview: { selection: AxisSelection; index: number; anchor: number;
+    pointerId: number; touchAnchor: { axis: TableAxis; index: number } | null; restore: () => void; complete: () => void } | null = null;
+  private cancelledAxisClick = false;
   private selectionMenuOpen = false;
   private selectionMenuSession: FrozenGridSelection | null = null;
   private selectionEpoch = 0;
@@ -319,7 +323,11 @@ class StructuralTableInteraction {
       || view.state.field(editorInfoField, false)?.file?.path !== pending.sourcePath
       || view.state.doc.sliceString(pending.from, pending.from + pending.source.length) !== pending.source) return false;
     pendingCellFocus.delete(view);
-    if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
+    if (pending.axisSelection !== undefined) {
+      if (pending.axisFocus?.isCurrent?.() === false) { pending.axisFocus.onReady?.(); return true; }
+      this.focusAxis(pending.axisSelection, pending.axisFocus);
+      pending.axisFocus?.onReady?.();
+    }
     else if (pending.edit) {
       this.beginCellEdit(view, pending.coordinate, pending.entryIntent ?? "select-all");
       this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
@@ -335,6 +343,7 @@ class StructuralTableInteraction {
   }
 
   destroy(): void {
+    this.axisPreview = null;
     this.preserveDraft?.();
     this.preserveDraft = null;
     this.axisDrag?.destroy();
@@ -399,9 +408,9 @@ class StructuralTableInteraction {
       this.extendTextSelection(event);
     });
     rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
-    rendered.addEventListener("copy", (event) => { this.handleRangeCopyCut(event, view, false); });
-    rendered.addEventListener("cut", (event) => { this.handleRangeCopyCut(event, view, true); });
-    rendered.addEventListener("paste", (event) => { this.handleRangePaste(event, view); });
+    host.addEventListener("copy", (event) => { this.handleRangeCopyCut(event, view, false); });
+    host.addEventListener("cut", (event) => { this.handleRangeCopyCut(event, view, true); });
+    host.addEventListener("paste", (event) => { this.handleRangePaste(event, view); });
     rendered.addEventListener("contextmenu", (event) => this.openContextMenu(event, view));
     rendered.addEventListener("dblclick", (event) => {
       if (event.target !== null && "closest" in event.target
@@ -435,17 +444,27 @@ class StructuralTableInteraction {
   }
 
   private readonly endPointerSelection = (event: PointerEvent): void => {
+    const preview = this.axisPreview;
+    if (preview !== null && preview.pointerId === event.pointerId) {
+      const handle = this.host?.querySelector<HTMLElement>(`[data-structural-${preview.selection.axis}-handle='${preview.index}']`);
+      const rect = handle?.getBoundingClientRect();
+      if (rect !== undefined && rect.width > 0 && rect.height > 0
+        && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) this.rollbackAxisPreview();
+      else preview.complete();
+    }
     this.dragging = false;
     if (event.pointerId === this.touchPointerId) this.touchPointerId = undefined;
   };
 
   private readonly cancelPointerSelection = (event: PointerEvent): void => {
+    this.rollbackAxisPreview();
     this.dragging = false;
     this.clickEditCandidate = null;
     if (this.touchPointerId !== undefined && event.pointerId === this.touchPointerId) this.abortPointerSelection();
   };
 
   private readonly abortPointerSelection = (): void => {
+    this.rollbackAxisPreview();
     this.dragging = false;
     this.clickEditCandidate = null;
     this.touchPointerId = undefined;
@@ -1066,12 +1085,17 @@ class StructuralTableInteraction {
     view: EditorView,
     cut: boolean,
   ): boolean {
+    if (event.defaultPrevented || this.clipboardEventOwner(event) !== this.host) return false;
     if (event.target !== null && "closest" in event.target
       && (event.target as Element).closest("textarea, input") !== null) return false;
     const frozen = this.freezeGridSelection(view);
     if (frozen === null || event.clipboardData === null) return false;
     event.preventDefault();
     event.stopPropagation();
+    if (this.currentTableForFrozenSelection(view, frozen) === null) {
+      new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
+      return true;
+    }
     if (!writeTableRangeToDataTransfer(event.clipboardData, frozen.payload)) {
       new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardWriteFailed"));
       return true;
@@ -1083,6 +1107,7 @@ class StructuralTableInteraction {
   }
 
   private handleRangePaste(event: ClipboardEvent, view: EditorView): boolean {
+    if (event.defaultPrevented || this.clipboardEventOwner(event) !== this.host) return false;
     if (event.target !== null && "closest" in event.target
       && (event.target as Element).closest("textarea, input") !== null) return false;
     const frozen = this.freezeGridSelection(view);
@@ -1099,6 +1124,11 @@ class StructuralTableInteraction {
       new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
     }
     return true;
+  }
+
+  private clipboardEventOwner(event: ClipboardEvent): Element | null {
+    return event.target !== null && "closest" in event.target
+      ? (event.target as Element).closest(".structural-tables-live-preview") : null;
   }
 
   private copyFrozenSelection(view: EditorView, frozen: FrozenGridSelection, cut: boolean,
@@ -1160,7 +1190,7 @@ class StructuralTableInteraction {
       if (next !== null) {
         next.selectBounds(coordinate, coordinate);
         next.cellElement(coordinate)?.focus({ preventScroll: true });
-        next.showSelectionMenu(event, view);
+        next.showSelectionMenu(view, Menu.forEvent(event));
       }
       return;
     }
@@ -1171,7 +1201,7 @@ class StructuralTableInteraction {
     if (owner !== null && owner !== this) {
       owner.selectBounds(priorRange.first, priorRange.last);
       owner.cellElement(coordinate)?.focus({ preventScroll: true });
-      owner.showSelectionMenu(event, view);
+      owner.showSelectionMenu(view, Menu.forEvent(event));
       return;
     }
     this.syncSourceCursor(view, coordinate);
@@ -1182,14 +1212,13 @@ class StructuralTableInteraction {
       this.selectionHead = coordinate;
       this.updateSelection();
     }
-    this.showSelectionMenu(event, view);
+    this.showSelectionMenu(view, Menu.forEvent(event));
   }
 
-  private showSelectionMenu(event: MouseEvent, view: EditorView): void {
+  private showSelectionMenu(view: EditorView, menu: Menu): void {
     const frozen = this.freezeGridSelection(view);
     if (frozen === null) return;
     const selection = frozen.selection;
-    const menu = Menu.forEvent(event);
     this.selectionMenuSession = frozen;
     this.selectionMenuOpen = true;
     const menuSession = this.menuOwner?.open(menu);
@@ -1239,7 +1268,7 @@ class StructuralTableInteraction {
         return;
       }
       this.applyMenuOperation(view, operation, undefined,
-        intent === "owned-grid" ? frozen.axisSelection : undefined, intent, frozen);
+        frozen.axisSelection, intent, frozen);
     });
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
@@ -2128,7 +2157,27 @@ class StructuralTableInteraction {
         finish(true, null, false);
       }
     });
-    editor.addEventListener("blur", () => {
+    editor.addEventListener("blur", (event) => {
+      if (this.axisPreview !== null) { this.releaseCellScope(scope); return; }
+      const target = event.relatedTarget !== null && "closest" in event.relatedTarget ? event.relatedTarget as HTMLElement : null;
+      const handle = target?.closest<HTMLElement>("[data-structural-row-handle], [data-structural-column-handle]");
+      if (this.axisPreview === null && handle !== null && handle !== undefined && this.host?.contains(handle)) {
+        const axis: TableAxis = handle.dataset.structuralRowHandle === undefined ? "column" : "row";
+        const index = Number(axis === "row" ? handle.dataset.structuralRowHandle : handle.dataset.structuralColumnHandle);
+        const selection = this.axisSelection?.axis === axis && index >= this.axisSelection.start && index <= this.axisSelection.end
+          ? this.axisSelection : { axis, start: index, end: index };
+        const focus = { index, anchor: selection === this.axisSelection ? this.axisAnchor : index, touchAnchor: null };
+        const owner = this.completeAxisSelection(view, selection, focus);
+        const source = view.state.doc;
+        // Native focus completes after blur dispatch; the original target may
+        // have been removed by the commit. Restore only that empty focus slot.
+        queueMicrotask(() => {
+          const document = owner?.host?.ownerDocument;
+          if (owner !== null && view.state.doc === source && this.currentInteraction(view) === owner
+            && document !== undefined && document.activeElement === document.body && !owner.selectionMenuOpen) owner.focusAxis(selection, focus);
+        });
+        return;
+      }
       if (!contextMenuOpen && !draft.composing) releaseCellEditorFocus(editor);
       if (!draft.composing && !contextMenuOpen && draft.rejectedValue !== editor.value) {
         // Let the native pointer handler finish choosing its source destination
@@ -2212,6 +2261,7 @@ class StructuralTableInteraction {
     this.axisDrag = new TableAxisDrag(host, rendered, () => this.table, () => this.axisSelection,
       (result) => operationNotice(t, result.code),
       (selection, destination) => {
+        completedAxisPointers.add(view);
         const { axis, start, end } = selection;
         const movedStart = destination > end ? destination - (end - start + 1) : destination;
         const nextSelection = { axis, start: movedStart, end: movedStart + end - start };
@@ -2221,7 +2271,14 @@ class StructuralTableInteraction {
         // together instead of letting focus/blur discard this first drag.
         if (this.finishActiveOperation !== null) this.finishActiveOperation(operation, next, nextSelection);
         else this.applyMenuOperation(view, operation, next, nextSelection);
-      });
+        if (this.finishActiveGrid !== null) this.rollbackAxisPreview();
+        else this.axisPreview = null;
+      }, (outcome) => { if (outcome === "cancel") this.rollbackAxisPreview(); });
+    const ownerWindow = host.ownerDocument.defaultView;
+    if (ownerWindow !== null) this.component?.registerDomEvent(ownerWindow, "keydown", (event) => {
+      if (event.key !== "Escape" || this.axisPreview === null) return;
+      event.preventDefault(); event.stopPropagation(); this.rollbackAxisPreview();
+    }, { capture: true });
     const installAxisHandle = (handle: HTMLButtonElement, axis: TableAxis, index: number): void => {
       // Obsidian listens to touch events separately from pointer events for sidebar swipes.
       // Keep those gestures local to the handle without disabling its native long-press menu.
@@ -2229,10 +2286,36 @@ class StructuralTableInteraction {
         handle.addEventListener(type, (event) => event.stopPropagation(), { passive: true });
       }
       handle.addEventListener("pointerdown", (event) => {
+        if (event.isPrimary && event.button === 2) { event.preventDefault(); event.stopPropagation(); return; }
         if (!event.isPrimary || event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        if (this.axisDrag?.start(event, axis, index)) return;
+        this.cancelledAxisClick = false;
+        completedAxisPointers.delete(view);
+        this.rollbackAxisPreview(false);
+        const before = { anchor: this.selectionAnchor, head: this.selectionHead, axis: this.axisSelection,
+          axisAnchor: this.axisAnchor, touchAnchor: this.touchAxisAnchor };
+        const retainPreview = (): void => {
+          if (this.finishActiveGrid === null || this.axisSelection === null) return;
+          const selection = this.axisSelection;
+          const focus = { index, anchor: this.axisAnchor, touchAnchor: this.touchAxisAnchor };
+          const restore = (): void => {
+              this.axisAnchor = before.axisAnchor;
+              this.touchAxisAnchor = before.touchAnchor;
+              this.axisSelection = before.axis;
+              this.selectionAnchor = before.anchor;
+              this.selectionHead = before.head;
+              if (before.anchor === null || before.head === null) this.clearSelection();
+              else this.updateSelection();
+          };
+          this.axisPreview = { selection, index, anchor: focus.anchor, touchAnchor: focus.touchAnchor, pointerId: event.pointerId, restore,
+            complete: () => {
+              this.axisPreview = null;
+              completedAxisPointers.add(view);
+              this.completeAxisSelection(view, selection, focus, restore);
+            } };
+        };
+        if (this.axisDrag?.start(event, axis, index)) { retainPreview(); return; }
         const touchAnchor = event.pointerType === "touch" ? this.touchAxisAnchor : null;
         const extendTouch = touchAnchor?.axis === axis && touchAnchor.index !== index;
         if (extendTouch) this.axisAnchor = touchAnchor.index;
@@ -2242,31 +2325,92 @@ class StructuralTableInteraction {
         // Focusing the handle while a modified textarea is active synchronously
         // blurs and commits it, which destroys this drag controller mid-pointer.
         // Retain the live editor until drop; the drop callback combines edits.
-        if (this.finishActiveOperation === null || event.shiftKey || extendTouch) {
+        if (this.finishActiveOperation === null) {
           handle.focus({ preventScroll: true });
           this.activateAxisClearScope(view, handle, axis, index);
         }
         // Arm the new merge-closed selection on the same held pointer.
         if (!event.shiftKey && !extendTouch) this.axisDrag?.start(event, axis, index);
+        retainPreview();
       });
-      handle.addEventListener("click", () => {
-        if (this.axisDrag?.consumeClick()) return;
-        if (this.axisSelection?.axis !== axis || index < this.axisSelection.start || index > this.axisSelection.end) {
-          this.axisAnchor = index;
-          this.selectAxis({ axis, start: index, end: index });
+      handle.addEventListener("click", (event) => {
+        const consumed = this.axisDrag?.consumeClick();
+        if (event.detail > 0 && (consumed || this.cancelledAxisClick || completedAxisPointers.has(view))) {
+          completedAxisPointers.delete(view);
+          this.rollbackAxisPreview(); this.cancelledAxisClick = false; return;
         }
-        this.activateAxisClearScope(view, handle, axis, index);
+        completedAxisPointers.delete(view);
+        const preview = this.axisPreview;
+        this.axisPreview = null;
+        const selected = preview?.selection ?? (this.axisSelection?.axis === axis
+          && index >= this.axisSelection.start && index <= this.axisSelection.end ? this.axisSelection : { axis, start: index, end: index });
+        const owner = this.completeAxisSelection(view, selected,
+          { index, anchor: preview?.anchor ?? (selected === this.axisSelection ? this.axisAnchor : index),
+            touchAnchor: preview?.touchAnchor ?? this.touchAxisAnchor }, preview?.restore);
+        if (owner === null) return;
       });
       handle.addEventListener("contextmenu", (event) => {
-        this.touchAxisAnchor = null;
+        completedAxisPointers.delete(view);
         event.preventDefault();
         event.stopPropagation();
-        if (this.axisSelection?.axis !== axis || index < this.axisSelection.start || index > this.axisSelection.end) {
-          this.axisAnchor = index;
-          this.selectAxis({ axis, start: index, end: index });
+        this.rollbackAxisPreview(false);
+        const selection = this.axisSelection?.axis === axis && index >= this.axisSelection.start && index <= this.axisSelection.end
+          ? this.axisSelection : { axis, start: index, end: index };
+        const identity = view.state.field(editorInfoField, false);
+        const document = host.ownerDocument;
+        const file = identity?.file; const editorIdentity = identity?.editor; const sourcePath = this.sourcePath;
+        const x = event.clientX; const y = event.clientY;
+        let cleanup = (): void => {};
+        let cancelled = false;
+        let source: EditorView["state"]["doc"] | null = null;
+        let menuCurrent = (): boolean => true;
+        const current = (): boolean => {
+          const info = view.state.field(editorInfoField, false);
+          return !cancelled && view.dom.isConnected && view.dom.ownerDocument === document && view.state.doc === source
+            && info?.file === file && info?.editor === editorIdentity && file?.path === sourcePath && menuCurrent();
+        };
+        const focus: NonNullable<PendingCellFocus["axisFocus"]> = { index,
+          anchor: selection === this.axisSelection ? this.axisAnchor : index, touchAnchor: null,
+          isCurrent: current, onReady: () => {
+            cleanup();
+            if (!current()) return;
+            const live = this.currentInteraction(view);
+            if (live === null) return;
+            const menu = new Menu();
+            live.showSelectionMenu(view, menu);
+            menu.showAtPosition({ x, y }, document);
+          } };
+        const owner = this.completeAxisSelection(view, selection, focus);
+        if (owner !== null) owner.showSelectionMenu(view, Menu.forEvent(event));
+        else {
+          const pending = pendingCellFocus.get(view);
+          if (pending?.axisFocus !== focus) return;
+          source = view.state.doc;
+          menuCurrent = captureTableMenuGeneration(this.app, document);
+          const invalidate = (): void => {
+            cancelled = true;
+            if (pendingCellFocus.get(view) === pending) cancelPendingTableFocus(view);
+            cleanup();
+          };
+          const visibility = (): void => { if (document.hidden) invalidate(); };
+          const window = document.defaultView;
+          const timer = window?.setTimeout(invalidate, 5000);
+          cleanup = () => {
+            if (timer !== undefined) window?.clearTimeout(timer);
+            document.removeEventListener("pointerdown", invalidate, true);
+            document.removeEventListener("keydown", invalidate, true);
+            document.removeEventListener("wheel", invalidate, true);
+            document.removeEventListener("beforeinput", invalidate, true);
+            document.removeEventListener("visibilitychange", visibility);
+            window?.removeEventListener("blur", invalidate);
+          };
+          document.addEventListener("pointerdown", invalidate, true);
+          document.addEventListener("keydown", invalidate, true);
+          document.addEventListener("wheel", invalidate, true);
+          document.addEventListener("beforeinput", invalidate, true);
+          document.addEventListener("visibilitychange", visibility);
+          window?.addEventListener("blur", invalidate);
         }
-        this.activateAxisClearScope(view, handle, axis, index);
-        this.showSelectionMenu(event, view);
       });
     };
     const rowHandles = this.table.rows.map((_row, row) => {
@@ -2371,7 +2515,7 @@ class StructuralTableInteraction {
       handle.tabIndex = index === 0 ? 0 : -1;
       handle.addEventListener("focus", () => {
         handles.forEach((candidate) => { candidate.tabIndex = candidate === handle ? 0 : -1; });
-        const axis = orientation === "vertical" ? "row" : "column";
+        const axis: TableAxis = orientation === "vertical" ? "row" : "column";
         this.activateAxisClearScope(view, handle, axis, index);
       });
       handle.addEventListener("blur", () => this.releaseNavigationScope());
@@ -2391,19 +2535,24 @@ class StructuralTableInteraction {
         event.preventDefault();
         event.stopPropagation();
         if (targetIndex === index) return;
-        const target = handles[targetIndex];
-        if (orientation === "horizontal") {
-          const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
+        const axis: TableAxis = orientation === "vertical" ? "row" : "column";
+        const selection = this.axisSelection?.axis === axis && targetIndex >= this.axisSelection.start && targetIndex <= this.axisSelection.end
+          ? this.axisSelection : { axis, start: targetIndex, end: targetIndex };
+        const owner = this.completeAxisSelection(view, selection,
+          { index: targetIndex, anchor: selection === this.axisSelection ? this.axisAnchor : targetIndex, touchAnchor: null });
+        const target = owner?.host?.querySelector<HTMLElement>(`[data-structural-${axis}-handle='${targetIndex}']`);
+        const table = owner?.renderedTable;
+        if (orientation === "horizontal" && table != null) {
+          const scroller = table.closest<HTMLElement>(".structural-tables-container");
           if (scroller !== null) {
-            const bounds = tableAxisBoundaries(rendered, "column", handles.length);
+            const bounds = tableAxisBoundaries(table, "column", owner!.table.columnCount);
             const center = (bounds[targetIndex]! + bounds[targetIndex + 1]!) / 2;
             const rect = scroller.getBoundingClientRect();
             scroller.scrollLeft += center - Math.max(rect.left + 12, Math.min(rect.right - 12, center));
-            this.positionHandles?.();
+            owner!.positionHandles?.();
           }
         } else target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
         target?.focus({ preventScroll: true });
-        target?.click();
       });
     });
   }
@@ -2430,10 +2579,55 @@ class StructuralTableInteraction {
     };
   }
 
-  private focusAxis(selection: AxisSelection): void {
+  private rollbackAxisPreview(cancelClick = true): void {
+    const preview = this.axisPreview;
+    if (preview === null) return;
+    this.axisPreview = null;
+    preview.restore();
+    if (cancelClick) this.cancelledAxisClick = true;
+  }
+
+  private completeAxisSelection(view: EditorView, requested: AxisSelection,
+    focus: NonNullable<PendingCellFocus["axisFocus"]>, restore?: () => void): StructuralTableInteraction | null {
+    const first = requested.axis === "row" ? { row: requested.start, column: 0 } : { row: 0, column: requested.start };
+    const last = requested.axis === "row" ? { row: requested.end, column: this.table.columnCount - 1 }
+      : { row: this.table.rows.length - 1, column: requested.end };
+    const bounds = structuralTableSelectionFromBounds(this.table, first, last);
+    if (bounds === null) { restore?.(); return null; }
+    const selection: AxisSelection = { axis: requested.axis, start: requested.axis === "row" ? bounds.minRow : bounds.minColumn,
+      end: requested.axis === "row" ? bounds.maxRow : bounds.maxColumn };
+    if (this.finishActiveGrid !== null && !this.finishActiveGrid(first, last)) {
+      restore?.();
+      const editor = this.host?.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor");
+      editor?.focus({ preventScroll: true });
+      queueMicrotask(() => {
+        if (editor?.isConnected && ownsCellEditorFocus(editor) && this.finishActiveGrid !== null) {
+          const active = editor.ownerDocument.activeElement;
+          if (active === editor.ownerDocument.body || active === editor || this.host?.contains(active)) editor.focus({ preventScroll: true });
+        }
+      });
+      return null;
+    }
+    this.selectionMenuSession = null; this.selectionMenuOpen = false; this.menuOwner?.dismiss();
+    const pending = pendingCellFocus.get(view);
+    if (pending !== undefined && pending.from === this.table.range.from && pending.sourcePath === this.sourcePath) {
+      pending.axisSelection = selection; pending.axisFocus = focus;
+    }
+    const owner = this.currentInteraction(view);
+    if (owner !== null) {
+      delete focus.onReady;
+      delete focus.isCurrent;
+      owner.host?.ownerDocument.getSelection()?.removeAllRanges();
+      owner.focusAxis(selection, focus);
+    }
+    return owner;
+  }
+
+  private focusAxis(selection: AxisSelection, focus?: PendingCellFocus["axisFocus"]): void {
     this.selectAxis(selection);
-    this.axisAnchor = selection.start;
-    this.host?.querySelector<HTMLElement>(`[data-structural-${selection.axis}-handle='${selection.start}']`)
+    this.axisAnchor = focus?.anchor ?? selection.start;
+    this.touchAxisAnchor = focus?.touchAnchor ?? null;
+    this.host?.querySelector<HTMLElement>(`[data-structural-${selection.axis}-handle='${focus?.index ?? selection.start}']`)
       ?.focus({ preventScroll: true });
   }
 

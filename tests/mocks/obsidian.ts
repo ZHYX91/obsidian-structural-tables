@@ -63,10 +63,11 @@ export class MarkdownView {
 
 export let lastMenu: Menu | null = null;
 const menusByEvent = new WeakMap<Event, Menu>();
+function recordShownMenu(menu: Menu): void { lastMenu = menu; }
 
 export class Menu {
   readonly items: MenuItem[] = [];
-  showAtPosition(_position: { x: number; y: number }): this { return this; }
+  showAtPosition(_position: { x: number; y: number }): this { recordShownMenu(this); return this; }
   private readonly hideCallbacks: Array<() => void> = [];
 
   static forEvent(event: Event): Menu {

@@ -14,7 +14,7 @@
   "scenarios": [
     {
       "id": "draft-grid-and-cell-menu",
-      "title": "Mouse draft-to-grid transfer and cell text menus",
+      "title": "Draft-to-grid and axis selection with cell text menus",
       "surfaces": [
         "desktop"
       ],
@@ -25,7 +25,9 @@
         "Open Draft grid and literal paste in Live Preview. Record complete source. Edit Alpha without changing it; drag text within that cell, then make a held primary-mouse drag into Delta. Inspect one rectangular grid range, no remaining textarea or text selection, and use real Copy then paste into a new scratch note to inspect all selected cell values.",
         "Repeat from another cell while Alpha has a valid changed draft. Keep holding through the remount, move back across Alpha and release. Verify exactly one content commit, no trailing-click edit, accurate grid Copy/Cut/Paste/Delete and one Undo/Redo. Restore the full baseline. Test Escape and pointer cancellation during a held range: selection restores while any committed draft remains separately undoable.",
         "Edit Alpha, right-click Beta, then right-click Alpha without manually closing the menu; also repeat with B in another table of the same note/editor: exactly one menu remains visible and both later menus operate on grid cells. Right-click inside a multi-cell range retains the whole range; outside it selects one cell. Repeat a merged owner and RTL representative. Invalid math and active IME retain the complete draft and refuse crossing or foreign-cell menus.",
-        "Open the active editor menu. Exercise text selection, Copy/Cut/Paste, Select all, draft Undo/Redo, bold/italic, line break, finish/cancel and Table operations submenu. Opening/dismissing menus does not write; a chosen table command commits the draft and command atomically with one Undo. Also right-click a row/column handle while the draft is present: a chosen table command combines it once, while range clipboard and whole-table HTML copy refuse changed/composing drafts without clipboard or source writes. Replacing a menu invalidates old actions and pending clipboard results. Test a refused command and source/file change before action; no partial write. Check fresh unchanged B can Undo committed A using the menu, as with the keyboard. Dismissing menus retains an outside input's focus."
+        "Open the active editor menu. Exercise text selection, Copy/Cut/Paste, Select all, draft Undo/Redo, bold/italic, line break, finish/cancel and Table operations submenu. Opening/dismissing the text menu or its submenu does not write; a chosen table command commits the draft and command atomically with one Undo. Replacing a menu invalidates old actions and pending clipboard results. Test a refused command and source/file change before action; no partial write. Check fresh unchanged B can Undo committed A using the menu, as with the keyboard. Dismissing menus retains an outside input's focus.",
+        "While editing Delta, complete selection of its own row/column and another row/column by click, keyboard, focus and Shift selection. Each successful selection highlights every selected visible owner, closes the textarea and focuses the live grid/handle. Unchanged drafts make no write; valid changed drafts commit once with exact Undo/Redo. Invalid math, IME and stale drafts retain their complete text and prior selection. Use real Copy/Cut/Paste and Delete from the focused handle to check the full selected axis; textarea clipboard remains native, and stale owned selections must not write clipboard or source.",
+        "Right-click an axis handle with a changed draft, including in a Callout: the draft commits before the axis menu opens, clipboard sees the committed values, and a later table command has its own Undo step. Invalid/IME/stale drafts refuse both axis selection and menu. A delayed Callout menu must not appear after a newer interaction, menu or source/file change. Hold and drag a handle with a changed draft: draft plus reorder is one write/Undo, with no trailing-click editor. Cancel a pending press or drag with Escape, pointer cancellation, blur or release away from the handle: preserve the draft and restore the prior range/anchors without a write."
       ],
       "expected": [
         "A visible grid range owns focus and commands after one safe transition; invalid/composing/stale drafts remain protected.",
@@ -382,15 +384,15 @@
         "Open Table controls in Live Preview. Use bottom/right add buttons, including with an active cell draft; commit, undo and redo",
         "On desktop, Tab from the final visible cell adds one data row and opens its first cell; Shift+Tab at the first cell creates nothing",
         "Use the bottom button on the header-only table; inspect header roles and the new data row",
-        "Press and drag an unselected row handle immediately to a new data-row position; repeat for a column and verify content and alignment after undo/redo",
-        "Select a range with Shift-click on desktop or two handle taps on Android, then drag a selected handle to move the range",
+        "Press and drag an unselected row handle immediately to a new data-row position; repeat for a column, including with a changed active draft, and verify draft plus reorder is one Undo/Redo operation with no trailing-click editor",
+        "With unchanged and changed cell drafts, complete row/column selection by click or keyboard on desktop and handle tap on Android. Inspect complete axis highlighting, no active textarea, live grid/handle focus and subsequent Copy/Clear. Select a range with Shift-click on desktop or two handle taps on Android, preserving the original anchor across any draft commit, then drag a selected handle to move the range",
         "Verify one-gesture drag, partial merged rows/columns, a destination inside a merged group and crossing header boundaries; cancel a valid drag with Escape on desktop or by releasing outside",
         "Repeat insertion and row reorder inside the Callout and deep list; inspect saved prefixes and Reading View",
         "Inspect controls and drop markers in left, centered and full-width layouts, narrow/wide tables, and light/dark theme; verify no page overflow or clipped touch targets"
       ],
       "expected": [
         "Insertion and any active draft write atomically, retain content and prefixes, and focus the new cell; header-only tables gain data rows",
-        "A first held drag moves the newly selected axis; a click selects and a selected-handle drag performs one validated reorder on drop and retains the moved axis selection",
+        "A first held drag moves the newly selected axis; a click completes selection after safely ending the draft, while a selected-handle drag performs one validated reorder on drop and retains the moved axis selection",
         "Content, complete merged rectangles and column alignment move together; invalid and cancelled drops leave source unchanged",
         "Controls remain reachable and align with the table, local horizontal scrolling stays usable, and Reading View has no editing controls",
         "Hardware Tab and Escape claims apply to desktop; Android uses the declared touch driver"

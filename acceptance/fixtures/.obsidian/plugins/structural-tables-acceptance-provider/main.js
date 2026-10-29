@@ -1,6 +1,12 @@
 const { Plugin, MarkdownView, Notice, TFile, Component, MarkdownRenderer, Modal } = require("obsidian");
 module.exports = class extends Plugin {
   onload() {
+    this.addCommand({ id: "arm-html-copy-gate", name: "Arm one HTML copy renderer gate", callback: () => this.copyGateArm() });
+    this.addCommand({ id: "release-html-copy-gate", name: "Release HTML copy renderer gate", callback: () => this.copyGateClose?.("release-command") });
+    this.addCommand({ id: "disarm-html-copy-gate", name: "Disarm HTML copy renderer gate", callback: () => this.copyGateClose?.("disarm-command") });
+    this.register(() => {
+      this.copyGateClose?.("provider-unload"); this.copyGateNotice?.hide(); this.copyGateDisposed = true;
+    });
     this.addCommand({ id: "operation-safety-setup", name: "Prepare operation safety boundary", callback: () => this.safetySetup() });
     this.register(() => this.safetyRestore?.());
     this.addCommand({ id: "clipboard-fidelity-samples", name: "Prepare clipboard fidelity samples", callback: () => {
@@ -157,6 +163,83 @@ module.exports = class extends Plugin {
         new Notice("The next cell input will trigger a separate source edit.");
       },
     });
+  }
+
+  copyGateRecord(state, stage, extra = {}) {
+    if (this.copyGateDisposed) return;
+    const entry = { run: state.run, stage, observedAt: new Date().toISOString(), ...extra };
+    this.copyGateEvents = [...(this.copyGateEvents ?? []), entry].slice(-96);
+    const observation = JSON.stringify({ diagnosticOnly: true, fixturePath: state.path,
+      hostVersion: require("obsidian").apiVersion ?? null, mobile: require("obsidian").Platform.isMobileApp,
+      events: this.copyGateEvents }, null, 2);
+    this.copyGateWrites = (this.copyGateWrites ?? Promise.resolve()).then(() =>
+      this.app.vault.adapter.write("_html-copy-gate-observations.json", observation)).catch(error => {
+      if (!this.copyGateDisposed) new Notice(`Copy gate observation failed: ${String(error)}`);
+    });
+  }
+
+  copyGateArm() {
+    if (this.copyGateDisposed) return;
+    this.copyGateClose?.("rearmed");
+    const path = "Whole table boundaries.md"; const token = "ST_COPY_GATE_A_ONLY";
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const file = view?.file;
+    const ownsView = file instanceof TFile && file.path === path && this.app.vault.getFileByPath(path) === file
+      && view.getMode() === "source" && view.getState().source === true;
+    const source = ownsView ? view.editor.getValue() : null;
+    if (!ownsView || !source?.includes("<!-- structural-tables-copy-gate-fixture -->")
+      || source.split(token).length !== 2 || !source.includes(`| ${token} | Value |`)) {
+      new Notice("Open the marked Whole table boundaries fixture in Source mode before arming the copy gate."); return;
+    }
+    this.copyGateNotice?.hide();
+    this.copyGateNotice = new Notice("Copy gate: armed only. Invoke the real HTML copy on A; wait for caught/holding.", 0);
+    const state = { run: (this.copyGateRun ?? 0) + 1, path, phase: "armed", closed: false };
+    this.copyGateRun = state.run;
+    const original = MarkdownRenderer.render; const provider = this; const app = this.app;
+    let release; const held = new Promise(resolve => { release = resolve; });
+    const restore = () => { if (MarkdownRenderer.render === wrapper) MarkdownRenderer.render = original; };
+    const close = reason => {
+      if (state.closed) return;
+      state.closed = true; clearTimeout(state.timer); restore(); release();
+      const phase = state.phase; state.phase = "closed";
+      this.copyGateRecord(state, reason === "release-command" && phase === "holding" ? "released" : "cancelled",
+        { reason, previousPhase: phase });
+      this.copyGateNotice.setMessage(`Copy gate: ${reason}; previous state ${phase}. Observe the product separately.`);
+    };
+    function wrapper(...args) {
+      const target = args[2];
+      if (state.closed || state.phase !== "armed" || args[0] !== app || args[1] !== token || args[3] !== path
+        || file.path !== path || app.vault.getFileByPath(path) !== file || view.file !== file
+        || view.editor.getValue() !== source || target?.tagName !== "DIV" || target.isConnected !== false
+        || target.ownerDocument !== window.document || target.parentNode !== null || target.attributes?.length !== 0
+        || target.childNodes.length !== 0 || !(args[4] instanceof Component)) {
+        return original.apply(this, args);
+      }
+      // Consume and detach synchronously: nested calls and B must never enter this gate.
+      state.phase = "rendering"; clearTimeout(state.timer); restore();
+      state.timer = setTimeout(() => close("hold-timeout"), 300000);
+      provider.copyGateRecord(state, "caught-rendering", { token, targetConnected: target.isConnected });
+      let result;
+      try { result = original.apply(this, args); }
+      catch (error) {
+        provider.copyGateRecord(state, "render-threw", { error: String(error) }); close("render-threw"); throw error;
+      }
+      return Promise.resolve(result).then(value => {
+        provider.copyGateRecord(state, "render-completed");
+        if (state.closed) return value;
+        state.phase = "holding";
+        provider.copyGateRecord(state, "caught-holding");
+        provider.copyGateNotice.setMessage("Copy gate: caught/holding A after the real renderer completed. Use B, unload, or edit; then Release.");
+        return held.then(() => value);
+      }, error => {
+        provider.copyGateRecord(state, "render-rejected", { error: String(error) }); close("render-rejected"); throw error;
+      });
+    }
+    this.copyGateClose = close;
+    MarkdownRenderer.render = wrapper;
+    state.timer = setTimeout(() => close("arm-timeout"), 120000);
+    this.copyGateRecord(state, "armed", { source, mode: view.getMode(), sourceMode: view.getState().source,
+      armTimeoutMs: 120000, holdTimeoutMs: 300000 });
   }
 
   safetySetup() {

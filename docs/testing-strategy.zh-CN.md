@@ -133,6 +133,8 @@ GFM 样本调用产品对话框、捕获的目标和真实 CodeMirror，驱动�
 
 整表 HTML 复制用受控 MarkdownRenderer 屏障驱动真实注册命令与菜单 helper，验证 A 迟到不覆盖较新的 B、卸载与替代实例使旧任务失效、渲染组件释放及无过期通知。普通后续源码编辑仍允许命令复制原快照；已经派发的剪贴板写入不假装撤销。上述端口回归不代表真实宿主剪贴板或卸载时序已验收。
 
+显式启用的验收 provider 仅为 Source mode 中带标记的 Whole table boundaries 样本提供一次性公开 MarkdownRenderer 等待门。它匹配唯一 A 字面单元格、精确文件／app／源码快照和新建的未连接目标，先调用原 renderer，再留住成功结果。较新 B 复制、禁用被测插件或普通源码编辑前，必须观察可见 caught/holding 状态，随后显式 Release。独立核对真实产品／剪贴板并保留诊断事件；仅 armed、提前被背景渲染捕获、renderer 失败、取消与超时均不能记为通过。provider 回归覆盖上述三条真实命令流程、非匹配调用直通、this／参数／结果／错误透传、同步消费一次、保留外来 wrapper，以及重设、卸载或到期释放。wrapper 不进入生产资产；provider 字节变化须重新冻结验收输入，注入的 await 边界不能证明自然延迟或移动端富剪贴板保真。
+
 <!-- section: base-promotion -->
 ## Base 转换
 

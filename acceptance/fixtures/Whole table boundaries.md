@@ -1,5 +1,7 @@
 # Whole table boundaries
 
+<!-- structural-tables-copy-gate-fixture -->
+
 Record the complete source before each operation. For HTML import, copy a real two-column table from the visible Literal clipboard.html browser sample and select only PLACEHOLDER below. Do not select a neighboring line or add a blank line until testing the isolated control. A rejected operation must preserve source, selection and history.
 
 ## Adjacent body prose: refuse
@@ -42,9 +44,13 @@ Upgrade this table to a Base through the product preview. Keep its generated rec
 
 ## Copy A
 
-Copy this table for Word / HTML, then copy B through the command or menu while A is still rendering. Record whether actual overlap was observed; a sequential run does not prove cancellation. A controlled render delay may be used only when its triggered state is recorded separately. Also exercise unloading during a triggered pending render, then reload and copy B. An old result must not dispatch or notify after cancellation; a system write already dispatched cannot be retracted.
+Use Source mode, wait for the note to settle, and place the caret in A. Run the acceptance provider's **Arm one HTML copy renderer gate**, then the product's **Copy current table as HTML**. The nonmodal notice must say **caught/holding A after the real renderer completed** before the next action. **armed only**, caught before the copy command, cancellation, timeout or a failed renderer proves no pending boundary. The gate matches only A's unique first cell in this marked fixture, calls the real renderer and holds its successful result; it never copies or decides the outcome. It expires after two minutes without a match or five minutes after capture. **Disarm HTML copy renderer gate** releases it without a passing observation.
 
-| A | Value |
+While caught/holding, copy B through the real product command or menu and inspect the clipboard. Run **Release HTML copy renderer gate**: B must remain the latest output, with no late A success notice. For a separate freshly armed A copy, wait for caught/holding, disable Structural Tables through the host UI while keeping the provider enabled, then Release. A must not dispatch or notify; re-enable the product and copy B successfully. A system write already dispatched cannot be retracted.
+
+For each run retain the visible caught/holding signal, operator action order and `_html-copy-gate-observations.json` before another run overwrites old bounded events. The file is diagnostic only. The gate establishes a real product await boundary; it does not claim natural rendering latency. A sequential copy or an armed-only gate is insufficient.
+
+| ST_COPY_GATE_A_ONLY | Value |
 | --- | --- |
 | **A snapshot** | $\frac{a}{b}$ |
 | [External](https://example.com) | A-LAST |

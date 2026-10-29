@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { planTransposeTable, transposeTable } from "../src/core/operations";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
+import * as tableParser from "../src/core/parser";
 import { transposeTableInDocument } from "../src/core/table-transpose-validation";
 
 function parse(source: string): StructuralTable {
@@ -42,6 +43,35 @@ function expectExactTranspose(before: StructuralTable, after: StructuralTable): 
 }
 
 describe("whole-table structural transpose", () => {
+  it("parses the original note once while validating the complete transposed result", () => {
+    const source = "Before.\n\n| H1 | H2 |\n| --- | --- |\n| A | B |\n| C | D |\n\nAfter.\n\n| Keep | This |\n| --- | --- |\n| x | y |";
+    const table = parse(source);
+    const parser = vi.spyOn(tableParser, "parseEditableTables");
+    try {
+      const result = transposeTableInDocument(source, table);
+      expect(result.changed).toBe(true);
+      const updated = source.slice(0, table.range.from) + result.source + source.slice(table.range.to);
+      const parsedSources = parser.mock.calls.map(([text]) => text);
+      expect(parsedSources.filter((text) => text === source)).toHaveLength(1);
+      expect(parsedSources.filter((text) => text === updated)).toHaveLength(1);
+      expect(parsedSources).toHaveLength(3);
+      expect(updated.startsWith("Before.\n\n")).toBe(true);
+      expect(updated.slice(updated.indexOf("\n\nAfter."))).toBe(source.slice(source.indexOf("\n\nAfter.")));
+    } finally { parser.mockRestore(); }
+  });
+
+  it("refuses stale source before parsing the complete note", () => {
+    const source = "| H1 | H2 |\n| --- | --- |\n| A | B |\n| C | D |";
+    const table = parse(source);
+    const parser = vi.spyOn(tableParser, "parseEditableTables");
+    try {
+      expect(transposeTableInDocument(source.replace("| A | B |", "| changed | B |"), table))
+        .toMatchObject({ changed: false, code: "transpose-boundary-unsafe", source: table.source });
+      expect(parser).toHaveBeenCalledTimes(1);
+      expect(parser.mock.calls[0]![0]).not.toContain("changed");
+    } finally { parser.mockRestore(); }
+  });
+
   it.each([
     ["plain", "", ""], ["blockquote", "> ", ""], ["callout", "> ", "> [!note]\n"], ["list", "    ", "- Item\n\n"],
   ])("refuses a %s transpose that would absorb an adjacent pipe line in the full note", (_name, prefix, context) => {

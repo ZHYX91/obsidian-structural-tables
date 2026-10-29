@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "menu.undo": "元に戻す",
+  "menu.redo": "やり直す",
+  "menu.cut": "切り取り",
+  "menu.copy": "コピー",
+  "menu.paste": "貼り付け",
+  "menu.pastePlainText": "プレーンテキストで貼り付け",
+  "menu.selectAll": "すべて選択",
+  "menu.bold": "太字",
+  "menu.italic": "斜体",
+  "menu.finishEditing": "編集を完了",
+  "menu.cancelEditing": "編集をキャンセル",
+  "menu.tableOperations": "表の操作",
   "settings.group.style": "罫線と背景",
   "settings.group.layout": "配置と余白",
   "settings.preview.title": "外観のプレビュー",

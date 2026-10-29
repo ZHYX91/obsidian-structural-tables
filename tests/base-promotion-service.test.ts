@@ -813,6 +813,48 @@ views:
 });
 
 describe("asynchronous restoration guards", () => {
+  it.each(["before", "after", "during-read"])("refuses restored tables that absorb %s neighboring pipe prose", async (mode) => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
+    const prose = mode === "before" ? "| Before | prose |" : "| Later prose | stays visible | IMPORTANT THIRD CELL |";
+    const candidate = mode === "before" ? `${prose}\n${prepared.replacementSource}` : `${prepared.replacementSource}\n${prose}`;
+    if (mode !== "during-read") editor.mutate(candidate);
+    const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"))!;
+    const replace = vi.spyOn(editor, "replaceRange");
+    if (mode === "during-read") host.afterRead = () => editor.mutate(candidate);
+    const files = [...host.contents];
+    await expect(service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), SOURCE))
+      .rejects.toThrow("neighboring content");
+    expect(editor.getValue()).toBe(candidate);
+    expect(replace).not.toHaveBeenCalled();
+    expect([...host.contents]).toEqual(files);
+    expect(prepared.records.every((record) => host.files.has(record.path))).toBe(true);
+  });
+
+  it("restores one table with blank boundaries while preserving identical neighbors and generated records", async () => {
+    const host = memoryHost();
+    const sourceFile = memoryFile("Folder/People.md");
+    host.files.set(sourceFile.path, sourceFile);
+    const editor = new MemoryEditor(SOURCE);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(sourceTable(), sourceFile);
+    await service.execute(editor as unknown as Editor, sourceTable(), prepared, sourceTarget(editor, sourceFile));
+    const prose = "| Later prose | stays visible | IMPORTANT THIRD CELL |";
+    editor.mutate(`${SOURCE}\n\n${prepared.replacementSource}\n\n${prose}`);
+    const metadata = promotionBlockAt(editor.getValue(), editor.getValue().indexOf("filters:"))!;
+    const replace = vi.spyOn(editor, "replaceRange");
+    await service.restore(editor as unknown as Editor, metadata, sourceTarget(editor, sourceFile), SOURCE);
+    expect(editor.getValue()).toBe(`${SOURCE}\n\n${SOURCE}\n\n${prose}`);
+    expect(parseEditableTables(editor.getValue()).tables.map((table) => table.source)).toEqual([SOURCE, SOURCE]);
+    expect(replace).toHaveBeenCalledOnce();
+    expect(prepared.records.every((record) => host.files.has(record.path))).toBe(true);
+  });
+
   it.each(["changed", "duplicated"])("refuses a Base %s during manifest read without overwriting content", async (mode) => {
     const host = memoryHost();
     const sourceFile = memoryFile("Folder/People.md");

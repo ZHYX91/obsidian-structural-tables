@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const ru = {
+  "menu.undo": "Отменить",
+  "menu.redo": "Повторить",
+  "menu.cut": "Вырезать",
+  "menu.copy": "Копировать",
+  "menu.paste": "Вставить",
+  "menu.pastePlainText": "Вставить обычный текст",
+  "menu.selectAll": "Выделить всё",
+  "menu.bold": "Полужирный",
+  "menu.italic": "Курсив",
+  "menu.finishEditing": "Завершить редактирование",
+  "menu.cancelEditing": "Отменить редактирование",
+  "menu.tableOperations": "Операции с таблицей",
   "settings.group.style": "Линии и фон",
   "settings.group.layout": "Размещение и интервалы",
   "settings.preview.title": "Предпросмотр оформления",

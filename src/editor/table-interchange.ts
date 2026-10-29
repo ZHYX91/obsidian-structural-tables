@@ -2,6 +2,7 @@ import { Platform, type Editor } from "obsidian";
 
 import type { ImportedHtmlRow } from "../core/interchange";
 import { importedHtmlTableToStructuralSource } from "../core/interchange";
+import { validateDocumentReplacement } from "../core/document-replacement";
 
 function positiveSpan(value: number): number {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
@@ -59,7 +60,7 @@ function parsedClipboardTable(html: string): ClipboardTable | null {
 }
 
 const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, embed, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
-const TEXT_SEMANTIC_CONTENT = "pre, sup, sub, h1, h2, h3, h4, h5, h6";
+const TEXT_SEMANTIC_CONTENT = "code, pre, sup, sub, h1, h2, h3, h4, h5, h6";
 
 function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
   const ancestors: HTMLElement[] = [];
@@ -75,9 +76,6 @@ function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
 function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {
   return table.matches(HARD_UNSUPPORTED_CONTENT)
     || table.querySelector(HARD_UNSUPPORTED_CONTENT) !== null
-    // Text-node whitespace normalization is not a TeX parser. Preserve the
-    // clipboard's original plain-text alternative for source math as well.
-    || (table.textContent ?? "").includes("$")
     || Array.from(table.querySelectorAll("caption")).some((caption) => (caption.textContent ?? "").trim() !== "");
 }
 
@@ -193,6 +191,7 @@ export type WholeTableClipboardImport =
   | { kind: "plain"; text: string }
   | { kind: "blocked-empty" }
   | { kind: "blocked-unsafe-text" }
+  | { kind: "blocked-boundary" }
   | { kind: "native" };
 
 /** Classify the complete clipboard payload before taking ownership of a note-level paste. */
@@ -242,8 +241,15 @@ export function replaceSelectionFromClipboardTable(
     clipboardData.getData("text/html"),
     clipboardData.getData("text/plain"),
   );
-  if (result.kind === "table") editor.replaceSelection(result.source);
-  else if (result.kind === "plain") editor.replaceSelection(result.text);
+  if (result.kind === "table" || result.kind === "plain") {
+    if (editor.listSelections().length !== 1) return "blocked-boundary";
+    const source = editor.getValue();
+    const from = editor.posToOffset(editor.getCursor("from"));
+    const to = editor.posToOffset(editor.getCursor("to"));
+    const replacement = result.kind === "table" ? result.source : result.text;
+    if (!validateDocumentReplacement(source, { from, to }, replacement, result.kind === "table")) return "blocked-boundary";
+    editor.replaceSelection(replacement);
+  }
   return result.kind;
 }
 

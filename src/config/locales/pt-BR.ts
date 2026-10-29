@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const ptBR = {
+  "menu.undo": "Desfazer",
+  "menu.redo": "Refazer",
+  "menu.cut": "Recortar",
+  "menu.copy": "Copiar",
+  "menu.paste": "Colar",
+  "menu.pastePlainText": "Colar como texto simples",
+  "menu.selectAll": "Selecionar tudo",
+  "menu.bold": "Negrito",
+  "menu.italic": "Itálico",
+  "menu.finishEditing": "Concluir edição",
+  "menu.cancelEditing": "Cancelar edição",
+  "menu.tableOperations": "Operações da tabela",
   "settings.group.style": "Linhas e fundo",
   "settings.group.layout": "Layout e espaçamento",
   "settings.preview.title": "Prévia da aparência",

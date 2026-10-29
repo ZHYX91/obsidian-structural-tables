@@ -2,6 +2,7 @@ import { App, Component, MarkdownRenderChild, MarkdownRenderer, TFile, type Mark
 import type { ExportTableImage } from "../app/table-image-modal";
 import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
 import { installReadingOutputMenu } from "./table-image-menu";
+import { tableCopySession } from "../app/table-html-copy";
 import { createTranslator } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import { parseEditableTables } from "../core/parser";
@@ -64,7 +65,8 @@ export class StandaloneTableRenderer {
   private readonly sessions = new WeakMap<HTMLElement, RenderSession>();
 
   constructor(private readonly app: App, private readonly settings: () => StructuralTablesSettings,
-    private readonly exportImage?: ExportTableImage, private readonly previewGfm?: PreviewPlainGfm) {}
+    private readonly exportImage?: ExportTableImage, private readonly previewGfm?: PreviewPlainGfm,
+    private readonly copySession = tableCopySession(app)) {}
 
   process(container: HTMLElement, context: MarkdownPostProcessorContext): Promise<void> | void {
     const file = this.app.vault.getAbstractFileByPath(context.sourcePath);
@@ -137,7 +139,7 @@ export class StandaloneTableRenderer {
         tableKind: plan.table.structural ? "structural" : "ordinary",
         structuralTablesProcessed: "true" });
       installReadingOutputMenu(this.app, wrapper, plan.table, context.sourcePath, session,
-        () => createTranslator(this.settings().language), this.exportImage, this.previewGfm);
+        () => createTranslator(this.settings().language), this.exportImage, this.previewGfm, this.copySession);
       targets[0]!.before(wrapper);
       for (const target of targets) target.remove();
     }

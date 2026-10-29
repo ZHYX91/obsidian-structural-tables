@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Refuse whole-table HTML imports and Base restoration when their complete-note result would absorb neighboring prose, change another table or hide source cells. Preserve the original selection and records on refusal.
+- Keep pending Word/HTML copies bound to their loaded plugin and latest copy invocation while preserving command snapshots; stop obsolete clipboard dispatch and notices after a newer copy or unload.
+- Safely finish cell editing before completing row or column selection, with complete axis highlighting, grid focus and guarded draft preservation.
+- Keep cell ranges selected and copyable when the host repeats an unchanged source caret after cell editing.
+- Avoid repeating a full-note parse while validating a whole-table transpose, retaining unchanged-source and neighboring-table safeguards.
+
 ## 0.10.1 - 2026-10-25
 
 - Stop pending Base upgrades, restores, new-record creation and property migrations when the plugin is unloaded. Close their previews and stale formatting previews, and retain any records already created with a clear partial-completion error.

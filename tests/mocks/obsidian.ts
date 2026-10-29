@@ -1,7 +1,13 @@
-import { StateField } from "@codemirror/state";
+import { StateEffect, StateField } from "@codemirror/state";
 
 export const Platform = { isMobileApp: false };
 export function getIcon(_id: string): SVGSVGElement | null { return null; }
+export function setIcon(parent: HTMLElement, id: string): void {
+  const svg = parent.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.classList.add("svg-icon");
+  svg.dataset.icon = id;
+  parent.replaceChildren(svg);
+}
 export function addIcon(_id: string, _svg: string): void {}
 export function removeIcon(_id: string): void {}
 export async function finishRenderMath(): Promise<void> {}
@@ -57,9 +63,11 @@ export class MarkdownView {
 
 export let lastMenu: Menu | null = null;
 const menusByEvent = new WeakMap<Event, Menu>();
+function recordShownMenu(menu: Menu): void { lastMenu = menu; }
 
 export class Menu {
   readonly items: MenuItem[] = [];
+  showAtPosition(_position: { x: number; y: number }): this { recordShownMenu(this); return this; }
   private readonly hideCallbacks: Array<() => void> = [];
 
   static forEvent(event: Event): Menu {
@@ -92,6 +100,8 @@ export class MenuItem {
   section = "";
   checked: boolean | null = null;
   warning = false;
+  disabled = false;
+  submenu: Menu | null = null;
   callback: (() => void) | null = null;
 
   setTitle(title: string): this { this.title = title; return this; }
@@ -99,6 +109,8 @@ export class MenuItem {
   setSection(section: string): this { this.section = section; return this; }
   setChecked(checked: boolean | null): this { this.checked = checked; return this; }
   setWarning(warning: boolean): this { this.warning = warning; return this; }
+  setDisabled(disabled: boolean): this { this.disabled = disabled; return this; }
+  setSubmenu(): Menu { return this.submenu = new Menu(); }
   onClick(callback: () => void): this { this.callback = callback; return this; }
 }
 
@@ -172,9 +184,11 @@ export const editorLivePreviewField = StateField.define<boolean>({
   update: (value) => value,
 });
 
-export const editorInfoField = StateField.define<{ file?: { path: string }; editor?: object }>({
+type MockEditorInfo = { file?: { path: string } | null; editor?: object };
+export const editorInfoChanged = StateEffect.define<MockEditorInfo>();
+export const editorInfoField = StateField.define<MockEditorInfo>({
   create: () => ({ file: { path: "Test.md" }, editor: {} }),
-  update: (value) => value,
+  update: (value, transaction) => transaction.effects.find((effect) => effect.is(editorInfoChanged))?.value ?? value,
 });
 
 export function getLanguage(): string {

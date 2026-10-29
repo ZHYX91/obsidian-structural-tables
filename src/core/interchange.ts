@@ -1,8 +1,9 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
-import { closedCodeSpanEnd, existingTableCellText, mathCellInputProblem, trimTableCellWhitespace } from "./table-cell-syntax";
+import { closedCodeSpanEnd, existingTableCellText } from "./table-cell-syntax";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
+import { literalTableCellText } from "./literal-cell-text";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -89,32 +90,6 @@ function portableCell(content: string): string {
     slashes.length % 2 === 0 ? slashes + "\\|" : slashes + "|");
 }
 
-/** HTML clipboard cells are literal text, not already-escaped GFM source. */
-function importedHtmlCellText(content: string, nativeGfm: boolean): string {
-  // Markdown cell parsing trims raw Unicode whitespace at the edges. Encode
-  // nonbreaking edge spaces as character references while leaving interior
-  // characters intact (including inside code spans and Wiki link targets).
-  const source = trimTableCellWhitespace(content.replace(/\r\n|\r|\n/gu, "<br>"));
-  let result = "";
-  for (let index = 0; index < source.length;) {
-    const character = source[index] ?? "";
-    if (character === "`") {
-      const end = closedCodeSpanEnd(source, index);
-      if (end !== null) {
-        const opening = /^`+/u.exec(source.slice(index))![0].length;
-        const raw = source.slice(index + opening, end - opening);
-        // Ordinary output stays native when takeover is off. Entity-encoded
-        // code pipes preserve both its GFM columns and the owned inline render.
-        result += nativeGfm && raw.includes("|") ? codeSpanAsHtml(raw) : source.slice(index, end);
-        index = end;
-        continue;
-      }
-    }
-    result += character === "\\" ? "\\\\" : character === "|" ? "\\|" : character;
-    index += 1;
-  }
-  return result === "<" || result === "^" ? "\\" + result : result;
-}
 
 function delimiterFor(alignment: ColumnAlignment): string {
   if (alignment === "left") return ":---";
@@ -338,7 +313,7 @@ export function enabledConflictingPlugins(enabledPluginIds: Iterable<string>): s
 }
 
 export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlRow[]): string | null {
-  if (rows.some((row) => row.cells.some((cell) => mathCellInputProblem(cell.text) !== null))) return null;
+  if (rows.some((row) => row.cells.some((cell) => literalTableCellText(cell.text) === null))) return null;
   if (rows.length === 0 || rows.every((row) => row.cells.length === 0)) return null;
   const owners: (ImportedAnchor | undefined)[][] = rows.map(() => []);
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
@@ -391,12 +366,9 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
     if (!bodyOwners.every((row) => row[column]?.header === true)) break;
     rowHeaderColumnCount = column + 1;
   }
-  const nativeGfm = headerRowCount === 1 && rowHeaderColumnCount === 0
-    && owners.every((row) => row.every((anchor) => anchor === undefined
-      || (anchor.rowSpan === 1 && anchor.columnSpan === 1)));
   const values = owners.map((row, rowIndex) => row.map((anchor, columnIndex) => {
     if (anchor === undefined) return "";
-    if (anchor.row === rowIndex && anchor.column === columnIndex) return importedHtmlCellText(anchor.text, nativeGfm);
+    if (anchor.row === rowIndex && anchor.column === columnIndex) return literalTableCellText(anchor.text)!;
     return anchor.row === rowIndex ? "<" : "^";
   }));
   const delimiters = Array.from({ length: columnCount }, () => "---");

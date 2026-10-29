@@ -30,7 +30,10 @@ try {
   const { command, evaluate } = session;
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
   await session.navigate(origin + "/", "typeof window.gfmBrowser === 'object'");
-  const settle = () => evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  const settle = async () => {
+    await session.ensureVisible();
+    return evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  };
   const waitFor = (expression) => evaluate(`new Promise((resolve,reject)=>{let attempts=0;const timer=setInterval(()=>{if(${expression}){clearInterval(timer);resolve(true)}else if(++attempts>100){clearInterval(timer);reject(new Error('GFM fixture timed out: '+${JSON.stringify(expression)}))}},50)})`);
   const click = async (expression, button = "left") => {
     await evaluate(`(${expression})?.scrollIntoView({block:'nearest'})`); await settle();

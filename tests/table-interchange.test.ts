@@ -19,6 +19,11 @@ import { editCellContent } from "../src/core/operations";
 const originalDomParser = globalThis.DOMParser;
 const originalHtmlTable = globalThis.HTMLTableElement;
 
+function emptySelectionEditor(replaceSelection: (value: string) => void): Editor {
+  return { replaceSelection, getValue: () => "", getCursor: () => ({ line: 0, ch: 0 }), posToOffset: () => 0,
+    listSelections: () => [{ anchor: { line: 0, ch: 0 }, head: { line: 0, ch: 0 } }] } as unknown as Editor;
+}
+
 describe("whole-table clipboard copy", () => {
   afterEach(() => {
     Platform.isMobileApp = false;
@@ -466,7 +471,7 @@ describe("HTML table clipboard import", () => {
     const clipboardData = {
       getData: (type: string) => type === "text/html" ? html : plain,
     } as unknown as DataTransfer;
-    const editor = { replaceSelection } as unknown as Editor;
+    const editor = emptySelectionEditor(replaceSelection);
 
     expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("native");
     expect(replaceSelection).not.toHaveBeenCalled();
@@ -486,7 +491,7 @@ describe("HTML table clipboard import", () => {
     const clipboardData = {
       getData: (type: string) => type === "text/html" ? html : plain,
     } as unknown as DataTransfer;
-    const editor = { replaceSelection } as unknown as Editor;
+    const editor = emptySelectionEditor(replaceSelection);
 
     expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("plain");
     expect(replaceSelection).toHaveBeenCalledOnce();
@@ -503,7 +508,7 @@ describe("HTML table clipboard import", () => {
     const clipboardData = {
       getData: (type: string) => type === "text/html" ? html : "",
     } as unknown as DataTransfer;
-    const editor = { replaceSelection } as unknown as Editor;
+    const editor = emptySelectionEditor(replaceSelection);
 
     expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("blocked-unsafe-text");
     expect(replaceSelection).not.toHaveBeenCalled();
@@ -520,7 +525,7 @@ describe("HTML table clipboard import", () => {
     const clipboardData = {
       getData: (type: string) => type === "text/html" ? html : plain,
     } as unknown as DataTransfer;
-    const editor = { replaceSelection } as unknown as Editor;
+    const editor = emptySelectionEditor(replaceSelection);
 
     expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("plain");
     expect(replaceSelection).toHaveBeenCalledOnce();
@@ -534,7 +539,7 @@ describe("HTML table clipboard import", () => {
     const clipboardData = {
       getData: (type: string) => type === "text/html" ? html : "",
     } as unknown as DataTransfer;
-    const editor = { replaceSelection } as unknown as Editor;
+    const editor = emptySelectionEditor(replaceSelection);
 
     expect(replaceSelectionFromClipboardTable(clipboardData, editor)).toBe("blocked-empty");
     expect(replaceSelection).not.toHaveBeenCalled();
@@ -551,7 +556,7 @@ describe("HTML table clipboard import", () => {
         ? "<table><tr><td>A</td><td>B</td></tr><tr><td>1</td><td>2</td></tr></table>"
         : "A\tB\n1\t2",
     } as unknown as DataTransfer;
-    const editor = { replaceSelection } as unknown as Editor;
+    const editor = emptySelectionEditor(replaceSelection);
 
     expect(wholeTableClipboardImport(
       clipboardData.getData("text/html"),

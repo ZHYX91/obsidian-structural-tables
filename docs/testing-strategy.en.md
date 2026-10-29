@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-25
+last_synced: 2026-10-29
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -129,6 +129,10 @@ Cover:
 - the whole-note HTML-import route leaving mixed prose, multiple tables, images, attachments, links, MathML/SVG, and other unsafe payloads to Obsidian's native paste;
 - GFM orientation plans checked with an independent Markdown parser; actual command/native/owned-menu entry points, shared result/source/clipboard bytes, hidden-cell warnings, stale file/view/source identity, active drafts, asynchronous render races, Reading View without a write callback, and a single isolated editor write with Undo/Redo.
 - the whole-note HTML-import route using complete plain-text fallback for headings, inherited preserved whitespace and preserved newlines, including zero replacement when safe fallback is absent.
+
+Whole-table import and restoration separately exercise their production entries against complete candidate notes: adjacent pipe prose above/below, hidden overflow, partial-table selections, identical neighboring tables, code/HTML/math protection and all three line endings. Refusal preserves full source, selection, records and write counts. A blank-line positive control uses an independent Markdown parser to check visible prose and one Undo/Redo. Complete plain fallback retains raw payload bytes and the same neighboring-ownership protection without guessing an equivalent table.
+
+Whole-table HTML copy drives real registered commands and the menu helper through controlled MarkdownRenderer barriers. Check that late A cannot overwrite newer B, unload and replacement instances invalidate old work, render components release, and obsolete notices stop. Later ordinary source edits still permit the command's captured snapshot; an already dispatched clipboard write is not pretended to be retracted. These port regressions do not prove real-host clipboard or unload timing.
 
 <!-- section: base-promotion -->
 ## Base conversion

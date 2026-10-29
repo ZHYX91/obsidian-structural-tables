@@ -18,6 +18,7 @@ import {
   type PromotionRecord,
 } from "../core/base-promotion";
 import type { StructuralTable } from "../core/model";
+import { validateDocumentReplacement } from "../core/document-replacement";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { replaceTableSource } from "../editor/table-replacement";
 
@@ -303,6 +304,9 @@ export class BasePromotionService {
     const current = matchingPromotionBlock(editor, expected);
     if (current === null) {
       throw new Error("The promoted Base changed while its recovery manifest was being read.");
+    }
+    if (!validateDocumentReplacement(editor.getValue(), current.range, manifest.originalTableSource, true)) {
+      throw new Error("The restored table would change neighboring content or hide source cells. Add a blank line around the Base and retry.");
     }
     editor.replaceRange(
       manifest.originalTableSource,

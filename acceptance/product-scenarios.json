@@ -838,6 +838,29 @@
         "Conditional rollback reverses only the migration-owned changes and retains the external edit after an actual partial-write failure.",
         "Unarmed positive migration succeeds through the product UI and preserves unrelated YAML layout/comments and body bytes. Every injected boundary must have a recorded triggered observation; arming alone is not a pass."
       ]
+    },
+    {
+      "id": "whole-table-write-boundaries",
+      "title": "Whole-table import, Base restoration and copy invocation ownership",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open Whole table boundaries and record its complete source. On desktop copy an actual browser-rendered two-column HTML table from Literal clipboard.html. Select only PLACEHOLDER in the adjacent-body and adjacent-header cases and use the real note-editor Paste. Both must refuse without source, selection or history changes; IMPORTANT THIRD CELL and KEEP text remain visible. A synthetic paste event is not rich clipboard acceptance. On Android record the actual available note-editor clipboard representation and retain unavailable HTML scope as unverified.",
+        "Paste into the isolated control. Check the imported table owns only the selected source range and the following three-cell pipe prose remains a separate visible paragraph. Use one host Undo and Redo, compare complete source, then repeat a partial quote/list source-line selection and verify zero-write refusal.",
+        "Upgrade the Base restoration table through the actual product preview. Add the marked three-cell prose immediately after its closing fence without a blank line. Invoke Restore original table and confirm the preview: refuse with the Base, prose, records and history intact. Add one blank line, restore successfully and use one host Undo/Redo. Repeat with two-cell prose immediately before the opening fence; record generated record inventory.",
+        "Start Copy current table as HTML on A and invoke a newer command or menu copy on B while A is actually pending. If necessary use a separately recorded triggered renderer delay; an armed-only delay or sequential run proves no cancellation. Inspect actual clipboard output and notices: only the latest invocation dispatches. Repeat unload during a triggered pending A render, reload and copy B; old work must not resume. No cancellation claim applies to a system write already dispatched.",
+        "In a separate pending A command copy, make an ordinary source edit without a newer copy. The captured A snapshot remains a valid command result; menu targets still reject actual source staleness. Check source bytes remain unchanged by all copy actions, and distinguish desktop rich HTML from mobile TSV fallback."
+      ],
+      "expected": [
+        "Both whole-table write entries preserve unselected prose and hidden source cells, refuse unsafe boundaries with zero writes, and accept isolated controls with full-note Undo/Redo.",
+        "Overlapping copy intent and plugin lifetime prevent old post-cancellation dispatch and notices while preserving legitimate command snapshot semantics. Only actually triggered host boundaries count as observed."
+      ]
     }
   ]
 }

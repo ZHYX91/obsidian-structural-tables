@@ -1,5 +1,7 @@
 # Acceptance
 
+For whole-table import, Base restore or HTML-copy lifetime changes, select `whole-table-write-boundaries` and use **Whole table boundaries.md**. Exercise real note-editor paste and real restore preview separately: adjoining pipe prose must cause refusal with exact source/selection/history and records preserved; blank-line controls succeed with one full-note Undo/Redo. Copy a real browser HTML table on desktop and keep mobile native clipboard observations separate. For overlapping copy/unload tests, record that rendering was actually pending before the newer copy or unload; a triggered controlled delay may supply that boundary, but sequential copies or an armed-only delay do not prove cancellation.
+
 For draft/grid, context-menu and literal-import changes, select `draft-grid-and-cell-menu` on desktop and `literal-html-and-plain-paste` on each affected surface. Use **Draft grid and literal paste.md** and the visible **Literal clipboard.html** browser sample. Provider text setup is not rich clipboard acceptance. Inspect committed/reopened visible characters and exact full-note Undo/Redo; retain invalid/IME/stale cases and unobserved variants explicitly.
 
 Automated checks prove source-level behavior and package integrity. They do not prove behavior in a real Obsidian host.

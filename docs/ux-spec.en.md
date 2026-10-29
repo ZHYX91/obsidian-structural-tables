@@ -85,6 +85,8 @@ Before committing, reparse the complete note to ensure the transpose preserves t
 
 In the note editor's HTML-import route, a verifiable multi-column table is converted structurally when Preserve pasted HTML table spans is enabled.
 
+Whole-table import checks the complete candidate note before replacing the selection. The new table must own exactly its intended source range without absorbing adjacent pipe prose or changing tables and hidden cells outside the selection. An unsafe boundary blocks the paste and preserves the selection and source; leave blank lines around the target before retrying. Complete plain-text fallback retains its exact bytes and must not absorb unselected prose through adjacent syntax either.
+
 A single otherwise-safe table that is either completely empty or contains only text semantics the importer cannot preserve faithfully (`pre`, `sup`, or `sub`) uses the complete non-empty plain-text clipboard alternative verbatim when available; no TSV, Markdown, or TeX equivalence is inferred. If that known-lossy payload has no plain-text alternative, the paste is blocked and the current selection is kept.
 
 Mixed-content, multi-table, image, HTML `embed`, attachment, link, MathML/SVG, rich semantics on or around the table, clipboard files, and non-text clipboard MIME payloads remain native paste rather than being downgraded to plain text.
@@ -104,6 +106,8 @@ Clicking the destination already opens its textarea. A multi-cell plugin payload
 Mobile range menus use verified text-only transport when the host rich bridge is image-only. Copy/Cut verifies the actual system text before reporting success or clearing source. The session-owned topology remains valid only while that exact clipboard text, copy identity, document/file/editor/source and selection are unchanged through asynchronous reads. It supports the same matching-rectangle or single-anchor paste policy, but never infers topology from portable GFM alone.
 
 Whole-table HTML copy commands bypass the mobile image-only rich bridge and use their complete tab-separated text alternative on mobile or when desktop rich clipboard support is unavailable. This TSV projection converts cell-internal line breaks and tabs to spaces while retaining row separators and column tabs. Both entry points report the actual clipboard form; the plain-text notice explains that header structure and merged cells were flattened and rich formatting is unavailable. A rejected clipboard write reports failure.
+
+Word/HTML copying and direct GFM/TSV/CSV copy commands share the latest invocation intent in the loaded plugin instance. A newer copy or unload stops later steps of an earlier asynchronous HTML render, preventing its clipboard dispatch and notices; a write already dispatched to the system cannot be retracted. A command copies its captured invocation snapshot, so ordinary later source edits alone do not cancel that snapshot. Menus retain their existing source-target checks.
 
 Range Copy also exposes portable HTML and plain Markdown. Range HTML escapes each owner's raw Markdown as text and represents spans; it does not render that Markdown as rich content. Plain Markdown makes the first copied row a header and retains structural markers where representable. It does not promise equivalent merge topology in external GFM, especially for vertical merges.
 
@@ -159,6 +163,8 @@ On partial failure, keep created files and report the folder. Do not automatical
 ### Restore and legacy migration
 
 Restore uses the original snapshot stored in `_promotion.json` and deliberately keeps generated record notes. Missing manifests, mismatched sources, or ownership that cannot be proven uniquely must be refused.
+
+Restoration confirmation validates the candidate table range and neighboring ownership against the latest complete note. Pipe prose added before or after the Base must not be absorbed or hidden by restoration. An unsafe result writes nothing and leaves record notes unchanged; add blank lines around the Base before retrying.
 
 Legacy-property migration runs only on explicit user request. Its preview lists per-file changes, retired record-ID cleanup is off by default, and writes recheck both source and plugin-owned frontmatter. Rollback restores only plugin-owned changes and preserves unrelated concurrent edits.
 

@@ -55,10 +55,9 @@ import {
   hasSelectionMenuItems,
 } from "../editor/table-menu";
 import { replaceTableSource } from "../editor/table-replacement";
-import { copyHtml, copyText, replaceSelectionFromClipboardTable } from "../editor/table-interchange";
+import { copyText, replaceSelectionFromClipboardTable } from "../editor/table-interchange";
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
-import { renderTableClipboard } from "../rendering/table-clipboard";
 import { attachedEditorContext, editorTableContext, editorTableDirection } from "../editor/editor-view-context";
 import { StructuralTablesSettingTab } from "./settings-tab";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
@@ -81,6 +80,7 @@ import { PlainGfmConversionService } from "./plain-gfm-modal";
 import { captureEditorPlainGfmTarget } from "../editor/plain-gfm-target";
 import { addEditorTableHtmlCopyMenuItem } from "../editor/table-html-menu";
 import { planPlainGfmConversion } from "../core/plain-gfm-conversion";
+import { copyTableForWord, startTableCopySession, tableCopySession, type TableCopySession } from "./table-html-copy";
 
 const TEMPLATE = `| Region | Sales | < |
 | Quarter | Q1 | Q2 |
@@ -129,10 +129,12 @@ export class StructuralTablesPlugin extends Plugin {
   private transposeRequestsActive = true;
   private runtimeEpoch?: object;
   private operationPreviews?: Set<Modal>;
+  private clipboardCopySession?: TableCopySession;
 
   override async onload(): Promise<void> {
     this.runtimeEpoch = {};
     this.transposeRequestsActive = true;
+    this.clipboardCopySession = startTableCopySession(this.app);
     const isActive = this.captureRuntime();
     registerTableMenuIcons(this);
     const schedule = settingsStoreScheduler(this.app);
@@ -183,6 +185,7 @@ export class StructuralTablesPlugin extends Plugin {
 
   override onunload(): void {
     this.transposeRequestsActive = false;
+    this.clipboardCopySession?.dispose();
     this.basePromotionService?.dispose();
     this.basePropertyMigrationService?.dispose();
     this.imageExport?.dispose();
@@ -459,6 +462,7 @@ export class StructuralTablesPlugin extends Plugin {
       if (result === "table") new Notice(t("notice.htmlTableImported"));
       else if (result === "plain") new Notice(t("notice.clipboardPlainFallback"));
       else if (result === "blocked-empty") new Notice(t("notice.htmlEmptyTableBlocked"));
+      else if (result === "blocked-boundary") new Notice(t("operation.invalidResult"));
       else new Notice(t("notice.htmlTextSemanticsBlocked"));
     }));
   }
@@ -565,6 +569,7 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = "", viewHint?: MarkdownView): void {
+    this.clipboardCopySession ??= tableCopySession(this.app);
     const t = createTranslator(this.settings.language);
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
@@ -573,27 +578,27 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const direction = format === "HTML" ? editorTableDirection(this.app, editor, current.table, viewHint) : "ltr";
+    if (format === "HTML") {
+      // A command deliberately copies its invocation snapshot; unlike a menu
+      // target it does not follow or reject subsequent source edits.
+      void copyTableForWord(this.app, current.table, this.settings.appearance, {
+        sourcePath, direction, isCurrent: () => true,
+      }, t, this.clipboardCopySession);
+      return;
+    }
+    const isCurrent = this.clipboardCopySession.begin();
     const write = Promise.resolve().then(async () => {
-      if (format === "HTML") {
-        const { html, text } = await renderTableClipboard(
-          this.app,
-          current.table,
-          sourcePath,
-          this.settings.appearance,
-          direction,
-        );
-        return copyHtml(html, text);
-      }
+      if (!isCurrent()) return;
       const text = format === "GFM"
         ? (() => { const conversion = planPlainGfmConversion(current.table)!; return conversion[conversion.recommended]!.source; })()
         : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t");
       await copyText(text);
     });
-    void write.then((mode) => {
+    void write.then(() => {
+      if (!isCurrent()) return;
       const t = createTranslator(this.settings.language);
-      const message = mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", format);
-      new Notice(message);
-    }).catch(() => new Notice(createTranslator(this.settings.language)("notice.clipboardFailed")));
+      new Notice(t("notice.copied").replace("{format}", format));
+    }).catch(() => { if (isCurrent()) new Notice(createTranslator(this.settings.language)("notice.clipboardFailed")); });
   }
 
   private previewPlainGfmConversion(editor: Editor, sourceFile: TFile | null): void {

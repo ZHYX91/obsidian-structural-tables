@@ -49,7 +49,7 @@ import {
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
 import { renderStructuralTable, tableRenderingComplete } from "../rendering/table-renderer";
-import { copyTableForWord } from "../app/table-html-copy";
+import { copyTableForWord, tableCopySession, type TableCopySession } from "../app/table-html-copy";
 import { cellClipboardText } from "./table-interchange";
 import {
   readTableRangeFromDataTransfer,
@@ -109,6 +109,7 @@ function samePresentation(left: StructuralTablesSettings, right: StructuralTable
 
 /** Immutable CodeMirror description; DOM-owned interactions retain drafts across source shifts. */
 export class StructuralTableWidget extends WidgetType {
+  private readonly copySession: TableCopySession;
   constructor(
     private readonly app: App,
     private readonly table: StructuralTable,
@@ -119,7 +120,7 @@ export class StructuralTableWidget extends WidgetType {
     private readonly exportImage?: ExportTableImage,
     private readonly cellCommitGeometry?: { height: number; minHeight: number },
     private readonly previewGfm?: PreviewPlainGfm,
-  ) { super(); }
+  ) { super(); this.copySession = tableCopySession(app); }
 
   override get estimatedHeight(): number {
     const height = this.cellCommitGeometry?.height;
@@ -131,12 +132,13 @@ export class StructuralTableWidget extends WidgetType {
       && this.table.range.from === other.table.range.from && this.table.range.to === other.table.range.to
       && this.table.sourceTableIndex === other.table.sourceTableIndex
       && this.sourcePath === other.sourcePath && samePresentation(this.settings, other.settings)
-      && this.promote === other.promote && this.exportImage === other.exportImage && this.previewGfm === other.previewGfm;
+      && this.promote === other.promote && this.exportImage === other.exportImage && this.previewGfm === other.previewGfm
+      && this.copySession === other.copySession;
   }
 
   override toDOM(view: EditorView): HTMLElement {
     const interaction = new StructuralTableInteraction(
-      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage, this.previewGfm,
+      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage, this.previewGfm, this.copySession,
     );
     const host = interaction.mount(view, this.cellCommitGeometry?.minHeight);
     interactions.set(host, interaction);
@@ -145,7 +147,7 @@ export class StructuralTableWidget extends WidgetType {
   }
 
   override updateDOM(host: HTMLElement): boolean {
-    return interactions.get(host)?.rebind(this.table, this.sourcePath, this.settings) ?? false;
+    return interactions.get(host)?.rebind(this.table, this.sourcePath, this.settings, this.copySession) ?? false;
   }
 
   override destroy(host: HTMLElement): void {
@@ -200,6 +202,7 @@ class StructuralTableInteraction {
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
     private readonly previewGfm?: PreviewPlainGfm,
+    private readonly copySession = tableCopySession(app),
   ) {}
 
   restoreCellCommitViewport(view: EditorView, snapshot: CellCommitViewport): void {
@@ -238,8 +241,8 @@ class StructuralTableInteraction {
     }).catch(cleanup);
   }
 
-  rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
-    if (this.table.source !== table.source || this.sourcePath !== sourcePath
+  rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings, copySession: TableCopySession): boolean {
+    if (this.copySession !== copySession || this.table.source !== table.source || this.sourcePath !== sourcePath
       || !samePresentation(this.settings, settings)) return false;
     const sameSourceIdentity = this.table.range.from === table.range.from
       && this.table.range.to === table.range.to
@@ -1346,7 +1349,7 @@ class StructuralTableInteraction {
           && view.state.field(editorInfoField, false)?.file === fileIdentity
           && fileIdentity?.path === frozen.sourcePath
           && reparseUnchangedTable(view.state.doc.toString(), tableIdentity) !== null,
-      }, t);
+      }, t, this.copySession);
     })));
     if (this.exportImage !== undefined) {
       addImageExportMenuItem(menu, t, () => activate(() => {

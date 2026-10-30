@@ -1,6 +1,7 @@
 import { Platform, type Editor } from "obsidian";
 
 import type { ImportedHtmlRow } from "../core/interchange";
+import type { TableSourceSyntax } from "../core/model";
 import { importedHtmlTableToStructuralSource } from "../core/interchange";
 import { validateDocumentReplacement } from "../core/document-replacement";
 
@@ -162,7 +163,7 @@ function isPlainFallbackTextSemanticTable(html: string): boolean {
   );
 }
 
-export function structuralSourceFromClipboardHtml(html: string): string | null {
+export function structuralSourceFromClipboardHtml(html: string, syntax: TableSourceSyntax = "compact"): string | null {
   const parsed = parsedClipboardTable(html);
   if (
     parsed === null
@@ -183,7 +184,7 @@ export function structuralSourceFromClipboardHtml(html: string): string | null {
       })),
     };
   });
-  return importedHtmlTableToStructuralSource(rows);
+  return importedHtmlTableToStructuralSource(rows, syntax);
 }
 
 export type WholeTableClipboardImport =
@@ -195,8 +196,9 @@ export type WholeTableClipboardImport =
   | { kind: "native" };
 
 /** Classify the complete clipboard payload before taking ownership of a note-level paste. */
-export function wholeTableClipboardImport(html: string, plain: string): WholeTableClipboardImport {
-  const source = structuralSourceFromClipboardHtml(html);
+export function wholeTableClipboardImport(html: string, plain: string,
+  syntax: TableSourceSyntax = "compact"): WholeTableClipboardImport {
+  const source = structuralSourceFromClipboardHtml(html, syntax);
   if (source !== null) return { kind: "table", source };
   if (isPureEmptyClipboardTable(html)) {
     return plain !== "" ? { kind: "plain", text: plain } : { kind: "blocked-empty" };
@@ -235,11 +237,13 @@ function hasNativeClipboardPayload(clipboardData: DataTransfer): boolean {
 export function replaceSelectionFromClipboardTable(
   clipboardData: DataTransfer,
   editor: Editor,
+  syntax: TableSourceSyntax = "compact",
 ): WholeTableClipboardImport["kind"] {
   if (hasNativeClipboardPayload(clipboardData)) return "native";
   const result = wholeTableClipboardImport(
     clipboardData.getData("text/html"),
     clipboardData.getData("text/plain"),
+    syntax,
   );
   if (result.kind === "table" || result.kind === "plain") {
     if (editor.listSelections().length !== 1) return "blocked-boundary";

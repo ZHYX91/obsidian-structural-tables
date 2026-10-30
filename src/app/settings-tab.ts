@@ -95,6 +95,14 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
               this.display();
             });
         });
+      new Setting(panels).setName(t("settings.sourceSyntax"))
+        .setDesc(t("settings.sourceSyntax.desc")).addDropdown((dropdown) => dropdown
+          .addOption("compatible", t("settings.sourceSyntax.compatible"))
+          .addOption("compact", t("settings.sourceSyntax.compact"))
+          .setValue(this.structuralPlugin.settings.defaultSourceSyntax)
+          .onChange(async (value) => this.structuralPlugin.updateSettings({
+            defaultSourceSyntax: value === "compact" ? "compact" : "compatible",
+          })));
       new Setting(panels).setName(t("settings.htmlPaste")).setDesc(t("settings.htmlPaste.desc")).addToggle((toggle) => toggle
         .setValue(this.structuralPlugin.settings.convertHtmlTablePaste)
         .onChange(async (value) => this.structuralPlugin.updateSettings({ convertHtmlTablePaste: value })));

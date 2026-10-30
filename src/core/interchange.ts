@@ -1,4 +1,4 @@
-import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
+import type { ColumnAlignment, StructuralCell, StructuralTable, TableSourceSyntax } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
 import { closedCodeSpanEnd, existingTableCellText } from "./table-cell-syntax";
@@ -312,7 +312,7 @@ export function enabledConflictingPlugins(enabledPluginIds: Iterable<string>): s
   return [...names].sort((left, right) => left.localeCompare(right));
 }
 
-export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlRow[]): string | null {
+export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlRow[], syntax: TableSourceSyntax = "compact"): string | null {
   if (rows.some((row) => row.cells.some((cell) => literalTableCellText(cell.text) === null))) return null;
   if (rows.length === 0 || rows.every((row) => row.cells.length === 0)) return null;
   const owners: (ImportedAnchor | undefined)[][] = rows.map(() => []);
@@ -379,5 +379,9 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
   lines.splice(headerRowCount, 0, delimiter);
   const candidate = lines.join("\n");
   const parsed = parseTableWrite(candidate, values, headerRowCount, rowHeaderColumnCount, Array.from({ length: columnCount }, () => "default"));
-  return parsed !== null ? serializeStructuralTable(parsed) : null;
+  if (parsed === null) return null;
+  const rendered = serializeStructuralTable({ ...parsed, sourceSyntax: syntax });
+  const verified = parseTableWrite(rendered, values, headerRowCount, rowHeaderColumnCount,
+    Array.from({ length: columnCount }, () => "default"));
+  return verified !== null ? rendered : null;
 }

@@ -34,7 +34,7 @@ import { serializeStructuralTable } from "../core/serializer";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { validateTableOperationInDocument } from "../core/table-operation-document";
 import { hasHiddenGfmOverflow } from "../core/table-write-safety";
-import type { StructuralTable } from "../core/model";
+import type { StructuralTable, TableSourceSyntax } from "../core/model";
 import {
   promotionBlockAt,
   type BasePromotionBlocker,
@@ -82,11 +82,18 @@ import { addEditorTableHtmlCopyMenuItem } from "../editor/table-html-menu";
 import { planPlainGfmConversion } from "../core/plain-gfm-conversion";
 import { copyTableForWord, startTableCopySession, tableCopySession, type TableCopySession } from "./table-html-copy";
 
-const TEMPLATE = `| Region | Sales | < |
+const TEMPLATE_COMPACT = `| Region | Sales | < |
 | Quarter | Q1 | Q2 |
 | --- || --- | --- |
 | North | 10 | 12 |
 | ^ | 8 | 11 |`;
+
+const TEMPLATE_COMPATIBLE = `| Region | << | Sales | < |
+| --- | --- | --- | --- |
+| Quarter | << | Q1 | Q2 |
+| ^^ | << | ^^ | ^^ |
+| North | << | 10 | 12 |
+| ^ | << | 8 | 11 |`;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -261,7 +268,7 @@ export class StructuralTablesPlugin extends Plugin {
       id: "insert-structural-table",
       name: t("command.insert"),
       editorCallback: (editor) => {
-        editor.replaceSelection(TEMPLATE);
+        editor.replaceSelection(this.settings.defaultSourceSyntax === "compatible" ? TEMPLATE_COMPATIBLE : TEMPLATE_COMPACT);
         new Notice(createTranslator(this.settings.language)("notice.inserted"));
       },
     }));
@@ -316,6 +323,14 @@ export class StructuralTablesPlugin extends Plugin {
       editorCallback: (editor) => this.migrateSheetsExtended(editor),
     }));
     this.localizedCommands.push(register({
+      id: "convert-current-table-to-compatible-syntax", name: t("command.syntaxCompatible"),
+      editorCallback: (editor, info) => this.previewSourceSyntaxConversion(editor, info.file, "compatible"),
+    }));
+    this.localizedCommands.push(register({
+      id: "convert-current-table-to-compact-syntax", name: t("command.syntaxCompact"),
+      editorCallback: (editor, info) => this.previewSourceSyntaxConversion(editor, info.file, "compact"),
+    }));
+    this.localizedCommands.push(register({
       id: "format-current-structural-table",
       name: t("command.format"),
       editorCallback: (editor, context) => this.formatCurrent(editor, context.file),
@@ -353,6 +368,8 @@ export class StructuralTablesPlugin extends Plugin {
       "copy-current-table-as-tsv": t("command.copyTsv"),
       "create-record-for-current-promoted-base": t("command.createBaseRecord"),
       "format-current-structural-table": t("command.format"),
+      "convert-current-table-to-compatible-syntax": t("command.syntaxCompatible"),
+      "convert-current-table-to-compact-syntax": t("command.syntaxCompact"),
       "insert-structural-table": t("command.insert"),
       "merge-current-cell-left": t("command.mergeLeft"),
       "merge-current-cell-up": t("command.mergeUp"),
@@ -441,6 +458,12 @@ export class StructuralTablesPlugin extends Plugin {
         if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
         this.plainGfm?.open(current.table, gfmTarget);
       });
+      menu.addItem((item) => item
+        .setSection("structural-tables-transform")
+        .setIcon("repeat")
+        .setTitle(t(current.table.sourceSyntax === "compatible" ? "menu.syntaxCompact" : "menu.syntaxCompatible"))
+        .onClick(() => requireMenu(() => this.previewSourceSyntaxConversion(
+          editor, fileAtOpen, current.table.sourceSyntax === "compatible" ? "compact" : "compatible"))));
       addEditorTableHtmlCopyMenuItem(menu, this.app, editor, current.table, () => this.settings, targetView,
         isActive);
       addImageExportMenuItem(menu, t, () => requireMenu(() => this.exportImage(editor, () => menuIsCurrent() ? info : null, current.table)));
@@ -455,7 +478,7 @@ export class StructuralTablesPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("editor-paste", (event, editor) => {
       if (!isActive()) return;
       if (!this.settings.convertHtmlTablePaste || event.defaultPrevented || event.clipboardData === null) return;
-      const result = replaceSelectionFromClipboardTable(event.clipboardData, editor);
+      const result = replaceSelectionFromClipboardTable(event.clipboardData, editor, this.settings.defaultSourceSyntax);
       if (result === "native") return;
       event.preventDefault();
       const t = createTranslator(this.settings.language);
@@ -485,7 +508,7 @@ export class StructuralTablesPlugin extends Plugin {
     const row = table.rows.findIndex((candidate) => candidate.sourceLine === cursor.line);
     if (row < 0) return { table, row: -1, column: -1 };
     const column = cellColumnAt(editor.getLine(cursor.line), cursor.ch, table);
-    return { table, row, column: Math.min(column ?? 0, table.columnCount - 1) };
+    return { table, row, column: column === null ? -1 : Math.min(column, table.columnCount - 1) };
   }
 
   private exportImage(editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable): void {
@@ -527,6 +550,60 @@ export class StructuralTablesPlugin extends Plugin {
       });
       return current;
     };
+  }
+
+  private previewSourceSyntaxConversion(editor: Editor, sourceFile: TFile | null, syntax: TableSourceSyntax): void {
+    const t = createTranslator(this.settings.language);
+    const current = this.currentTable(editor);
+    if (current === null) return this.noTable();
+    if (!current.table.valid) {
+      new Notice(current.table.diagnostics[0] === undefined
+        ? t("operation.tableInvalid") : diagnosticNotice(t, current.table.diagnostics[0]));
+      return;
+    }
+    if (this.blockUnsafeTableWrite(current.table)) return;
+    const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
+    if (targetIsCurrent === null) { new Notice(t("notice.noFile")); return; }
+    const source = serializeStructuralTable({ ...current.table, sourceSyntax: syntax });
+    if (source === current.table.source) {
+      new Notice(t("syntax.unchanged"));
+      return;
+    }
+    // A syntax conversion is not allowed to alter any logical cell or role.
+    const parsed = parseEditableTables(source).tables[0];
+    if (parsed === undefined || !parsed.valid || parsed.rows.length !== current.table.rows.length
+      || parsed.columnCount !== current.table.columnCount
+      || parsed.headerRowCount !== current.table.headerRowCount
+      || parsed.rowHeaderColumnCount !== current.table.rowHeaderColumnCount
+      || parsed.rows.some((row, i) => row.cells.some((cell, j) => (
+        cell.content !== current.table.rows[i]?.cells[j]?.content
+        || cell.role !== current.table.rows[i]?.cells[j]?.role
+        || cell.anchorRow !== current.table.rows[i]?.cells[j]?.anchorRow
+        || cell.anchorColumn !== current.table.rows[i]?.cells[j]?.anchorColumn
+      )))) {
+      new Notice(t("operation.invalidResult"));
+      return;
+    }
+    this.openOperationPreview((onClose) => new ConversionPreviewModal(this.app, {
+      language: t.locale ?? "en",
+      title: t(syntax === "compatible" ? "modal.syntaxCompatible.title" : "modal.syntaxCompact.title"),
+      description: t("modal.syntax.desc"),
+      source,
+      cancelLabel: t("modal.cancel"),
+      confirmLabel: t("modal.syntax.confirm"),
+      onClose,
+      onConfirm: () => {
+        if (!targetIsCurrent()) { new Notice(t("notice.staleTable")); return; }
+        const table = reparseUnchangedTable(editor.getValue(), current.table);
+        if (table === null) { new Notice(t("notice.staleTable")); return; }
+        const result = validateTableOperationInDocument(editor.getValue(), table, {
+          changed: true, code: "table-converted", message: "Source syntax converted.", source,
+        });
+        if (!result.changed) { new Notice(t("operation.invalidResult")); return; }
+        this.replaceTable(editor, table, result.source);
+        new Notice(t("syntax.converted"));
+      },
+    }));
   }
 
   private formatCurrent(editor: Editor, sourceFile: TFile | null): void {

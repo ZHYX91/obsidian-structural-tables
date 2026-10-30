@@ -237,7 +237,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
       ? compatibleRows.filter((_row, index) => index !== markerRows[0])
       : [...compactHeaders, ...bodyRows];
     const firstLine = compatible ? immediateLine : compactHeaders[0]?.line ?? delimiterLine;
-    const lastLine = bodyRows[bodyRows.length - 1]?.line ?? (compatible ? immediateLine : delimiterLine);
+    const lastLine = bodyRows[bodyRows.length - 1]?.line ?? delimiterLine;
     for (let line = firstLine; line <= lastLine; line += 1) consumed.add(line);
     const tableIndex = sourceTableIndex;
     sourceTableIndex += 1;

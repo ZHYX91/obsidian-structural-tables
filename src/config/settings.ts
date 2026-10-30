@@ -1,4 +1,5 @@
 import { sanitizeInterfaceLanguage, type InterfaceLanguage } from "./locale";
+import type { TableSourceSyntax } from "../core/model";
 
 export type { InterfaceLanguage } from "./locale";
 export type TableDensity = "theme" | "comfortable" | "compact";
@@ -8,6 +9,7 @@ export type TableAppearance = "theme" | "grid" | "three-line";
 export interface StructuralTablesSettings {
   language: InterfaceLanguage;
   convertHtmlTablePaste: boolean;
+  defaultSourceSyntax: TableSourceSyntax;
   warnPluginConflicts: boolean;
   enableReadingView: boolean;
   enableLivePreview: boolean;
@@ -42,6 +44,7 @@ export const SETTINGS_SCHEMA_VERSION = 1 as const;
 export const DEFAULT_SETTINGS: StructuralTablesSettings = {
   language: "auto",
   convertHtmlTablePaste: true,
+  defaultSourceSyntax: "compatible",
   warnPluginConflicts: true,
   enableReadingView: true,
   enableLivePreview: true,
@@ -75,6 +78,7 @@ export function sanitizeSettings(data: unknown): StructuralTablesSettings {
   return {
     language: sanitizeInterfaceLanguage(source.language),
     convertHtmlTablePaste: source.convertHtmlTablePaste !== false,
+    defaultSourceSyntax: source.defaultSourceSyntax === "compact" ? "compact" : "compatible",
     warnPluginConflicts: source.warnPluginConflicts !== false,
     enableReadingView: source.enableReadingView !== false,
     enableLivePreview: source.enableLivePreview !== false,

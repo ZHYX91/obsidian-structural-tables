@@ -34,7 +34,7 @@ function appendHtmlCellText(node: Node, parts: string[]): void {
   if (block && !parts[parts.length - 1]?.endsWith("\n")) parts.push("\n");
 }
 
-function htmlCellText(cell: HTMLTableCellElement): string {
+export function htmlCellText(cell: HTMLTableCellElement): string {
   const parts: string[] = [];
   for (const child of cell.childNodes) appendHtmlCellText(child, parts);
   return trimCollapsibleHtmlWhitespace(parts.join("").replace(/[ \t]*\n[ \t]*/gu, "\n"));

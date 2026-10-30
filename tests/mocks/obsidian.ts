@@ -326,6 +326,29 @@ export class ButtonComponent {
 export class Setting {
   constructor(public settingEl: HTMLElement) {}
 
+  setName(value: string): this {
+    this.settingEl.appendChild(this.settingEl.ownerDocument.createTextNode(value));
+    return this;
+  }
+
+  addToggle(callback: (toggle: {
+    setValue: (checked: boolean) => unknown;
+    onChange: (listener: (checked: boolean) => void) => unknown;
+  }) => void): this {
+    const input = this.settingEl.ownerDocument.createElement("input");
+    input.type = "checkbox";
+    this.settingEl.appendChild(input);
+    const toggle = {
+      setValue(checked: boolean) { input.checked = checked; return toggle; },
+      onChange(listener: (checked: boolean) => void) {
+        input.addEventListener("change", () => listener(input.checked));
+        return toggle;
+      },
+    };
+    callback(toggle);
+    return this;
+  }
+
   addButton(callback: (button: ButtonComponent) => void): this {
     const button = new ButtonComponent();
     this.settingEl.appendChild(button.buttonEl);

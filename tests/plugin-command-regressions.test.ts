@@ -182,6 +182,8 @@ describe("registered conversion command entry", () => {
   it("passes the current source file into both preview commands", () => {
     const formatCurrent = vi.fn();
     const previewPlainGfmConversion = vi.fn();
+    const previewMarkdownAsHtml = vi.fn();
+    const previewHtmlAsMarkdown = vi.fn();
     const commands: Array<{
       id: string;
       editorCallback?: (editor: Editor, context: { file: TFile | null }) => void;
@@ -191,6 +193,8 @@ describe("registered conversion command entry", () => {
       localizedCommands: [],
       formatCurrent,
       previewPlainGfmConversion,
+      previewMarkdownAsHtml,
+      previewHtmlAsMarkdown,
       addCommand: (command: typeof commands[number]) => {
         commands.push(command);
         return command;
@@ -202,9 +206,13 @@ describe("registered conversion command entry", () => {
     const file = new MockTFile("A.md") as unknown as TFile;
     commands.find(({ id }) => id === "format-current-structural-table")?.editorCallback?.(editor, { file });
     commands.find(({ id }) => id === "convert-current-table-to-plain-gfm")?.editorCallback?.(editor, { file });
+    commands.find(({ id }) => id === "convert-current-markdown-table-to-html")?.editorCallback?.(editor, { file });
+    commands.find(({ id }) => id === "convert-current-html-table-to-markdown")?.editorCallback?.(editor, { file });
 
     expect(formatCurrent).toHaveBeenCalledWith(editor, file);
     expect(previewPlainGfmConversion).toHaveBeenCalledWith(editor, file);
+    expect(previewMarkdownAsHtml).toHaveBeenCalledWith(editor, file);
+    expect(previewHtmlAsMarkdown).toHaveBeenCalledWith(editor, file);
   });
 });
 
@@ -221,6 +229,8 @@ const localizedCommandKeys = [
   ["copy-current-table-as-tsv", "command.copyTsv"],
   ["copy-current-table-as-csv", "command.copyCsv"],
   ["convert-current-table-to-plain-gfm", "command.convertGfm"],
+  ["convert-current-markdown-table-to-html", "command.convertHtmlTable"],
+  ["convert-current-html-table-to-markdown", "command.convertMarkdownTable"],
   ["convert-current-sheets-extended-table", "command.migrateSheets"],
   ["format-current-structural-table", "command.format"],
   ["merge-current-cell-left", "command.mergeLeft"],

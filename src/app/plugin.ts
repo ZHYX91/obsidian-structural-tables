@@ -556,7 +556,7 @@ export class StructuralTablesPlugin extends Plugin {
     let active = false;
     this.app.workspace.iterateAllLeaves((leaf) => {
       if (leaf.view instanceof MarkdownView && leaf.view.editor === editor && leaf.view.file === file
-        && leaf.view.containerEl.querySelector("textarea.structural-tables-cell-editor") !== null) active = true;
+        && leaf.view.containerEl?.querySelector("textarea.structural-tables-cell-editor") != null) active = true;
     });
     return active;
   }

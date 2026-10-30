@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { markdownTableToHtmlSource } from "../src/core/table-html-conversion";
-import { htmlTableSourceAt } from "../src/core/html-table-source";
+import { hasIsolatedTableBoundary, htmlTableSourceAt } from "../src/core/html-table-source";
 import { validateDocumentReplacement } from "../src/core/document-replacement";
 
 const structural = "| Region | Sales | < |\n| Quarter | Q1 | Q2 |\n| --- || --- | --- |\n| North | 10 | 12 |";
@@ -51,6 +51,7 @@ describe("Markdown to HTML source", () => {
     const table = parseStructuralTables(note).tables[0]!;
     const html = markdownTableToHtmlSource(table, "htmlconversiontest")!;
     const next = note.slice(0, table.range.from) + html + note.slice(table.range.to);
+    expect(hasIsolatedTableBoundary(note, table.range)).toBe(true);
     expect(validateDocumentReplacement(note, table.range, html)).toBe(true);
     expect(htmlTableSourceAt(next, table.range.from + 1)?.source).toBe(html);
     expect(next).toContain("| Before | Value |");

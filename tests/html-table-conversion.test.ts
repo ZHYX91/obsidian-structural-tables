@@ -4,7 +4,7 @@ import { planHtmlTableToMarkdown } from "../src/editor/html-table-conversion";
 import { markdownTableToHtmlSource } from "../src/core/table-html-conversion";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { validateDocumentReplacement } from "../src/core/document-replacement";
-import { htmlTableSourceAt } from "../src/core/html-table-source";
+import { hasIsolatedTableBoundary, htmlTableSourceAt } from "../src/core/html-table-source";
 
 const html = [
   "<table>",
@@ -107,6 +107,7 @@ describe("HTML to Markdown source", () => {
     ].join("\n");
     const target = htmlTableSourceAt(note, note.indexOf("<th>Region"))!;
     const converted = planHtmlTableToMarkdown(target.source)!;
+    expect(hasIsolatedTableBoundary(note, target.range)).toBe(true);
     expect(validateDocumentReplacement(note, target.range, converted.source, true)).toBe(true);
     const updated = note.slice(0, target.range.from) + converted.source + note.slice(target.range.to);
     expect(updated).toContain("| Before | Value |");

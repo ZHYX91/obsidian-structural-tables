@@ -59,6 +59,19 @@ export function htmlTableSources(source: string): HtmlTableSource[] {
   return result;
 }
 
+/** HTML blocks may consume adjacent Markdown paragraphs unless isolated. */
+export function hasIsolatedTableBoundary(source: string, range: SourceRange): boolean {
+  if (!Number.isInteger(range.from) || !Number.isInteger(range.to)
+    || range.from < 0 || range.to < range.from || range.to > source.length) return false;
+  const before = source.slice(0, range.from);
+  const after = source.slice(range.to);
+  const isolatedBefore = before.trim() === ""
+    || /(?:\r\n|\r|\n)[ \t]*(?:\r\n|\r|\n)$/u.test(before);
+  const isolatedAfter = after.trim() === ""
+    || /^(?:\r\n|\r|\n)[ \t]*(?:\r\n|\r|\n)/u.test(after);
+  return isolatedBefore && isolatedAfter;
+}
+
 export function htmlTableSourceAt(source: string, offset: number): HtmlTableSource | null {
   return htmlTableSources(source).find(({ range }) => offset >= range.from && offset <= range.to) ?? null;
 }

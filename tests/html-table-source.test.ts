@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { htmlTableSourceAt, htmlTableSources } from "../src/core/html-table-source";
+import { hasIsolatedTableBoundary, htmlTableSourceAt, htmlTableSources } from "../src/core/html-table-source";
 
 const table = "<table>\n<tr><td>A</td><td>B</td></tr>\n</table>";
 
@@ -33,6 +33,16 @@ describe("owned HTML source", () => {
     expect(htmlTableSources("<table>\n<tr><td>A</td></tr>")).toEqual([]);
     expect(htmlTableSources("<table>\n\n<tr><td>A</td></tr>\n</table>")).toEqual([]);
     expect(htmlTableSources("<table>\n<table></table>\n</table>")).toEqual([]);
+  });
+
+  it("requires blank-line isolation before replacing complete HTML blocks", () => {
+    const first = "Intro\n<table><tr><td>A</td></tr></table>\nOutro";
+    const found = htmlTableSources(first)[0]!;
+    expect(hasIsolatedTableBoundary(first, found.range)).toBe(false);
+    const safe = "Intro\n\n<table><tr><td>A</td></tr></table>\n\nOutro";
+    expect(hasIsolatedTableBoundary(safe, htmlTableSources(safe)[0]!.range)).toBe(true);
+    const standalone = "<table><tr><td>A</td></tr></table>\n";
+    expect(hasIsolatedTableBoundary(standalone, htmlTableSources(standalone)[0]!.range)).toBe(true);
   });
 
   it("preserves CRLF source offsets", () => {

@@ -32,7 +32,7 @@ import {
 import { parseEditableTables, parseStructuralTables } from "../core/parser";
 import { serializeStructuralTable } from "../core/serializer";
 import { markdownTableToHtmlSource } from "../core/table-html-conversion";
-import { htmlTableSourceAt } from "../core/html-table-source";
+import { hasIsolatedTableBoundary, htmlTableSourceAt } from "../core/html-table-source";
 import { validateDocumentReplacement } from "../core/document-replacement";
 import { planHtmlTableToMarkdown } from "../editor/html-table-conversion";
 import { reparseUnchangedTable } from "../core/table-snapshot";
@@ -590,7 +590,9 @@ export class StructuralTablesPlugin extends Plugin {
     const candidate = originalNote.slice(0, table.range.from) + replacement
       + originalNote.slice(table.range.to);
     const generated = htmlTableSourceAt(candidate, table.range.from + 1);
-    if (!validateDocumentReplacement(originalNote, table.range, replacement)
+    if (!hasIsolatedTableBoundary(originalNote, table.range)
+      || !hasIsolatedTableBoundary(candidate, { from: table.range.from, to: table.range.from + replacement.length })
+      || !validateDocumentReplacement(originalNote, table.range, replacement)
       || generated === null || generated.range.from !== table.range.from
       || generated.source !== replacement) {
       new Notice(t("notice.tableFormatBoundary"), 8000);
@@ -608,6 +610,7 @@ export class StructuralTablesPlugin extends Plugin {
         if (!targetIsCurrent() || editor.getValue() !== originalNote
           || this.hasActiveTableDraft(editor, sourceFile)
           || reparseUnchangedTable(originalNote, table) === null
+          || !hasIsolatedTableBoundary(originalNote, table.range)
           || !validateDocumentReplacement(originalNote, table.range, replacement)) {
           new Notice(t("notice.staleTable")); return;
         }
@@ -629,7 +632,12 @@ export class StructuralTablesPlugin extends Plugin {
     if (plan === null) { new Notice(t("notice.htmlFormatUnsupported"), 8000); return; }
     const ending = originalNote.includes("\r\n") ? "\r\n" : originalNote.includes("\r") ? "\r" : "\n";
     const replacement = plan.source.replace(/\n/gu, ending);
-    if (!validateDocumentReplacement(originalNote, target.range, replacement, true)) {
+    const candidateNote = originalNote.slice(0, target.range.from) + replacement
+      + originalNote.slice(target.range.to);
+    if (!hasIsolatedTableBoundary(originalNote, target.range)
+      || !hasIsolatedTableBoundary(candidateNote, { from: target.range.from,
+        to: target.range.from + replacement.length })
+      || !validateDocumentReplacement(originalNote, target.range, replacement, true)) {
       new Notice(t("notice.tableFormatBoundary"), 8000); return;
     }
     this.openOperationPreview((onClose) => new ConversionPreviewModal(this.app, {
@@ -650,6 +658,7 @@ export class StructuralTablesPlugin extends Plugin {
           || this.hasActiveTableDraft(editor, sourceFile)
           || current === null || current.source !== target.source
           || current.range.from !== target.range.from || current.range.to !== target.range.to
+          || !hasIsolatedTableBoundary(originalNote, target.range)
           || !validateDocumentReplacement(originalNote, target.range, replacement, true)) {
           new Notice(t("notice.staleTable")); return;
         }

@@ -1,4 +1,5 @@
 import type { ColumnAlignment, StructuralTable } from "./model";
+import { compatibleSourceRows } from "./compatible-source";
 import { assertLosslessTableWrite } from "./table-write-safety";
 
 function delimiterFor(alignment: ColumnAlignment): string {
@@ -10,6 +11,8 @@ function delimiterFor(alignment: ColumnAlignment): string {
 
 function escapedContent(content: string): string {
   if (content === "<" || content === "^") return `\\${content}`;
+  if (content === "<<") return "\\<\\<";
+  if (content === "^^") return "\\^\\^";
   return content;
 }
 
@@ -100,6 +103,14 @@ export function serializeStructuralTable(table: StructuralTable): string {
       if (cell.row === cell.anchorRow) return "<";
       return "^";
     }));
+  if (table.sourceSyntax === "compatible") {
+    const physical = compatibleSourceRows(rows, table.headerRowCount, table.rowHeaderColumnCount, table.alignments);
+    const widths = physical[0]?.map((_cell, column) => Math.max(
+      3, ...physical.map((row) => markdownSourceDisplayWidth(row[column] ?? "")),
+    )) ?? [];
+    return physical.map((row) => table.sourcePrefix + serializeRow(row, widths))
+      .join(sourceLineEnding(table.source));
+  }
   const widths = delimiters.map((delimiter, column) => Math.max(
     markdownSourceDisplayWidth(delimiter),
     ...rows.map((cells) => markdownSourceDisplayWidth(cells[column] ?? "")),

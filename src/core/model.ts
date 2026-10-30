@@ -1,6 +1,7 @@
 export type CellRole = "corner_header" | "column_header" | "row_header" | "data";
 export type MergeMarker = "left" | "up";
 export type ColumnAlignment = "default" | "left" | "center" | "right";
+export type TableSourceSyntax = "compact" | "compatible";
 
 export interface SourceRange {
   from: number;
@@ -47,6 +48,8 @@ export interface StructuralRow {
 
 export interface StructuralTable {
   sourcePrefix: string;
+  /** The original source dialect. This is independent of how the table is rendered. */
+  sourceSyntax?: TableSourceSyntax;
   range: SourceRange;
   sourceTableIndex: number;
   startLine: number;

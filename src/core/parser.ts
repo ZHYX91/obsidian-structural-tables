@@ -79,6 +79,8 @@ function markerFor(raw: string): { content: string; marker?: MergeMarker } {
   if (trimmed === "<") return { content: "", marker: "left" };
   if (trimmed === "^") return { content: "", marker: "up" };
   if (trimmed === "\\<") return { content: "<" };
+  if (trimmed === "\\<\\<") return { content: "<<" };
+  if (trimmed === "\\^\\^") return { content: "^^" };
   if (trimmed === "\\^") return { content: "^" };
   return { content: trimmed };
 }
@@ -187,16 +189,17 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     if (delimiter === null) continue;
     const prefix = prefixes[delimiterLine] ?? "";
     const sameContainer = (line: number): boolean => prefixes[line] === prefix;
-    const headerRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
+    const compactHeaders: { line: number; parsed: ParsedTablePipeRow }[] = [];
     const immediateLine = delimiterLine - 1;
-    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : splitTablePipeRow(lines[immediateLine] ?? "");
+    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine)
+      ? null : splitTablePipeRow(lines[immediateLine] ?? "");
     if (immediateHeader !== null) {
-      headerRows.push({ line: immediateLine, parsed: immediateHeader });
+      compactHeaders.push({ line: immediateLine, parsed: immediateHeader });
       if (immediateHeader.cells.length === delimiter.columnCount) {
         for (let line = delimiterLine - 2; line >= 0; line -= 1) {
           const parsed = ignored.has(line) || !sameContainer(line) ? null : splitTablePipeRow(lines[line] ?? "");
           if (parsed === null || parsed.cells.length !== delimiter.columnCount) break;
-          headerRows.unshift({ line, parsed });
+          compactHeaders.unshift({ line, parsed });
         }
       }
     }
@@ -207,71 +210,103 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
       if (parsed === null) break;
       bodyRows.push({ line, parsed });
     }
-    if (headerRows.length === 0 && bodyRows.length === 0) continue;
-    const rowSources = [...headerRows, ...bodyRows];
-    const hasMarker = rowSources.some(({ parsed }) => parsed.cells
-      .slice(0, delimiter.columnCount)
-      .some((raw) => {
-        const trimmed = raw.trim();
-        return trimmed === "<" || trimmed === "^";
-      }));
-    const structural = hasMarker
-      || delimiter.rowHeaderColumnCount > 0
-      || headerRows.length !== 1
-      || delimiter.diagnostics.length > 0;
-    const startLine = headerRows[0]?.line ?? delimiterLine;
-    const endLine = bodyRows[bodyRows.length - 1]?.line ?? delimiterLine;
-    for (let line = startLine; line <= endLine; line += 1) consumed.add(line);
+    if (compactHeaders.length === 0 && bodyRows.length === 0) continue;
+
+    // A compatible table has exactly one physical GFM header row immediately
+    // above its normal delimiter; extra semantic headers appear below it.
+    const compatibleRows = immediateHeader === null
+      ? [] : [{ line: immediateLine, parsed: immediateHeader }, ...bodyRows];
+    const physicalWidth = delimiter.columnCount;
+    const compatibleWidth = compatibleRows.length > 0
+      && compatibleRows.every(({ parsed }) => parsed.cells.length === physicalWidth);
+    const boundaryColumns = compatibleWidth && delimiter.rowHeaderColumnCount === 0
+      ? Array.from({ length: physicalWidth - 2 }, (_unused, column) => column + 1)
+        .filter((column) => compatibleRows.every(({ parsed }) => parsed.cells[column]?.trim() === "<<"))
+      : [];
+    const boundaryColumn = boundaryColumns.length === 1 ? boundaryColumns[0] : undefined;
+    const markerRows = compatibleWidth && delimiter.rowHeaderColumnCount === 0
+      ? compatibleRows.flatMap(({ parsed }, index) => (
+        parsed.cells.every((raw, column) => raw.trim() === (column === boundaryColumn ? "<<" : "^^"))
+          ? [index] : []
+      )) : [];
+    const compatible = compatibleWidth && delimiter.rowHeaderColumnCount === 0
+      && (markerRows.length > 0 || boundaryColumn !== undefined);
+    const headerRowCount = compatible
+      ? (markerRows[0] ?? 1) : compactHeaders.length;
+    const sourceRows = compatible
+      ? compatibleRows.filter((_row, index) => index !== markerRows[0])
+      : [...compactHeaders, ...bodyRows];
+    const firstLine = compatible ? immediateLine : compactHeaders[0]?.line ?? delimiterLine;
+    const lastLine = bodyRows[bodyRows.length - 1]?.line ?? (compatible ? immediateLine : delimiterLine);
+    for (let line = firstLine; line <= lastLine; line += 1) consumed.add(line);
     const tableIndex = sourceTableIndex;
     sourceTableIndex += 1;
+    const controlColumn = compatible ? boundaryColumn : undefined;
+    const columnCount = physicalWidth - (controlColumn === undefined ? 0 : 1);
+    const rowHeaderColumnCount = compatible ? boundaryColumn ?? 0 : delimiter.rowHeaderColumnCount;
+    const alignments = delimiter.alignments.filter((_alignment, column) => column !== controlColumn);
+    const hasMerge = sourceRows.some(({ parsed }) => parsed.cells.some((raw) => {
+      const trimmed = raw.trim();
+      return trimmed === "<" || trimmed === "^";
+    }));
+    const structural = compatible || hasMerge || rowHeaderColumnCount > 0
+      || (!compatible && compactHeaders.length !== 1) || delimiter.diagnostics.length > 0;
     if (!structural && !includeOrdinary) continue;
     const diagnostics = [...delimiter.diagnostics];
-    const rows: StructuralRow[] = rowSources.map(({ line, parsed }, row) => {
-      const sourceCellCount = parsed.cells.length;
-      // GFM permits body rows to be shorter or longer than the header. Keep
-      // structural syntax strict, and keep the GFM header itself exact.
-      if (sourceCellCount !== delimiter.columnCount && (row < headerRows.length || structural)) {
+    if (compatible && (markerRows.length > 1 || boundaryColumns.length > 1)) {
+      diagnostics.push({
+        code: "boundary-count",
+        message: "A compatible table must have at most one complete ^^ row and one << column.",
+        row: compatibleRows[markerRows[1] ?? 0]?.line ?? delimiterLine,
+      });
+    }
+    if (compatible && controlColumn !== undefined && (controlColumn === 0 || controlColumn >= physicalWidth - 1)) {
+      diagnostics.push({
+        code: "boundary-at-edge",
+        message: "The << control column must leave at least one real column on either side.",
+        row: firstLine,
+        column: controlColumn,
+      });
+    }
+    const rows: StructuralRow[] = sourceRows.map(({ line, parsed }, row) => {
+      const sourceCellCount = parsed.cells.length - (controlColumn === undefined ? 0 : 1);
+      if (parsed.cells.length !== physicalWidth
+        && (compatible || row < compactHeaders.length || structural)) {
         diagnostics.push({
           code: "row-width",
-          message: `Expected ${delimiter.columnCount} cells, received ${sourceCellCount}.`,
+          message: "Expected " + physicalWidth + " cells, received " + parsed.cells.length + ".",
           row: line,
         });
       }
-      const cells = Array.from({ length: delimiter.columnCount }, (_unused, column) => (
-        parsed.cells[column] ?? ""
-      )).map((raw, column): StructuralCell => {
-        const marker = markerFor(raw);
-        return {
-          row,
-          column,
-          raw,
-          content: marker.content,
-          role: roleFor(row, column, headerRows.length, delimiter.rowHeaderColumnCount),
-          ...(marker.marker === undefined ? {} : { marker: marker.marker }),
-          anchorRow: row,
-          anchorColumn: column,
-          rowSpan: 1,
-          columnSpan: 1,
-          covered: false,
-        };
-      });
+      const values = parsed.cells.filter((_cell, column) => column !== controlColumn);
+      const cells = Array.from({ length: columnCount }, (_unused, column) => values[column] ?? "")
+        .map((raw, column): StructuralCell => {
+          const marker = markerFor(raw);
+          return {
+            row, column, raw,
+            content: marker.content,
+            role: roleFor(row, column, headerRowCount, rowHeaderColumnCount),
+            ...(marker.marker === undefined ? {} : { marker: marker.marker }),
+            anchorRow: row, anchorColumn: column, rowSpan: 1, columnSpan: 1, covered: false,
+          };
+        });
       return { sourceLine: line, sourceCellCount, cells };
     });
-    if (rows.every((row) => row.cells.length === delimiter.columnCount)) resolveMerges(rows, diagnostics);
-    const from = offsets[startLine] ?? 0;
-    const lastLine = originalLines[endLine] ?? "";
-    const to = (offsets[endLine] ?? from) + lastLine.length;
+    if (rows.every((row) => row.cells.length === columnCount)) resolveMerges(rows, diagnostics);
+    const from = offsets[firstLine] ?? 0;
+    const to = (offsets[lastLine] ?? from) + (originalLines[lastLine]?.length ?? 0);
     tables.push({
       sourcePrefix: prefix,
+      sourceSyntax: compatible ? "compatible" : "compact",
       range: { from, to },
       sourceTableIndex: tableIndex,
-      startLine,
-      endLine,
+      startLine: firstLine,
+      endLine: lastLine,
       delimiterLine,
-      columnCount: delimiter.columnCount,
-      headerRowCount: headerRows.length,
-      rowHeaderColumnCount: delimiter.rowHeaderColumnCount,
-      alignments: delimiter.alignments,
+      columnCount,
+      headerRowCount,
+      rowHeaderColumnCount,
+      alignments,
       rows,
       diagnostics,
       structural,

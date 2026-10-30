@@ -108,7 +108,8 @@ export class StructuralTableReadingProcessor {
       });
       // An adjacent || delimiter cannot produce a native GFM table. If its raw
       // block cannot be identified, it must never consume a later native table.
-      const native = rawSource === undefined && table.headerRowCount > 0 && table.rowHeaderColumnCount === 0;
+      const native = rawSource === undefined && (table.sourceSyntax === "compatible"
+        || (table.headerRowCount > 0 && table.rowHeaderColumnCount === 0));
       return { table, rawSource, native };
     });
     // Positional native mapping is safe only when every native table in this
@@ -134,7 +135,7 @@ export class StructuralTableReadingProcessor {
       const existing = rawSource ?? nativeCandidate;
       // Multi-row headers may occupy a preceding paragraph and a native table.
       // Their complete source must be mapped atomically, never by native position.
-      if (native && table.headerRowCount > 1) return;
+      if (native && table.headerRowCount > 1 && table.sourceSyntax !== "compatible") return;
       if ((!table.structural && !settings.takeOverOrdinaryTables) || existing === undefined) return;
       const deferredIndex = deferred.findIndex((candidate) => candidate.range.from === table.range.from);
       if (deferredIndex >= 0) deferred.splice(deferredIndex, 1);

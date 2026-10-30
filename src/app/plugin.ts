@@ -484,7 +484,7 @@ export class StructuralTablesPlugin extends Plugin {
     if (table === undefined) return null;
     const row = table.rows.findIndex((candidate) => candidate.sourceLine === cursor.line);
     if (row < 0) return { table, row: -1, column: -1 };
-    const column = cellColumnAt(editor.getLine(cursor.line), cursor.ch);
+    const column = cellColumnAt(editor.getLine(cursor.line), cursor.ch, table);
     return { table, row, column: Math.min(column ?? 0, table.columnCount - 1) };
   }
 

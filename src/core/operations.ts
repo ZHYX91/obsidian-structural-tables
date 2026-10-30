@@ -7,6 +7,7 @@ import {
   type TableRangeClipboardPayloadV1,
 } from "./table-range-clipboard";
 import { serializeStructuralTable } from "./serializer";
+import { compatibleSource } from "./compatible-source";
 import { parseTableWrite } from "./table-write-validation";
 import { sourcePrefix, withoutSourcePrefixes } from "./source-lines";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
@@ -67,6 +68,9 @@ function sourceWithRawCells(
   headerRowCount = table.headerRowCount,
   rowHeaderColumnCount = table.rowHeaderColumnCount,
 ): string {
+  if (table.sourceSyntax === "compatible") {
+    return compatibleSource(values, headerRowCount, rowHeaderColumnCount, table.alignments, lineEnding(table.source));
+  }
   const provisional = table.rows.map((row, rowIndex) => {
     const cells = row.cells.map((cell, columnIndex) => values[rowIndex]?.[columnIndex] ?? cell.raw.trim());
     return `| ${cells.join(" | ")} |`;
@@ -108,7 +112,9 @@ function sourceFromGrid(
   rowHeaderColumnCount: number,
   alignments: readonly ColumnAlignment[],
   ending: string,
+  syntax: "compact" | "compatible" = "compact",
 ): string {
+  if (syntax === "compatible") return compatibleSource(values, headerRowCount, rowHeaderColumnCount, alignments, ending);
   const rows = values.map((cells) => `| ${cells.join(" | ")} |`);
   const delimiter = alignments.map((alignment) => {
     if (alignment === "left") return ":---";
@@ -197,6 +203,7 @@ function resultFromOwnedGrid(
     rowHeaderColumnCount,
     alignments,
     lineEnding(table.source),
+    table.sourceSyntax,
   );
   const parsed = parseTableWrite(candidateSource, values, headerRowCount, rowHeaderColumnCount, alignments);
   if (parsed === null || !parsed.valid) {
@@ -973,7 +980,10 @@ export function setRowHeaderColumnCount(table: StructuralTable, count: number): 
   };
 }
 
-export function cellColumnAt(line: string, character: number): number | null {
+export function cellColumnAt(line: string, character: number, table?: StructuralTable): number | null {
   const prefix = sourcePrefix(line);
-  return tableSyntaxColumnAt(line.slice(prefix.length), Math.max(0, character - prefix.length));
+  const physical = tableSyntaxColumnAt(line.slice(prefix.length), Math.max(0, character - prefix.length));
+  if (table?.sourceSyntax !== "compatible" || table.rowHeaderColumnCount === 0) return physical;
+  if (physical === table.rowHeaderColumnCount) return null;
+  return physical > table.rowHeaderColumnCount ? physical - 1 : physical;
 }

@@ -40,7 +40,10 @@ export function tableCellSourceOffset(
     const rowLast = Math.max(rowStart, lineOffset + sourceLine.length - 1);
     return Math.min(tableLast, rowLast);
   }
-  const local = tableCellContentOffset(sourceLine.slice(prefix.length), anchor.column);
+  const sourceColumn = table.sourceSyntax === "compatible"
+    && table.rowHeaderColumnCount > 0 && anchor.column >= table.rowHeaderColumnCount
+    ? anchor.column + 1 : anchor.column;
+  const local = tableCellContentOffset(sourceLine.slice(prefix.length), sourceColumn);
   if (local === null) return null;
   return Math.min(tableLast, lineOffset + prefix.length + local);
 }

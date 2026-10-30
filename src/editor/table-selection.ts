@@ -122,8 +122,8 @@ function cellsForSelection(
   if (row === undefined) return null;
   const line = editor.getLine(from.line);
   const endCharacter = to.ch > from.ch ? to.ch - 1 : to.ch;
-  const startColumn = cellColumnAt(line, from.ch);
-  const endColumn = cellColumnAt(line, endCharacter);
+  const startColumn = cellColumnAt(line, from.ch, table);
+  const endColumn = cellColumnAt(line, endCharacter, table);
   if (startColumn === null || endColumn === null) return null;
   const minColumn = Math.max(0, Math.min(startColumn, endColumn));
   const maxColumn = Math.min(table.columnCount - 1, Math.max(startColumn, endColumn));

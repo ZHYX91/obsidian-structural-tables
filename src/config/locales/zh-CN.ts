@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const zhCN = {
+  "command.syntaxCompatible": "将当前表格转换为 GFM 兼容语法",
+  "command.syntaxCompact": "将当前表格转换为简洁语法",
+  "menu.syntaxCompatible": "转换为 GFM 兼容语法…",
+  "menu.syntaxCompact": "转换为简洁语法…",
+  "modal.syntaxCompatible.title": "转换为 GFM 兼容语法",
+  "modal.syntaxCompact.title": "转换为简洁语法",
+  "modal.syntax.desc": "转换前请检查源码。表头角色和单元格内容不会改变。",
+  "modal.syntax.confirm": "转换语法",
+  "settings.sourceSyntax": "新建表格的语法",
+  "settings.sourceSyntax.desc": "用于新建表格和导入的 HTML 表格，已有表格保留原来的写法。",
+  "settings.sourceSyntax.compatible": "GFM 兼容语法（默认）",
+  "settings.sourceSyntax.compact": "简洁语法",
+  "syntax.converted": "表格语法已转换。",
+  "syntax.unchanged": "表格已采用所选语法。",
   "menu.undo": "撤销",
   "menu.redo": "重做",
   "menu.cut": "剪切",

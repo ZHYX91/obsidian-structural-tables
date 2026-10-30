@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const fr = {
+  "command.syntaxCompatible": "Convertir le tableau en syntaxe compatible GFM",
+  "command.syntaxCompact": "Convertir le tableau en syntaxe compacte",
+  "menu.syntaxCompatible": "Convertir en syntaxe compatible GFM…",
+  "menu.syntaxCompact": "Convertir en syntaxe compacte…",
+  "modal.syntaxCompatible.title": "Conversion en syntaxe compatible GFM",
+  "modal.syntaxCompact.title": "Conversion en syntaxe compacte",
+  "modal.syntax.desc": "Vérifiez la source avant de convertir. Les rôles des en-têtes et le contenu des cellules sont conservés.",
+  "modal.syntax.confirm": "Convertir la syntaxe",
+  "settings.sourceSyntax": "Syntaxe des nouveaux tableaux",
+  "settings.sourceSyntax.desc": "S'applique aux nouveaux tableaux et aux tableaux HTML importés. Les tableaux existants ne changent pas.",
+  "settings.sourceSyntax.compatible": "Compatible GFM (défaut)",
+  "settings.sourceSyntax.compact": "Compacte",
+  "syntax.converted": "Syntaxe du tableau convertie.",
+  "syntax.unchanged": "Ce tableau utilise déjà cette syntaxe.",
   "menu.undo": "Annuler",
   "menu.redo": "Rétablir",
   "menu.cut": "Couper",

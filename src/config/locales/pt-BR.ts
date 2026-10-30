@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const ptBR = {
+  "command.syntaxCompatible": "Converter tabela atual para sintaxe compatível com GFM",
+  "command.syntaxCompact": "Converter tabela atual para sintaxe compacta",
+  "menu.syntaxCompatible": "Converter para sintaxe compatível com GFM…",
+  "menu.syntaxCompact": "Converter para sintaxe compacta…",
+  "modal.syntaxCompatible.title": "Converter para sintaxe compatível com GFM",
+  "modal.syntaxCompact.title": "Converter para sintaxe compacta",
+  "modal.syntax.desc": "Confira o código antes de converter. Cabeçalhos e conteúdo das células serão preservados.",
+  "modal.syntax.confirm": "Converter sintaxe",
+  "settings.sourceSyntax": "Sintaxe para novas tabelas",
+  "settings.sourceSyntax.desc": "Usada em novas tabelas e em tabelas HTML importadas. Tabelas existentes não mudam.",
+  "settings.sourceSyntax.compatible": "Compatível com GFM (padrão)",
+  "settings.sourceSyntax.compact": "Compacta",
+  "syntax.converted": "Sintaxe da tabela convertida.",
+  "syntax.unchanged": "A tabela já usa a sintaxe selecionada.",
   "menu.undo": "Desfazer",
   "menu.redo": "Refazer",
   "menu.cut": "Recortar",

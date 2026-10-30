@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "command.syntaxCompatible": "Aktuelle Tabelle in GFM-kompatible Syntax umwandeln",
+  "command.syntaxCompact": "Aktuelle Tabelle in kompakte Syntax umwandeln",
+  "menu.syntaxCompatible": "In GFM-kompatible Syntax umwandeln…",
+  "menu.syntaxCompact": "In kompakte Syntax umwandeln…",
+  "modal.syntaxCompatible.title": "In GFM-kompatible Syntax umwandeln",
+  "modal.syntaxCompact.title": "In kompakte Syntax umwandeln",
+  "modal.syntax.desc": "Prüfen Sie den Quelltext vor der Umwandlung. Kopfzeilenrollen und Zellinhalte bleiben erhalten.",
+  "modal.syntax.confirm": "Syntax umwandeln",
+  "settings.sourceSyntax": "Syntax für neue Tabellen",
+  "settings.sourceSyntax.desc": "Gilt für neue und importierte HTML-Tabellen. Vorhandene Tabellen behalten ihre Syntax.",
+  "settings.sourceSyntax.compatible": "GFM-kompatibel (Standard)",
+  "settings.sourceSyntax.compact": "Kompakt",
+  "syntax.converted": "Tabellensyntax umgewandelt.",
+  "syntax.unchanged": "Diese Tabelle verwendet bereits die ausgewählte Syntax.",
   "menu.undo": "Rückgängig",
   "menu.redo": "Wiederholen",
   "menu.cut": "Ausschneiden",

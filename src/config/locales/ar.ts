@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "command.syntaxCompatible": "تحويل الجدول الحالي إلى صياغة متوافقة مع GFM",
+  "command.syntaxCompact": "تحويل الجدول الحالي إلى صياغة مختصرة",
+  "menu.syntaxCompatible": "التحويل إلى صياغة متوافقة مع GFM…",
+  "menu.syntaxCompact": "التحويل إلى صياغة مختصرة…",
+  "modal.syntaxCompatible.title": "التحويل إلى صياغة متوافقة مع GFM",
+  "modal.syntaxCompact.title": "التحويل إلى صياغة مختصرة",
+  "modal.syntax.desc": "راجع النص المصدر قبل التحويل. ستبقى أدوار الترويسات ومحتويات الخلايا كما هي.",
+  "modal.syntax.confirm": "تحويل الصياغة",
+  "settings.sourceSyntax": "صياغة الجداول الجديدة",
+  "settings.sourceSyntax.desc": "تنطبق على الجداول الجديدة وجداول HTML المستوردة. لا تتغير صياغة الجداول الموجودة.",
+  "settings.sourceSyntax.compatible": "متوافقة مع GFM (افتراضي)",
+  "settings.sourceSyntax.compact": "مختصرة",
+  "syntax.converted": "تم تحويل صياغة الجدول.",
+  "syntax.unchanged": "يستخدم الجدول هذه الصياغة بالفعل.",
   "menu.undo": "تراجع",
   "menu.redo": "إعادة",
   "menu.cut": "قص",

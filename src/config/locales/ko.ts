@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const ko = {
+  "command.syntaxCompatible": "현재 표를 GFM 호환 구문으로 변환",
+  "command.syntaxCompact": "현재 표를 간결한 구문으로 변환",
+  "menu.syntaxCompatible": "GFM 호환 구문으로 변환…",
+  "menu.syntaxCompact": "간결한 구문으로 변환…",
+  "modal.syntaxCompatible.title": "GFM 호환 구문으로 변환",
+  "modal.syntaxCompact.title": "간결한 구문으로 변환",
+  "modal.syntax.desc": "변환 전에 원본을 확인하세요. 머리글 역할과 셀 내용은 유지됩니다.",
+  "modal.syntax.confirm": "구문 변환",
+  "settings.sourceSyntax": "새 표의 구문",
+  "settings.sourceSyntax.desc": "새 표와 가져온 HTML 표에 적용됩니다. 기존 표의 구문은 바뀌지 않습니다.",
+  "settings.sourceSyntax.compatible": "GFM 호환(기본값)",
+  "settings.sourceSyntax.compact": "간결한 구문",
+  "syntax.converted": "표 구문을 변환했습니다.",
+  "syntax.unchanged": "이 표는 이미 선택한 구문을 사용합니다.",
   "menu.undo": "실행 취소",
   "menu.redo": "다시 실행",
   "menu.cut": "잘라내기",

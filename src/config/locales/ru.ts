@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const ru = {
+  "command.syntaxCompatible": "Преобразовать таблицу в синтаксис, совместимый с GFM",
+  "command.syntaxCompact": "Преобразовать таблицу в компактный синтаксис",
+  "menu.syntaxCompatible": "Преобразовать в синтаксис GFM…",
+  "menu.syntaxCompact": "Преобразовать в компактный синтаксис…",
+  "modal.syntaxCompatible.title": "Совместимый с GFM синтаксис",
+  "modal.syntaxCompact.title": "Компактный синтаксис",
+  "modal.syntax.desc": "Проверьте исходный текст перед заменой. Заголовки и содержимое ячеек сохранятся.",
+  "modal.syntax.confirm": "Преобразовать синтаксис",
+  "settings.sourceSyntax": "Синтаксис новых таблиц",
+  "settings.sourceSyntax.desc": "Используется для новых таблиц и импортируемых HTML-таблиц. Существующие таблицы не изменяются.",
+  "settings.sourceSyntax.compatible": "Совместимый с GFM (по умолчанию)",
+  "settings.sourceSyntax.compact": "Компактный",
+  "syntax.converted": "Синтаксис таблицы изменён.",
+  "syntax.unchanged": "Таблица уже использует выбранный синтаксис.",
   "menu.undo": "Отменить",
   "menu.redo": "Повторить",
   "menu.cut": "Вырезать",

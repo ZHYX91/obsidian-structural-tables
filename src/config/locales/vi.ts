@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const vi = {
+  "command.syntaxCompatible": "Chuyển bảng hiện tại sang cú pháp tương thích GFM",
+  "command.syntaxCompact": "Chuyển bảng hiện tại sang cú pháp ngắn gọn",
+  "menu.syntaxCompatible": "Chuyển sang cú pháp tương thích GFM…",
+  "menu.syntaxCompact": "Chuyển sang cú pháp ngắn gọn…",
+  "modal.syntaxCompatible.title": "Chuyển sang cú pháp tương thích GFM",
+  "modal.syntaxCompact.title": "Chuyển sang cú pháp ngắn gọn",
+  "modal.syntax.desc": "Hãy xem mã nguồn trước khi chuyển. Vai trò tiêu đề và nội dung ô được giữ nguyên.",
+  "modal.syntax.confirm": "Chuyển cú pháp",
+  "settings.sourceSyntax": "Cú pháp cho bảng mới",
+  "settings.sourceSyntax.desc": "Áp dụng cho bảng mới và bảng HTML được nhập. Bảng có sẵn giữ nguyên cú pháp.",
+  "settings.sourceSyntax.compatible": "Tương thích GFM (mặc định)",
+  "settings.sourceSyntax.compact": "Ngắn gọn",
+  "syntax.converted": "Đã chuyển cú pháp bảng.",
+  "syntax.unchanged": "Bảng đã dùng cú pháp này.",
   "menu.undo": "Hoàn tác",
   "menu.redo": "Làm lại",
   "menu.cut": "Cắt",

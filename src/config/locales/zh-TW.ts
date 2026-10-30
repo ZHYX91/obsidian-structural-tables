@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "command.syntaxCompatible": "將目前表格轉換為 GFM 相容語法",
+  "command.syntaxCompact": "將目前表格轉換為精簡語法",
+  "menu.syntaxCompatible": "轉換為 GFM 相容語法…",
+  "menu.syntaxCompact": "轉換為精簡語法…",
+  "modal.syntaxCompatible.title": "轉換為 GFM 相容語法",
+  "modal.syntaxCompact.title": "轉換為精簡語法",
+  "modal.syntax.desc": "轉換前請檢查原始碼。標題角色和儲存格內容不會變動。",
+  "modal.syntax.confirm": "轉換語法",
+  "settings.sourceSyntax": "新建表格的語法",
+  "settings.sourceSyntax.desc": "用於新建表格與匯入的 HTML 表格。現有表格保留原本語法。",
+  "settings.sourceSyntax.compatible": "GFM 相容語法（預設）",
+  "settings.sourceSyntax.compact": "精簡語法",
+  "syntax.converted": "表格語法已轉換。",
+  "syntax.unchanged": "表格已使用所選語法。",
   "menu.undo": "復原",
   "menu.redo": "重做",
   "menu.cut": "剪下",

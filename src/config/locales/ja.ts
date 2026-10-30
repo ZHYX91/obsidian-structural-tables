@@ -1,6 +1,20 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "command.syntaxCompatible": "現在の表を GFM 互換構文に変換",
+  "command.syntaxCompact": "現在の表を簡潔な構文に変換",
+  "menu.syntaxCompatible": "GFM 互換構文に変換…",
+  "menu.syntaxCompact": "簡潔な構文に変換…",
+  "modal.syntaxCompatible.title": "GFM 互換構文に変換",
+  "modal.syntaxCompact.title": "簡潔な構文に変換",
+  "modal.syntax.desc": "変換前にソースを確認してください。見出しの役割とセルの内容は変わりません。",
+  "modal.syntax.confirm": "構文を変換",
+  "settings.sourceSyntax": "新規表の構文",
+  "settings.sourceSyntax.desc": "新規作成と HTML 表の取り込みに使用します。既存の表は変更しません。",
+  "settings.sourceSyntax.compatible": "GFM 互換（既定）",
+  "settings.sourceSyntax.compact": "簡潔な構文",
+  "syntax.converted": "表の構文を変換しました。",
+  "syntax.unchanged": "この表はすでに選択した構文を使用しています。",
   "menu.undo": "元に戻す",
   "menu.redo": "やり直す",
   "menu.cut": "切り取り",

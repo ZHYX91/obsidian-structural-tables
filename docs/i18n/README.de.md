@@ -29,6 +29,8 @@ Das Darstellungsbild zeigt die echten Einstellungs- und Tabellenkomponenten in e
 <!-- section: features -->
 ## Funktionen
 
+- Markdown- und HTML-Tabellen lassen sich nach Vorschau in beide Richtungen umwandeln; Einschränkungen werden angezeigt.
+
 - Mit `<` wird eine Zelle mit der vorherigen Quellspalte verbunden, mit `^` mit der darüberliegenden Zelle.
 - Ein direkt benachbartes `||` in der Trennzeile kennzeichnet Spalten als Zeilenüberschriften; mehrere Kopfzeilen sind möglich.
 - Leseansicht und Live-Vorschau zeigen dieselbe Verbindungsstruktur.
@@ -44,6 +46,16 @@ Das Darstellungsbild zeigt die echten Einstellungs- und Tabellenkomponenten in e
 Benötigt Obsidian 1.12.7 oder neuer. Unterstützt Desktop und Android. Für die Umwandlung in eine Base muss das Obsidian-Kernplugin Bases aktiviert sein.
 
 `<`, `^` und `||` sind zusätzliche Markdown-Syntax und werden in anderen Editoren möglicherweise anders angezeigt. Für Advanced Tables zuerst „Tabellenquelltext bearbeiten“ wählen und nach externem Sortieren Inhalt und Verbindungen prüfen.
+
+### Zur Tabellenkompatibilität – eine Erklärung und Entschuldigung
+
+*2026-10-31*
+
+Wie [Number Suite](https://github.com/ZHYX91/obsidian-number-suite) entstand Structural Tables zunächst als kleines Werkzeug für meine eigenen Aufgaben beim Arbeiten mit wissenschaftlichen Texten in Obsidian. Ich brauchte nur wenige LaTeX-Funktionen und wollte sie mit einer kleinen Erweiterung von Markdown ersetzen. Anfangs habe ich dabei zu wenig an andere Nutzer und die Kompatibilität ihrer Notizen mit anderen Markdown-Editoren gedacht.
+
+Die ursprünglichen Erweiterungen für Tabellen ohne Spaltenüberschriften und für Zeilenüberschriften entsprechen nicht dem GFM-Tabellenformat. Manche Markdown-Editoren erkennen oder zeigen diese Tabellen deshalb nicht richtig an. Das war ein Fehler in meinem Entwurf. Für Schwierigkeiten beim Lesen, Teilen und Übertragen von Notizen möchte ich mich entschuldigen.
+
+Um das zu verbessern, können Tabellen nun zwischen Markdown und HTML umgewandelt werden. Erweiterte Markdown-Tabellen lassen sich mit komplexen Überschriften und verbundenen Zellen nach HTML übertragen; unterstützte HTML-Tabellen können wieder Markdown werden. Wo gewöhnliches GFM ausreicht, wird es verwendet, sonst die bestehenden Erweiterungen. Vor dem Ersetzen können Quelltext und mögliche inhaltliche oder optische Unterschiede geprüft werden.
 
 <!-- section: installation -->
 ## Installation
@@ -108,6 +120,12 @@ Wechseln Sie zwischen Ergebnisvorschau und Markdown-Quelltext. Sie können das E
 ### PNG-Grenzen und Base-Wiederherstellung
 
 PNG-Bilder sind auf 8192 Pixel je Seite und 16 Megapixel begrenzt. Wenn nicht die ganze Tabelle erfasst werden kann, entsteht kein beschnittenes Bild. Die Base-Umwandlung erstellt Datensatznotizen und die Datei `_promotion.json`. Die Wiederherstellung setzt die ursprüngliche Tabelle zurück, übernimmt keine späteren Base-Änderungen und löscht die erzeugten Notizen nicht.
+
+### Tabellen zwischen Markdown und HTML umwandeln
+
+Setzen Sie den Cursor in eine Markdown-Tabelle und starten Sie **Aktuelle Markdown-Tabelle in HTML umwandeln…**. Für den Rückweg setzen Sie den Cursor im Markdown-Quelleditor in einen vollständigen, eigenständigen `<table>…</table>`-Block und starten **Aktuelle HTML-Tabelle in Markdown umwandeln…**. Eine Vorschau geht jeder einzelnen rückgängig machbaren Ersetzung voraus.
+
+Wenn normales GFM genügt, wird es verwendet; andernfalls kommen `<`, `^` und `||` zum Einsatz. Nicht unterstützte Links, Formeln oder komplexe Formatierungen werden abgelehnt. Der Verlust von HTML-Farben, Breiten und anderen Attributen erfordert ausdrückliche Zustimmung. HTML-Tabellen können nicht mit dem visuellen Zelleditor des Plugins bearbeitet werden; wandeln Sie sie dafür zurück in Markdown.
 
 <!-- section: settings -->
 ## Einstellungen

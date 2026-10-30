@@ -29,6 +29,8 @@ A imagem de aparência mostra os componentes reais de configurações e tabela e
 <!-- section: features -->
 ## Recursos
 
+- Conversão entre tabelas Markdown e HTML com prévia e avisos de conteúdo ou estilos que podem se perder.
+
 - Digite `<` para mesclar com a coluna anterior no código-fonte ou `^` para mesclar com a célula acima.
 - Use `||` sem espaços na linha separadora para marcar as colunas que são cabeçalhos de linha.
 - Veja a mesma estrutura de mesclagem no modo de leitura e na pré-visualização.
@@ -44,6 +46,16 @@ A imagem de aparência mostra os componentes reais de configurações e tabela e
 Requer Obsidian 1.12.7 ou mais recente. Compatível com desktop e Android. Para converter em Base, ative o plug-in principal Bases do Obsidian.
 
 `<`, `^` e `||` são extensões de sintaxe, então outros editores Markdown podem exibir as mesclagens de forma diferente. Para usar o Advanced Tables, escolha “Editar código Markdown da tabela” e confira os dados depois de ordenar com outro plug-in.
+
+### Sobre a compatibilidade das tabelas: uma explicação e um pedido de desculpas
+
+*2026-10-31*
+
+Assim como o [Number Suite](https://github.com/ZHYX91/obsidian-number-suite), o Structural Tables começou como uma ferramenta pequena para minhas necessidades específicas ao trabalhar com artigos científicos no Obsidian. Eu usava apenas uma parte das funções do LaTeX e achei viável substituí-las com algumas extensões de Markdown. No início, concentrei-me no meu próprio uso e não considerei suficientemente outros usuários nem a compatibilidade com outros editores Markdown.
+
+A sintaxe original para tabelas sem cabeçalhos de coluna e com cabeçalhos de linha não segue a estrutura de tabelas do GFM. Por isso, alguns editores não reconhecem ou exibem essas tabelas corretamente. Foi um descuido meu ao projetar a ferramenta. Peço desculpas pelos transtornos ao ler, compartilhar ou migrar notas.
+
+Para melhorar isso, o plugin agora converte tabelas entre Markdown e HTML. É possível preservar cabeçalhos complexos e células mescladas ao converter para HTML, ou voltar de uma tabela HTML compatível para Markdown. O GFM comum é usado quando suficiente; as extensões antigas só aparecem quando necessárias. Antes de substituir, há uma prévia do código e das possíveis diferenças de conteúdo ou aparência.
 
 <!-- section: installation -->
 ## Instalação
@@ -108,6 +120,12 @@ Alterne entre a prévia do resultado e o código Markdown; depois copie o result
 ### Limites de PNG e restauração da Base
 
 O limite de exportação PNG é 8192 pixels por lado ou 16 megapixels no total. Se não for possível capturar a tabela inteira, nenhuma imagem cortada é criada. A conversão em Base cria notas de registro e o arquivo `_promotion.json`. Restaurar a tabela original não traz edições posteriores dos registros nem apaga as notas criadas.
+
+### Converter tabelas entre Markdown e HTML
+
+Posicione o cursor numa tabela Markdown e execute **Converter tabela Markdown atual em HTML…**. Para voltar, coloque o cursor num bloco `<table>…</table>` completo e independente no editor de código Markdown e execute **Converter tabela HTML atual em Markdown…**. Cada conversão mostra uma prévia e pode ser desfeita em uma única etapa.
+
+É usado GFM comum sempre que suficiente; estruturas mais complexas usam `<`, `^` e `||`. Links, fórmulas e formatação avançada incompatíveis são recusados. Se cores, larguras ou outros atributos HTML forem perdidos, será necessário confirmar explicitamente. O editor visual de células não edita o HTML gerado: converta de volta para Markdown para alterar sua estrutura.
 
 <!-- section: settings -->
 ## Configurações

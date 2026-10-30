@@ -31,12 +31,35 @@ function exactPositiveSpan(cell: HTMLTableCellElement, name: "rowspan" | "colspa
 }
 
 /**
+ * Browser HTML parsers repair truncated tags and missing closing elements.
+ * Refuse those inputs rather than silently converting a repaired structure.
+ */
+function hasBalancedTableMarkup(source: string): boolean {
+  const tokens = /<\/?([A-Za-z][A-Za-z0-9]*)(?:\s+[^<>]*?)?\s*\/?>/gu;
+  const stack: string[] = [];
+  let end = 0;
+  for (const match of source.matchAll(tokens)) {
+    if (source.slice(end, match.index).includes("<")) return false;
+    const name = match[1]!.toUpperCase();
+    if (!ALLOWED.has(name)) return false;
+    if (match[0].startsWith("</")) {
+      if (stack.pop() !== name) return false;
+    } else if (name !== "BR" && name !== "COL") {
+      if (match[0].endsWith("/>")) return false;
+      stack.push(name);
+    }
+    end = match.index + match[0].length;
+  }
+  return !source.slice(end).includes("<") && stack.length === 0;
+}
+
+/**
  * Only convert a single text-only HTML table. HTML style/attributes that
  * Markdown cannot carry require an explicit acknowledgement in the preview.
  * Rich content or uncertain geometry refuses without changing the note.
  */
 export function planHtmlTableToMarkdown(source: string): HtmlToMarkdownPlan | null {
-  if (/<!--|<!doctype|<script\b/iu.test(source)) return null;
+  if (/<!--|<!doctype|<script\b/iu.test(source) || !hasBalancedTableMarkup(source)) return null;
   const document = new DOMParser().parseFromString(source, "text/html");
   const tables = document.body.querySelectorAll("table");
   const table = tables[0];

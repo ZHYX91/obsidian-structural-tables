@@ -552,6 +552,15 @@ export class StructuralTablesPlugin extends Plugin {
     };
   }
 
+  private hasActiveTableDraft(editor: Editor, file: TFile | null): boolean {
+    let active = false;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.view instanceof MarkdownView && leaf.view.editor === editor && leaf.view.file === file
+        && leaf.view.containerEl.querySelector("textarea.structural-tables-cell-editor") !== null) active = true;
+    });
+    return active;
+  }
+
   /** Source-to-source conversions do not mutate notes until their explicit preview is confirmed. */
   private replaceConvertedRange(editor: Editor, fromOffset: number, toOffset: number, replacement: string): void {
     const from = editor.offsetToPos(fromOffset);
@@ -565,6 +574,7 @@ export class StructuralTablesPlugin extends Plugin {
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
     const table = current.table;
+    if (this.hasActiveTableDraft(editor, sourceFile)) { new Notice(t("gfm.unsavedDraft")); return; }
     if (!table.valid) {
       new Notice(table.diagnostics[0] === undefined ? t("operation.tableInvalid")
         : diagnosticNotice(t, table.diagnostics[0]));
@@ -596,6 +606,7 @@ export class StructuralTablesPlugin extends Plugin {
       onClose,
       onConfirm: () => {
         if (!targetIsCurrent() || editor.getValue() !== originalNote
+          || this.hasActiveTableDraft(editor, sourceFile)
           || reparseUnchangedTable(originalNote, table) === null
           || !validateDocumentReplacement(originalNote, table.range, replacement)) {
           new Notice(t("notice.staleTable")); return;
@@ -609,6 +620,7 @@ export class StructuralTablesPlugin extends Plugin {
   private previewHtmlAsMarkdown(editor: Editor, sourceFile: TFile | null): void {
     const t = createTranslator(this.settings.language);
     const originalNote = editor.getValue();
+    if (this.hasActiveTableDraft(editor, sourceFile)) { new Notice(t("gfm.unsavedDraft")); return; }
     const target = htmlTableSourceAt(originalNote, editor.posToOffset(editor.getCursor()));
     if (target === null) { new Notice(t("notice.noHtmlTable")); return; }
     const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
@@ -635,6 +647,7 @@ export class StructuralTablesPlugin extends Plugin {
       onConfirm: () => {
         const current = htmlTableSourceAt(editor.getValue(), target.range.from + 1);
         if (!targetIsCurrent() || editor.getValue() !== originalNote
+          || this.hasActiveTableDraft(editor, sourceFile)
           || current === null || current.source !== target.source
           || current.range.from !== target.range.from || current.range.to !== target.range.to
           || !validateDocumentReplacement(originalNote, target.range, replacement, true)) {

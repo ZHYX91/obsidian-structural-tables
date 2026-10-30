@@ -81,6 +81,8 @@ function pluginHarness(editor: Editor, sourceFile: MockTFile) {
     plugin: plugin as unknown as {
       formatCurrent: (editor: Editor, sourceFile: TFile | null) => void;
       previewPlainGfmConversion: (editor: Editor, sourceFile: TFile | null) => void;
+      previewMarkdownAsHtml: (editor: Editor, sourceFile: TFile | null) => void;
+      previewHtmlAsMarkdown: (editor: Editor, sourceFile: TFile | null) => void;
       copyCurrentTable: (editor: Editor, format: "HTML" | "GFM", sourcePath?: string) => void;
       settings: StructuralTablesSettings;
       migrateSheetsExtended: (editor: Editor) => void;
@@ -477,3 +479,70 @@ describe("GFM command boundaries", () => {
 
 
 });
+
+describe("bidirectional in-note source conversion entry", () => {
+  it("previews Markdown-to-HTML without mutation, then replaces only after confirmation", () => {
+    const editor = editorHarness(SOURCE);
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+    const preview = capturePreview();
+    harness.plugin.previewMarkdownAsHtml(editor.editor, file as unknown as TFile);
+    const option = preview();
+    expect(option.source).toContain("<table>");
+    expect(editor.source()).toBe(SOURCE);
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+    option.onConfirm();
+    expect(editor.replaceRange).toHaveBeenCalledOnce();
+    expect(editor.source()).toContain("<table>");
+    expect(notices).toContain("Converted table to HTML.");
+  });
+
+  it("previews HTML-to-Markdown in Source mode and refuses stale edits", () => {
+    const source = "<table><thead><tr><th>Item</th><th>Cost</th></tr></thead>"
+      + "<tbody><tr><td>A</td><td>10</td></tr></tbody></table>";
+    const editor = editorHarness(source);
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+    const preview = capturePreview();
+    harness.plugin.previewHtmlAsMarkdown(editor.editor, file as unknown as TFile);
+    const option = preview();
+    expect(option.source).toContain("| Item");
+    expect(option.source).not.toContain("||");
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+    editor.setSource(source.replace("10", "20"));
+    option.onConfirm();
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+    expect(editor.source()).toContain("20");
+    expect(notices).toContain(createTranslator("en")("notice.staleTable"));
+  });
+
+  it("converts supported HTML-to-Markdown through one exact source replacement", () => {
+    const source = "<table><thead><tr><th>Item</th><th>Cost</th></tr></thead>"
+      + "<tbody><tr><td>A</td><td>10</td></tr></tbody></table>";
+    const editor = editorHarness(source);
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+    const preview = capturePreview();
+    harness.plugin.previewHtmlAsMarkdown(editor.editor, file as unknown as TFile);
+    const option = preview();
+    expect(editor.source()).toBe(source);
+    option.onConfirm();
+    expect(editor.replaceRange).toHaveBeenCalledOnce();
+    expect(editor.source()).toContain("| A");
+    expect(notices).toContain("Converted table to Markdown.");
+  });
+
+  it("refuses a Markdown inline link without opening a destructive preview", () => {
+    const source = "| Item | Value |\n| --- | --- |\n| [[Note]] | 2 |";
+    const editor = editorHarness(source);
+    const file = new MockTFile("A.md");
+    const harness = pluginHarness(editor.editor, file);
+    const opened = vi.spyOn(ConversionPreviewModal.prototype, "open");
+    harness.plugin.previewMarkdownAsHtml(editor.editor, file as unknown as TFile);
+    expect(opened).not.toHaveBeenCalled();
+    expect(editor.source()).toBe(source);
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+    expect(notices).toContain(createTranslator("en")("notice.tableFormatUnsupported"));
+  });
+});
+

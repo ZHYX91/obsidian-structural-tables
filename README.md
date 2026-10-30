@@ -31,7 +31,7 @@ The Appearance image uses the actual settings and table components in a browser 
 <!-- section: features -->
 ## Features
 
-- Merge cells with `<` (previous source column) and `^` (above). Use `||` for row headers, several column-header rows, or no column headers.
+- Merge cells with `<` and `^`. Use GFM-compatible `<<` / `^^` header markers by default, or choose the original compact `||` syntax.
 - Keep the same table structure in Reading view and Live Preview, including inside quotes, callouts, and lists.
 - Edit cells in Live Preview; add, move, align, merge, split, or remove rows and columns through table controls.
 - Transpose a whole table, keeping its headers and merged cells. Changes to column alignment or Markdown syntax require confirmation.
@@ -47,9 +47,19 @@ The Appearance image uses the actual settings and table components in a browser 
 
 Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidian and Android. Converting a table to a Base also requires Obsidian's Bases core plugin.
 
-Inside a Structural Table, exact `<`, `^`, and delimiter `||` tokens have special meanings. If another enabled table plugin is known to use the same syntax, Structural Tables shows a one-time conflict warning.
+Inside a Structural Table, exact `<`, `^`, `<<`, `^^`, and compact delimiter `||` markers have special meanings. If another enabled table plugin is known to use the same syntax, Structural Tables shows a one-time conflict warning.
 
 For Advanced Tables, FakeLink, and Markdown-based image exporters, see the [compatibility notes](docs/compatibility.en.md). They cover the source-editing handoff, third-party sorting risks, and the Obsidian 1.13.7 separate-window workaround.
+
+### A note on table compatibility
+
+**2026-10-31**
+
+Structural Tables began as a small tool I designed, with AI helping with the implementation, to handle complex tables while reading papers in Obsidian. I needed only a small part of LaTeX, so I tried to replace it with a few Markdown extensions. I didn't think enough about how these notes would work in other Markdown editors.
+
+The original headerless-table and row-header syntax does not follow the GFM table structure. As a result, some Markdown editors cannot recognize or render those tables correctly. This was an oversight in my design. I'm sorry for the trouble it has caused when reading, sharing, or moving notes.
+
+The plugin now offers an optional GFM-compatible syntax alongside the compact syntax: a `<<` column marks the row-header boundary, a `^^` row marks the column-header boundary, and a first-row `^^` indicates no column headers. Other GFM editors can parse these as ordinary tables. They will display the arrow markers as normal cell text.
 
 <!-- section: installation -->
 ## Installation
@@ -71,7 +81,7 @@ For manual installation, download `structural-tables-<version>.zip` from the [la
 ### Quick start
 
 1. Place the cursor on an empty line with no text selected. Run **Insert structural table** from the command palette to insert a working example. This command writes the example at the cursor; it does not open a dialog.
-2. Put `<` in a cell to merge with the previous source column, `^` to merge upward, or adjacent `||` in the delimiter row to mark row-header columns.
+2. New tables use GFM-compatible syntax: `<<` marks row headers and `^^` marks column-header rows. `<` and `^` still merge cells. Choose compact syntax in settings if you prefer the original `||` delimiter.
 3. Move the source cursor outside the table in Live Preview, or switch to Reading view, to see the layout.
 4. Click a rendered cell in Live Preview to edit it, or right-click and choose **Edit table source** to return to Markdown.
 
@@ -93,31 +103,43 @@ Click a row or column handle to select it, or hold and drag it in the same gestu
 
 ### Table syntax
 
-A structural table can combine multiple column-header rows and row headers:
+**GFM-compatible syntax** is the default for new tables and HTML table imports. The second line is always a normal GFM delimiter. `<<` marks the end of row-header columns in source order; `^^` marks the end of column-header rows. Structural Tables hides the marker row and column.
 
 ```markdown
-| Region  | Sales | <   |
-| Quarter | Q1    | Q2  |
-| ---     || ---  | --- |
-| North   | 10    | 12  |
-| ^       | 8     | 11  |
+| Region  | << | Sales | <  |
+| ------- | -- | ----- | -- |
+| Quarter | << | Q1    | Q2 |
+| ^^      | << | ^^    | ^^ |
+| North   | << | 10    | 12 |
+| ^       | << | 8     | 11 |
 ```
 
-Rows immediately above the delimiter are column headers. The `||` divider does not add a column; it marks the source columns before it as row headers.
-
-Tables follow the note’s text direction. In a right-to-left note, the first source column and row headers appear on the right. Changing the plugin language or typing Arabic in one cell does not reverse columns or change what `<`, `^`, and `||` mean.
-
-A delimiter can also come first, which creates a table with no column header:
+To make a table without column headers, fill its first row with `^^`:
 
 ```markdown
-| --- | --- |
+| ^^    | ^^ |
+| ----- | --: |
 | Alice | 10 |
 | Bob   | 20 |
 ```
 
-Select the complete column-header area and choose **Remove column headers** to keep the text but turn those rows into data. You can later select rows at the top and make them column headers again.
+If there is also a `<<` column, keep `<<` at its intersection with the marker row. Source order also applies to right-to-left notes, where the first source column may appear on the right. Other GFM editors parse the table but show the arrow cells.
 
-Merge markers must form one rectangle and cannot cross a header/data boundary. To show literal `<` or `^` text in a cell, write `\<` or `\^`.
+**Compact syntax** remains supported for existing notes and for users who choose it in settings:
+
+```markdown
+| Region  | Sales | <  |
+| Quarter | Q1    | Q2 |
+| ---     || ---  | -- |
+| North   | 10    | 12 |
+| ^       | 8     | 11 |
+```
+
+In compact syntax, rows above the `||` delimiter are column headers. The `||` boundary separates row-header columns without adding a column. A delimiter in the first row means no column headers.
+
+Use the command palette or table context menu to **Convert to GFM-compatible syntax** or **Convert to compact syntax**. Review the source before replacing it. This differs from **Convert to plain GFM**, which flattens merges and extra header roles. Changing the default syntax does not rewrite existing tables.
+
+Merges still use `<` (previous source column) and `^` (above); they must form a rectangle and cannot cross a header/data boundary. To use these tokens as literal text, write `\<`, `\^`, `\<\<`, or `\^\^`.
 
 ### Transpose a table
 
@@ -226,11 +248,11 @@ The settings page has **General**, **Views**, and **Appearance** tabs.
 
 Choose **Follow Obsidian** or select one of twelve interface languages: English, 简体中文, 繁體中文, 日本語, 한국어, Deutsch, Français, Español, Português (Brasil), Русский, Tiếng Việt, and العربية. Automatic selection follows Obsidian and falls back to English when the language is unavailable. Your choice changes the plugin's menus and messages, not your note contents or table direction.
 
-- **General**: usage guide and issue-reporting links, language, HTML-table paste conversion, and conflict warnings.
+- **General**: usage and help links, language, **Syntax for new tables** (GFM-compatible by default), HTML-table paste conversion, and conflict warnings.
 - **Views**: Reading view, Live Preview, diagnostics, and the default-off **Take over ordinary Markdown tables** option.
 - **Appearance**: Follow theme, Grid, or Three-line table; table width/alignment; comfortable or compact spacing; optional alternating rows.
 
-**Follow theme** leaves borders, header colors, and typography to the active Obsidian theme, including the outer edges of tables without column headers. **Grid** gives semantic headers a consistent header band, with slightly thicker single lines below the complete column-header area and along the row-header divider declared by `||`. Both boundaries remain visible even before data rows are added. These lines follow merged-cell edges; tables without headers keep a uniform grid. **Three-line table** uses top and bottom rules plus one rule below the complete column-header area, with no vertical body rules. A headerless Three-line table naturally has only the top and bottom rules.
+**Follow theme** leaves borders, header colors, and typography to the active Obsidian theme, including the outer edges of tables without column headers. **Grid** gives semantic headers a consistent header band, with slightly thicker single lines below the complete column-header area and along the row-header boundary. Both boundaries remain visible even before data rows are added. These lines follow merged-cell edges; tables without headers keep a uniform grid. **Three-line table** uses top and bottom rules plus one rule below the complete column-header area, with no vertical body rules. A headerless Three-line table naturally has only the top and bottom rules.
 
 **Style and shading** groups the style and alternating-row controls; **Layout and spacing** groups width/alignment and density. The sample below updates immediately, so you can compare settings before returning to your note. It uses fixed local text and neither reads nor edits a note. Settings still apply to rendered tables throughout the Vault and are saved automatically.
 

@@ -29,6 +29,8 @@ Nhấp vào ô trên máy tính hoặc chạm hai lần trên màn hình cảm �
 <!-- section: features -->
 ## Tính năng
 
+- Bảng mới mặc định dùng dấu `<<`, `^^` tương thích GFM; vẫn có thể chọn cú pháp ngắn gọn cũ.
+
 - Nhập `<` để gộp với cột trước đó theo thứ tự nguồn hoặc `^` để gộp với ô phía trên.
 - Dùng hai dấu `||` liền nhau trong hàng phân cách để đánh dấu các cột làm tiêu đề hàng.
 - Hiển thị cấu trúc gộp ô trong chế độ đọc và xem trước trực tiếp.
@@ -45,6 +47,16 @@ Cần Obsidian 1.12.7 trở lên. Hỗ trợ máy tính và Android. Muốn chuy
 
 `<`, `^` và `||` là cú pháp mở rộng nên các trình chỉnh sửa Markdown khác có thể hiển thị bảng gộp khác đi. Khi dùng Advanced Tables, chọn “Sửa mã Markdown của bảng” rồi kiểm tra lại dữ liệu sau khi sắp xếp bằng công cụ khác.
 
+### Lời xin lỗi và lưu ý về tính tương thích của bảng
+
+**2026-10-31**
+
+Tôi tạo Structural Tables như một công cụ nhỏ để xử lý những bảng phức tạp khi đọc bài báo khoa học trong Obsidian, với sự hỗ trợ của AI khi triển khai. Tôi chỉ cần một phần rất nhỏ khả năng của LaTeX nên dùng vài phần mở rộng Markdown để thay thế. Lúc đầu tôi tập trung vào nhu cầu riêng mà chưa nghĩ đầy đủ đến các trình soạn thảo Markdown khác.
+
+Cú pháp cũ cho bảng không có tiêu đề cột và cho tiêu đề hàng không tuân theo cấu trúc bảng GFM. Vì vậy một số trình soạn thảo không nhận diện hoặc hiển thị đúng. Đây là thiếu sót của tôi khi thiết kế. Tôi xin lỗi vì những bất tiện khi đọc, chia sẻ và chuyển ghi chú.
+
+Giờ đây có thêm cú pháp tương thích GFM bên cạnh cú pháp ngắn gọn: các cột trước `<<` là tiêu đề hàng, các hàng trước `^^` là tiêu đề cột. Nếu hàng đầu tiên là `^^`, bảng không có tiêu đề cột. Trình soạn thảo hỗ trợ GFM vẫn nhận diện được bảng, nhưng các dấu mũi tên hiện như văn bản trong ô.
+
 <!-- section: installation -->
 ## Cài đặt
 
@@ -60,6 +72,23 @@ Trong Obsidian, mở “Cài đặt → Plugin cộng đồng → Duyệt”, t�
 Đặt con trỏ trên một dòng trống, không chọn văn bản, rồi chạy **Chèn bảng có cấu trúc** trong bảng lệnh. Lệnh chèn ngay một bảng mẫu. Di chuyển con trỏ ra ngoài bảng trong chế độ xem trước trực tiếp hoặc chuyển sang chế độ đọc để xem kết quả. Bạn có thể sửa nội dung ví dụ cùng cấu trúc dưới đây:
 
 ```markdown
+| Khu vực | << | Doanh số | < |
+| --- | --- | --- | --- |
+| Quý | << | Q1 | Q2 |
+| ^^ | << | ^^ | ^^ |
+| Miền Bắc | << | 10 | 12 |
+| ^ | << | 8 | 11 |
+```
+
+Bảng mới mặc định dùng cú pháp tương thích GFM. Các cột đứng trước `<<` theo thứ tự nguồn là tiêu đề hàng; các hàng đứng trước `^^` là tiêu đề cột. Plugin ẩn hàng và cột đánh dấu.
+
+Nếu không có tiêu đề cột, hãy điền `^^` vào hàng đầu tiên (giữ `<<` tại chỗ giao với cột đánh dấu, nếu có). Hàng thứ hai vẫn là hàng phân cách GFM thông thường với `---`.
+
+Cú pháp ngắn gọn cũ dùng `||` vẫn được hỗ trợ. Các lệnh chuyển cú pháp cho xem trước mã nguồn trước khi thay thế; khác với chuyển sang GFM thông thường vì thao tác đó làm phẳng cấu trúc. Cài đặt cú pháp cho bảng mới không thay đổi bảng đã có.
+
+Cú pháp ngắn gọn trước đây:
+
+```markdown
 | Khu vực | Doanh số | < |
 | Quý | Q1 | Q2 |
 | --- || --- | --- |
@@ -67,7 +96,14 @@ Trong Obsidian, mở “Cài đặt → Plugin cộng đồng → Duyệt”, t�
 | ^ | 8 | 11 |
 ```
 
-`<` gộp với cột phía trước theo thứ tự nguồn, `^` gộp với ô ở trên. Ký hiệu `||` trong hàng phân cách đánh dấu ranh giới tiêu đề hàng và không tạo thêm cột.
+Bảng không có tiêu đề cột:
+
+```markdown
+| ^^ | ^^ |
+| --- | ---: |
+| A | 10 |
+| B | 20 |
+```
 
 Nếu bảng hiển thị không đúng, hãy chạy lệnh **Kiểm tra bảng có cấu trúc trong ghi chú hiện tại**. Lệnh chỉ báo lỗi cú pháp, không sửa Markdown.
 
@@ -117,6 +153,8 @@ Chuyển giữa bản xem trước kết quả và mã nguồn Markdown, rồi s
 Chọn Theo chủ đề, Lưới hoặc Bảng ba đường kẻ. Đổi giao diện hay ngôn ngữ plugin không thay đổi Markdown hoặc hướng văn bản của ghi chú.
 
 Bảng mẫu bên dưới “Đường kẻ và nền” và “Bố cục và khoảng cách” phản ánh thay đổi ngay lập tức. Bảng chỉ dùng văn bản cố định, không đọc hay sửa ghi chú. Cài đặt áp dụng cho các bảng trong toàn bộ kho và được lưu tự động.
+
+**Cú pháp cho bảng mới** mặc định tương thích GFM. Chọn cú pháp ngắn gọn chỉ ảnh hưởng đến bảng mới hoặc bảng HTML nhập vào, không sửa ghi chú cũ.
 
 <!-- section: limitations -->
 ## Giới hạn

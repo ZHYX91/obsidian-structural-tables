@@ -29,6 +29,8 @@ L’image des réglages montre les composants réels de paramètres et de tablea
 <!-- section: features -->
 ## Fonctions
 
+- Les nouveaux tableaux utilisent par défaut les marqueurs `<<` et `^^` compatibles GFM ; l’ancienne syntaxe compacte reste disponible.
+
 - Saisissez `<` pour fusionner avec la colonne précédente dans le code source, ou `^` pour fusionner avec la cellule au-dessus.
 - Placez `||` sans espace dans la ligne de séparation pour indiquer les colonnes qui servent d’en-têtes de lignes.
 - Affichez les cellules fusionnées en mode lecture et dans l’aperçu en direct.
@@ -45,6 +47,16 @@ Obsidian 1.12.7 ou une version ultérieure est nécessaire. Compatible avec ordi
 
 `<`, `^` et `||` sont une extension de syntaxe : d’autres éditeurs Markdown peuvent afficher les fusions différemment. Avec Advanced Tables, utilisez « Modifier le code Markdown du tableau » et vérifiez les données après tout tri externe.
 
+### À propos de la compatibilité des tableaux : mes excuses
+
+**2026-10-31**
+
+J’ai conçu Structural Tables comme un petit outil pour traiter les tableaux complexes des articles scientifiques dans Obsidian, avec l’aide de l’IA pour le réaliser. Je n’avais besoin que d’une petite partie des possibilités de LaTeX ; quelques extensions Markdown me suffisaient. Je n’ai pas assez pensé à la lecture des notes dans les autres éditeurs Markdown.
+
+L’ancienne syntaxe des tableaux sans en-tête de colonne et des en-têtes de ligne ne respecte pas la structure des tableaux GFM. Certains éditeurs ne peuvent donc pas les reconnaître ou les afficher correctement. C’était une erreur de conception de ma part. Je suis désolé pour les difficultés de lecture, de partage et de migration des notes.
+
+Une nouvelle syntaxe compatible GFM est désormais proposée à côté de la syntaxe compacte : les colonnes précédant `<<` sont des en-têtes de ligne ; les lignes précédant `^^` sont des en-têtes de colonne. Un `^^` en première ligne signifie qu’il n’y a pas d’en-têtes de colonne. Les autres éditeurs GFM reconnaissent le tableau, mais affichent les flèches comme du texte ordinaire.
+
 <!-- section: installation -->
 ## Installation
 
@@ -60,6 +72,23 @@ Pour l’installation manuelle, extrayez `structural-tables-<version>.zip` dans 
 Placez le curseur sur une ligne vide, sans texte sélectionné, puis lancez **Insérer un tableau structuré** dans la palette de commandes. Le tableau d’exemple est inséré directement. Sortez le curseur du tableau dans l’aperçu en direct, ou passez en mode lecture, pour voir le résultat. Voici un exemple de même structure à adapter :
 
 ```markdown
+| Région | << | Ventes | < |
+| --- | --- | --- | --- |
+| Trimestre | << | Q1 | Q2 |
+| ^^ | << | ^^ | ^^ |
+| Nord | << | 10 | 12 |
+| ^ | << | 8 | 11 |
+```
+
+Les nouveaux tableaux utilisent par défaut la syntaxe compatible GFM. Les colonnes précédant `<<` dans la source sont des en-têtes de ligne ; les lignes précédant `^^` sont des en-têtes de colonne. Le plugin masque les marqueurs.
+
+Pour un tableau sans en-tête de colonne, placez `^^` dans toute la première ligne (`<<` au croisement éventuel). La deuxième ligne reste le séparateur GFM normal avec `---`.
+
+L’ancienne syntaxe compacte avec `||` reste disponible. Les commandes de conversion affichent la source avant tout remplacement ; elles ne doivent pas être confondues avec la conversion en GFM standard, qui aplatit la structure. Le réglage des nouveaux tableaux ne modifie pas les tableaux existants.
+
+Ancienne syntaxe compacte :
+
+```markdown
 | Région | Ventes | < |
 | Trimestre | Q1 | Q2 |
 | --- || --- | --- |
@@ -67,7 +96,14 @@ Placez le curseur sur une ligne vide, sans texte sélectionné, puis lancez **In
 | ^ | 8 | 11 |
 ```
 
-`<` fusionne avec la colonne précédente dans l’ordre du code source ; `^` fusionne vers le haut. Le `||` de la ligne de séparation délimite les en-têtes de lignes, sans ajouter de colonne.
+Tableau sans en-tête de colonne :
+
+```markdown
+| ^^ | ^^ |
+| --- | ---: |
+| A | 10 |
+| B | 20 |
+```
 
 Si un tableau s’affiche mal, lancez **Vérifier les tableaux de cette note** depuis la palette de commandes. La vérification signale les erreurs sans modifier le Markdown.
 
@@ -117,6 +153,8 @@ Un PNG ne peut pas dépasser 8192 pixels par côté ou 16 mégapixels au total. 
 Choisissez Suivre le thème, Grille ou Tableau à trois lignes. Modifier l’apparence ou la langue de l’interface ne change ni le Markdown ni le sens du texte de la note.
 
 Sous « Traits et fond » et « Disposition et espacement », un tableau d’exemple reflète immédiatement les changements. Il utilise du texte fixe et ne lit ni ne modifie aucune note. Les réglages s’appliquent aux tableaux du coffre et sont enregistrés automatiquement.
+
+La **syntaxe des nouveaux tableaux** est compatible GFM par défaut. Le choix « Compacte » ne concerne que les nouveaux tableaux et les imports HTML, sans modifier les notes existantes.
 
 <!-- section: limitations -->
 ## Limites

@@ -29,6 +29,8 @@ A imagem de aparência mostra os componentes reais de configurações e tabela e
 <!-- section: features -->
 ## Recursos
 
+- Novas tabelas usam `<<` e `^^` compatíveis com GFM por padrão; a sintaxe compacta continua disponível.
+
 - Digite `<` para mesclar com a coluna anterior no código-fonte ou `^` para mesclar com a célula acima.
 - Use `||` sem espaços na linha separadora para marcar as colunas que são cabeçalhos de linha.
 - Veja a mesma estrutura de mesclagem no modo de leitura e na pré-visualização.
@@ -45,6 +47,16 @@ Requer Obsidian 1.12.7 ou mais recente. Compatível com desktop e Android. Para 
 
 `<`, `^` e `||` são extensões de sintaxe, então outros editores Markdown podem exibir as mesclagens de forma diferente. Para usar o Advanced Tables, escolha “Editar código Markdown da tabela” e confira os dados depois de ordenar com outro plug-in.
 
+### Uma nota e um pedido de desculpas sobre a compatibilidade das tabelas
+
+**2026-10-31**
+
+Criei o Structural Tables como uma ferramenta pequena para lidar com tabelas complexas de artigos científicos no Obsidian, com ajuda da IA na implementação. Eu precisava de apenas uma pequena parte dos recursos do LaTeX e tentei substituí-la com algumas extensões de Markdown. No início, pensei principalmente no meu próprio uso e não considerei suficientemente outros editores Markdown.
+
+A sintaxe original para tabelas sem cabeçalho de coluna e com cabeçalhos de linha não segue a estrutura de tabelas do GFM. Por isso, alguns editores não conseguem reconhecer ou exibir essas tabelas corretamente. Foi um descuido meu no projeto. Peço desculpas pelos transtornos ao ler, compartilhar ou migrar notas.
+
+Agora há uma opção compatível com GFM além da sintaxe compacta: colunas antes de `<<` são cabeçalhos de linha e linhas antes de `^^` são cabeçalhos de coluna. Se `^^` estiver na primeira linha, não há cabeçalho de coluna. Outros editores GFM reconhecem a tabela, mas exibem as setas como texto comum.
+
 <!-- section: installation -->
 ## Instalação
 
@@ -60,6 +72,23 @@ Para instalar manualmente, extraia `structural-tables-<version>.zip` em `Vault/.
 Coloque o cursor em uma linha vazia, sem selecionar texto, e execute **Inserir tabela estrutural** na paleta de comandos. O exemplo é inserido diretamente. Mova o cursor para fora da tabela na pré-visualização ou mude para o modo de leitura para ver o resultado. Você pode adaptar este exemplo com a mesma estrutura:
 
 ```markdown
+| Região | << | Vendas | < |
+| --- | --- | --- | --- |
+| Trimestre | << | Q1 | Q2 |
+| ^^ | << | ^^ | ^^ |
+| Norte | << | 10 | 12 |
+| ^ | << | 8 | 11 |
+```
+
+Novas tabelas usam, por padrão, a sintaxe compatível com GFM. As colunas anteriores a `<<` no código-fonte são cabeçalhos de linha; as linhas anteriores a `^^` são cabeçalhos de coluna. O plugin oculta os marcadores.
+
+Para criar uma tabela sem cabeçalho de coluna, preencha a primeira linha com `^^` (mantenha `<<` no cruzamento, se houver). A segunda linha continua sendo o separador GFM normal com `---`.
+
+A sintaxe compacta antiga com `||` continua disponível. Os comandos de conversão mostram uma prévia antes de substituir o código; isso é diferente de converter para GFM comum, que achata a estrutura. A configuração para novas tabelas não altera tabelas existentes.
+
+Sintaxe compacta anterior:
+
+```markdown
 | Região | Vendas | < |
 | Trimestre | Q1 | Q2 |
 | --- || --- | --- |
@@ -67,7 +96,14 @@ Coloque o cursor em uma linha vazia, sem selecionar texto, e execute **Inserir t
 | ^ | 8 | 11 |
 ```
 
-`<` mescla com a coluna anterior no código-fonte; `^` mescla com a célula acima. O `||` da linha separadora delimita os cabeçalhos de linha sem adicionar uma coluna.
+Tabela sem cabeçalho de coluna:
+
+```markdown
+| ^^ | ^^ |
+| --- | ---: |
+| A | 10 |
+| B | 20 |
+```
 
 Se a tabela não aparecer como esperado, use **Verificar tabelas estruturais da nota atual**. O comando aponta problemas de sintaxe sem alterar o Markdown.
 
@@ -117,6 +153,8 @@ O limite de exportação PNG é 8192 pixels por lado ou 16 megapixels no total. 
 Escolha Seguir tema, Grade ou Tabela de três linhas. Mudar a aparência ou o idioma do plug-in não altera o Markdown nem a direção do texto da nota.
 
 Abaixo de “Linhas e fundo” e “Layout e espaçamento”, uma tabela de exemplo mostra as alterações imediatamente. Ela usa texto fixo e não lê nem edita notas. As configurações se aplicam às tabelas de todo o cofre e são salvas automaticamente.
+
+A **sintaxe para novas tabelas** é compatível com GFM por padrão. Escolher « Compacta » só afeta novas tabelas e importações HTML, não altera notas existentes.
 
 <!-- section: limitations -->
 ## Limitações

@@ -29,6 +29,8 @@ La imagen de apariencia muestra los componentes reales de ajustes y tabla en un 
 <!-- section: features -->
 ## Funciones
 
+- Las tablas nuevas usan por defecto las marcas `<<` y `^^` compatibles con GFM; también puedes elegir la sintaxis compacta.
+
 - Escribe `<` para combinar con la columna anterior del código fuente o `^` para combinar con la celda superior.
 - Usa `||` sin espacios en la fila separadora para marcar las columnas que actúan como encabezados de fila.
 - Muestra las combinaciones tanto en vista de lectura como en la vista previa.
@@ -45,6 +47,16 @@ Requiere Obsidian 1.12.7 o posterior. Compatible con escritorio y Android. Para 
 
 `<`, `^` y `||` son extensiones de sintaxis; otros editores Markdown pueden mostrar las combinaciones de forma distinta. Para usar Advanced Tables, abre «Editar código fuente de la tabla» y revisa los datos después de ordenar con otras herramientas.
 
+### Una disculpa y una nota sobre la compatibilidad de las tablas
+
+**2026-10-31**
+
+Diseñé Structural Tables como una pequeña herramienta para trabajar con tablas complejas de artículos científicos en Obsidian, con ayuda de la IA para implementarla. Solo necesitaba unas pocas funciones de LaTeX, así que opté por ampliar un poco Markdown. Al principio me centré en mi caso particular y no tuve suficientemente en cuenta otros editores Markdown.
+
+La sintaxis original para tablas sin encabezados de columna y con encabezados de fila no respeta la estructura de tablas GFM. Por eso, algunos editores no pueden reconocer o mostrar esas tablas correctamente. Fue un descuido de diseño. Siento los problemas que esto haya causado al leer, compartir o trasladar notas.
+
+Ahora, además de la sintaxis compacta, hay una sintaxis compatible con GFM: las columnas anteriores a `<<` son encabezados de fila y las filas anteriores a `^^` son encabezados de columna. Si la primera fila contiene `^^`, no hay encabezados de columna. Otros editores GFM reconocen la tabla, aunque muestran las flechas como texto normal.
+
 <!-- section: installation -->
 ## Instalación
 
@@ -60,6 +72,23 @@ Para la instalación manual, extrae `structural-tables-<version>.zip` en `Vault/
 Sitúa el cursor en una línea vacía, sin texto seleccionado, y ejecuta **Insertar tabla estructural** desde la paleta de comandos. El ejemplo se inserta directamente. Mueve el cursor fuera de la tabla en la vista previa o cambia a la vista de lectura para verla. Puedes adaptar este ejemplo con la misma estructura:
 
 ```markdown
+| Región | << | Ventas | < |
+| --- | --- | --- | --- |
+| Trimestre | << | Q1 | Q2 |
+| ^^ | << | ^^ | ^^ |
+| Norte | << | 10 | 12 |
+| ^ | << | 8 | 11 |
+```
+
+Las tablas nuevas usan por defecto la sintaxis compatible con GFM. Las columnas anteriores a `<<` en el código fuente son encabezados de fila y las filas anteriores a `^^` son encabezados de columna. El complemento oculta los marcadores.
+
+Para una tabla sin encabezados de columna, la primera fila se rellena con `^^` (conserva `<<` donde cruce esa columna). La segunda fila sigue siendo el separador normal de GFM con `---`.
+
+También se conserva la sintaxis compacta con `||`. Los comandos de conversión muestran una vista previa antes de reemplazar el código; son distintos de convertir a GFM simple, que aplana la estructura. El ajuste de tablas nuevas no modifica las existentes.
+
+Sintaxis compacta anterior:
+
+```markdown
 | Región | Ventas | < |
 | Trimestre | Q1 | Q2 |
 | --- || --- | --- |
@@ -67,7 +96,14 @@ Sitúa el cursor en una línea vacía, sin texto seleccionado, y ejecuta **Inser
 | ^ | 8 | 11 |
 ```
 
-`<` combina con la columna anterior del texto fuente; `^` combina hacia arriba. El `||` de la fila separadora marca el límite de encabezados de fila sin añadir otra columna.
+Tabla sin encabezados de columna:
+
+```markdown
+| ^^ | ^^ |
+| --- | ---: |
+| A | 10 |
+| B | 20 |
+```
 
 Si una tabla no se ve bien, usa **Validar las tablas estructurales de la nota actual**. El comando muestra los problemas de sintaxis sin modificar Markdown.
 
@@ -117,6 +153,8 @@ El PNG tiene un límite de 8192 píxeles por lado y 16 megapíxeles en total. Si
 Elige Seguir tema, Cuadrícula o Tabla de tres líneas. Cambiar la apariencia o el idioma de la interfaz no modifica Markdown ni la dirección de la nota.
 
 Debajo de «Líneas y fondo» y «Diseño y espaciado», una tabla de ejemplo refleja los cambios al instante. Usa texto fijo y no lee ni edita notas. Los ajustes se aplican a las tablas de toda la bóveda y se guardan automáticamente.
+
+La **sintaxis para tablas nuevas** es compatible con GFM de forma predeterminada. Elegir « Compacta » solo afecta a las tablas nuevas o importadas, no a las notas existentes.
 
 <!-- section: limitations -->
 ## Limitaciones

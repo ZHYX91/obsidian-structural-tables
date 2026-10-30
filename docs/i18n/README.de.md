@@ -29,6 +29,8 @@ Das Darstellungsbild zeigt die echten Einstellungs- und Tabellenkomponenten in e
 <!-- section: features -->
 ## Funktionen
 
+- Neue Tabellen verwenden standardmäßig GFM-kompatible `<<`- und `^^`-Markierungen; die bisherige kompakte Syntax bleibt wählbar.
+
 - Mit `<` wird eine Zelle mit der vorherigen Quellspalte verbunden, mit `^` mit der darüberliegenden Zelle.
 - Ein direkt benachbartes `||` in der Trennzeile kennzeichnet Spalten als Zeilenüberschriften; mehrere Kopfzeilen sind möglich.
 - Leseansicht und Live-Vorschau zeigen dieselbe Verbindungsstruktur.
@@ -45,6 +47,16 @@ Benötigt Obsidian 1.12.7 oder neuer. Unterstützt Desktop und Android. Für die
 
 `<`, `^` und `||` sind zusätzliche Markdown-Syntax und werden in anderen Editoren möglicherweise anders angezeigt. Für Advanced Tables zuerst „Tabellenquelltext bearbeiten“ wählen und nach externem Sortieren Inhalt und Verbindungen prüfen.
 
+### Zur Kompatibilität von Tabellen – eine Entschuldigung
+
+**2026-10-31**
+
+Structural Tables entstand als kleines Werkzeug, das ich mit Hilfe von KI entwickelt habe, um beim Lesen wissenschaftlicher Arbeiten in Obsidian komplexe Tabellen zu bearbeiten. Ich brauchte nur wenige Funktionen von LaTeX und ersetzte sie durch kleine Markdown-Erweiterungen. Dabei habe ich die Nutzung in anderen Markdown-Editoren nicht ausreichend berücksichtigt.
+
+Die ursprüngliche Syntax für Tabellen ohne Spaltenüberschriften und für Zeilenüberschriften entspricht nicht der GFM-Tabellenstruktur. Deshalb werden solche Tabellen von manchen Editoren nicht richtig erkannt oder dargestellt. Das war ein Fehler in meinem Entwurf. Für Probleme beim Lesen, Teilen oder Übertragen von Notizen möchte ich mich entschuldigen.
+
+Neben der bisherigen kompakten Syntax gibt es jetzt eine GFM-kompatible Variante: Die Spalten vor `<<` sind Zeilenüberschriften, die Zeilen vor `^^` sind Spaltenüberschriften. Steht `^^` in der ersten Zeile, gibt es keine Spaltenüberschriften. Andere GFM-Editoren erkennen die Tabelle, zeigen die Pfeile aber als normalen Zelltext.
+
 <!-- section: installation -->
 ## Installation
 
@@ -60,6 +72,23 @@ Zur manuellen Installation `structural-tables-<version>.zip` nach `Vault/.obsidi
 Setzen Sie den Cursor ohne Textauswahl auf eine leere Zeile und führen Sie **Strukturtabelle einfügen** aus der Befehlspalette aus. Der Befehl fügt direkt ein Beispiel ein. Bewegen Sie den Cursor in der Live-Vorschau aus der Tabelle oder wechseln Sie in die Leseansicht. Das folgende Beispiel hat dieselbe Struktur und lässt sich anpassen:
 
 ```markdown
+| Region | << | Umsatz | < |
+| --- | --- | --- | --- |
+| Quartal | << | Q1 | Q2 |
+| ^^ | << | ^^ | ^^ |
+| Norden | << | 10 | 12 |
+| ^ | << | 8 | 11 |
+```
+
+Neue Tabellen verwenden standardmäßig die GFM-kompatible Syntax. Die Quellspalten vor `<<` sind Zeilenüberschriften, die Zeilen vor `^^` sind Spaltenüberschriften. Das Plugin blendet die Markierungszeile und -spalte aus.
+
+Ohne Spaltenüberschriften beginnt die Tabelle mit einer Zeile aus `^^` (am Schnittpunkt mit `<<` bleibt `<<`). Die zweite Zeile enthält die normale GFM-Trennzeile mit `---`.
+
+Die bisherige kompakte Syntax mit `||` bleibt erhalten. Zum Wechseln wählen Sie einen der Befehle für die Syntaxumwandlung und prüfen die Vorschau. Dies ist nicht die Umwandlung in einfaches GFM, bei der die Struktur abgeflacht wird. Die Einstellung für neue Tabellen ändert vorhandene Tabellen nicht.
+
+Bisherige kompakte Syntax:
+
+```markdown
 | Region | Umsatz | < |
 | Quartal | Q1 | Q2 |
 | --- || --- | --- |
@@ -67,7 +96,14 @@ Setzen Sie den Cursor ohne Textauswahl auf eine leere Zeile und führen Sie **St
 | ^ | 8 | 11 |
 ```
 
-`<` verbindet mit der vorherigen Quellspalte (bei RTL-Darstellung kann diese rechts liegen), `^` mit der Zelle darüber. `||` in der Trennzeile kennzeichnet die Zeilenüberschriften, ohne eine Spalte hinzuzufügen.
+Tabelle ohne Spaltenüberschrift:
+
+```markdown
+| ^^ | ^^ |
+| --- | ---: |
+| A | 10 |
+| B | 20 |
+```
 
 Wenn eine Tabelle falsch dargestellt wird, verwenden Sie **Strukturtabellen in der aktuellen Notiz prüfen**. Der Befehl meldet Syntaxfehler, ohne den Markdown-Text zu ändern.
 
@@ -117,6 +153,8 @@ PNG-Bilder sind auf 8192 Pixel je Seite und 16 Megapixel begrenzt. Wenn nicht di
 Wählen Sie „Dem Theme folgen“, Raster oder Dreilinientabelle. Darstellung und Oberflächensprache verändern weder Markdown noch die Schreibrichtung der Notiz.
 
 Unter „Linien und Schattierung“ und „Layout und Abstände“ zeigt eine Beispieltabelle Änderungen sofort an. Sie verwendet festen Text und liest oder bearbeitet keine Notiz. Die Einstellungen gelten für Tabellen im gesamten Vault und werden automatisch gespeichert.
+
+**Syntax für neue Tabellen** ist standardmäßig GFM-kompatibel. Die Wahl von „Kompakt“ betrifft nur neue und importierte Tabellen, nicht vorhandene Notizen.
 
 <!-- section: limitations -->
 ## Einschränkungen

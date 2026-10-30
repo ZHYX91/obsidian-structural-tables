@@ -22,6 +22,8 @@ Let users express merged cells, multi-row column headers, and row headers with r
 
 An exact `<` merges with the previous source column (visually right in RTL tables), `^` merges up, and `\<` or `\^` is literal text. Every delimiter cell follows GFM and contains one or more hyphens. Contiguous equal-width rows before the delimiter are column headers. At most one whitespace-free `||` inside the delimiter marks columns to its left as row headers and does not add a column.
 
+The optional GFM-compatible source dialect instead keeps its pipe-table delimiter in the second physical line. A complete `<<` control column (with a normal hyphen separator cell) marks the preceding real source columns as row headers; a complete `^^` control row marks all preceding real rows as column headers. With `^^` in the first physical row, there are no column headers. At the control intersection, use `<<`. Control cells have no logical row or column. Preserve the source dialect when editing and formatting; the default for new/imported tables is compatible, while older sources remain unchanged. Explicit source conversion previews the change and cannot discard real cells.
+
 <!-- section: validity -->
 ## Validity
 

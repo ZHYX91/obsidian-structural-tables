@@ -300,7 +300,8 @@ export function migrateSheetsExtendedTable(table: StructuralTable): SheetsExtend
   const alignments = table.alignments.filter((_alignment, column) => column !== separatorColumn);
   const parsed = parseTableWrite(candidate, values, table.headerRowCount, separatorColumn, alignments);
   if (parsed === null) return null;
-  return { separatorColumn, source: serializeStructuralTable({ ...parsed, sourcePrefix: table.sourcePrefix }) };
+  return { separatorColumn, source: serializeStructuralTable({ ...parsed, sourceSyntax: table.sourceSyntax,
+    sourcePrefix: table.sourcePrefix }) };
 }
 
 export function enabledConflictingPlugins(enabledPluginIds: Iterable<string>): string[] {

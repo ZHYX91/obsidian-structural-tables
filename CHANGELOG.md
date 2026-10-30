@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add GFM-compatible `<<` and `^^` header-boundary syntax alongside the existing compact dialect. New tables and HTML imports default to compatible syntax; existing tables keep their source format until explicitly converted.
+- Add previewed table-level syntax conversion, localized settings and help in twelve languages, and a dated compatibility apology in every README.
+
 - Refuse whole-table HTML imports and Base restoration when their complete-note result would absorb neighboring prose, change another table or hide source cells. Preserve the original selection and records on refusal.
 - Keep pending Word/HTML copies bound to their loaded plugin and latest copy invocation while preserving command snapshots; stop obsolete clipboard dispatch and notices after a newer copy or unload.
 - Safely finish cell editing before completing row or column selection, with complete axis highlighting, grid focus and guarded draft preservation.

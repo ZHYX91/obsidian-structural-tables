@@ -4,7 +4,9 @@ This page collects version-specific workarounds and interactions with other Obsi
 
 ## Advanced Tables and other source-editing plugins
 
-Structural Tables uses the exact `<`, `^`, and delimiter-row `||` tokens for merges and row headers. Another table plugin may interpret those same characters differently.
+Structural Tables supports two source dialects. In GFM-compatible syntax (the default for new tables), a complete `<<` column marks row headers and a complete `^^` row marks column headers; the second physical line remains a normal GFM delimiter. In compact syntax, `||` in the delimiter marks row headers. Both dialects still use `<` and `^` for merged cells. Other GFM editors can read compatible tables, but show the control markers as cell text.
+
+Another table plugin may interpret these markers differently. Changing the default syntax does not rewrite existing notes; use a table conversion command to preview and change one table at a time.
 
 For source-based commands such as Advanced Tables, right-click a rendered cell and choose **Edit table source**. Opening a toolbar or dialog keeps the original source selection in place. Advanced Tables controls its own Tab/Enter bindings; switch to Obsidian Source mode when necessary.
 

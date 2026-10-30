@@ -436,7 +436,8 @@ export class StructuralTablesPlugin extends Plugin {
             const result = target?.apply((_source, table) => operation(table));
             new Notice(result == null ? t("notice.staleTable") : operationNotice(t, result.code));
           },
-          { direction: editorTableDirection(this.app, editor, selection.table, info instanceof MarkdownView ? info : undefined) },
+          { direction: editorTableDirection(this.app, editor, selection.table, info instanceof MarkdownView ? info : undefined),
+            defaultSourceSyntax: this.settings.defaultSourceSyntax },
         );
       }
       if (current === null || !current.table.valid) return;

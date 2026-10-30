@@ -1,4 +1,4 @@
-import type { ColumnAlignment, StructuralTable } from "./model";
+import type { ColumnAlignment, StructuralTable, TableSourceSyntax } from "./model";
 import { parseEditableTables } from "./parser";
 import {
   sameTableRangeTopology,
@@ -936,7 +936,8 @@ export function splitCell(table: StructuralTable, row: number, column: number): 
   };
 }
 
-export function setHeaderRowCount(table: StructuralTable, count: number): OperationResult {
+export function setHeaderRowCount(table: StructuralTable, count: number,
+  preferredSyntax?: TableSourceSyntax): OperationResult {
   const blocked = unavailable(table);
   if (blocked !== null) return blocked;
   if (!Number.isInteger(count) || count < 0 || count > table.rows.length) {
@@ -945,7 +946,9 @@ export function setHeaderRowCount(table: StructuralTable, count: number): Operat
   if (count === table.headerRowCount) {
     return { changed: false, code: "header-rows-set", message: "Those rows are already column headers.", source: table.source };
   }
-  const candidateSource = sourceWithRawCells(table, rawValues(table), count);
+  const writingTable = !table.structural && preferredSyntax !== undefined
+    ? { ...table, sourceSyntax: preferredSyntax } : table;
+  const candidateSource = sourceWithRawCells(writingTable, rawValues(table), count);
   const parsed = parseTableWrite(candidateSource, rawValues(table), count, table.rowHeaderColumnCount, table.alignments);
   if (parsed === null || !parsed.valid) {
     return { changed: false, code: "invalid-result", message: parsed?.diagnostics[0]?.message ?? "That header boundary would create an invalid table.", source: table.source };
@@ -958,7 +961,8 @@ export function setHeaderRowCount(table: StructuralTable, count: number): Operat
   };
 }
 
-export function setRowHeaderColumnCount(table: StructuralTable, count: number): OperationResult {
+export function setRowHeaderColumnCount(table: StructuralTable, count: number,
+  preferredSyntax?: TableSourceSyntax): OperationResult {
   const blocked = unavailable(table);
   if (blocked !== null) return blocked;
   if (!Number.isInteger(count) || count < 0 || count >= table.columnCount) {
@@ -967,7 +971,9 @@ export function setRowHeaderColumnCount(table: StructuralTable, count: number): 
   if (count === table.rowHeaderColumnCount) {
     return { changed: false, code: "row-headers-set", message: "Those columns are already row headers.", source: table.source };
   }
-  const candidateSource = sourceWithRawCells(table, rawValues(table), table.headerRowCount, count);
+  const writingTable = !table.structural && preferredSyntax !== undefined
+    ? { ...table, sourceSyntax: preferredSyntax } : table;
+  const candidateSource = sourceWithRawCells(writingTable, rawValues(table), table.headerRowCount, count);
   const parsed = parseTableWrite(candidateSource, rawValues(table), table.headerRowCount, count, table.alignments);
   if (parsed === null || !parsed.valid) {
     return { changed: false, code: "invalid-result", message: parsed?.diagnostics[0]?.message ?? "That row-header boundary would create an invalid table.", source: table.source };

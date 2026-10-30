@@ -138,6 +138,7 @@ export class NativeTableMenuBridge {
       addSelectionMenuItems(
         menu, t, selection,
         (operation) => { if (target.isCurrent()) this.applyMenuOperation(markdownView.editor, table, operation); },
+        { defaultSourceSyntax: this.getSettings().defaultSourceSyntax },
       );
     }
     const transposeTarget = captureEditorTransposeTarget(

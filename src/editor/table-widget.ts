@@ -1264,7 +1264,8 @@ class StructuralTableInteraction {
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
     const direction = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl" ? "rtl" : "ltr";
-    const menuOptions = { fullEditor: true, explicitRemoval: true, direction } as const;
+    const menuOptions = { fullEditor: true, explicitRemoval: true, direction,
+      defaultSourceSyntax: this.getSettings().defaultSourceSyntax } as const;
     const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => {
       if (this.finishActiveOperation !== null) {
         this.finishActiveOperation(operation, frozen.anchor, frozen.axisSelection);
@@ -2110,7 +2111,8 @@ class StructuralTableInteraction {
           activate(() => finish(true, null, true, operation));
         };
         const direction = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl" ? "rtl" : "ltr";
-        const options = { fullEditor: true, explicitRemoval: true, direction } as const;
+        const options = { fullEditor: true, explicitRemoval: true, direction,
+          defaultSourceSyntax: this.getSettings().defaultSourceSyntax } as const;
         addSelectionEditingMenuItems(submenu, t, selection, apply, options);
         addSelectionRemovalMenuItems(submenu, t, selection, apply, options);
       }, (submenu, menuEvent) => {

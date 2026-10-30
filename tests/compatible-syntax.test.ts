@@ -183,6 +183,21 @@ describe("GFM-compatible Structural Tables source", () => {
     expect(serializeStructuralTable(parseStructuralTables(existing).tables[0]!)).toContain("||");
   });
 
+  it("uses the selected syntax when ordinary GFM first receives specialized headers", () => {
+    const original = parseEditableTables("| Name | Score |\n| --- | --- |\n| A | 1 |").tables[0]!;
+    expect(original.structural).toBe(false);
+    const selectedCompatible = setRowHeaderColumnCount(original, 1, "compatible");
+    expect(selectedCompatible.changed).toBe(true);
+    expect(parseStructuralTables(selectedCompatible.source).tables[0]).toMatchObject({
+      valid: true, sourceSyntax: "compatible", rowHeaderColumnCount: 1,
+    });
+    const selectedCompact = setRowHeaderColumnCount(original, 1, "compact");
+    expect(selectedCompact.changed).toBe(true);
+    expect(parseStructuralTables(selectedCompact.source).tables[0]).toMatchObject({
+      valid: true, sourceSyntax: "compact", rowHeaderColumnCount: 1,
+    });
+  });
+
   it("builds GFM-compatible physical rows with all data and headers in their original order", () => {
     const source = compatibleSource([["A", "B"], ["C", "D"]], 0, 1, ["default", "right"], "\n");
     const table = parseStructuralTables(source).tables[0]!;

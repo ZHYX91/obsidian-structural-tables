@@ -18,7 +18,7 @@ import {
   splitCell,
   type OperationResult,
 } from "../core/operations";
-import type { StructuralCell, StructuralTable } from "../core/model";
+import type { StructuralCell, StructuralTable, TableSourceSyntax } from "../core/model";
 import { completeStructuralTableSelectionCoordinates, type StructuralTableSelection } from "./table-selection";
 import { physicalTableMenuIcon } from "./table-menu-icons";
 
@@ -77,6 +77,7 @@ export interface SelectionMenuOptions {
   direction?: "ltr" | "rtl";
   fullEditor?: boolean;
   explicitRemoval?: boolean;
+  defaultSourceSyntax?: TableSourceSyntax;
 }
 
 function selectionMenuState(
@@ -144,7 +145,7 @@ export function addSelectionEditingMenuItems(
 ): void {
   const state = selectionMenuState(selection, options);
   const rtl = options.direction === "rtl";
-  addSelectionStructureMenuItems(menu, t, selection, apply, state);
+  addSelectionStructureMenuItems(menu, t, selection, apply, state, options.defaultSourceSyntax);
   if (state.fullEditor) {
     menu.addItem((item) => item
       .setSection("structural-tables-row")
@@ -234,6 +235,7 @@ function addSelectionStructureMenuItems(
   selection: StructuralTableSelection,
   apply: TableOperationApplier,
   state: SelectionMenuState,
+  defaultSourceSyntax?: TableSourceSyntax,
 ): void {
   if (state.canMerge) {
     menu.addItem((item) => item
@@ -262,14 +264,14 @@ function addSelectionStructureMenuItems(
       .setSection("structural-tables")
       .setIcon("rows-3")
       .setTitle(withCount(t("menu.setHeaderRows"), count))
-      .onClick(() => apply((current) => setHeaderRowCount(current, count))));
+      .onClick(() => apply((current) => setHeaderRowCount(current, count, defaultSourceSyntax))));
   }
   if (state.canRemoveHeaderRows) {
     menu.addItem((item) => item
       .setSection("structural-tables")
       .setIcon("rows-2")
       .setTitle(t("menu.removeHeaderRows"))
-      .onClick(() => apply((current) => setHeaderRowCount(current, 0))));
+      .onClick(() => apply((current) => setHeaderRowCount(current, 0, defaultSourceSyntax))));
   }
   if (state.canSetRowHeaderColumns) {
     const count = selection.maxColumn + 1;
@@ -277,14 +279,14 @@ function addSelectionStructureMenuItems(
       .setSection("structural-tables")
       .setIcon("columns-3")
       .setTitle(withCount(t("menu.setRowHeaderColumns"), count))
-      .onClick(() => apply((current) => setRowHeaderColumnCount(current, count))));
+      .onClick(() => apply((current) => setRowHeaderColumnCount(current, count, defaultSourceSyntax))));
   }
   if (state.canRemoveRowHeaders) {
     menu.addItem((item) => item
       .setSection("structural-tables")
       .setIcon("columns-2")
       .setTitle(t("menu.removeRowHeaders"))
-      .onClick(() => apply((current) => setRowHeaderColumnCount(current, 0))));
+      .onClick(() => apply((current) => setRowHeaderColumnCount(current, 0, defaultSourceSyntax))));
   }
 }
 

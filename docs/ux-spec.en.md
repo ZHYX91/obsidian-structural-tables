@@ -80,6 +80,8 @@ Transposition preserves content and valid merged-cell topology, swaps column-hea
 
 Before committing, reparse the complete note to ensure the transpose preserves the intended table's boundaries and transposed cell relationships. If adjacent pipe-separated text would join the result, preserve the note and ask the user to add blank lines around the table. A confirmation captured in one document cannot write after its editor moves to another window.
 
+Markdown-to-HTML and HTML-to-Markdown are separate commands from clipboard HTML copy and portable plain-GFM flattening. A complete standalone source range is required; the first direction reuses semantic HTML export and the second reuses HTML cell/span import. Preview the actual replacement source. Refuse unsafe Markdown inline semantics, unsupported HTML children, malformed markup and boundary changes. Style/attribute loss requires a separate acknowledgement control; confirmation rechecks the original note, editor/file lifetime and pending drafts, then issues one history entry. HTML output is not owned by the live Structural Tables grid.
+
 <!-- section: interchange -->
 ## Paste and interchange
 

@@ -11,6 +11,48 @@ export interface HtmlTableSource {
 // Indented HTML may belong to a list. Own only an unindented top-level opener.
 const OPEN = /^<table(?:[ \t]+[^<>]*?)?>/iu;
 const TABLE_TAG = /<\/table[ \t]*>|<table(?:[ \t]+[^<>]*?)?>/giu;
+const VOID_HTML = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
+
+/** Blank lines end Markdown's raw block, but do not close its HTML parents. */
+function parentHtmlLines(lines: readonly string[]): Set<number> {
+  const parents: string[] = [];
+  const nested = new Set<number>();
+  let comment = false;
+  let uncertain = false;
+  ignoredMarkdownLines(lines, new Set(), (line, index) => {
+    if (parents.length > 0 || uncertain) nested.add(index);
+    // Inspect only actual HTML block lines reported by the existing Markdown
+    // scanner. Fenced/code/comment examples never become parent authority.
+    const tags = /<!--|<\/?([A-Za-z][A-Za-z0-9-]*)(?:\s+(?:"[^"]*"|'[^']*'|[^'"<>])*)?\s*\/?>/gu;
+    for (let offset = 0; offset < line.length;) {
+      if (comment) {
+        const end = line.indexOf("-->", offset);
+        if (end < 0) break;
+        comment = false; offset = end + 3;
+        continue;
+      }
+      tags.lastIndex = offset;
+      const tag = tags.exec(line);
+      if (tag === null) {
+        if (line.slice(offset).includes("<")) uncertain = true;
+        break;
+      }
+      if (line.slice(offset, tag.index).includes("<")) uncertain = true;
+      offset = tag.index + tag[0].length;
+      if (tag[0] === "<!--") { comment = true; continue; }
+      const name = tag[1]!.toLowerCase();
+      if (VOID_HTML.has(name)) continue;
+      if (tag[0].startsWith("</")) {
+        // A mismatched close is not evidence that an outer parent ended.
+        if (parents[parents.length - 1] === name) parents.pop();
+      } else {
+        // HTML ignores a self-closing slash on non-void elements.
+        parents.push(name);
+      }
+    }
+  });
+  return nested;
+}
 
 /**
  * Only own complete, standalone HTML table blocks, never an embedded tag in
@@ -18,9 +60,10 @@ const TABLE_TAG = /<\/table[ \t]*>|<table(?:[ \t]+[^<>]*?)?>/giu;
  */
 export function htmlTableSources(source: string): HtmlTableSource[] {
   const { lines, offsets } = sourceLines(source);
+  const nested = parentHtmlLines(lines);
   const result: HtmlTableSource[] = [];
   for (let start = 0; start < lines.length; start += 1) {
-    if (!OPEN.test(lines[start] ?? "")) continue;
+    if (!OPEN.test(lines[start] ?? "") || nested.has(start)) continue;
     // HTML blocks are deliberately ignored by the Markdown-line scanner.
     // Substitute the opener to distinguish a genuine HTML block from an
     // identical-looking line inside a code fence, comment, or parent HTML block.

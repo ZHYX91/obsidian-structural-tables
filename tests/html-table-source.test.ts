@@ -34,6 +34,17 @@ describe("owned HTML source", () => {
     expect(htmlTableSources("<table>\n\n<tr><td>A</td></tr>\n</table>")).toEqual([]);
     expect(htmlTableSources("<table>\n<table></table>\n</table>")).toEqual([]);
     expect(htmlTableSources("- item\n\n  " + table.replace(/\n/gu, "\n  "))).toEqual([]);
+    expect(htmlTableSources('<div style="white-space:pre">\n\n' + table + "\n\n</div>")).toEqual([]);
+    expect(htmlTableSources('<div title="<!--">\n\n' + table + "\n\n</div>")).toEqual([]);
+    expect(htmlTableSources('<div hidden>\n\n' + table + "\n\n</div>")).toEqual([]);
+    expect(htmlTableSources('<div><!-- </div> -->\n\n' + table + "\n\n</div>")).toEqual([]);
+  });
+
+  it("does not carry closed or literal HTML parents into a later table", () => {
+    expect(htmlTableSources('<div title="a > b">\ncontent\n</div>\n\n' + table)).toHaveLength(1);
+    expect(htmlTableSources("```html\n<div>\n```\n\n" + table)).toHaveLength(1);
+    expect(htmlTableSources("<!-- <div> -->\n\n" + table)).toHaveLength(1);
+    expect(htmlTableSources("<hr>\n\n" + table)).toHaveLength(1);
   });
 
   it("requires blank-line isolation before replacing complete HTML blocks", () => {

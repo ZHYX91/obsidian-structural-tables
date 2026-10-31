@@ -10,6 +10,9 @@ import { createTranslator } from "../src/config/i18n";
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
 import { MarkdownView, TFile as MockTFile, notices } from "./mocks/obsidian";
 
+import { tableCommandEditor } from "./helpers/table-command-editor";
+import { undo, redo } from "@codemirror/commands";
+
 const SOURCE = "| A | B | < |\n| --- | --- | --- |\n| x | y | z |";
 
 interface EditorHarness {
@@ -81,6 +84,8 @@ function pluginHarness(editor: Editor, sourceFile: MockTFile) {
     plugin: plugin as unknown as {
       formatCurrent: (editor: Editor, sourceFile: TFile | null) => void;
       previewPlainGfmConversion: (editor: Editor, sourceFile: TFile | null) => void;
+      previewMarkdownAsHtml: (editor: Editor, sourceFile: TFile | null) => void;
+      previewHtmlAsMarkdown: (editor: Editor, sourceFile: TFile | null) => void;
       copyCurrentTable: (editor: Editor, format: "HTML" | "GFM", sourcePath?: string) => void;
       settings: StructuralTablesSettings;
       migrateSheetsExtended: (editor: Editor) => void;
@@ -182,6 +187,8 @@ describe("registered conversion command entry", () => {
   it("passes the current source file into both preview commands", () => {
     const formatCurrent = vi.fn();
     const previewPlainGfmConversion = vi.fn();
+    const previewMarkdownAsHtml = vi.fn();
+    const previewHtmlAsMarkdown = vi.fn();
     const commands: Array<{
       id: string;
       editorCallback?: (editor: Editor, context: { file: TFile | null }) => void;
@@ -191,6 +198,8 @@ describe("registered conversion command entry", () => {
       localizedCommands: [],
       formatCurrent,
       previewPlainGfmConversion,
+      previewMarkdownAsHtml,
+      previewHtmlAsMarkdown,
       addCommand: (command: typeof commands[number]) => {
         commands.push(command);
         return command;
@@ -202,9 +211,13 @@ describe("registered conversion command entry", () => {
     const file = new MockTFile("A.md") as unknown as TFile;
     commands.find(({ id }) => id === "format-current-structural-table")?.editorCallback?.(editor, { file });
     commands.find(({ id }) => id === "convert-current-table-to-plain-gfm")?.editorCallback?.(editor, { file });
+    commands.find(({ id }) => id === "convert-current-markdown-table-to-html")?.editorCallback?.(editor, { file });
+    commands.find(({ id }) => id === "convert-current-html-table-to-markdown")?.editorCallback?.(editor, { file });
 
     expect(formatCurrent).toHaveBeenCalledWith(editor, file);
     expect(previewPlainGfmConversion).toHaveBeenCalledWith(editor, file);
+    expect(previewMarkdownAsHtml).toHaveBeenCalledWith(editor, file);
+    expect(previewHtmlAsMarkdown).toHaveBeenCalledWith(editor, file);
   });
 });
 
@@ -221,6 +234,8 @@ const localizedCommandKeys = [
   ["copy-current-table-as-tsv", "command.copyTsv"],
   ["copy-current-table-as-csv", "command.copyCsv"],
   ["convert-current-table-to-plain-gfm", "command.convertGfm"],
+  ["convert-current-markdown-table-to-html", "command.convertHtmlTable"],
+  ["convert-current-html-table-to-markdown", "command.convertMarkdownTable"],
   ["convert-current-sheets-extended-table", "command.migrateSheets"],
   ["format-current-structural-table", "command.format"],
   ["merge-current-cell-left", "command.mergeLeft"],
@@ -466,4 +481,71 @@ describe("GFM command boundaries", () => {
   });
 
 
+});
+
+describe("bidirectional in-note source conversion entry", () => {
+  const cleanup: (() => void)[] = [];
+  afterEach(() => { for (const close of cleanup.splice(0)) close(); });
+  function fixture(source = SOURCE) {
+    const f = tableCommandEditor(source);
+    cleanup.push(f.destroy);
+    const plugin = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
+      app: f.app, settings: { ...DEFAULT_SETTINGS, language: "en" },
+    }) as unknown as ReturnType<typeof pluginHarness>["plugin"];
+    return { ...f, plugin };
+  }
+  const HTML = "<table><thead><tr><th>Item</th><th>Cost</th></tr></thead>"
+    + "<tbody><tr><td>A</td><td>10</td></tr></tbody></table>";
+
+  it.each(["html", "markdown"] as const)("isolates %s conversion from typing with complete Undo/Redo", (direction) => {
+    const initial = (direction === "html" ? SOURCE : HTML) + "\n\nafter";
+    const f = fixture(initial);
+    f.cm.dispatch({ changes: { from: initial.length, insert: " typed" } });
+    const before = f.source();
+    const preview = capturePreview();
+    if (direction === "html") f.plugin.previewMarkdownAsHtml(f.editor, f.file as unknown as TFile);
+    else f.plugin.previewHtmlAsMarkdown(f.editor, f.file as unknown as TFile);
+    const option = preview();
+    expect(f.source()).toBe(before);
+    expect(f.writes()).toBe(1);
+    option.onConfirm();
+    const converted = f.source();
+    expect(converted).toBe(option.source + "\n\nafter typed");
+    expect(f.writes()).toBe(2);
+    f.cm.dispatch({ changes: { from: converted.length, insert: " later" } });
+    expect(undo(f.cm)).toBe(true); expect(f.source()).toBe(converted);
+    expect(undo(f.cm)).toBe(true); expect(f.source()).toBe(before);
+    expect(undo(f.cm)).toBe(true); expect(f.source()).toBe(initial);
+    expect(redo(f.cm)).toBe(true); expect(f.source()).toBe(before);
+    expect(redo(f.cm)).toBe(true); expect(f.source()).toBe(converted);
+  });
+
+  it.each(["source", "file", "detach", "draft", "unload"] as const)("refuses a stale %s preview", (change) => {
+    const f = fixture(HTML);
+    const preview = capturePreview();
+    f.plugin.previewHtmlAsMarkdown(f.editor, f.file as unknown as TFile);
+    const option = preview();
+    if (change === "source") f.cm.dispatch({ changes: { from: HTML.indexOf("10"), to: HTML.indexOf("10") + 2, insert: "20" } });
+    if (change === "file") f.view.file = new MockTFile("B.md") as unknown as TFile;
+    if (change === "detach") f.containerEl.remove();
+    if (change === "draft") {
+      const draft = f.containerEl.appendChild(document.createElement("textarea"));
+      draft.className = "structural-tables-cell-editor";
+    }
+    if (change === "unload") (f.plugin as unknown as { transposeRequestsActive: boolean }).transposeRequestsActive = false;
+    const before = f.source(); const writes = f.writes();
+    option.onConfirm();
+    expect(f.source()).toBe(before); expect(f.writes()).toBe(writes);
+    expect(notices).toContain(createTranslator("en")("notice.staleTable"));
+  });
+
+  it("refuses unsupported Markdown without opening a destructive preview", () => {
+    const source = "| Item | Value |\n| --- | --- |\n| [[Note]] | 2 |";
+    const f = fixture(source);
+    const opened = vi.spyOn(ConversionPreviewModal.prototype, "open");
+    f.plugin.previewMarkdownAsHtml(f.editor, f.file as unknown as TFile);
+    expect(opened).not.toHaveBeenCalled();
+    expect(f.source()).toBe(source); expect(f.writes()).toBe(0);
+    expect(notices).toContain(createTranslator("en")("notice.tableFormatUnsupported"));
+  });
 });

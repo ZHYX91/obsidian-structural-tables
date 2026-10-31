@@ -29,6 +29,8 @@ La imagen de apariencia muestra los componentes reales de ajustes y tabla en un 
 <!-- section: features -->
 ## Funciones
 
+- Conversión entre tablas Markdown y HTML con vista previa y avisos sobre contenido o estilos que no se pueden conservar.
+
 - Escribe `<` para combinar con la columna anterior del código fuente o `^` para combinar con la celda superior.
 - Usa `||` sin espacios en la fila separadora para marcar las columnas que actúan como encabezados de fila.
 - Muestra las combinaciones tanto en vista de lectura como en la vista previa.
@@ -44,6 +46,16 @@ La imagen de apariencia muestra los componentes reales de ajustes y tabla en un 
 Requiere Obsidian 1.12.7 o posterior. Compatible con escritorio y Android. Para convertir a Base debes activar el plugin integrado Bases.
 
 `<`, `^` y `||` son extensiones de sintaxis; otros editores Markdown pueden mostrar las combinaciones de forma distinta. Para usar Advanced Tables, abre «Editar código fuente de la tabla» y revisa los datos después de ordenar con otras herramientas.
+
+### Sobre la compatibilidad de las tablas: una explicación y una disculpa
+
+*2026-10-31*
+
+Como [Number Suite](https://github.com/ZHYX91/obsidian-number-suite), Structural Tables nació como una pequeña herramienta para mis necesidades particulares al trabajar con artículos científicos en Obsidian. Solo utilizaba unas pocas funciones de LaTeX y pensé que podía sustituirlas ampliando un poco Markdown. Al principio me centré en mi caso de uso, sin considerar suficientemente a otros usuarios ni la compatibilidad de sus notas con otros editores Markdown.
+
+La sintaxis original para tablas sin encabezados de columna y con encabezados de fila no respeta la estructura de tablas GFM. Por eso, algunos editores no pueden reconocer o mostrar esas tablas correctamente. Fue un descuido de diseño por mi parte. Siento los inconvenientes ocasionados al leer, compartir o trasladar notas.
+
+Para remediarlo, el complemento permite convertir tablas entre Markdown y HTML. Al pasar a HTML se conservan los encabezados complejos y las celdas combinadas; las tablas HTML compatibles pueden convertirse de nuevo a Markdown. Se usa GFM normal cuando basta, y las extensiones existentes solo cuando hacen falta. Antes de reemplazar la tabla puedes revisar el código y las posibles diferencias de contenido o formato.
 
 <!-- section: installation -->
 ## Instalación
@@ -108,6 +120,12 @@ Alterna entre la vista previa del resultado y el código Markdown; después copi
 ### Límites de PNG y recuperación de Base
 
 El PNG tiene un límite de 8192 píxeles por lado y 16 megapíxeles en total. Si no cabe toda la tabla, no se crea una imagen recortada. Al convertir a Base se crean notas de registro y un archivo `_promotion.json`. Restaurar la tabla original no incorpora cambios posteriores de Base ni elimina las notas creadas.
+
+### Convertir tablas entre Markdown y HTML
+
+Coloca el cursor en una tabla Markdown y ejecuta **Convertir tabla Markdown actual a HTML…**. Para volver, coloca el cursor en un bloque `<table>…</table>` completo e independiente dentro del editor de código Markdown y ejecuta **Convertir tabla HTML actual a Markdown…**. Cada conversión muestra una vista previa y reemplaza la tabla en un único paso reversible.
+
+Se usa GFM normal cuando basta; para estructuras complejas se conservan `<`, `^` y `||`. No se convierten enlaces, fórmulas ni formatos enriquecidos incompatibles. Si se perderán colores, anchos u otros atributos HTML, se exige aceptación expresa. El editor visual de celdas no edita el HTML resultante: conviértelo de nuevo a Markdown para modificar la estructura.
 
 <!-- section: settings -->
 ## Ajustes

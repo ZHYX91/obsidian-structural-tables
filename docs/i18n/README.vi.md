@@ -29,6 +29,8 @@ Nhấp vào ô trên máy tính hoặc chạm hai lần trên màn hình cảm �
 <!-- section: features -->
 ## Tính năng
 
+- Xem trước và chuyển bảng Markdown, HTML theo cả hai chiều; thông báo nếu có nội dung hoặc kiểu dáng không thể giữ nguyên.
+
 - Nhập `<` để gộp với cột trước đó theo thứ tự nguồn hoặc `^` để gộp với ô phía trên.
 - Dùng hai dấu `||` liền nhau trong hàng phân cách để đánh dấu các cột làm tiêu đề hàng.
 - Hiển thị cấu trúc gộp ô trong chế độ đọc và xem trước trực tiếp.
@@ -44,6 +46,16 @@ Nhấp vào ô trên máy tính hoặc chạm hai lần trên màn hình cảm �
 Cần Obsidian 1.12.7 trở lên. Hỗ trợ máy tính và Android. Muốn chuyển bảng thành Base, hãy bật plugin lõi Bases của Obsidian.
 
 `<`, `^` và `||` là cú pháp mở rộng nên các trình chỉnh sửa Markdown khác có thể hiển thị bảng gộp khác đi. Khi dùng Advanced Tables, chọn “Sửa mã Markdown của bảng” rồi kiểm tra lại dữ liệu sau khi sắp xếp bằng công cụ khác.
+
+### Lưu ý và lời xin lỗi về khả năng tương thích của bảng
+
+*2026-10-31*
+
+Cũng như [Number Suite](https://github.com/ZHYX91/obsidian-number-suite), Structural Tables ban đầu chỉ là công cụ nhỏ tôi làm cho nhu cầu riêng khi đọc và xử lý bài báo khoa học trong Obsidian. Tôi chỉ dùng một phần ít tính năng của LaTeX nên nghĩ rằng mở rộng Markdown một chút là đủ. Lúc đầu tôi tập trung vào cách dùng của mình mà chưa cân nhắc đầy đủ nhu cầu của người khác hay khả năng mở ghi chú trong các trình soạn thảo Markdown khác.
+
+Cú pháp cũ cho bảng không có tiêu đề cột và cho tiêu đề hàng không tuân theo cấu trúc bảng GFM. Vì thế, một số trình soạn thảo không nhận diện hoặc hiển thị bảng đúng cách. Đây là thiếu sót của tôi khi thiết kế. Tôi xin lỗi vì sự bất tiện khi đọc, chia sẻ hoặc chuyển ghi chú.
+
+Để cải thiện, plugin đã thêm khả năng chuyển bảng giữa Markdown và HTML theo cả hai chiều. Bảng Markdown mở rộng có thể chuyển thành HTML mà giữ tiêu đề phức tạp và ô gộp; bảng HTML được hỗ trợ có thể chuyển lại thành Markdown. Khi GFM thông thường đủ biểu đạt, plugin sẽ dùng GFM; chỉ dùng cú pháp mở rộng cũ khi cần. Bạn có thể xem trước mã nguồn và những khác biệt về nội dung hay định dạng trước khi thay thế.
 
 <!-- section: installation -->
 ## Cài đặt
@@ -108,6 +120,12 @@ Chuyển giữa bản xem trước kết quả và mã nguồn Markdown, rồi s
 ### Giới hạn PNG và khôi phục Base
 
 Ảnh PNG bị giới hạn 8192 pixel cho mỗi chiều hoặc tổng cộng 16 triệu pixel. Nếu không thể chụp đủ bảng, plugin không tạo ảnh bị cắt. Chuyển sang Base sẽ tạo các ghi chú bản ghi và tệp `_promotion.json` để khôi phục. Khôi phục bảng gốc không đưa các sửa đổi Base sau đó vào bảng và không xóa ghi chú đã tạo.
+
+### Chuyển đổi bảng giữa Markdown và HTML
+
+Đặt con trỏ trong bảng Markdown và chạy **Chuyển bảng Markdown hiện tại sang HTML…**. Để chuyển lại, đặt con trỏ trong khối `<table>…</table>` đầy đủ, độc lập ở trình soạn thảo mã nguồn Markdown rồi chạy **Chuyển bảng HTML hiện tại sang Markdown…**. Cả hai chiều đều có xem trước và chỉ thay thế sau khi xác nhận; có thể hoàn tác trong một bước.
+
+Bảng dùng GFM thông thường nếu có thể, còn cấu trúc phức tạp dùng `<`, `^`, `||`. Liên kết, công thức hoặc văn bản có định dạng chưa hỗ trợ sẽ bị từ chối. Nếu mất màu, độ rộng hay thuộc tính HTML khác, bạn phải xác nhận rõ ràng. HTML kết quả chưa được chỉnh bằng trình sửa ô trực quan của plugin; hãy chuyển về Markdown để sửa cấu trúc.
 
 <!-- section: settings -->
 ## Cài đặt

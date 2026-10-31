@@ -90,7 +90,7 @@ for (const localeId of declaredLocaleIds) {
   const source = path === englishPath ? english : path === chinesePath
     ? chinese : await readFile(path, "utf8");
   const catalog = await readFile(`src/config/locales/${localeId}.ts`, "utf8");
-  for (const key of ["command.createBaseRecord", "command.validate"]) {
+  for (const key of ["command.createBaseRecord", "command.validate", "command.convertHtmlTable", "command.convertMarkdownTable"]) {
     const match = catalog.match(new RegExp(`"${key.replaceAll(".", "\\.")}"\\s*:\\s*"([^"]+)"`, "u"));
     assert.ok(match?.[1], `Missing ${key} from ${localeId} catalog`);
     assert.ok(source.includes(`**${match[1]}**`),
@@ -103,6 +103,9 @@ for (const [, filename] of locales) {
   const path = filename === "README.md" ? filename : "docs/i18n/" + filename;
   const source = path === englishPath ? english : path === chinesePath ? chinese : await readFile(path, "utf8");
   sectionMarkers(source, path);
+  assert.ok(source.includes("*2026-10-31*")
+    && source.includes("[Number Suite](https://github.com/ZHYX91/obsidian-number-suite)"),
+    `${path} must retain the dated compatibility apology and correct plugin link`);
   const navigation = source.split("\n")[2] ?? "";
   const navigationLinks = [...navigation.matchAll(/\]\([^)]*\)/gu)];
   assert.equal(navigationLinks.length, locales.length, `${path} must have exactly ${locales.length} language links`);

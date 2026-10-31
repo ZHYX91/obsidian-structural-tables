@@ -861,6 +861,28 @@
         "Both whole-table write entries preserve unselected prose and hidden source cells, refuse unsafe boundaries with zero writes, and accept isolated controls with full-note Undo/Redo.",
         "Overlapping copy intent and plugin lifetime prevent old post-cancellation dispatch and notices while preserving legitimate command snapshot semantics. Only actually triggered host boundaries count as observed."
       ]
+    },
+    {
+      "id": "html-source-conversion",
+      "title": "Previewed Markdown and HTML table source conversion",
+      "surfaces": [
+        "desktop",
+        "android-emulator"
+      ],
+      "requiredCapabilities": {
+        "desktop": [],
+        "android-emulator": []
+      },
+      "steps": [
+        "Open HTML conversion boundaries in Source mode. Record the complete note. Place the caret inside the Markdown table and invoke Convert current Markdown table to HTML. Cancel the first preview and verify zero changes; reopen and confirm. Inspect headers, spans and surrounding note bytes. Undo and Redo using the host.",
+        "Convert the resulting standalone HTML back with Convert current HTML table to Markdown. Verify structure and cell text, plus full-note Undo/Redo. Type ordinary text immediately before and after a conversion and verify typing and conversion remain separate Undo steps.",
+        "Convert the styled HTML example: replacement must stay disabled until the distinct style-loss acknowledgement is accepted. Cancel and confirm in separate attempts. While another preview is open, change source or detach its editor and verify no stale replacement. An active cell draft must refuse conversion.",
+        "Try fenced HTML, list-indented HTML, malformed or rich HTML, preserved-whitespace HTML, hidden Markdown comments and highlighting. Unsupported inputs must remain byte-identical. Record only observed desktop/mobile input and scope."
+      ],
+      "expected": [
+        "Only the original attached complete-note editor is modified, after explicit confirmation, in one independent Undo operation. Surrounding text and tables remain unchanged.",
+        "Unsupported meaning and ambiguous source boundaries refuse without writing; style-only loss needs acknowledgement. No blanket rich-text or unrestricted round-trip support is claimed."
+      ]
     }
   ]
 }

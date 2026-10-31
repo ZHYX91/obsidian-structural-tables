@@ -29,6 +29,8 @@ L’image des réglages montre les composants réels de paramètres et de tablea
 <!-- section: features -->
 ## Fonctions
 
+- Conversion dans les deux sens entre tableaux Markdown et HTML, avec aperçu et avertissements sur les pertes possibles.
+
 - Saisissez `<` pour fusionner avec la colonne précédente dans le code source, ou `^` pour fusionner avec la cellule au-dessus.
 - Placez `||` sans espace dans la ligne de séparation pour indiquer les colonnes qui servent d’en-têtes de lignes.
 - Affichez les cellules fusionnées en mode lecture et dans l’aperçu en direct.
@@ -44,6 +46,16 @@ L’image des réglages montre les composants réels de paramètres et de tablea
 Obsidian 1.12.7 ou une version ultérieure est nécessaire. Compatible avec ordinateur et Android. Activez le module principal Bases pour convertir un tableau en Base.
 
 `<`, `^` et `||` sont une extension de syntaxe : d’autres éditeurs Markdown peuvent afficher les fusions différemment. Avec Advanced Tables, utilisez « Modifier le code Markdown du tableau » et vérifiez les données après tout tri externe.
+
+### À propos de la compatibilité des tableaux : une explication et mes excuses
+
+*2026-10-31*
+
+Comme [Number Suite](https://github.com/ZHYX91/obsidian-number-suite), Structural Tables était au départ un petit outil conçu pour mes besoins particuliers lorsque je travaillais sur des articles scientifiques dans Obsidian. Je n’utilisais qu’une petite partie de LaTeX et je pensais pouvoir la remplacer par quelques extensions Markdown. Je me suis surtout concentré sur mon propre usage, sans assez tenir compte des autres utilisateurs ni de la compatibilité avec d’autres éditeurs Markdown.
+
+L’ancienne syntaxe des tableaux sans en-têtes de colonne et des en-têtes de ligne ne respecte pas la structure des tableaux GFM. Certains éditeurs ne peuvent donc pas reconnaître ou afficher ces tableaux correctement. C’était une erreur de conception de ma part. Je suis désolé des difficultés rencontrées lors de la lecture, du partage ou du déplacement de notes.
+
+Pour améliorer cela, le plugin permet maintenant de convertir les tableaux entre Markdown et HTML. Il peut conserver les en-têtes complexes et les cellules fusionnées lors du passage vers HTML, ou convertir un tableau HTML pris en charge vers Markdown. Il utilise le GFM ordinaire quand c’est possible et les extensions existantes seulement si nécessaire. Un aperçu permet de vérifier les éventuelles différences de contenu ou de présentation avant remplacement.
 
 <!-- section: installation -->
 ## Installation
@@ -108,6 +120,12 @@ Alternez entre l’aperçu du résultat et la source Markdown, puis copiez le r�
 ### Limites PNG et restauration de Base
 
 Un PNG ne peut pas dépasser 8192 pixels par côté ou 16 mégapixels au total. Si le tableau complet ne peut pas être capturé, aucune image tronquée n’est créée. La conversion en Base crée des notes d’enregistrement et le fichier `_promotion.json`. Restaurer le tableau ne récupère pas les modifications ultérieures de Base et ne supprime pas les notes déjà créées.
+
+### Convertir les tableaux entre Markdown et HTML
+
+Placez le curseur dans un tableau Markdown et lancez **Convertir le tableau Markdown actuel en HTML…**. Pour revenir à Markdown, placez-le dans un bloc source `<table>…</table>` complet et autonome dans l’éditeur Markdown, puis lancez **Convertir le tableau HTML actuel en Markdown…**. Chaque remplacement est précédé d’un aperçu et peut être annulé en une étape.
+
+Le GFM ordinaire est privilégié ; `<`, `^` et `||` ne sont employés que pour les structures complexes. Les liens, formules et mises en forme riches non pris en charge sont refusés. Si les couleurs, largeurs ou autres attributs HTML doivent disparaître, une confirmation expresse est demandée. Le résultat HTML n’est pas éditable avec la grille visuelle du plugin : reconvertissez-le en Markdown pour modifier sa structure.
 
 <!-- section: settings -->
 ## Paramètres

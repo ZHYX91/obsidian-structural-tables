@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Bind HTML/Markdown conversion previews to the original full-note editor and isolate Undo/Redo from adjacent typing. Refuse hidden Markdown comments, highlighting, list-indented HTML, and content-sensitive HTML whitespace instead of silently changing meaning.
+
+- Add explicit, previewed Markdown-to-HTML and HTML-to-Markdown table conversion commands. Keep header and merge semantics with the existing dialect when ordinary GFM is insufficient; require acknowledgement for HTML styling/attribute loss and refuse unsupported rich content or unsafe source boundaries.
+- Explain bidirectional conversion and its limitations in every supported README language, with a dated personal compatibility apology and a link to Number Suite.
+
 - Refuse whole-table HTML imports and Base restoration when their complete-note result would absorb neighboring prose, change another table or hide source cells. Preserve the original selection and records on refusal.
 - Keep pending Word/HTML copies bound to their loaded plugin and latest copy invocation while preserving command snapshots; stop obsolete clipboard dispatch and notices after a newer copy or unload.
 - Safely finish cell editing before completing row or column selection, with complete axis highlighting, grid focus and guarded draft preservation.

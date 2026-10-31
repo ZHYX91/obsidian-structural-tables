@@ -36,6 +36,7 @@ Structural Tables 让 Obsidian 中的 Markdown 表格支持合并单元格、多
 - 在实时预览中直接编辑单元格，通过表格控件增删、移动、对齐、合并或拆分行列。
 - 转置整张表格，同时调整标题和合并结构；涉及列对齐或 Markdown 语法变化时会先确认。
 - 粘贴浏览器、Excel 和 Google Sheets 中受支持的 HTML 表格，保留跨行、跨列关系。
+- 预览并将 Markdown 表格转换为 HTML，也可以将独立的 HTML 表格转换回 Markdown；不支持的内容和会丢失的样式会明确提示。
 - 复制或剪切单元格选区，粘贴兼容的选区，也可以将整表复制为 HTML、普通 GFM、TSV 或 CSV。
 - 在桌面端预览完整 PNG，并复制图片或保存为 Vault 附件。
 - 可选用 Structural Tables 编辑普通 GFM 表格；切回 Obsidian 原生界面不会修改 Markdown。
@@ -50,6 +51,16 @@ Structural Tables 要求 Obsidian 1.12.7 或更高版本，支持桌面版 Obsid
 在 Structural Table 中，严格匹配的 `<`、`^` 和分隔行里的 `||` 有特殊含义。如果检测到其他已启用的表格插件也使用这些记号，Structural Tables 会提示一次可能的冲突。
 
 关于 Advanced Tables、FakeLink 和基于 Markdown 渲染器的图片导出工具，请参阅[兼容性说明](../compatibility.zh-CN.md)，其中包括源码编辑方式、第三方排序风险和 Obsidian 1.13.7 的独立窗口问题。
+
+### 关于表格兼容性的说明与致歉
+
+*2026-10-31*
+
+与 [Number Suite](https://github.com/ZHYX91/obsidian-number-suite) 一样，Structural Tables 最初也是我为了方便自己在 Obsidian 中处理论文相关的小众需求而设计的小工具。由于我实际用到的 LaTeX 功能很少，所以希望通过少量 Markdown 语法扩展来代替其中一部分。早期设计主要围绕我自己的使用场景，没有充分考虑其他用户的需求，以及笔记在其他 Markdown 编辑器中的兼容性。
+
+原有的无列表头、行表头等扩展写法不符合 GFM 的表格结构要求，导致部分 Markdown 编辑器无法正确识别或渲染这些表格。这是我在设计时考虑不周造成的。对于因此给大家带来的阅读、分享和迁移上的不便，我很抱歉。
+
+为改善这一问题，插件新增了 Markdown 与 HTML 表格之间的双向转换功能。你可以将使用扩展语法的 Markdown 表格转换为 HTML，保留复杂表头和合并单元格；也可以将受支持的 HTML 表格转换回 Markdown。能够使用标准 GFM 表达的结构会尽量使用标准语法，只有必要时才使用 Structural Tables 原有的扩展写法。转换前可以预览结果，检查可能发生的内容或格式变化。
 
 <!-- section: installation -->
 ## 安装
@@ -194,6 +205,14 @@ Shift+Enter、单元格右键菜单和多行粘贴都可以插入视觉换行。
 ```
 
 **将当前表格复制为普通 GFM**会直接使用推荐方向。需要自己选择方向时，请使用预览；只有点击**替换表格**才会改动源码。如果 Obsidian 隐藏了额外的源码单元格，预览会说明这些内容没有包含在复制结果中，并禁用替换；请先整理源码，再将它们一并导出。
+
+### 在 Markdown 和 HTML 表格之间转换
+
+将光标放在 Markdown 表格内，运行**将当前 Markdown 表格转换为 HTML…**，或在源码编辑器中右键选择**转换为 HTML 表格…**。检查生成的 HTML 后再确认，插件会通过一次可撤销的编辑替换整张表格。这与**将当前表格复制为 HTML**不同：转换会把 HTML 写进笔记。
+
+要转换回来，请在 Markdown 编辑器中将光标放进完整、独立的 `<table>…</table>` HTML 源码块，运行**将当前 HTML 表格转换为 Markdown…**；源码右键菜单也有对应选项。预览会尽量生成普通 GFM；只有表头和合并结构确实需要时，才使用原有的 `<`、`^`、`||` 扩展写法。
+
+目前只转换普通文字、受支持的 `<br>` 换行和能可靠表示的表格结构。Markdown 链接、公式及行内格式不会被悄悄展平；复杂 HTML 富文本或存在歧义的合并会被拒绝。HTML 的颜色、宽度和其他属性可能无法保存为 Markdown；预览会明确提示，并要求你确认接受。代码块、嵌套 HTML 中的表格，以及可能吞并相邻正文的转换都不会执行。转换后的 HTML 需在源码中修改；如需继续使用 Structural Tables 的可视化单元格编辑，可先转换回 Markdown。
 
 ### 导出表格图片
 

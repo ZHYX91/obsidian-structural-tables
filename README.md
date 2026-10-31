@@ -36,6 +36,7 @@ The Appearance image uses the actual settings and table components in a browser 
 - Edit cells in Live Preview; add, move, align, merge, split, or remove rows and columns through table controls.
 - Transpose a whole table, keeping its headers and merged cells. Changes to column alignment or Markdown syntax require confirmation.
 - Paste supported HTML tables from browsers, Excel, and Google Sheets with their row and column spans.
+- Preview and convert supported Markdown tables to HTML and standalone HTML tables back to Markdown, with explicit warnings for unsupported content or lost styling.
 - Copy or cut selected cells, paste compatible ranges, and copy whole tables as HTML, plain GFM, TSV, or CSV.
 - Export a complete PNG on desktop, with a preview and options to copy the image or save it as a Vault attachment.
 - Optionally edit ordinary GFM tables with Structural Tables controls; switching back to Obsidian's native UI does not alter Markdown.
@@ -50,6 +51,16 @@ Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidia
 Inside a Structural Table, exact `<`, `^`, and delimiter `||` tokens have special meanings. If another enabled table plugin is known to use the same syntax, Structural Tables shows a one-time conflict warning.
 
 For Advanced Tables, FakeLink, and Markdown-based image exporters, see the [compatibility notes](docs/compatibility.en.md). They cover the source-editing handoff, third-party sorting risks, and the Obsidian 1.13.7 separate-window workaround.
+
+### A note on table compatibility and an apology
+
+*2026-10-31*
+
+Like [Number Suite](https://github.com/ZHYX91/obsidian-number-suite), Structural Tables began as a small tool I made for my own niche needs while working with academic papers in Obsidian. I used only a small part of LaTeX, so extending Markdown a little seemed like a practical substitute. At first, I designed it around my own workflow without considering other users' needs or how the notes would work in other Markdown editors.
+
+The original syntax for tables without column headers and for row headers does not follow GFM's table structure. As a result, some Markdown editors cannot recognize or display those tables correctly. That was an oversight in my design. I'm sorry for the difficulties this has caused when reading, sharing, or moving notes.
+
+To address this, Structural Tables now offers conversion between Markdown and HTML tables. You can convert an extended Markdown table to HTML while keeping complex headers and merged cells, or convert a supported HTML table back to Markdown. When ordinary GFM can represent the structure, the converter uses it; otherwise it uses the existing Structural Tables markers. You can review the source and any content or formatting differences before replacing the table.
 
 <!-- section: installation -->
 ## Installation
@@ -194,6 +205,14 @@ The recommended result is ordinary GFM, with the labels retained as column heade
 ```
 
 **Copy current table as plain GFM** uses the recommended orientation directly. Use the preview when you want to choose the orientation. Neither option changes the source until you choose **Replace table**. If Obsidian hides extra source cells, the preview explains that they are absent from the copy and disables replacement; correct the source first to include them.
+
+### Convert between Markdown and HTML tables
+
+Place the cursor in a Markdown table and run **Convert current Markdown table to HTML…**, or choose **Convert to HTML table…** from its source-editor context menu. Review the generated HTML and confirm to replace the table in one undoable edit. This is different from **Copy current table as HTML**: conversion writes HTML into the note.
+
+To convert back, open the note in the Markdown editor, place the cursor inside a complete standalone `<table>…</table>` source block, and run **Convert current HTML table to Markdown…** (also available in the source-editor context menu). The preview shows ordinary GFM when sufficient, or the existing `<`, `^` and `||` markers when needed for headers and merges.
+
+Only text, supported `<br>` breaks and representable table structure are converted. Markdown links, formulas and inline formatting are not silently flattened into HTML; rich HTML cell markup and ambiguous spans are refused. HTML colors, widths and other attributes may be lost when converting back: the preview names this difference and requires explicit acknowledgement. Source blocks in code fences or nested HTML, and conversions that could absorb neighboring text, are not replaced. Use the Markdown source editor to change the resulting HTML, or convert it back before using Structural Tables' visual cell editor.
 
 ### Export a table image
 

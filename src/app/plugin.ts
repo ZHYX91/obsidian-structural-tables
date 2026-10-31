@@ -31,6 +31,11 @@ import {
 } from "../core/interchange";
 import { parseEditableTables, parseStructuralTables } from "../core/parser";
 import { serializeStructuralTable } from "../core/serializer";
+import { markdownTableToHtmlSource } from "../core/table-html-conversion";
+import { hasIsolatedTableBoundary, htmlTableSourceAt } from "../core/html-table-source";
+import { validateDocumentReplacement } from "../core/document-replacement";
+import { planHtmlTableToMarkdown } from "../editor/html-table-conversion";
+import { captureSourceConversionTarget } from "../editor/source-conversion-target";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { validateTableOperationInDocument } from "../core/table-operation-document";
 import { hasHiddenGfmOverflow } from "../core/table-write-safety";
@@ -311,6 +316,14 @@ export class StructuralTablesPlugin extends Plugin {
       editorCallback: (editor, context) => this.previewPlainGfmConversion(editor, context.file),
     }));
     this.localizedCommands.push(register({
+      id: "convert-current-markdown-table-to-html", name: t("command.convertHtmlTable"),
+      editorCallback: (editor, info) => this.previewMarkdownAsHtml(editor, info.file),
+    }));
+    this.localizedCommands.push(register({
+      id: "convert-current-html-table-to-markdown", name: t("command.convertMarkdownTable"),
+      editorCallback: (editor, info) => this.previewHtmlAsMarkdown(editor, info.file),
+    }));
+    this.localizedCommands.push(register({
       id: "convert-current-sheets-extended-table",
       name: t("command.migrateSheets"),
       editorCallback: (editor) => this.migrateSheetsExtended(editor),
@@ -347,6 +360,8 @@ export class StructuralTablesPlugin extends Plugin {
       "recover-cell-drafts": t("command.recoverDrafts"),
       "convert-current-sheets-extended-table": t("command.migrateSheets"),
       "convert-current-table-to-plain-gfm": t("command.convertGfm"),
+      "convert-current-markdown-table-to-html": t("command.convertHtmlTable"),
+      "convert-current-html-table-to-markdown": t("command.convertMarkdownTable"),
       "copy-current-table-as-csv": t("command.copyCsv"),
       "copy-current-table-as-html": t("command.copyHtml"),
       "copy-current-table-as-plain-gfm": t("command.copyGfm"),
@@ -408,6 +423,12 @@ export class StructuralTablesPlugin extends Plugin {
         return;
       }
       const current = this.currentTable(editor);
+      const htmlTarget = htmlTableSourceAt(sourceAtOpen, offset);
+      if (htmlTarget !== null && current === null) {
+        menu.addItem((item) => item.setSection("structural-tables-transform")
+          .setIcon("table").setTitle(t("menu.convertMarkdownTable"))
+          .onClick(() => requireMenu(() => this.previewHtmlAsMarkdown(editor, fileAtOpen))));
+      }
       const selection = selectedStructuralTableCells(editor);
       if (selection !== null && selection.table.valid && selection.rectangular && hasSelectionMenuItems(selection)) {
         const target = captureEditorTableCommandTarget(this.app, editor, selection.table,
@@ -441,6 +462,9 @@ export class StructuralTablesPlugin extends Plugin {
         if (gfmTarget === null) { new Notice(t("notice.staleTable")); return; }
         this.plainGfm?.open(current.table, gfmTarget);
       });
+      menu.addItem((item) => item.setSection("structural-tables-transform")
+        .setIcon("code-xml").setTitle(t("menu.convertHtmlTable"))
+        .onClick(() => requireMenu(() => this.previewMarkdownAsHtml(editor, fileAtOpen))));
       addEditorTableHtmlCopyMenuItem(menu, this.app, editor, current.table, () => this.settings, targetView,
         isActive);
       addImageExportMenuItem(menu, t, () => requireMenu(() => this.exportImage(editor, () => menuIsCurrent() ? info : null, current.table)));
@@ -527,6 +551,114 @@ export class StructuralTablesPlugin extends Plugin {
       });
       return current;
     };
+  }
+
+  private hasActiveTableDraft(editor: Editor, file: TFile | null): boolean {
+    let active = false;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.view instanceof MarkdownView && leaf.view.editor === editor && leaf.view.file === file
+        && leaf.view.containerEl?.querySelector("textarea.structural-tables-cell-editor") != null) active = true;
+    });
+    return active;
+  }
+
+  private previewMarkdownAsHtml(editor: Editor, sourceFile: TFile | null): void {
+    const t = createTranslator(this.settings.language);
+    const current = this.currentTable(editor);
+    if (current === null) return this.noTable();
+    const table = current.table;
+    if (this.hasActiveTableDraft(editor, sourceFile)) { new Notice(t("gfm.unsavedDraft")); return; }
+    if (!table.valid) {
+      new Notice(table.diagnostics[0] === undefined ? t("operation.tableInvalid")
+        : diagnosticNotice(t, table.diagnostics[0]));
+      return;
+    }
+    if (this.blockUnsafeTableWrite(table)) return;
+    const originalNote = editor.getValue();
+    const target = captureSourceConversionTarget(this.app, editor, sourceFile, this.captureRuntime());
+    if (target === null) { new Notice(t("notice.noFile")); return; }
+    const idPrefix = "sthtml" + Math.random().toString(36).slice(2);
+    const replacement = markdownTableToHtmlSource(table, idPrefix);
+    if (replacement === null) { new Notice(t("notice.tableFormatUnsupported"), 8000); return; }
+    const candidate = originalNote.slice(0, table.range.from) + replacement
+      + originalNote.slice(table.range.to);
+    const generated = htmlTableSourceAt(candidate, table.range.from + 1);
+    if (!hasIsolatedTableBoundary(originalNote, table.range)
+      || !hasIsolatedTableBoundary(candidate, { from: table.range.from, to: table.range.from + replacement.length })
+      || !validateDocumentReplacement(originalNote, table.range, replacement)
+      || generated === null || generated.range.from !== table.range.from
+      || generated.source !== replacement) {
+      new Notice(t("notice.tableFormatBoundary"), 8000);
+      return;
+    }
+    this.openOperationPreview((onClose) => new ConversionPreviewModal(this.app, {
+      language: t.locale ?? "en",
+      title: t("modal.convertHtmlTable.title"),
+      description: t("modal.convertHtmlTable.desc"),
+      source: replacement,
+      cancelLabel: t("modal.cancel"),
+      confirmLabel: t("modal.convertHtmlTable.confirm"),
+      onClose,
+      onConfirm: () => {
+        if (!target.isCurrent() || editor.getValue() !== originalNote
+          || this.hasActiveTableDraft(editor, sourceFile)
+          || reparseUnchangedTable(originalNote, table) === null
+          || !hasIsolatedTableBoundary(originalNote, table.range)
+          || !validateDocumentReplacement(originalNote, table.range, replacement)) {
+          new Notice(t("notice.staleTable")); return;
+        }
+        if (!target.replace(table.range, replacement)) { new Notice(t("notice.staleTable")); return; }
+        new Notice(t("notice.convertedHtmlTable"));
+      },
+    }));
+  }
+
+  private previewHtmlAsMarkdown(editor: Editor, sourceFile: TFile | null): void {
+    const t = createTranslator(this.settings.language);
+    const originalNote = editor.getValue();
+    if (this.hasActiveTableDraft(editor, sourceFile)) { new Notice(t("gfm.unsavedDraft")); return; }
+    const target = htmlTableSourceAt(originalNote, editor.posToOffset(editor.getCursor()));
+    if (target === null) { new Notice(t("notice.noHtmlTable")); return; }
+    const binding = captureSourceConversionTarget(this.app, editor, sourceFile, this.captureRuntime());
+    if (binding === null) { new Notice(t("notice.noFile")); return; }
+    const plan = planHtmlTableToMarkdown(target.source);
+    if (plan === null) { new Notice(t("notice.htmlFormatUnsupported"), 8000); return; }
+    const ending = originalNote.includes("\r\n") ? "\r\n" : originalNote.includes("\r") ? "\r" : "\n";
+    const replacement = plan.source.replace(/\n/gu, ending);
+    const candidateNote = originalNote.slice(0, target.range.from) + replacement
+      + originalNote.slice(target.range.to);
+    if (!hasIsolatedTableBoundary(originalNote, target.range)
+      || !hasIsolatedTableBoundary(candidateNote, { from: target.range.from,
+        to: target.range.from + replacement.length })
+      || !validateDocumentReplacement(originalNote, target.range, replacement, true)) {
+      new Notice(t("notice.tableFormatBoundary"), 8000); return;
+    }
+    this.openOperationPreview((onClose) => new ConversionPreviewModal(this.app, {
+      language: t.locale ?? "en",
+      title: t("modal.convertMarkdownTable.title"),
+      description: t("modal.convertMarkdownTable.desc"),
+      ...(plan.losesAttributes ? {
+        warning: t("modal.convertMarkdownTable.warning"),
+        acknowledgeLabel: t("modal.convertMarkdownTable.acknowledge"),
+      } : {}),
+      source: replacement,
+      cancelLabel: t("modal.cancel"),
+      confirmLabel: t("modal.convertMarkdownTable.confirm"),
+      onClose,
+      onConfirm: () => {
+        const current = htmlTableSourceAt(editor.getValue(), target.range.from + 1);
+        if (!binding.isCurrent() || editor.getValue() !== originalNote
+          || this.hasActiveTableDraft(editor, sourceFile)
+          || current === null || current.source !== target.source
+          || current.range.from !== target.range.from || current.range.to !== target.range.to
+          || !hasIsolatedTableBoundary(originalNote, target.range)
+          || !validateDocumentReplacement(originalNote, target.range, replacement, true)) {
+          new Notice(t("notice.staleTable")); return;
+        }
+        if (!binding.replace(target.range, replacement)) { new Notice(t("notice.staleTable")); return; }
+        new Notice(t("notice.convertedMarkdownTable"));
+      },
+    }));
   }
 
   private formatCurrent(editor: Editor, sourceFile: TFile | null): void {

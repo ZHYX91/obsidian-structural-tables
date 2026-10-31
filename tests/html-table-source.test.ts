@@ -22,7 +22,7 @@ describe("owned HTML source", () => {
 
   it("does not claim fenced examples, comments, parent HTML or indented code", () => {
     const note = ["~~~html", table, "~~~", "", "<!--", table, "-->", "",
-      "<div>", table, "</div>", "", "    " + table.replaceAll("\n", "\n    "),
+      "<div>", table, "</div>", "", "    " + table.replace(/\n/gu, "\n    "),
       "", table].join("\n");
     const owned = htmlTableSources(note);
     expect(owned).toHaveLength(1);
@@ -33,6 +33,7 @@ describe("owned HTML source", () => {
     expect(htmlTableSources("<table>\n<tr><td>A</td></tr>")).toEqual([]);
     expect(htmlTableSources("<table>\n\n<tr><td>A</td></tr>\n</table>")).toEqual([]);
     expect(htmlTableSources("<table>\n<table></table>\n</table>")).toEqual([]);
+    expect(htmlTableSources("- item\n\n  " + table.replace(/\n/gu, "\n  "))).toEqual([]);
   });
 
   it("requires blank-line isolation before replacing complete HTML blocks", () => {
@@ -46,9 +47,9 @@ describe("owned HTML source", () => {
   });
 
   it("preserves CRLF source offsets", () => {
-    const note = "Intro\r\n\r\n" + table.replaceAll("\n", "\r\n") + "\r\nOutro";
+    const note = "Intro\r\n\r\n" + table.replace(/\n/gu, "\r\n") + "\r\nOutro";
     const found = htmlTableSourceAt(note, note.indexOf("<td>B"));
-    expect(found?.source).toBe(table.replaceAll("\n", "\r\n"));
+    expect(found?.source).toBe(table.replace(/\n/gu, "\r\n"));
     expect(htmlTableSourceAt(note, 0)).toBeNull();
   });
 });

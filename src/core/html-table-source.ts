@@ -8,7 +8,8 @@ export interface HtmlTableSource {
   endLine: number;
 }
 
-const OPEN = /^ {0,3}<table(?:[ \t]+[^<>]*?)?>/iu;
+// Indented HTML may belong to a list. Own only an unindented top-level opener.
+const OPEN = /^<table(?:[ \t]+[^<>]*?)?>/iu;
 const TABLE_TAG = /<\/table[ \t]*>|<table(?:[ \t]+[^<>]*?)?>/giu;
 
 /**

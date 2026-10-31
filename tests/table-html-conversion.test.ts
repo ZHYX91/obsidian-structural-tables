@@ -31,6 +31,8 @@ describe("Markdown to HTML source", () => {
       "| Name | Value |\n| --- | --- |\n| A | **bold** |",
       "| Name | Value |\n| --- | --- |\n| A | [[Note]] |",
       "| Name | Value |\n| --- | --- |\n| A | $x^2$ |",
+      "| Name | Value |\n| --- | --- |\n| A | %%secret%% |",
+      "| Name | Value |\n| --- | --- |\n| A | ==highlight== |",
       "| Name | Value |\n| --- | --- |\n| A | &amp; |",
       "| Name | Value |\n| --- | --- |\n| A | V | hidden |",
     ];

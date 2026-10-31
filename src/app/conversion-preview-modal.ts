@@ -49,7 +49,7 @@ export class ConversionPreviewModal extends Modal {
         .setButtonText(this.options.cancelLabel)
         .onClick(() => this.close()))
       .addButton((button) => {
-        setConfirmEnabled = (value) => button.setDisabled(!value);
+        setConfirmEnabled = (value) => { button.setDisabled(!value); };
         return button.setCta().setButtonText(this.options.confirmLabel)
           .setDisabled(!accepted).onClick(() => {
           if (this.closed || !accepted) return;

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bind HTML/Markdown conversion previews to the original full-note editor and isolate Undo/Redo from adjacent typing. Refuse hidden Markdown comments, highlighting, list-indented HTML, and content-sensitive HTML whitespace instead of silently changing meaning.
+
 - Add explicit, previewed Markdown-to-HTML and HTML-to-Markdown table conversion commands. Keep header and merge semantics with the existing dialect when ordinary GFM is insufficient; require acknowledgement for HTML styling/attribute loss and refuse unsupported rich content or unsafe source boundaries.
 - Explain bidirectional conversion and its limitations in every supported README language, with a dated personal compatibility apology and a link to Number Suite.
 

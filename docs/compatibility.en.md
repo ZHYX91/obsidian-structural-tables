@@ -16,6 +16,8 @@ The conversion commands work on complete source-owned tables, not arbitrary HTML
 
 Other Markdown editors may recognize the exported HTML table without interpreting Structural Tables' Markdown extensions. HTML inside a Markdown block does not automatically parse Markdown syntax; review text semantics before conversion.
 
+Source conversion requires an unindented table opener and blank-line separation. Preserved-whitespace HTML and hidden content are refused rather than flattened. Literal HTML cell punctuation is encoded safely in Markdown; the conservative reverse converter can refuse that encoded result, so conversion is not a promise of unrestricted round trips. Each confirmed replacement has its own Undo step and is bound to the original attached editor.
+
 ## FakeLink and separate windows
 
 On Obsidian 1.13.7, some desktop plugin combinations with FakeLink can leave a newly opened separate window blank in Reading view. Switch to the main Obsidian window once, then return. If the note still does not render, use Reading view in the main window or Live Preview.

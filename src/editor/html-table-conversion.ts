@@ -1,6 +1,6 @@
 import { importedHtmlTableToStructuralSource, type ImportedHtmlRow } from "../core/interchange";
 import { parseEditableTables } from "../core/parser";
-import { htmlCellText } from "./table-interchange";
+import { hasPreservedWhitespaceSemantics, htmlCellText } from "./table-interchange";
 
 export interface HtmlToMarkdownPlan {
   source: string;
@@ -64,18 +64,24 @@ export function planHtmlTableToMarkdown(source: string): HtmlToMarkdownPlan | nu
   const tables = document.body.querySelectorAll("table");
   const table = tables[0];
   if (!(table instanceof HTMLTableElement) || tables.length !== 1 || table.parentElement !== document.body) return null;
+  if (hasPreservedWhitespaceSemantics(table)) return null;
   if (Array.from(document.body.childNodes).some((node) => node !== table
     && (node.nodeType !== Node.TEXT_NODE || (node.textContent ?? "").trim() !== ""))) return null;
   let losesAttributes = false;
   for (const element of [table, ...Array.from(table.querySelectorAll("*"))]) {
     if (!elementIsSafe(element)) return null;
+    const style = (element as HTMLElement).style;
+    // These declarations affect content, not just decoration. The shared text
+    // extractor collapses HTML whitespace, so consent to style loss cannot
+    // make preserved spaces or hidden source safe to flatten.
+    if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return null;
     if (element.tagName === "COLGROUP" || element.tagName === "COL") losesAttributes = true;
     for (const attr of Array.from(element.attributes)) {
       const name = attr.name.toLowerCase();
       if (name.startsWith("on") || name === "hidden" || name === "contenteditable") return null;
       if (name === "style" && /(?:display\s*:\s*none|visibility\s*:\s*hidden)/iu.test(attr.value)) return null;
-      if ((name === "rowspan" || name === "colspan") && element instanceof HTMLTableCellElement) {
-        if (!exactPositiveSpan(element, name)) return null;
+      if ((name === "rowspan" || name === "colspan") && (element.tagName === "TH" || element.tagName === "TD")) {
+        if (!exactPositiveSpan(element as HTMLTableCellElement, name)) return null;
       } else if (name === "scope" && element.tagName === "TH") {
         if (attr.value !== "row" && attr.value !== "col") return null;
       } else if (!SPAN_ATTRIBUTES.has(name) || element.tagName !== "TH" && element.tagName !== "TD") {

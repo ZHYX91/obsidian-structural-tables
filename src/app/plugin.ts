@@ -35,6 +35,7 @@ import { markdownTableToHtmlSource } from "../core/table-html-conversion";
 import { hasIsolatedTableBoundary, htmlTableSourceAt } from "../core/html-table-source";
 import { validateDocumentReplacement } from "../core/document-replacement";
 import { planHtmlTableToMarkdown } from "../editor/html-table-conversion";
+import { captureSourceConversionTarget } from "../editor/source-conversion-target";
 import { reparseUnchangedTable } from "../core/table-snapshot";
 import { validateTableOperationInDocument } from "../core/table-operation-document";
 import { hasHiddenGfmOverflow } from "../core/table-write-safety";
@@ -58,7 +59,7 @@ import {
   addWholeTableTransposeMenuItem,
   hasSelectionMenuItems,
 } from "../editor/table-menu";
-import { positionAfterReplacement, replaceTableSource } from "../editor/table-replacement";
+import { replaceTableSource } from "../editor/table-replacement";
 import { copyText, replaceSelectionFromClipboardTable } from "../editor/table-interchange";
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
@@ -561,14 +562,6 @@ export class StructuralTablesPlugin extends Plugin {
     return active;
   }
 
-  /** Source-to-source conversions do not mutate notes until their explicit preview is confirmed. */
-  private replaceConvertedRange(editor: Editor, fromOffset: number, toOffset: number, replacement: string): void {
-    const from = editor.offsetToPos(fromOffset);
-    const to = editor.offsetToPos(toOffset);
-    editor.replaceRange(replacement, from, to);
-    editor.setCursor(positionAfterReplacement(from, replacement));
-  }
-
   private previewMarkdownAsHtml(editor: Editor, sourceFile: TFile | null): void {
     const t = createTranslator(this.settings.language);
     const current = this.currentTable(editor);
@@ -582,8 +575,8 @@ export class StructuralTablesPlugin extends Plugin {
     }
     if (this.blockUnsafeTableWrite(table)) return;
     const originalNote = editor.getValue();
-    const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
-    if (targetIsCurrent === null) { new Notice(t("notice.noFile")); return; }
+    const target = captureSourceConversionTarget(this.app, editor, sourceFile, this.captureRuntime());
+    if (target === null) { new Notice(t("notice.noFile")); return; }
     const idPrefix = "sthtml" + Math.random().toString(36).slice(2);
     const replacement = markdownTableToHtmlSource(table, idPrefix);
     if (replacement === null) { new Notice(t("notice.tableFormatUnsupported"), 8000); return; }
@@ -607,14 +600,14 @@ export class StructuralTablesPlugin extends Plugin {
       confirmLabel: t("modal.convertHtmlTable.confirm"),
       onClose,
       onConfirm: () => {
-        if (!targetIsCurrent() || editor.getValue() !== originalNote
+        if (!target.isCurrent() || editor.getValue() !== originalNote
           || this.hasActiveTableDraft(editor, sourceFile)
           || reparseUnchangedTable(originalNote, table) === null
           || !hasIsolatedTableBoundary(originalNote, table.range)
           || !validateDocumentReplacement(originalNote, table.range, replacement)) {
           new Notice(t("notice.staleTable")); return;
         }
-        this.replaceConvertedRange(editor, table.range.from, table.range.to, replacement);
+        if (!target.replace(table.range, replacement)) { new Notice(t("notice.staleTable")); return; }
         new Notice(t("notice.convertedHtmlTable"));
       },
     }));
@@ -626,8 +619,8 @@ export class StructuralTablesPlugin extends Plugin {
     if (this.hasActiveTableDraft(editor, sourceFile)) { new Notice(t("gfm.unsavedDraft")); return; }
     const target = htmlTableSourceAt(originalNote, editor.posToOffset(editor.getCursor()));
     if (target === null) { new Notice(t("notice.noHtmlTable")); return; }
-    const targetIsCurrent = this.captureConversionTarget(editor, sourceFile);
-    if (targetIsCurrent === null) { new Notice(t("notice.noFile")); return; }
+    const binding = captureSourceConversionTarget(this.app, editor, sourceFile, this.captureRuntime());
+    if (binding === null) { new Notice(t("notice.noFile")); return; }
     const plan = planHtmlTableToMarkdown(target.source);
     if (plan === null) { new Notice(t("notice.htmlFormatUnsupported"), 8000); return; }
     const ending = originalNote.includes("\r\n") ? "\r\n" : originalNote.includes("\r") ? "\r" : "\n";
@@ -654,7 +647,7 @@ export class StructuralTablesPlugin extends Plugin {
       onClose,
       onConfirm: () => {
         const current = htmlTableSourceAt(editor.getValue(), target.range.from + 1);
-        if (!targetIsCurrent() || editor.getValue() !== originalNote
+        if (!binding.isCurrent() || editor.getValue() !== originalNote
           || this.hasActiveTableDraft(editor, sourceFile)
           || current === null || current.source !== target.source
           || current.range.from !== target.range.from || current.range.to !== target.range.to
@@ -662,7 +655,7 @@ export class StructuralTablesPlugin extends Plugin {
           || !validateDocumentReplacement(originalNote, target.range, replacement, true)) {
           new Notice(t("notice.staleTable")); return;
         }
-        this.replaceConvertedRange(editor, target.range.from, target.range.to, replacement);
+        if (!binding.replace(target.range, replacement)) { new Notice(t("notice.staleTable")); return; }
         new Notice(t("notice.convertedMarkdownTable"));
       },
     }));

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import MarkdownIt from "markdown-it";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { markdownTableToHtmlSource } from "../src/core/table-html-conversion";
 import { hasIsolatedTableBoundary, htmlTableSourceAt } from "../src/core/html-table-source";
@@ -43,6 +44,17 @@ describe("Markdown to HTML source", () => {
     const quoted = parseStructuralTables("> | --- | --- |\n> | A | 1 |").tables[0]!;
     expect(markdownTableToHtmlSource(quoted, "htmlconversiontest")).toBeNull();
   });
+
+  it.each(["<?secret?>", "<!SECRET value>", "<![CDATA[secret]]>", "<!--secret-->", "<span>secret</span>"])(
+    "rejects raw HTML tokens rather than making them visible: %s", (token) => {
+      const source = `| H | V |\n| --- | --- |\n| A | ${token} |`;
+      const native = new MarkdownIt({ html: true }).parse(source, {});
+      expect(native.some((block) => block.children?.some((child) => child.type === "html_inline"))).toBe(true);
+      expect(markdownTableToHtmlSource(parseEditableTables(source).tables[0]!, "htmlconversiontest")).toBeNull();
+      const plain = source.replace(token, "ordinary text");
+      expect(markdownTableToHtmlSource(parseEditableTables(plain).tables[0]!, "htmlconversiontest")).toContain("ordinary text");
+    },
+  );
 
   it("does not absorb neighboring tables when replacing its exact range", () => {
     const note = [

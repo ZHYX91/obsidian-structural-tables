@@ -8,7 +8,7 @@ import { StructuralTablesPlugin } from "../src/app/plugin";
 import { ConversionPreviewModal } from "../src/app/conversion-preview-modal";
 import { createTranslator } from "../src/config/i18n";
 import { DEFAULT_SETTINGS, type StructuralTablesSettings } from "../src/config/settings";
-import { MarkdownView, TFile as MockTFile, notices } from "./mocks/obsidian";
+import { MarkdownView, Menu, TFile as MockTFile, notices } from "./mocks/obsidian";
 
 import { tableCommandEditor } from "./helpers/table-command-editor";
 import { undo, redo } from "@codemirror/commands";
@@ -547,5 +547,38 @@ describe("bidirectional in-note source conversion entry", () => {
     expect(opened).not.toHaveBeenCalled();
     expect(f.source()).toBe(source); expect(f.writes()).toBe(0);
     expect(notices).toContain(createTranslator("en")("notice.tableFormatUnsupported"));
+  });
+});
+
+
+describe("source conversion menu target", () => {
+  it.each(["html", "markdown"] as const)("keeps the %s conversion bound to the table at menu opening", (direction) => {
+    const table = direction === "html" ? "| FIRST | V |\n| --- | --- |\n| A | B |"
+      : "<table><tr><td>FIRST</td><td>V</td></tr></table>";
+    const source = table + "\n\n" + table.replace("FIRST", "SECOND");
+    const f = tableCommandEditor(source);
+    f.editor.listSelections = () => [{ anchor: f.editor.getCursor(), head: f.editor.getCursor() }];
+    let callback!: (menu: Menu, editor: Editor, view: MarkdownView) => void;
+    vi.spyOn(f.app.workspace, "on").mockImplementation(((_event: string, handler: typeof callback) => {
+      callback = handler; return {};
+    }) as typeof f.app.workspace.on);
+    const plugin = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
+      app: f.app, settings: { ...DEFAULT_SETTINGS, language: "en" },
+    }) as unknown as { registerEditorMenu: () => void };
+    const previews = capturePreview();
+    try {
+      f.editor.setCursor(f.editor.offsetToPos(source.indexOf("FIRST")));
+      plugin.registerEditorMenu();
+      const menu = new Menu(); callback(menu, f.editor, f.view);
+      f.editor.setCursor(f.editor.offsetToPos(source.indexOf("SECOND")));
+      const title = createTranslator("en")(direction === "html" ? "menu.convertHtmlTable" : "menu.convertMarkdownTable");
+      menu.items.find((item) => item.title === title)!.callback!();
+      expect(previews().source).toContain("FIRST");
+      expect(previews().source).not.toContain("SECOND");
+      expect(f.source()).toBe(source); expect(f.writes()).toBe(0);
+      previews().onConfirm();
+      expect(f.source()).toContain(table.replace("FIRST", "SECOND"));
+      expect(f.writes()).toBe(1);
+    } finally { f.destroy(); }
   });
 });

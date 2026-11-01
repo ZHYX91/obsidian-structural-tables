@@ -123,6 +123,34 @@ describe("source containers", () => {
     expect(cellColumnAt(prefix + "| A | B |", prefix.length + 7)).toBe(1);
   });
 
+  it.each(["\n", "\r\n", "\r"])("uses tab stops for list containers without changing source bytes %j", (ending) => {
+    const cases = [
+      ["- item\n\t- sub item\n\n", "\t\t", true],
+      ["- item\n\t- sub item\n\n", " \t\t", true],
+      ["- item\n\n", "\t", true],
+      ["", "\t", false],
+      ["- item\n\n", "\t\t", false],
+    ] as const;
+    for (const [head, prefix, expected] of cases) {
+      const source = (head + withSourcePrefix(tableSource, prefix)).replace(/\n/gu, ending);
+      const native = new MarkdownIt().parse(source, {}).some((token) => token.type === "table_open");
+      expect(native, source).toBe(expected);
+      const tables = parseStructuralTables(source).tables;
+      expect(tables, source).toHaveLength(expected ? 1 : 0);
+      if (!expected) continue;
+      const table = tables[0]!;
+      expect(table.sourcePrefix).toBe(prefix);
+      expect(source.slice(table.range.from, table.range.to)).toBe(table.source);
+      expect(table.source).toBe(withSourcePrefix(tableSource, prefix).replace(/\n/gu, ending));
+      const edit = editCellContent(table, 1, 0, "changed");
+      expect(edit.changed).toBe(true);
+      expect(edit.source).toContain(prefix + "|");
+      const next = source.slice(0, table.range.from) + edit.source + source.slice(table.range.to);
+      expect(parseStructuralTables(next).tables[0]?.rows[1]?.cells[0]?.content).toBe("changed");
+      expect(next.split(ending)).toHaveLength(source.split(ending).length);
+    }
+  });
+
   it("recognizes indented list continuations but excludes their code blocks", () => {
     const source = "- outer\n  - inner\n\n" + withSourcePrefix(tableSource, "    ");
     const table = parseStructuralTables(source).tables[0]!;

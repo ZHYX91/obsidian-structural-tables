@@ -139,7 +139,14 @@ export function ignoredMarkdownLines(
   // of requiring a blank line before every standalone HTML tag.
   let paragraph: { quoteDepth: number; listIndent: number } | null = null;
   for (let index = 0; index < lines.length; index += 1) {
-    const original = lines[index] ?? "";
+    // Tabs advance to four-column stops for container recognition only. Source
+    // prefixes, replacement ranges and serializers still use the original bytes.
+    let column = 0;
+    const original = (lines[index] ?? "").replace(/[^\t]|\t/gu, (character) => {
+      const width = character === "\t" ? 4 - column % 4 : 1;
+      column += width;
+      return character === "\t" ? " ".repeat(width) : character;
+    });
     if (frontmatter) {
       paragraph = null;
       ignored.add(index);

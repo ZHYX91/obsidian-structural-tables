@@ -427,7 +427,7 @@ export class StructuralTablesPlugin extends Plugin {
       if (htmlTarget !== null && current === null) {
         menu.addItem((item) => item.setSection("structural-tables-transform")
           .setIcon("table").setTitle(t("menu.convertMarkdownTable"))
-          .onClick(() => requireMenu(() => this.previewHtmlAsMarkdown(editor, fileAtOpen))));
+          .onClick(() => requireMenu(() => this.previewHtmlAsMarkdown(editor, fileAtOpen, offset))));
       }
       const selection = selectedStructuralTableCells(editor);
       if (selection !== null && selection.table.valid && selection.rectangular && hasSelectionMenuItems(selection)) {
@@ -464,7 +464,7 @@ export class StructuralTablesPlugin extends Plugin {
       });
       menu.addItem((item) => item.setSection("structural-tables-transform")
         .setIcon("code-xml").setTitle(t("menu.convertHtmlTable"))
-        .onClick(() => requireMenu(() => this.previewMarkdownAsHtml(editor, fileAtOpen))));
+        .onClick(() => requireMenu(() => this.previewMarkdownAsHtml(editor, fileAtOpen, offset))));
       addEditorTableHtmlCopyMenuItem(menu, this.app, editor, current.table, () => this.settings, targetView,
         isActive);
       addImageExportMenuItem(menu, t, () => requireMenu(() => this.exportImage(editor, () => menuIsCurrent() ? info : null, current.table)));
@@ -501,9 +501,9 @@ export class StructuralTablesPlugin extends Plugin {
     new Notice(message, 8000);
   }
 
-  private currentTable(editor: Editor): { table: StructuralTable; row: number; column: number } | null {
-    const cursor = editor.getCursor();
-    const offset = editor.posToOffset(cursor);
+  private currentTable(editor: Editor, sourceOffset?: number): { table: StructuralTable; row: number; column: number } | null {
+    const cursor = sourceOffset === undefined ? editor.getCursor() : editor.offsetToPos(sourceOffset);
+    const offset = sourceOffset ?? editor.posToOffset(cursor);
     const table = parseEditableTables(editor.getValue()).tables.find((candidate) => offset >= candidate.range.from && offset <= candidate.range.to);
     if (table === undefined) return null;
     const row = table.rows.findIndex((candidate) => candidate.sourceLine === cursor.line);
@@ -562,9 +562,9 @@ export class StructuralTablesPlugin extends Plugin {
     return active;
   }
 
-  private previewMarkdownAsHtml(editor: Editor, sourceFile: TFile | null): void {
+  private previewMarkdownAsHtml(editor: Editor, sourceFile: TFile | null, sourceOffset?: number): void {
     const t = createTranslator(this.settings.language);
-    const current = this.currentTable(editor);
+    const current = this.currentTable(editor, sourceOffset);
     if (current === null) return this.noTable();
     const table = current.table;
     if (this.hasActiveTableDraft(editor, sourceFile)) { new Notice(t("gfm.unsavedDraft")); return; }
@@ -613,11 +613,11 @@ export class StructuralTablesPlugin extends Plugin {
     }));
   }
 
-  private previewHtmlAsMarkdown(editor: Editor, sourceFile: TFile | null): void {
+  private previewHtmlAsMarkdown(editor: Editor, sourceFile: TFile | null, sourceOffset?: number): void {
     const t = createTranslator(this.settings.language);
     const originalNote = editor.getValue();
     if (this.hasActiveTableDraft(editor, sourceFile)) { new Notice(t("gfm.unsavedDraft")); return; }
-    const target = htmlTableSourceAt(originalNote, editor.posToOffset(editor.getCursor()));
+    const target = htmlTableSourceAt(originalNote, sourceOffset ?? editor.posToOffset(editor.getCursor()));
     if (target === null) { new Notice(t("notice.noHtmlTable")); return; }
     const binding = captureSourceConversionTarget(this.app, editor, sourceFile, this.captureRuntime());
     if (binding === null) { new Notice(t("notice.noFile")); return; }

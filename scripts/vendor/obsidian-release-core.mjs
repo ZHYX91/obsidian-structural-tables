@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 
-export const RELEASE_CORE_VERSION = "3.1.1";
+export const RELEASE_CORE_VERSION = "3.2.0";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
 export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
 export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
@@ -1708,7 +1708,7 @@ export async function retryGitHubRead(operation, wait = delay, {
       const transient = error.code === "RELEASE_CORE_GITHUB_RESPONSE" ||
         error.code === "RELEASE_CORE_GITHUB_PENDING" ||
         (retryNotFound && isHttp404(error)) || error?.cause?.killed === true ||
-        /\bHTTP(?:\/\d(?:\.\d)?)?\s+(?:502|503|504)\b|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN)\b|TLS handshake timeout|i\/o timeout|unexpected end of JSON input/iu.test(detail);
+        /\bHTTP(?:\/\d(?:\.\d)?)?\s+(?:502|503|504)\b|\b(?:ETIMEDOUT|ECONNRESET|EAI_AGAIN|EOF)\b|TLS handshake timeout|i\/o timeout|unexpected end of JSON input/iu.test(detail);
       const remaining = deadline - now();
       if (denied || attempt >= delays.length || !transient || remaining <= delays[attempt]) throw error;
       releaseProgress("read-retry", { attempt: attempt + 1, delayMs: delays[attempt] });
@@ -2046,6 +2046,72 @@ async function publishGitHub({
   return Object.freeze({ status: "created", repository: config.publication.repository, tag });
 }
 
+/** Resolve only a successful same-repository, same-source Release candidate. */
+export async function resolveCandidateArtifact({
+  config: configInput, artifactId = "", commandRunner = defaultCommandRunner, env = process.env,
+}) {
+  const config = validateReleaseConfig(configInput);
+  const repository = config.publication.repository;
+  assertCondition(env.GITHUB_REPOSITORY === repository, "Candidate repository mismatch");
+  assertGitObject(env.GITHUB_SHA, "Candidate source commit");
+  assertCondition(artifactId === "" || /^[1-9][0-9]*$/u.test(artifactId), "Invalid candidate artifact ID");
+  const options = { env };
+  const validateRun = (run) => {
+    assertCondition(run.repository?.full_name === repository &&
+      run.head_repository?.full_name === repository && run.head_sha === env.GITHUB_SHA &&
+      run.path === config.build.workflow && run.event === "workflow_dispatch" &&
+      run.status === "completed" && run.conclusion === "success" &&
+      Number.isSafeInteger(run.id) && run.id > 0 &&
+      Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0,
+    "Candidate must come from a successful exact-source Release workflow in this repository");
+  };
+  let artifact;
+  let run;
+  if (artifactId !== "") {
+    artifact = await githubJson(commandRunner, `repos/${repository}/actions/artifacts/${artifactId}`, options);
+    assertCondition(String(artifact.id) === artifactId &&
+      Number.isSafeInteger(artifact.workflow_run?.id) && artifact.workflow_run.id > 0,
+    "Candidate artifact identity mismatch");
+    run = await githubJson(commandRunner, `repos/${repository}/actions/runs/${artifact.workflow_run.id}`, options);
+    validateRun(run);
+  } else {
+    const matches = [];
+    // A tag push has no inputs. It may promote the one already verified Bundle
+    // for this commit; ambiguity requires a manual dispatch with an exact ID.
+    for (let page = 1; ; page += 1) {
+      const runs = await githubJson(commandRunner,
+        `repos/${repository}/actions/workflows/${path.basename(config.build.workflow)}/runs?head_sha=${env.GITHUB_SHA}&status=success&event=workflow_dispatch&per_page=100&page=${page}`, options);
+      assertCondition(Array.isArray(runs.workflow_runs), "Invalid candidate workflow listing");
+      for (const candidateRun of runs.workflow_runs) {
+        validateRun(candidateRun);
+        for (let artifactPage = 1; ; artifactPage += 1) {
+          const records = await githubJson(commandRunner,
+            `repos/${repository}/actions/runs/${candidateRun.id}/artifacts?per_page=100&page=${artifactPage}`, options);
+          assertCondition(Array.isArray(records.artifacts), "Invalid candidate artifact listing");
+          for (const candidate of records.artifacts) {
+            if (candidate.name === `candidate-bundle-${candidateRun.id}-${candidateRun.run_attempt}` &&
+              candidate.expired === false) matches.push({ artifact: candidate, run: candidateRun });
+          }
+          if (records.artifacts.length < 100) break;
+        }
+      }
+      if (runs.workflow_runs.length < 100) break;
+    }
+    assertCondition(matches.length === 1,
+      "Expected one verified candidate for this commit; run verify first or dispatch with an exact candidate_artifact_id");
+    ({ artifact, run } = matches[0]);
+  }
+  assertCondition(Number.isSafeInteger(artifact.id) && artifact.id > 0 && artifact.expired === false &&
+    artifact.name === `candidate-bundle-${run.id}-${run.run_attempt}` &&
+    artifact.workflow_run?.id === run.id && artifact.workflow_run?.head_sha === env.GITHUB_SHA &&
+    artifact.workflow_run.repository_id === run.repository.id &&
+    artifact.workflow_run.head_repository_id === run.repository.id &&
+    /^sha256:[a-f0-9]{64}$/u.test(artifact.digest ?? ""),
+  "Candidate artifact is expired or differs from its exact run/source identity");
+  return Object.freeze({ artifactId: String(artifact.id), runId: String(run.id),
+    artifactDigest: artifact.digest, sourceCommit: env.GITHUB_SHA });
+}
+
 function workflowSource(npmVersion) {
   return `name: Release
 run-name: Release \${{ github.ref_name }} (\${{ github.event_name }})
@@ -2063,6 +2129,11 @@ on:
         options:
           - verify
           - publish
+      candidate_artifact_id:
+        description: Reuse this verified Candidate Bundle artifact; empty selects the unique exact-source candidate for publication
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -2073,11 +2144,14 @@ concurrency:
 
 jobs:
   verify:
-    name: Rebuild and verify exact Candidate Bundle
+    name: Build once or verify the selected Candidate Bundle
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
+      actions: read
+    env:
+      REUSE_CANDIDATE: \${{ github.event_name == 'push' || github.event.inputs.mode == 'publish' || github.event.inputs.candidate_artifact_id != '' }}
     outputs:
       bundle_artifact_id: \${{ steps.bundle.outputs.artifact-id }}
       bundle_digest: \${{ steps.identity.outputs.bundle_digest }}
@@ -2089,52 +2163,82 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify tagged source identity
+      - name: Verify source identity and publication tag when requested
         shell: bash
         env:
           DEFAULT_BRANCH: \${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF_TYPE" == "tag" ]]
-          [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$ ]]
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            [[ "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$ ]]
+            test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          fi
           git merge-base --is-ancestor "$GITHUB_SHA" "origin/$DEFAULT_BRANCH"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Set up exact Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: npm
 
       - name: Install exact npm
+        if: env.REUSE_CANDIDATE != 'true'
         run: npm install --global npm@${npmVersion} --no-audit --no-fund
 
       - name: Install locked dependencies
+        if: env.REUSE_CANDIDATE != 'true'
         run: npm ci --no-audit --no-fund
 
       - name: Run the one complete repository build and verification pass
+        if: env.REUSE_CANDIDATE != 'true'
         run: npm run release:check
 
       - name: Build deterministic Candidate Bundle
+        if: env.REUSE_CANDIDATE != 'true'
         run: >-
           node scripts/release.mjs bundle
-          --version "$GITHUB_REF_NAME"
           --output-dir "$RUNNER_TEMP/candidate-bundle"
+
+      - name: Resolve a successful exact-source Candidate Bundle
+        if: env.REUSE_CANDIDATE == 'true'
+        id: reuse
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          CANDIDATE_ARTIFACT_ID: \${{ github.event.inputs.candidate_artifact_id }}
+        run: |
+          set -euo pipefail
+          node scripts/release.mjs resolve-artifact --artifact-id "$CANDIDATE_ARTIFACT_ID" > "$RUNNER_TEMP/reused-artifact.json"
+          node -e 'const fs=require("node:fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));fs.appendFileSync(process.env.GITHUB_OUTPUT,"artifact_id="+r.artifactId+"\\nrun_id="+r.runId+"\\n")' "$RUNNER_TEMP/reused-artifact.json"
+
+      - name: Download the selected prior-run candidate without rebuilding
+        if: env.REUSE_CANDIDATE == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: \${{ steps.reuse.outputs.artifact_id }}
+          run-id: \${{ steps.reuse.outputs.run_id }}
+          github-token: \${{ github.token }}
+          path: \${{ runner.temp }}/candidate-bundle
+          digest-mismatch: error
 
       - name: Verify source candidate and record Bundle identity
         id: identity
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/release.mjs verify-source --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          if [[ "$REUSE_CANDIDATE" == "true" ]]; then
+            node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          else
+            node scripts/release.mjs verify-source --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+          fi
           digest="$(sha256sum "$RUNNER_TEMP/candidate-bundle/candidate-bundle.json" | cut -d ' ' -f 1)"
           printf 'bundle_digest=%s\\n' "$digest" >> "$GITHUB_OUTPUT"
 
       - name: Upload fixed Candidate Bundle
         id: bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: candidate-bundle-\${{ github.run_id }}-\${{ github.run_attempt }}
           path: \${{ runner.temp }}/candidate-bundle/
@@ -2166,12 +2270,12 @@ jobs:
           persist-credentials: false
 
       - name: Set up exact Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
 
       - name: Download fixed Candidate Bundle by artifact ID
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: \${{ needs.verify.outputs.bundle_artifact_id }}
           path: \${{ runner.temp }}/candidate-bundle
@@ -2237,12 +2341,12 @@ jobs:
           persist-credentials: false
 
       - name: Set up exact Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
 
       - name: Download the same fixed Candidate Bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: \${{ needs.verify.outputs.bundle_artifact_id }}
           path: \${{ runner.temp }}/candidate-bundle
@@ -2863,6 +2967,10 @@ export async function runReleaseCli({
   assertCondition(Array.isArray(argv) && argv.length > 0, "Release command is required",
     "RELEASE_CORE_CLI");
   const [command, ...arguments_] = argv;
+  if (command === "resolve-artifact") {
+    const options = parseCliOptions(arguments_, ["--artifact-id"]);
+    return resolveCandidateArtifact({ config, artifactId: options.get("--artifact-id") ?? "", commandRunner, env });
+  }
   if (command === "workflow-write" || command === "workflow-check") {
     parseCliOptions(arguments_, []);
     return command === "workflow-write"

@@ -114,6 +114,8 @@ Appearance-preview tests use the production renderer, verify merged cells and al
 <!-- section: interchange -->
 ## Interchange
 
+Bidirectional source conversion tests exercise plain GFM and extended header/merge topology, headerless tables, original source boundaries, CRLF, HTML span clipping, malformed nesting, fenced/comment HTML false positives, unsupported Markdown links/math/rich text, style-loss acknowledgement, draft/stale refusal and complete-note neighbor preservation. HTML DOM extraction has happy-dom unit coverage; real-host Source mode, preview, Undo/Redo and mobile acceptance remain distinct observations.
+
 Cover:
 
 - flattened multi-row header paths and merged values;

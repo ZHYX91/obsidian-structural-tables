@@ -36,6 +36,8 @@ Plain GFM conversion shares the existing pure transpose and projection logic. Fo
 
 Desktop whole-table image export previews the final theme/background PNG. Preview, image copy, and saving to the Vault use the same generated PNG. It preserves semantic spans, renders supported cell text/math and loaded local images, includes full wide/tall content within explicit resource limits, excludes editing controls and drafts, and never writes Markdown or uploads the table. Unsupported mobile image operations and dynamic embeds are explained rather than silently degraded.
 
+Markdown-to-HTML table conversion preserves supported semantic header roles and spans. HTML-to-Markdown conversion chooses standard GFM when sufficient and otherwise uses the existing `<`, `^`, `||` syntax. Both require a preview and an exact complete-note source check before one undoable replacement. HTML style and attribute loss requires affirmative acknowledgement; unsupported rich text, ambiguous spans, active drafts and stale or unsafe source boundaries block replacement. The feature is a converter, not a visual HTML table editor.
+
 <!-- section: exclusions -->
 ## Exclusions
 

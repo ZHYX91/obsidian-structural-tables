@@ -34,7 +34,7 @@ function appendHtmlCellText(node: Node, parts: string[]): void {
   if (block && !parts[parts.length - 1]?.endsWith("\n")) parts.push("\n");
 }
 
-function htmlCellText(cell: HTMLTableCellElement): string {
+export function htmlCellText(cell: HTMLTableCellElement): string {
   const parts: string[] = [];
   for (const child of cell.childNodes) appendHtmlCellText(child, parts);
   return trimCollapsibleHtmlWhitespace(parts.join("").replace(/[ \t]*\n[ \t]*/gu, "\n"));
@@ -62,7 +62,7 @@ function parsedClipboardTable(html: string): ClipboardTable | null {
 const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, embed, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
 const TEXT_SEMANTIC_CONTENT = "code, pre, sup, sub, h1, h2, h3, h4, h5, h6";
 
-function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
+export function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
   const ancestors: HTMLElement[] = [];
   for (let element = table.parentElement; element !== null; element = element.parentElement) ancestors.push(element);
   // white-space is inherited. Clipboard wrappers can carry the cell's visible

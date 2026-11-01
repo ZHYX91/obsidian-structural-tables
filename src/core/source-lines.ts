@@ -120,6 +120,7 @@ function isSingleLineReferenceDefinition(line: string): boolean {
 export function ignoredMarkdownLines(
   lines: readonly string[],
   visibleFenceInfo: ReadonlySet<string> = new Set<string>(),
+  onHtmlLine?: (line: string, index: number) => void,
 ): Set<number> {
   const ignored = new Set<number>();
   let fence: { character: "`" | "~"; length: number; listIndent: number } | null = null;
@@ -138,7 +139,14 @@ export function ignoredMarkdownLines(
   // of requiring a blank line before every standalone HTML tag.
   let paragraph: { quoteDepth: number; listIndent: number } | null = null;
   for (let index = 0; index < lines.length; index += 1) {
-    const original = lines[index] ?? "";
+    // Tabs advance to four-column stops for container recognition only. Source
+    // prefixes, replacement ranges and serializers still use the original bytes.
+    let column = 0;
+    const original = (lines[index] ?? "").replace(/[^\t]|\t/gu, (character) => {
+      const width = character === "\t" ? 4 - column % 4 : 1;
+      column += width;
+      return character === "\t" ? " ".repeat(width) : character;
+    });
     if (frontmatter) {
       paragraph = null;
       ignored.add(index);
@@ -234,7 +242,7 @@ export function ignoredMarkdownLines(
       paragraph = null;
       // A blank line ends this HTML block; subsequent Markdown can be parsed.
       if (line.trim() === "") htmlBlock = false;
-      else ignored.add(index);
+      else { ignored.add(index); onHtmlLine?.(line, index); }
       continue;
     }
     if (htmlSpecial !== null) {
@@ -273,6 +281,7 @@ export function ignoredMarkdownLines(
       && paragraph.quoteDepth >= quoteDepth && paragraph.listIndent >= listIndent;
     if (!indentedCode && protectedBlock === null
       && (HTML_BLOCK_START.test(line) || (!continuesParagraph && HTML_STANDALONE_TAG.test(line)))) {
+      onHtmlLine?.(line, index);
       paragraph = null;
       ignored.add(index);
       htmlBlock = true;

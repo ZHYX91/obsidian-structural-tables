@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 
-export const RELEASE_CORE_VERSION = "3.2.0";
+export const RELEASE_CORE_VERSION = "3.2.1";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
 export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
 export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
@@ -2211,7 +2211,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/release.mjs resolve-artifact --artifact-id "$CANDIDATE_ARTIFACT_ID" > "$RUNNER_TEMP/reused-artifact.json"
-          node -e 'const fs=require("node:fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));fs.appendFileSync(process.env.GITHUB_OUTPUT,"artifact_id="+r.artifactId+"\\nrun_id="+r.runId+"\\n")' "$RUNNER_TEMP/reused-artifact.json"
+          node -e 'const fs=require("node:fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));for(const k of ["artifactId","runId"]){if(typeof r[k]!=="string"||!/^[1-9][0-9]*$/u.test(r[k]))throw new Error("Invalid resolved candidate "+k)}fs.appendFileSync(process.env.GITHUB_OUTPUT,"artifact_id="+r.artifactId+"\\nrun_id="+r.runId+"\\n")' "$RUNNER_TEMP/reused-artifact.json"
 
       - name: Download the selected prior-run candidate without rebuilding
         if: env.REUSE_CANDIDATE == 'true'
@@ -3218,6 +3218,10 @@ function printableReleaseResult(result) {
     "sha256",
     "assetCount",
     "outputDirectory",
+    "artifactId",
+    "runId",
+    "artifactDigest",
+    "sourceCommit",
   ]) {
     if (typeof result?.[name] === "string" || typeof result?.[name] === "number") {
       summary[name] = result[name];

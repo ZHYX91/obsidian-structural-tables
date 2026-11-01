@@ -58,7 +58,7 @@ describe("thin release adapter", () => {
     expect(lock).toEqual({
       schemaVersion: 2,
       package: "@zhyx/obsidian-release-core",
-      version: "3.2.0",
+      version: "3.2.1",
       runtime: "obsidian-release-core.mjs",
       sha256: digest,
     });

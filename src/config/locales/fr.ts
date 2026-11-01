@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const fr = {
+  "menu.undo": "Annuler",
+  "menu.redo": "Rétablir",
+  "menu.cut": "Couper",
+  "menu.copy": "Copier",
+  "menu.paste": "Coller",
+  "menu.pastePlainText": "Coller en texte brut",
+  "menu.selectAll": "Tout sélectionner",
+  "menu.bold": "Gras",
+  "menu.italic": "Italique",
+  "menu.finishEditing": "Terminer la modification",
+  "menu.cancelEditing": "Annuler la modification",
+  "menu.tableOperations": "Opérations du tableau",
   "settings.group.style": "Traits et fond",
   "settings.group.layout": "Disposition et espacement",
   "settings.preview.title": "Aperçu de l’apparence",

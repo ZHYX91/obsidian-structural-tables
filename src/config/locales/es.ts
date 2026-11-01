@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const catalog = {
+  "menu.undo": "Deshacer",
+  "menu.redo": "Rehacer",
+  "menu.cut": "Cortar",
+  "menu.copy": "Copiar",
+  "menu.paste": "Pegar",
+  "menu.pastePlainText": "Pegar como texto sin formato",
+  "menu.selectAll": "Seleccionar todo",
+  "menu.bold": "Negrita",
+  "menu.italic": "Cursiva",
+  "menu.finishEditing": "Terminar edición",
+  "menu.cancelEditing": "Cancelar edición",
+  "menu.tableOperations": "Operaciones de tabla",
   "settings.group.style": "Líneas y fondo",
   "settings.group.layout": "Diseño y espaciado",
   "settings.preview.title": "Vista previa de la apariencia",

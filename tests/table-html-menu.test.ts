@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTranslator } from "../src/config/i18n";
 import { DEFAULT_SETTINGS } from "../src/config/settings";
+import { copyTableForWord, startTableCopySession } from "../src/app/table-html-copy";
 import { parseEditableTables } from "../src/core/parser";
 import { NativeTableMenuBridge } from "../src/editor/native-table-menu";
 import { addEditorTableHtmlCopyMenuItem } from "../src/editor/table-html-menu";
@@ -59,6 +60,27 @@ function fixture(mode: "source" | "native" | "reading") {
 }
 
 describe("whole-table HTML menu entry points", () => {
+  it.each(["source", "native", "reading"] as const)("keeps an old %s menu bound to its disposed instance", async (mode) => {
+    const f = fixture(mode);
+    startTableCopySession(f.app);
+    let release!: () => void;
+    let entered!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const started = new Promise<void>((resolve) => { entered = resolve; });
+    vi.mocked(MarkdownRenderer.render).mockImplementation(async (_app, source, element) => {
+      if (source === "Fresh") { entered(); await pending; }
+      element.textContent = source;
+    });
+    const current = copyTableForWord(f.app, parseEditableTables("| Fresh | Value |\n| --- | --- |\n| NEW | KEEP |").tables[0]!, "theme",
+      { sourcePath: f.file.path, direction: "ltr", isCurrent: () => true }, t);
+    await started;
+    f.copy();
+    release(); await current;
+    expect(writeText).toHaveBeenCalledExactlyOnceWith("Fresh\tValue\nNEW\tKEEP");
+    expect(vi.mocked(MarkdownRenderer.render).mock.calls.map((call) => call[1])).toEqual(["Fresh", "Value", "NEW", "KEEP"]);
+    expect(notices).toEqual([t("notice.copiedHtmlPlain")]);
+  });
+
   it.each(["source", "native", "reading"] as const)("copies the captured %s table without following the cursor or writing source", async (mode) => {
     const f = fixture(mode);
     // Invalidate only the first table; the captured second identical table keeps its exact range and bytes.

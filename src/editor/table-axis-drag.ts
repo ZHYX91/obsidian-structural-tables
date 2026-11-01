@@ -50,7 +50,8 @@ export class TableAxisDrag {
     private readonly current: () => StructuralTable,
     private readonly selected: () => AxisSelection | null,
     private readonly blockedMessage: (result: OperationResult) => string,
-    private readonly move: (selection: AxisSelection, destination: number) => void) {
+    private readonly move: (selection: AxisSelection, destination: number) => void,
+    private readonly endGesture: (outcome: "click" | "drop" | "cancel") => void = () => {}) {
     this.line = host.createDiv({ cls: "structural-tables-drop-line" });
     this.line.hidden = true;
     this.hint = host.createDiv({ cls: "structural-tables-drop-hint" });
@@ -94,7 +95,10 @@ export class TableAxisDrag {
     this.hint.remove();
   }
 
-  private readonly cancel = (): void => {
+  private readonly cancel = (): void => { this.finishGesture("cancel"); };
+
+  private finishGesture(outcome: "click" | "drop" | "cancel"): void {
+    const active = this.session !== null;
     if (this.scrollFrame !== null) this.window?.cancelAnimationFrame(this.scrollFrame);
     this.scrollFrame = null;
     this.session = null;
@@ -102,7 +106,8 @@ export class TableAxisDrag {
     this.hint.hidden = true;
     this.hint.textContent = "";
     delete this.host.dataset.reorderState;
-  };
+    if (active) this.endGesture(outcome);
+  }
 
   private readonly onKey = (event: KeyboardEvent): void => {
     if (event.key !== "Escape" || this.session === null) return;
@@ -210,7 +215,7 @@ export class TableAxisDrag {
     if (session.moved) this.onMove(event);
     const destination = session.destination;
     const allowed = this.host.dataset.reorderState === "allowed";
-    this.cancel();
+    this.finishGesture(!session.moved ? "click" : allowed && destination !== null ? "drop" : "cancel");
     if (session.moved && allowed && destination !== null) this.move(session.selection, destination);
   };
 }

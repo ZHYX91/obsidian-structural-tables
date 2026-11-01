@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-24
+last_synced: 2026-10-29
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -85,6 +85,8 @@ Before committing, reparse the complete note to ensure the transpose preserves t
 
 In the note editor's HTML-import route, a verifiable multi-column table is converted structurally when Preserve pasted HTML table spans is enabled.
 
+Whole-table import checks the complete candidate note before replacing the selection. The new table must own exactly its intended source range without absorbing adjacent pipe prose or changing tables and hidden cells outside the selection. An unsafe boundary blocks the paste and preserves the selection and source; leave blank lines around the target before retrying. Complete plain-text fallback retains its exact bytes and must not absorb unselected prose through adjacent syntax either.
+
 A single otherwise-safe table that is either completely empty or contains only text semantics the importer cannot preserve faithfully (`pre`, `sup`, or `sub`) uses the complete non-empty plain-text clipboard alternative verbatim when available; no TSV, Markdown, or TeX equivalence is inferred. If that known-lossy payload has no plain-text alternative, the paste is blocked and the current selection is kept.
 
 Mixed-content, multi-table, image, HTML `embed`, attachment, link, MathML/SVG, rich semantics on or around the table, clipboard files, and non-text clipboard MIME payloads remain native paste rather than being downgraded to plain text.
@@ -105,17 +107,27 @@ Mobile range menus use verified text-only transport when the host rich bridge is
 
 Whole-table HTML copy commands bypass the mobile image-only rich bridge and use their complete tab-separated text alternative on mobile or when desktop rich clipboard support is unavailable. This TSV projection converts cell-internal line breaks and tabs to spaces while retaining row separators and column tabs. Both entry points report the actual clipboard form; the plain-text notice explains that header structure and merged cells were flattened and rich formatting is unavailable. A rejected clipboard write reports failure.
 
+Word/HTML copying and direct GFM/TSV/CSV copy commands share the latest invocation intent in the loaded plugin instance. A newer copy or unload stops later steps of an earlier asynchronous HTML render, preventing its clipboard dispatch and notices; a write already dispatched to the system cannot be retracted. A command copies its captured invocation snapshot, so ordinary later source edits alone do not cancel that snapshot. Menus retain their existing source-target checks.
+
 Range Copy also exposes portable HTML and plain Markdown. Range HTML escapes each owner's raw Markdown as text and represents spans; it does not render that Markdown as rich content. Plain Markdown makes the first copied row a header and retains structural markers where representable. It does not promise equivalent merge topology in external GFM, especially for vertical merges.
 
 Plain GFM, TSV, and CSV whole-table output repeats merged values and joins multi-row header paths with ` / `; HTML output preserves semantic roles, spans, and break elements. Simple headers use row/column `scope`. Complex headers use document-wide unique `id`/`headers` associations for every intersecting row/column header path, including merged data and crossing header spans. Corner titles label the corresponding row-header columns rather than every data cell. Each whole-table copy uses a fresh ID namespace; no unsupported row/column group scope or application-specific markup is added.
 
-Plain GFM preserves displayed code-span backslashes and pipes. Code spans containing a pipe use an inline HTML `<code>` element with entities because GitHub GFM and native Obsidian handle backtick pipe escaping differently. This fallback requires a consumer that permits inline HTML. Other code spans retain their backtick spelling. HTML table import uses structural-table escaping independently, so closed code spans do not acquire GFM-only backslashes. When the imported table is ordinary GFM, code spans containing pipes use entity-encoded inline HTML so native rendering and optional takeover retain the same columns and text.
+Plain GFM output preserves displayed code-span backslashes and pipes using entity-encoded inline HTML when necessary. External HTML import has a different text boundary: text-node punctuation, Wiki-looking text, backticks, HTML-looking text and entities remain visible literal characters. Actual HTML breaks become cell-internal breaks. Real code/link or other unsupported semantic nodes use the existing complete plain-text fallback with a notice, or remain native when no safe conversion is available. Plugin-owned range payloads continue to carry their original Markdown and merge owners.
 
 HTML conversion accepts one complete supported table only. Mixed prose, multiple tables, captions, math, images, attachments, and links that cannot be preserved are left to native note paste. In a cell editor, unsupported HTML uses the complete plain-text alternative with a notice; if none exists, the current edit remains intact. A verified empty cell can still clear the selected text. HTML copy falls back to original Markdown/LaTeX for math, images, attachments, and internal or relative links, preserving references without embedding arbitrary HTML.
 
 Safe single-line math is preserved verbatim, including fractions, superscripts, `\lvert`/`\rvert`, `\lVert`/`\rVert`, `\mid`, existing `\|` norms, and matrices using TeX `\\`. Bare pipes such as `$|x|$` and `$P(A|B)$`, actual newlines inside math, TeX comments/verbatim commands, and incomplete delimiters are refused before saving; the complete draft remains editable. Use explicit TeX commands for the intended pipe symbol, and `\$` for a literal dollar sign. Rejected edits do not navigate or append a row. Interrupted drafts can be recovered within the current plugin session; this is not persistent storage across restarts. Formatting preserves existing math source and does not guess whether an old norm was intended as an absolute value.
 
 Desktop whole-table image export is available from the source command palette, owned table menus and native ordinary-table menus. Its modal first generates a complete theme/background snapshot, then previews the final PNG with Copy image and Save PNG to Vault actions sharing the same bytes. It excludes active cell drafts and controls, leaves Markdown untouched, and keeps a completed snapshot stable. Source or theme changes during generation require a retry. Clipboard denial leaves Vault saving available. Mobile shows a desktop-only explanation. Fixed 2× output is limited to 8192 pixels per side and 16 megapixels; resource/render failures, timeouts and interactive or note embeds produce explicit errors rather than clipped or incomplete success.
+
+A primary mouse drag inside an editing cell remains native text selection until it enters another cell of the same table. Crossing safely commits a valid changed draft once, closes the textarea and transfers focus and commands to a rectangular grid range anchored at the starting cell. A composing, rejected or stale draft stays intact and refuses the transfer. Starting in another cell also performs this handoff before displaying a range. After crossing, the gesture stays in grid mode through release. Escape or pointer cancellation restores the pre-drag selection; a completed content commit remains separately undoable. Touch retains scrolling, native text selection and the existing tap-based range entry.
+
+Right-clicking inside the selected grid range preserves it; clicking outside chooses that cell after safely ending an old draft. The active textarea keeps its text menu. That menu provides draft-local Undo/Redo, Cut/Copy/Paste, Select all, bold/italic, breaks, finish/cancel and a Table operations submenu. Opening the text menu or its Table operations submenu does not commit. A selected table command validates the draft and complete table together and performs one reversible write, or retains the draft without a partial write. A fresh unchanged draft with no local history uses the same committed-history handoff as keyboard Undo/Redo. Closing a menu with Escape does not cancel its draft.
+
+Only one owned table-menu family is visible in each app document; opening another cell or table menu closes the previous family and invalidates its deferred actions. Popout documents remain independent. Right-clicking a row/column handle first completes the axis selection and safely ends any draft. A valid changed draft commits once before the axis menu opens; a later table command is a separate undoable operation. An unchanged draft ends without writing. Invalid, composing or stale drafts retain their complete text and refuse the selection and menu. After a successful handoff, range clipboard and whole-table HTML copy use the committed content. Delayed Callout menus remain bound to the same source and editor and are cancelled by a newer interaction or menu. Dismissing a menu must not steal focus from an outside control.
+
+Paste as plain text inserts literal text into the active cell, replacing only its text selection, or fills one selected visible owner in grid mode. It never infers a TSV rectangle, changes merges or adds rows/columns. Real newlines stay inside the cell; tabs, pipes, backslashes, merge-looking markers, Markdown and HTML-looking text remain literal. Fragment insertion into code, math, link or HTML source is refused when literal meaning cannot be proved. Clipboard failure or a stale target changes nothing. Multi-owner ranges use the separate range-paste command; a merged owner still counts as one target.
 
 <!-- section: base-promotion -->
 ## Convert to Base
@@ -152,6 +164,8 @@ On partial failure, keep created files and report the folder. Do not automatical
 
 Restore uses the original snapshot stored in `_promotion.json` and deliberately keeps generated record notes. Missing manifests, mismatched sources, or ownership that cannot be proven uniquely must be refused.
 
+Restoration confirmation validates the candidate table range and neighboring ownership against the latest complete note. Pipe prose added before or after the Base must not be absorbed or hidden by restoration. An unsafe result writes nothing and leaves record notes unchanged; add blank lines around the Base before retrying.
+
 Legacy-property migration runs only on explicit user request. Its preview lists per-file changes, retired record-ID cleanup is off by default, and writes recheck both source and plugin-owned frontmatter. Rollback restores only plugin-owned changes and preserves unrelated concurrent edits.
 
 <!-- section: table-selection -->
@@ -160,6 +174,8 @@ Legacy-property migration runs only on explicit user request. Its preview lists 
 ### Row and column handles
 
 - On pointer devices, hovering a cell reveals only its matching row and column handles.
+- Handles use fixed-size decorative icons and native table-handle theme colors. Reveal, hover, selection and keyboard focus have distinct visual layers; dragging retains selection and its feedback.
+- The grip and its background sit inside the hit region: a smaller visual outline does not shrink the existing button target. Icons add no focus stops and do not intercept button pointer events.
 - Keyboard-focused or selected handles stay visible.
 - Touch handles remain large enough to tap and must not cover preceding text.
 - Handles live outside the table box and must not change table alignment.
@@ -171,7 +187,9 @@ Legacy-property migration runs only on explicit user request. Its preview lists 
 
 Mouse drag creates a rectangular cell selection. Touch selects a rectangle by tapping its first and last cells. A completed touch selection must remain intact when the user long-presses inside it.
 
-Press and drag any row/column handle to move its newly selected merge-closed axis in the same gesture. Releasing without dragging selects only; Shift-click or a second touch handle extends the selection, and dragging any already-selected handle moves the complete selected group. Moves cannot split a merged owner or cross header/data role boundaries. Blocked targets leave source unchanged; Escape, pointercancel, blur, leaving the table or a changed source cancels safely. Keep RTL physical coordinates, touch ownership and continuous edge scrolling.
+Completing a row/column selection by click, keyboard, focus, touch or context menu safely ends the active cell edit before selecting the complete merge-closed axis. This applies to both the editing cell's axis and another axis. A valid changed draft commits once and can be undone; an unchanged draft makes no write. Invalid, composing or stale drafts retain their text, focus and prior selection. A completed selection has no active textarea, places focus on its grid/handle, and owns subsequent Copy, Cut, Paste and Clear commands. Shift-click or a second touch handle extends the selection from the original anchor; keyboard movement within an already-selected axis range retains that range.
+
+Pressing a handle starts a pending gesture and may preview its axis while retaining the draft. A held drag moves the newly selected merge-closed axis in that same gesture; a valid changed draft and reorder commit together in one undoable operation. Releasing over the handle without dragging completes selection. Escape, pointer cancellation, blur or releasing away from the handle cancels the pending selection and restores the prior draft, range and anchors without writing. Dragging any already-selected handle moves the complete selected group. Moves cannot split a merged owner or cross header/data role boundaries. Blocked targets, leaving the table or a changed source cancel safely. Keep RTL physical coordinates, touch ownership and continuous edge scrolling.
 
 ### Menu operations
 

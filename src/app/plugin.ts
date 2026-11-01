@@ -53,17 +53,17 @@ import {
   addSelectionMenuItems,
   addWholeTableTransposeMenuItem,
   hasSelectionMenuItems,
-  type TableOperation,
 } from "../editor/table-menu";
 import { replaceTableSource } from "../editor/table-replacement";
-import { copyHtml, copyText, replaceSelectionFromClipboardTable } from "../editor/table-interchange";
+import { copyText, replaceSelectionFromClipboardTable } from "../editor/table-interchange";
 import { selectedStructuralTableCells } from "../editor/table-selection";
 import { StructuralTableReadingProcessor } from "../reading/table-postprocessor";
-import { renderTableClipboard } from "../rendering/table-clipboard";
-import { editorTableContext, editorTableDirection } from "../editor/editor-view-context";
+import { attachedEditorContext, editorTableContext, editorTableDirection } from "../editor/editor-view-context";
 import { StructuralTablesSettingTab } from "./settings-tab";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import { SettingsPersistenceSession } from "./settings-persistence-session";
+import { settingsStoreScheduler } from "./settings-store-queue";
+import { captureEditorTableCommandTarget } from "../editor/table-command-target";
 import { ConversionPreviewModal } from "./conversion-preview-modal";
 import { BasePromotionModal } from "./base-promotion-modal";
 import {
@@ -80,6 +80,7 @@ import { PlainGfmConversionService } from "./plain-gfm-modal";
 import { captureEditorPlainGfmTarget } from "../editor/plain-gfm-target";
 import { addEditorTableHtmlCopyMenuItem } from "../editor/table-html-menu";
 import { planPlainGfmConversion } from "../core/plain-gfm-conversion";
+import { copyTableForWord, startTableCopySession, tableCopySession, type TableCopySession } from "./table-html-copy";
 
 const TEMPLATE = `| Region | Sales | < |
 | Quarter | Q1 | Q2 |
@@ -128,17 +129,21 @@ export class StructuralTablesPlugin extends Plugin {
   private transposeRequestsActive = true;
   private runtimeEpoch?: object;
   private operationPreviews?: Set<Modal>;
+  private clipboardCopySession?: TableCopySession;
 
   override async onload(): Promise<void> {
     this.runtimeEpoch = {};
     this.transposeRequestsActive = true;
+    this.clipboardCopySession = startTableCopySession(this.app);
     const isActive = this.captureRuntime();
     registerTableMenuIcons(this);
-    const loaded = normalizeStoredSettings(await this.loadData());
+    const schedule = settingsStoreScheduler(this.app);
+    const loaded = normalizeStoredSettings(await schedule(() => this.loadData()));
     if (!isActive()) return;
     this.settingsPersistence = new SettingsPersistenceSession(
       loaded,
       (data) => this.saveData(data),
+      schedule,
     );
     this.settings = this.settingsPersistence.initialSettings();
     void this.settingsPersistence.start().catch(() => undefined);
@@ -180,12 +185,13 @@ export class StructuralTablesPlugin extends Plugin {
 
   override onunload(): void {
     this.transposeRequestsActive = false;
+    this.clipboardCopySession?.dispose();
     this.basePromotionService?.dispose();
     this.basePropertyMigrationService?.dispose();
     this.imageExport?.dispose();
     for (const modal of this.operationPreviews ?? []) modal.close();
     this.operationPreviews?.clear();
-    void this.settingsPersistence?.flush().catch((error: unknown) => {
+    void this.settingsPersistence?.close().catch((error: unknown) => {
       console.error("Structural Tables: failed to flush settings", error);
     });
   }
@@ -373,6 +379,19 @@ export class StructuralTablesPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("editor-menu", (menu, editor, info) => {
       if (!isActive()) return;
       const t = createTranslator(this.settings.language);
+      const sourceAtOpen = editor.getValue();
+      const fileAtOpen = info.file;
+      const pathAtOpen = fileAtOpen?.path;
+      const owner = attachedEditorContext(this.app, editor, info instanceof MarkdownView ? info : undefined);
+      const menuIsCurrent = (): boolean => isActive() && editor.getValue() === sourceAtOpen
+        && owner !== null && owner.isCurrent()
+        && info.file === fileAtOpen && fileAtOpen?.path === pathAtOpen
+        && (fileAtOpen == null || this.app.vault.getFileByPath(pathAtOpen!) === fileAtOpen)
+        && (!(info instanceof MarkdownView) || (info.editor === editor && info.containerEl.isConnected));
+      const requireMenu = (action: () => void): void => {
+        if (menuIsCurrent()) action();
+        else new Notice(t("notice.staleTable"));
+      };
       const offset = editor.posToOffset(editor.getCursor());
       const promoted = promotionBlockAt(editor.getValue(), offset, info.file?.path);
       if (promoted !== null) {
@@ -380,20 +399,26 @@ export class StructuralTablesPlugin extends Plugin {
           .setSection("structural-tables-base")
           .setIcon("file-plus-2")
           .setTitle(t("menu.createBaseRecord"))
-          .onClick(() => { if (isActive()) void this.createPromotedBaseRecord(editor, info.file); }));
+          .onClick(() => { requireMenu(() => { void this.createPromotedBaseRecord(editor, fileAtOpen); }); }));
         menu.addItem((item) => item
           .setSection("structural-tables-base")
           .setIcon("rotate-ccw")
           .setTitle(t("menu.restorePromotedTable"))
-          .onClick(() => { if (isActive()) void this.previewPromotedTableRestore(editor, () => info); }));
+          .onClick(() => { requireMenu(() => { void this.previewPromotedTableRestore(editor, () => menuIsCurrent() ? info : null); }); }));
         return;
       }
       const current = this.currentTable(editor);
       const selection = selectedStructuralTableCells(editor);
       if (selection !== null && selection.table.valid && selection.rectangular && hasSelectionMenuItems(selection)) {
+        const target = captureEditorTableCommandTarget(this.app, editor, selection.table,
+          info instanceof MarkdownView ? info : undefined, isActive);
         addSelectionMenuItems(
           menu, t, selection,
-          (operation) => { if (isActive()) this.applyMenuOperation(editor, selection.table, operation); },
+          (operation) => {
+            if (!isActive()) return;
+            const result = target?.apply((_source, table) => operation(table));
+            new Notice(result == null ? t("notice.staleTable") : operationNotice(t, result.code));
+          },
           { direction: editorTableDirection(this.app, editor, selection.table, info instanceof MarkdownView ? info : undefined) },
         );
       }
@@ -418,9 +443,9 @@ export class StructuralTablesPlugin extends Plugin {
       });
       addEditorTableHtmlCopyMenuItem(menu, this.app, editor, current.table, () => this.settings, targetView,
         isActive);
-      addImageExportMenuItem(menu, t, () => { if (isActive()) this.exportImage(editor, () => info, current.table); });
+      addImageExportMenuItem(menu, t, () => requireMenu(() => this.exportImage(editor, () => menuIsCurrent() ? info : null, current.table)));
       addBasePromotionMenuItem(menu, t, current.table, () => {
-        if (isActive()) this.previewBasePromotion(editor, () => info, current.table);
+        requireMenu(() => this.previewBasePromotion(editor, () => menuIsCurrent() ? info : null, current.table));
       });
     }));
   }
@@ -437,6 +462,7 @@ export class StructuralTablesPlugin extends Plugin {
       if (result === "table") new Notice(t("notice.htmlTableImported"));
       else if (result === "plain") new Notice(t("notice.clipboardPlainFallback"));
       else if (result === "blocked-empty") new Notice(t("notice.htmlEmptyTableBlocked"));
+      else if (result === "blocked-boundary") new Notice(t("operation.invalidResult"));
       else new Notice(t("notice.htmlTextSemanticsBlocked"));
     }));
   }
@@ -543,6 +569,7 @@ export class StructuralTablesPlugin extends Plugin {
   }
 
   private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = "", viewHint?: MarkdownView): void {
+    this.clipboardCopySession ??= tableCopySession(this.app);
     const t = createTranslator(this.settings.language);
     const current = this.currentTable(editor);
     if (current === null) return this.noTable();
@@ -551,27 +578,27 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const direction = format === "HTML" ? editorTableDirection(this.app, editor, current.table, viewHint) : "ltr";
+    if (format === "HTML") {
+      // A command deliberately copies its invocation snapshot; unlike a menu
+      // target it does not follow or reject subsequent source edits.
+      void copyTableForWord(this.app, current.table, this.settings.appearance, {
+        sourcePath, direction, isCurrent: () => true,
+      }, t, this.clipboardCopySession);
+      return;
+    }
+    const isCurrent = this.clipboardCopySession.begin();
     const write = Promise.resolve().then(async () => {
-      if (format === "HTML") {
-        const { html, text } = await renderTableClipboard(
-          this.app,
-          current.table,
-          sourcePath,
-          this.settings.appearance,
-          direction,
-        );
-        return copyHtml(html, text);
-      }
+      if (!isCurrent()) return;
       const text = format === "GFM"
         ? (() => { const conversion = planPlainGfmConversion(current.table)!; return conversion[conversion.recommended]!.source; })()
         : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t");
       await copyText(text);
     });
-    void write.then((mode) => {
+    void write.then(() => {
+      if (!isCurrent()) return;
       const t = createTranslator(this.settings.language);
-      const message = mode === "plain" ? t("notice.copiedHtmlPlain") : t("notice.copied").replace("{format}", format);
-      new Notice(message);
-    }).catch(() => new Notice(createTranslator(this.settings.language)("notice.clipboardFailed")));
+      new Notice(t("notice.copied").replace("{format}", format));
+    }).catch(() => { if (isCurrent()) new Notice(createTranslator(this.settings.language)("notice.clipboardFailed")); });
   }
 
   private previewPlainGfmConversion(editor: Editor, sourceFile: TFile | null): void {
@@ -827,18 +854,6 @@ export class StructuralTablesPlugin extends Plugin {
     new Notice(operationNotice(createTranslator(this.settings.language), verified.code));
   }
 
-  private applyMenuOperation(
-    editor: Editor,
-    expected: StructuralTable,
-    operation: TableOperation,
-  ): void {
-    const current = reparseUnchangedTable(editor.getValue(), expected);
-    if (current === null) {
-      new Notice(createTranslator(this.settings.language)("notice.staleTable"));
-      return;
-    }
-    this.applyOperation(editor, current, operation(current));
-  }
 
   private noTable(): void {
     new Notice(createTranslator(this.settings.language)("notice.noTable"));

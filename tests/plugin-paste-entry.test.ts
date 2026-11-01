@@ -6,8 +6,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StructuralTablesPlugin } from "../src/app/plugin";
 import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { notices } from "./mocks/obsidian";
+import { parseEditableTables } from "../src/core/parser";
+import { structuralTableToDelimited } from "../src/core/interchange";
+import { tableCommandEditor } from "./helpers/table-command-editor";
+import { undo, redo } from "@codemirror/commands";
+import MarkdownIt from "markdown-it";
 
 type PasteHandler = (event: ClipboardEvent, editor: Editor) => void;
+
+function emptySelectionEditor(replaceSelection: (value: string) => void): Editor {
+  return { replaceSelection, getValue: () => "", getCursor: () => ({ line: 0, ch: 0 }), posToOffset: () => 0,
+    listSelections: () => [{ anchor: { line: 0, ch: 0 }, head: { line: 0, ch: 0 } }] } as unknown as Editor;
+}
 
 function registeredPasteHandler(
   settings: Partial<typeof DEFAULT_SETTINGS> = {},
@@ -70,6 +80,77 @@ beforeEach(() => {
 });
 
 describe("registered whole-note HTML paste entry", () => {
+  it.each([false, true])("checks the complete selected document before table paste (blank=%s)", (blank) => {
+    const marker = "PLACEHOLDER";
+    const neighbor = "| Later prose | stays visible | IMPORTANT THIRD CELL |";
+    const gap = blank ? "\n\n" : "\n";
+    const source = `Before\n\n${marker}${gap}${neighbor}\n\nAfter`;
+    const f = tableCommandEditor(source);
+    try {
+      const from = source.indexOf(marker);
+      f.cm.dispatch({ selection: { anchor: from, head: from + marker.length } });
+      const selection = f.cm.state.selection;
+      Object.assign(f.editor, {
+        listSelections: () => [{ anchor: f.editor.offsetToPos(f.cm.state.selection.main.anchor), head: f.editor.offsetToPos(f.cm.state.selection.main.head) }],
+        getCursor: (which?: "from" | "to") => f.editor.offsetToPos(which === "from"
+          ? f.cm.state.selection.main.from : f.cm.state.selection.main.to),
+        replaceSelection: (insert: string) => f.cm.dispatch(f.cm.state.replaceSelection(insert)),
+      });
+      const { event, preventDefault } = clipboardEvent(
+        "<table><tr><th>Name</th><th>Value</th></tr><tr><td>Alpha</td><td>Beta</td></tr></table>", "Name\tValue\nAlpha\tBeta",
+      );
+      registeredPasteHandler()(event, f.editor);
+      expect(preventDefault).toHaveBeenCalledOnce();
+      if (!blank) {
+        expect(f.source()).toBe(source);
+        expect(f.cm.state.selection.eq(selection)).toBe(true);
+        expect(f.writes()).toBe(0);
+        expect(undo(f.cm)).toBe(false);
+        expect(notices).toEqual(["Cannot safely finish this action: the table or its boundaries would become invalid. Your note was not changed."]);
+      } else {
+        const result = f.source();
+        const table = parseEditableTables(result).tables[0]!;
+        expect(table.range.from).toBe(from);
+        expect(result.slice(table.range.to)).toBe(`${gap}${neighbor}\n\nAfter`);
+        expect(structuralTableToDelimited(table, "\t")).toBe("Name\tValue\nAlpha\tBeta");
+        const dom = new DOMParser().parseFromString(new MarkdownIt().render(result), "text/html");
+        expect(dom.querySelectorAll("tbody tr")).toHaveLength(1);
+        expect([...dom.querySelectorAll("p")].some((p) => p.textContent === neighbor)).toBe(true);
+        expect(f.writes()).toBe(1);
+        expect(undo(f.cm)).toBe(true);
+        expect(f.source()).toBe(source);
+        expect(redo(f.cm)).toBe(true);
+        expect(f.source()).toBe(result);
+      }
+    } finally { f.destroy(); }
+  });
+
+  it("blocks a literal plain fallback that would absorb unselected pipe prose", () => {
+    let source = "PLACEHOLDER\n| Later | prose | KEEP-HIDDEN |";
+    const before = source;
+    const replaceSelection = vi.fn((insert: string) => { source = insert + source.slice(11); });
+    const editor = { getValue: () => source, getCursor: (which: string) => ({ line: 0, ch: which === "from" ? 0 : 11 }),
+      posToOffset: (position: { ch: number }) => position.ch, replaceSelection,
+      listSelections: () => [{ anchor: { line: 0, ch: 0 }, head: { line: 0, ch: 11 } }] } as unknown as Editor;
+    const plain = "| A | B |\n| --- | --- |\n| x | y |";
+    const { event, preventDefault } = clipboardEvent("<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>", plain);
+    registeredPasteHandler()(event, editor);
+    expect(source).toBe(before);
+    expect(replaceSelection).not.toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(notices[0]).toContain("boundaries");
+  });
+
+  it("refuses multiple source selections rather than validating only one target", () => {
+    const replaceSelection = vi.fn();
+    const editor = emptySelectionEditor(replaceSelection);
+    Object.assign(editor, { listSelections: () => [{}, {}] });
+    const { event, preventDefault } = clipboardEvent("<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>", "A\tB\n1\t2");
+    registeredPasteHandler()(event, editor);
+    expect(replaceSelection).not.toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ["IMPORTANT-PLAIN", "IMPORTANT-PLAIN"],
     ["multiline and surrounding whitespace", "  first line\nsecond line\n  "],
@@ -81,7 +162,7 @@ describe("registered whole-note HTML paste entry", () => {
       plain,
     );
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).toHaveBeenCalledOnce();
     expect(replaceSelection).toHaveBeenCalledWith(plain);
@@ -105,7 +186,7 @@ describe("registered whole-note HTML paste entry", () => {
     const replaceSelection = vi.fn();
     const { event, preventDefault } = clipboardEvent(html, plain);
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).toHaveBeenCalledOnce();
     expect(replaceSelection).toHaveBeenCalledWith(plain);
@@ -126,7 +207,7 @@ describe("registered whole-note HTML paste entry", () => {
     const replaceSelection = vi.fn();
     const { event, preventDefault } = clipboardEvent(html, plain);
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).toHaveBeenCalledOnce();
     expect(replaceSelection).toHaveBeenCalledWith(plain);
@@ -147,7 +228,7 @@ describe("registered whole-note HTML paste entry", () => {
     const replaceSelection = vi.fn();
     const { event, preventDefault } = clipboardEvent(html, "");
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).not.toHaveBeenCalled();
     expect(preventDefault).toHaveBeenCalledOnce();
@@ -164,7 +245,7 @@ describe("registered whole-note HTML paste entry", () => {
       "",
     );
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).not.toHaveBeenCalled();
     expect(preventDefault).toHaveBeenCalledOnce();
@@ -195,7 +276,7 @@ describe("registered whole-note HTML paste entry", () => {
     const replaceSelection = vi.fn();
     const { event, preventDefault } = clipboardEvent(html, plain);
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(preventDefault).not.toHaveBeenCalled();
     expect(replaceSelection).not.toHaveBeenCalled();
@@ -215,7 +296,7 @@ describe("registered whole-note HTML paste entry", () => {
     expect(clipboardData.files.length).toBe(1);
     expect(Array.from(clipboardData.items).some((item) => item.kind === "file")).toBe(true);
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).not.toHaveBeenCalled();
     expect(preventDefault).not.toHaveBeenCalled();
@@ -232,7 +313,7 @@ describe("registered whole-note HTML paste entry", () => {
     );
 
     expect(Array.from(clipboardData.types)).toContain("application/x-obsidian-test");
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).not.toHaveBeenCalled();
     expect(preventDefault).not.toHaveBeenCalled();
@@ -249,7 +330,7 @@ describe("registered whole-note HTML paste entry", () => {
     );
 
     expect(Array.from(clipboardData.types)).toContain("text/uri-list");
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).toHaveBeenCalledOnce();
     expect(replaceSelection).toHaveBeenCalledWith("x²\t2");
@@ -267,7 +348,7 @@ describe("registered whole-note HTML paste entry", () => {
       "IMPORTANT-PLAIN",
     );
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(preventDefault).not.toHaveBeenCalled();
     expect(replaceSelection).not.toHaveBeenCalled();
@@ -283,7 +364,7 @@ describe("registered whole-note HTML paste entry", () => {
       true,
     );
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(preventDefault).not.toHaveBeenCalled();
     expect(replaceSelection).not.toHaveBeenCalled();
@@ -298,7 +379,7 @@ describe("registered whole-note HTML paste entry", () => {
       "A\tB\n1\t2",
     );
 
-    handler(event, { replaceSelection } as unknown as Editor);
+    handler(event, emptySelectionEditor(replaceSelection));
 
     expect(replaceSelection).toHaveBeenCalledOnce();
     expect(replaceSelection.mock.calls[0]?.[0]).toContain("| A");

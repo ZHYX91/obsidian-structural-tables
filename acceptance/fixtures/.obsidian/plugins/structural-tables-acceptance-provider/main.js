@@ -1,6 +1,12 @@
 const { Plugin, MarkdownView, Notice, TFile, Component, MarkdownRenderer, Modal } = require("obsidian");
 module.exports = class extends Plugin {
   onload() {
+    this.addCommand({ id: "arm-html-copy-gate", name: "Arm one HTML copy renderer gate", callback: () => this.copyGateArm() });
+    this.addCommand({ id: "release-html-copy-gate", name: "Release HTML copy renderer gate", callback: () => this.copyGateClose?.("release-command") });
+    this.addCommand({ id: "disarm-html-copy-gate", name: "Disarm HTML copy renderer gate", callback: () => this.copyGateClose?.("disarm-command") });
+    this.register(() => {
+      this.copyGateClose?.("provider-unload"); this.copyGateNotice?.hide(); this.copyGateDisposed = true;
+    });
     this.addCommand({ id: "operation-safety-setup", name: "Prepare operation safety boundary", callback: () => this.safetySetup() });
     this.register(() => this.safetyRestore?.());
     this.addCommand({ id: "clipboard-fidelity-samples", name: "Prepare clipboard fidelity samples", callback: () => {
@@ -159,6 +165,83 @@ module.exports = class extends Plugin {
     });
   }
 
+  copyGateRecord(state, stage, extra = {}) {
+    if (this.copyGateDisposed) return;
+    const entry = { run: state.run, stage, observedAt: new Date().toISOString(), ...extra };
+    this.copyGateEvents = [...(this.copyGateEvents ?? []), entry].slice(-96);
+    const observation = JSON.stringify({ diagnosticOnly: true, fixturePath: state.path,
+      hostVersion: require("obsidian").apiVersion ?? null, mobile: require("obsidian").Platform.isMobileApp,
+      events: this.copyGateEvents }, null, 2);
+    this.copyGateWrites = (this.copyGateWrites ?? Promise.resolve()).then(() =>
+      this.app.vault.adapter.write("_html-copy-gate-observations.json", observation)).catch(error => {
+      if (!this.copyGateDisposed) new Notice(`Copy gate observation failed: ${String(error)}`);
+    });
+  }
+
+  copyGateArm() {
+    if (this.copyGateDisposed) return;
+    this.copyGateClose?.("rearmed");
+    const path = "Whole table boundaries.md"; const token = "ST_COPY_GATE_A_ONLY";
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const file = view?.file;
+    const ownsView = file instanceof TFile && file.path === path && this.app.vault.getFileByPath(path) === file
+      && view.getMode() === "source" && view.getState().source === true;
+    const source = ownsView ? view.editor.getValue() : null;
+    if (!ownsView || !source?.includes("<!-- structural-tables-copy-gate-fixture -->")
+      || source.split(token).length !== 2 || !source.includes(`| ${token} | Value |`)) {
+      new Notice("Open the marked Whole table boundaries fixture in Source mode before arming the copy gate."); return;
+    }
+    this.copyGateNotice?.hide();
+    this.copyGateNotice = new Notice("Copy gate: armed only. Invoke the real HTML copy on A; wait for caught/holding.", 0);
+    const state = { run: (this.copyGateRun ?? 0) + 1, path, phase: "armed", closed: false };
+    this.copyGateRun = state.run;
+    const original = MarkdownRenderer.render; const provider = this; const app = this.app;
+    let release; const held = new Promise(resolve => { release = resolve; });
+    const restore = () => { if (MarkdownRenderer.render === wrapper) MarkdownRenderer.render = original; };
+    const close = reason => {
+      if (state.closed) return;
+      state.closed = true; clearTimeout(state.timer); restore(); release();
+      const phase = state.phase; state.phase = "closed";
+      this.copyGateRecord(state, reason === "release-command" && phase === "holding" ? "released" : "cancelled",
+        { reason, previousPhase: phase });
+      this.copyGateNotice.setMessage(`Copy gate: ${reason}; previous state ${phase}. Observe the product separately.`);
+    };
+    function wrapper(...args) {
+      const target = args[2];
+      if (state.closed || state.phase !== "armed" || args[0] !== app || args[1] !== token || args[3] !== path
+        || file.path !== path || app.vault.getFileByPath(path) !== file || view.file !== file
+        || view.editor.getValue() !== source || target?.tagName !== "DIV" || target.isConnected !== false
+        || target.ownerDocument !== window.document || target.parentNode !== null || target.attributes?.length !== 0
+        || target.childNodes.length !== 0 || !(args[4] instanceof Component)) {
+        return original.apply(this, args);
+      }
+      // Consume and detach synchronously: nested calls and B must never enter this gate.
+      state.phase = "rendering"; clearTimeout(state.timer); restore();
+      state.timer = setTimeout(() => close("hold-timeout"), 300000);
+      provider.copyGateRecord(state, "caught-rendering", { token, targetConnected: target.isConnected });
+      let result;
+      try { result = original.apply(this, args); }
+      catch (error) {
+        provider.copyGateRecord(state, "render-threw", { error: String(error) }); close("render-threw"); throw error;
+      }
+      return Promise.resolve(result).then(value => {
+        provider.copyGateRecord(state, "render-completed");
+        if (state.closed) return value;
+        state.phase = "holding";
+        provider.copyGateRecord(state, "caught-holding");
+        provider.copyGateNotice.setMessage("Copy gate: caught/holding A after the real renderer completed. Use B, unload, or edit; then Release.");
+        return held.then(() => value);
+      }, error => {
+        provider.copyGateRecord(state, "render-rejected", { error: String(error) }); close("render-rejected"); throw error;
+      });
+    }
+    this.copyGateClose = close;
+    MarkdownRenderer.render = wrapper;
+    state.timer = setTimeout(() => close("arm-timeout"), 120000);
+    this.copyGateRecord(state, "armed", { source, mode: view.getMode(), sourceMode: view.getState().source,
+      armTimeoutMs: 120000, holdTimeoutMs: 300000 });
+  }
+
   safetySetup() {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (view?.file?.path !== "Operation safety.md" || !view.editor.getValue().includes("<!-- structural-tables-operation-safety -->")) return;
@@ -297,6 +380,7 @@ module.exports = class extends Plugin {
     const fixturePath = file.path;
     const document = view.containerEl.ownerDocument;
     const window = document.defaultView;
+    const isCurrent = () => view.file === file && file.path === fixturePath && view.containerEl.isConnected && view.containerEl.ownerDocument === document;
     const ids = new WeakMap(); let nextId = 1;
     const id = (node) => { if (!node) return null; if (!ids.has(node)) ids.set(node, nextId++); return ids.get(node); };
     const describe = (node) => {
@@ -307,7 +391,8 @@ module.exports = class extends Plugin {
         row: cell?.getAttribute("data-structural-row") ?? null, column: cell?.getAttribute("data-structural-column") ?? null,
         hostId: id(element.closest(".structural-tables-live-preview")) };
     };
-    const entries = []; const criticalEntries = []; let total = 0; let active = true; let timer = null; let task = null; let frame = null;
+    const entries = []; const criticalEntries = []; const settledEvents = []; let settledEventsDropped = 0;
+    let total = 0; let active = true; let timer = null; let task = null; let frame = null;
     const rect = (element) => { if (!element) return null; const bounds = element.getBoundingClientRect(); return { top: bounds.top, bottom: bounds.bottom, left: bounds.left, width: bounds.width, height: bounds.height }; };
     const snapshot = () => {
       const selection = document.getSelection();
@@ -320,7 +405,11 @@ module.exports = class extends Plugin {
           focus: describe(selection?.focusNode), focusOffset: selection?.focusOffset ?? null, collapsed: selection?.isCollapsed ?? null },
         tables: [...view.containerEl.querySelectorAll(".structural-tables-live-preview")].slice(0, 12).map((host) => {
           const scroller = host.querySelector(".structural-tables-container");
-          return { hostId: id(host), scrollerId: id(scroller), tableIndex: host.getAttribute("data-structural-source-table-index"),
+          const selected = [...host.querySelectorAll('[data-structural-row][data-structural-column][aria-selected="true"]')]
+            .filter((cell) => cell.closest(".structural-tables-live-preview") === host);
+          const selectedOwners = selected.slice(0, 64).map((cell) => ({ hostId: id(host),
+            row: cell.getAttribute("data-structural-row"), column: cell.getAttribute("data-structural-column") }));
+          return { selectedOwnerCount: selected.length, selectedOwners, selectedOwnersDropped: Math.max(0, selected.length - 64), hostId: id(host), scrollerId: id(scroller), tableIndex: host.getAttribute("data-structural-source-table-index"),
             hostRect: rect(host), scrollerRect: rect(scroller), tableRect: rect(host.querySelector("table")),
             connected: host.isConnected, scrollLeft: scroller?.scrollLeft ?? null, scrollWidth: scroller?.scrollWidth ?? null,
             clientWidth: scroller?.clientWidth ?? null, direction: scroller ? window.getComputedStyle(scroller).direction : null };
@@ -328,13 +417,13 @@ module.exports = class extends Plugin {
     };
     const flush = (reason) => {
       const report = JSON.stringify({ schemaVersion: 1, kind: "structural-tables/passive-focus-trace", fixture: fixturePath,
-        reason, totalEntries: total, retainedEntries: entries.length, entries: [...entries], criticalEntries: [...criticalEntries] }, null, 2) + "\n";
+        reason, totalEntries: total, retainedEntries: entries.length, settledEventsDropped, entries: [...entries], criticalEntries: [...criticalEntries] }, null, 2) + "\n";
       this.focusTraceWrites = this.focusTraceWrites.catch(() => {}).then(() => this.app.vault.adapter.write("_structural-tables-focus-trace.json", report));
       return this.focusTraceWrites.catch((error) => { new Notice(`Focus trace write failed: ${String(error)}`); });
     };
     const record = (type, details = {}) => {
       if (!active) return;
-      const current = view.file === file && file.path === fixturePath && view.containerEl.isConnected && view.containerEl.ownerDocument === document;
+      const current = isCurrent();
       if (!current && type !== "stop") { void stop("target-changed"); return; }
       const entry = { sequence: ++total, time: window.performance.now(), type, ...details, ...(current ? snapshot() : { targetUnavailable: true }) };
       entries.push(entry);
@@ -346,19 +435,53 @@ module.exports = class extends Plugin {
     };
     const sampleLater = () => {
       if (!active) return;
-      if (task === null) task = window.setTimeout(() => { task = null; record("task"); }, 0);
+      if (task === null) task = window.setTimeout(() => {
+        task = null;
+        for (const pending of settledEvents.splice(0)) {
+          if (!active) return;
+          if (!isCurrent()) { void stop("target-changed"); return; }
+          const details = { ...pending.details }; delete details.clipboardTypes;
+          record("event-settled", { originalType: pending.type, phase: "settled-task",
+            event: { ...details, defaultPrevented: pending.event.defaultPrevented }, target: pending.target, relatedTarget: pending.relatedTarget });
+        }
+        record("task");
+      }, 0);
       if (frame === null) frame = window.requestAnimationFrame(() => { frame = null; record("frame"); });
     };
-    const listener = (event) => {
-      record(event.type, { event: { isTrusted: event.isTrusted, timeStamp: event.timeStamp, pointerId: event.pointerId ?? null,
+    const eventDetails = (event) => {
+      let clipboardTypes;
+      if (event.type === "copy") {
+        try { clipboardTypes = [...(event.clipboardData?.types ?? [])].slice(0, 8); }
+        catch { clipboardTypes = []; }
+      }
+      return { isTrusted: event.isTrusted, timeStamp: event.timeStamp, pointerId: event.pointerId ?? null,
         pointerType: event.pointerType ?? null, isPrimary: event.isPrimary ?? null, detail: event.detail ?? null,
-        clientX: event.clientX ?? null, clientY: event.clientY ?? null }, target: describe(event.target), relatedTarget: describe(event.relatedTarget) });
+        clientX: event.clientX ?? null, clientY: event.clientY ?? null, buttons: event.buttons ?? null,
+        defaultPrevented: event.defaultPrevented, ...(clipboardTypes === undefined ? {} : { clipboardTypes }) };
+    };
+    const listener = (event) => {
+      const target = describe(event.target); const relatedTarget = describe(event.relatedTarget); const details = eventDetails(event);
+      record(event.type, { phase: "capture", event: details, target, relatedTarget });
+      if (["pointerdown", "pointerover", "pointermove", "pointercancel", "pointerup", "copy"].includes(event.type)) {
+        if (settledEvents.length < 32) settledEvents.push({ type: event.type, event, details, target, relatedTarget });
+        else settledEventsDropped += 1;
+      }
       sampleLater();
     };
-    const events = ["pointerdown", "pointermove", "pointercancel", "pointerup", "touchstart", "touchmove", "touchcancel", "touchend", "mousedown", "click", "dblclick", "focusin", "focusout", "selectionchange", "scroll"];
+    const events = ["pointerdown", "pointerover", "pointermove", "pointercancel", "pointerup", "touchstart", "touchmove", "touchcancel", "touchend", "mousedown", "click", "dblclick", "focusin", "focusout", "selectionchange", "scroll", "copy"];
     const observer = new window.MutationObserver((records) => {
-      record("mutation", { childListRecords: records.length, addedNodes: records.reduce((sum, item) => sum + item.addedNodes.length, 0),
-        removedNodes: records.reduce((sum, item) => sum + item.removedNodes.length, 0) }); sampleLater();
+      if (!active) return;
+      if (!isCurrent()) { void stop("target-changed"); return; }
+      const childList = records.filter((item) => item.type === "childList");
+      const attributes = records.filter((item) => item.type === "attributes" && item.attributeName === "aria-selected"
+        && item.target.matches("[data-structural-row][data-structural-column]"));
+      const ariaSelectedChanges = attributes.slice(0, 32).map((item) => ({
+        hostId: id(item.target.closest(".structural-tables-live-preview")), row: item.target.getAttribute("data-structural-row"),
+        column: item.target.getAttribute("data-structural-column"), connected: item.target.isConnected,
+        oldValue: item.oldValue, currentValue: item.target.getAttribute("aria-selected") }));
+      record("mutation", { childListRecords: childList.length, addedNodes: childList.reduce((sum, item) => sum + item.addedNodes.length, 0),
+        removedNodes: childList.reduce((sum, item) => sum + item.removedNodes.length, 0),
+        ariaSelectedCount: attributes.length, ariaSelectedChanges, ariaSelectedDropped: Math.max(0, attributes.length - 32) }); sampleLater();
     });
     const stop = (reason) => {
       if (!active) return this.focusTraceWrites;
@@ -366,14 +489,14 @@ module.exports = class extends Plugin {
       for (const event of events) document.removeEventListener(event, listener, true);
       window.removeEventListener("blur", listener, true); window.removeEventListener("focus", listener, true); observer.disconnect();
       if (timer !== null) window.clearTimeout(timer); if (task !== null) window.clearTimeout(task); if (frame !== null) window.cancelAnimationFrame(frame);
-      timer = task = frame = null;
+      timer = task = frame = null; settledEvents.length = 0;
       if (this.focusTrace?.stop === stop) this.focusTrace = null;
       return flush(reason);
     };
     this.focusTrace = { stop };
     for (const event of events) document.addEventListener(event, listener, { capture: true, passive: true });
     window.addEventListener("blur", listener, true); window.addEventListener("focus", listener, true);
-    observer.observe(view.containerEl, { childList: true, subtree: true });
+    observer.observe(view.containerEl, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-selected"], attributeOldValue: true });
     record("start"); sampleLater();
     new Notice("Passive focus trace started. Stop it from the command palette after the fixture interaction.");
   }

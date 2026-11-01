@@ -79,6 +79,9 @@ describe("Live Preview DOM realms", () => {
 
   function mount(): { view: EditorView; widget: StructuralTableWidget; host: HTMLElement; writes: () => number } {
     const dom = popout.window.document.body.appendChild(popout.window.document.createElement("div"));
+    // EditorView owns this wrapper; table interactions use its nearest-editor
+    // identity when reacquiring a live host after a draft handoff.
+    dom.className = "cm-editor";
     let state = EditorState.create({ doc: source, extensions: [editorInfoField] });
     let writes = 0;
     const view = { dom, get state() { return state; },
@@ -115,6 +118,8 @@ describe("Live Preview DOM realms", () => {
     try {
       const handle = mounted.host.querySelector<HTMLElement>(`[data-structural-${axis}-handle='1']`)!;
       handle.click();
+      expect(popout.window.document.activeElement).toBe(handle);
+      expect(mounted.host.querySelectorAll("[aria-selected='true']")).toHaveLength(3);
       handle.focus();
       const foreign = new popout.window.KeyboardEvent("keydown", {
         key: "Delete", bubbles: true, cancelable: true, view: main.window as unknown as Window,

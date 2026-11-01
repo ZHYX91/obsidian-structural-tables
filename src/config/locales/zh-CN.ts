@@ -1,6 +1,18 @@
 import type { TranslationCatalog } from "./en";
 
 const zhCN = {
+  "menu.undo": "撤销",
+  "menu.redo": "重做",
+  "menu.cut": "剪切",
+  "menu.copy": "复制",
+  "menu.paste": "粘贴",
+  "menu.pastePlainText": "粘贴纯文本",
+  "menu.selectAll": "全选",
+  "menu.bold": "粗体",
+  "menu.italic": "斜体",
+  "menu.finishEditing": "完成编辑",
+  "menu.cancelEditing": "取消编辑",
+  "menu.tableOperations": "表格操作",
   "settings.group.style": "线条与底色",
   "settings.group.layout": "布局与间距",
   "settings.preview.title": "外观预览",

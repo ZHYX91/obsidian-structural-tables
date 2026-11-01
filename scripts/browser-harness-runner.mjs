@@ -6,6 +6,27 @@ import path from "node:path";
 
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+/** Geometry fixtures require animation frames from a visible browser page. */
+export async function ensureVisiblePage({ readVisibility, bringToFront }) {
+  if (await readVisibility() === "visible") return;
+  await bringToFront();
+  assert.equal(await readVisibility(), "visible", "Chromium fixture is hidden; geometry checks require a visible page.");
+}
+
+/** Chromium creates this file before both its port and browser endpoint are written. */
+export async function waitForDevToolsPort({ readPortFile, assertRunning, wait = pause }) {
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    assertRunning();
+    let contents = "";
+    try { contents = await readPortFile(); } catch { /* The file may not exist yet. */ }
+    const [port, endpoint] = contents.split(/\r?\n/u);
+    if (/^[1-9]\d{0,4}$/u.test(port ?? "") && Number(port) <= 65535
+      && /^\/devtools\/browser\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/iu.test(endpoint ?? "")) return port;
+    await wait(100);
+  }
+  assert.fail("Chromium did not start its isolated debugging endpoint. Check the executable, dependencies and CHROMIUM_ARGS_JSON.");
+}
+
 /** Shared local fixture transport. No Obsidian host, profile or user browser is used. */
 export async function startBrowserHarness({ name, browser = process.argv[2] || process.env.CHROMIUM_PATH, width = 980, height = 740 }) {
   assert.ok(browser, "Provide a Chromium executable as the first argument or set CHROMIUM_PATH.");
@@ -24,6 +45,8 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
   let launchError;
   let stderr = "";
   let sequence = 0;
+  let lastCommand = null;
+  let lastEvaluation = null;
   let metadata = { suite: name, browser, node: process.version, platform: process.platform, extraArgs };
   const pending = new Map();
   const events = [];
@@ -51,19 +74,34 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
   const command = (method, params = {}, timeout = 30000) => new Promise((resolve, reject) => {
     if (socket?.readyState !== WebSocket.OPEN) { reject(new Error("Chromium CDP connection is not open: " + method)); return; }
     const id = ++sequence;
+    lastCommand = { id, method };
     const timer = setTimeout(() => { pending.delete(id); reject(new Error("Chromium command timed out: " + method)); }, timeout);
     pending.set(id, { resolve, reject, timer });
     socket.send(JSON.stringify({ id, method, params }));
   });
 
   const evaluate = async (expression, timeout) => {
+    lastEvaluation = { expression: expression.slice(0, 4000), length: expression.length };
     const result = await command("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, timeout);
     assert.ok(!result.exceptionDetails, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   };
+  const ensureVisible = () => ensureVisiblePage({
+    readVisibility: () => evaluate("document.visibilityState"),
+    bringToFront: () => command("Page.bringToFront"),
+  });
 
   const diagnose = async (error, expression = "null") => {
-    const result = { ...metadata, error: error instanceof Error ? error.stack : String(error), events };
+    // Capture these before diagnostic calls replace the command/evaluation labels.
+    const failedCall = { command: lastCommand, evaluation: lastEvaluation };
+    const result = { ...metadata, error: error instanceof Error ? error.stack : String(error), failedCall, events };
+    try {
+      const status = await command("Runtime.evaluate", {
+        expression: "({visibility:document.visibilityState,hidden:document.hidden,focused:document.hasFocus(),readyState:document.readyState})",
+        returnByValue: true,
+      }, 5000);
+      result.pageStatus = status.result?.value;
+    } catch (failure) { result.pageStatusError = String(failure); }
     try { result.state = await evaluate(expression, 5000); } catch (failure) { result.stateError = String(failure); }
     try {
       const source = await evaluate("document.documentElement.outerHTML", 5000);
@@ -82,14 +120,13 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
     child = spawn(browser, args, { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
     child.on("error", (error) => { launchError = error; });
     child.stderr.on("data", (data) => { stderr = (stderr + data.toString()).slice(-65536); });
-    let port;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      if (launchError !== undefined) throw launchError;
-      if (child.exitCode !== null || child.signalCode !== null) throw new Error("Chromium exited before opening CDP. " + stderr.slice(-2000));
-      try { port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; }
-      catch { await pause(100); }
-    }
-    assert.ok(port, "Chromium did not start its isolated debugging endpoint. Check the executable, dependencies and CHROMIUM_ARGS_JSON.");
+    const port = await waitForDevToolsPort({
+      readPortFile: () => readFile(path.join(profile, "DevToolsActivePort"), "utf8"),
+      assertRunning: () => {
+        if (launchError !== undefined) throw launchError;
+        if (child.exitCode !== null || child.signalCode !== null) throw new Error("Chromium exited before opening CDP. " + stderr.slice(-2000));
+      },
+    });
     const tabs = await (await globalThis.fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(5000) })).json();
     const tab = tabs.find((candidate) => candidate.type === "page");
     assert.ok(tab, "Chromium did not create a fixture page.");
@@ -113,6 +150,7 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
       pending.clear();
     });
     await Promise.all([command("Runtime.enable"), command("Log.enable"), command("Page.enable")]);
+    await ensureVisible();
     const version = await command("Browser.getVersion");
     metadata = { ...metadata, version };
     const candidates = process.env.CHROMIUM_LOCAL_FONT ? [process.env.CHROMIUM_LOCAL_FONT]
@@ -123,7 +161,7 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
     await writeFile(path.join(artifacts, "environment.json"), JSON.stringify(metadata, null, 2) + "\n");
     process.stdout.write(`Browser fixture environment: ${JSON.stringify({ suite: name, version: version.product, localFont, artifacts })}\n`);
     return {
-      command, evaluate, diagnose, close, localFont, artifacts, metadata,
+      command, evaluate, ensureVisible, diagnose, close, localFont, artifacts, metadata,
       navigate: async (url, ready = "document.readyState === 'complete'") => {
         await command("Page.navigate", { url });
         for (let attempt = 0; attempt < 150; attempt += 1) {

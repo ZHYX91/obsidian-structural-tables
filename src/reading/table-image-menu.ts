@@ -2,7 +2,7 @@ import { MarkdownView, Menu, Notice, TFile, type App, type Component } from "obs
 
 import type { ExportTableImage } from "../app/table-image-modal";
 import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
-import { copyTableForWord } from "../app/table-html-copy";
+import { copyTableForWord, tableCopySession } from "../app/table-html-copy";
 import type { Translate } from "../config/i18n";
 import type { StructuralTable } from "../core/model";
 import { reparseUnchangedTable } from "../core/table-snapshot";
@@ -14,7 +14,8 @@ export function readingImageStyleElement(wrapper: HTMLElement): HTMLTableElement
 }
 
 export function installReadingOutputMenu(app: App, wrapper: HTMLElement, table: StructuralTable,
-  sourcePath: string, owner: Component, t: () => Translate, exportImage?: ExportTableImage, previewGfm?: PreviewPlainGfm): void {
+  sourcePath: string, owner: Component, t: () => Translate, exportImage?: ExportTableImage, previewGfm?: PreviewPlainGfm,
+  copySession = tableCopySession(app)): void {
   let active = true;
   owner.register(() => { active = false; });
   owner.registerDomEvent(wrapper, "contextmenu", (event) => {
@@ -48,7 +49,7 @@ export function installReadingOutputMenu(app: App, wrapper: HTMLElement, table: 
     addTableHtmlCopyMenuItem(menu, t(), () => {
       const appearance = wrapper.dataset.appearance;
       void copyTableForWord(app, table, appearance === "grid" || appearance === "three-line" ? appearance : "theme",
-        { sourcePath, direction, isCurrent }, t());
+        { sourcePath, direction, isCurrent }, t(), copySession);
     });
     if (exportImage !== undefined) addImageExportMenuItem(menu, t(), () => {
       void (async () => {

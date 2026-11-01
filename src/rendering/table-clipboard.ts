@@ -44,6 +44,7 @@ export async function renderTableClipboard(
   sourcePath: string,
   appearance: TableAppearance,
   direction: "ltr" | "rtl" = "ltr",
+  isCurrent: () => boolean = () => true,
 ): Promise<{ html: string; text: string }> {
   const document = new DOMParser().parseFromString(structuralTableToHtml(table, `st-${crypto.randomUUID()}`), "text/html");
   const output = document.querySelector("table")!;
@@ -60,9 +61,11 @@ export async function renderTableClipboard(
     for (const row of table.rows) {
       for (const cell of row.cells) {
         if (cell.covered) continue;
+        if (!isCurrent()) throw new Error("The table copy was cancelled.");
         const element = elements[index++]!;
         const rendered = window.document.createElement("div");
         await MarkdownRenderer.render(app, cell.content, rendered, sourcePath, component);
+        if (!isCurrent()) throw new Error("The table copy was cancelled.");
         element.replaceChildren();
         if (rendered.querySelector("mjx-container, math, svg, img, .internal-embed, .internal-link, video, audio, canvas, iframe, object") !== null
           || Array.from(rendered.querySelectorAll("a[href]")).some((link) => !/^(https?:|mailto:)/iu.test(link.getAttribute("href") ?? ""))) {

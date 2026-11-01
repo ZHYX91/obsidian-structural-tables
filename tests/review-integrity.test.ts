@@ -1,3 +1,4 @@
+import MarkdownIt from "markdown-it";
 import { describe, expect, it } from "vitest";
 import { parseDocument } from "yaml";
 import { editCellContent, editCellAndAppendRow } from "../src/core/operations";
@@ -42,12 +43,17 @@ describe("reviewed write and container integrity", () => {
       expect(operation(table, row, 0, input)).toMatchObject({ changed: false, source, code: "invalid-result" });
     }
   });
-  it.each(["<!--", "%%"])("refuses truncated imported table: %s", text => {
+  it.each(["<!--", "%%"])("imports literal opener without truncating the table: %s", text => {
     const rows = [["H", "V"], [text, "KEEP-1"], ["B", "KEEP-2"]].map((cells, i) => ({
       section: i === 0 ? "head" as const : "body" as const,
       cells: cells.map(text => ({ text, rowSpan: 1, columnSpan: 1, header: i === 0 })),
     }));
-    expect(importedHtmlTableToStructuralSource(rows)).toBeNull();
+    const source = importedHtmlTableToStructuralSource(rows)!;
+    expect(source).not.toBeNull();
+    const html = new MarkdownIt({ html: true }).render(source);
+    expect((html.match(/<td>/gu) ?? [])).toHaveLength(4);
+    expect(html).toContain("KEEP-1"); expect(html).toContain("KEEP-2");
+    expect(html).toContain(`<td>${text.replace(/</gu, "&lt;")}</td>`);
   });
   it("migrates global and view filters while preserving other strings", () => {
     const source = 'filters: list(note.structural_table_ids).contains("id")\nviews:\n  - type: table\n    name: list(note.structural_table_ids)\n    filters:\n      or:\n        - list(note.structural_table_ids).contains("id")\n        - \'"list(note.structural_table_ids)" == "literal"\'\n';

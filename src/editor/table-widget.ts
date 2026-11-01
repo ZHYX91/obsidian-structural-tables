@@ -1,5 +1,10 @@
 import { freezeGridSelection, currentFrozenTable, frozenSelectionBounds, copyFrozenRange, pasteFrozenRange,
   type FrozenGridSelection } from "./range-clipboard-session";
+import { beginMouseRangeGesture, hasMouseRangeGesture } from "./mouse-range-gesture";
+import { readCellClipboardData } from "./cell-clipboard-actions";
+import { addTableSubmenu } from "./table-submenu";
+import { TableMenuOwner, captureTableMenuGeneration, type TableMenuSession } from "./table-menu-session";
+import { pasteLiteralCellText } from "../core/literal-cell-text";
 import { CellDraftSession, type DraftHistoryGroup } from "./cell-draft-session";
 import { pendingCellFocus, activeCellEditors, composingCellEditors, ownsCellEditorFocus, claimCellEditorFocus,
   releaseCellEditorFocus, focusNativeTable, requestNativeFocus, requestTableFocus, cancelPendingTableFocus,
@@ -11,7 +16,7 @@ import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
 import { captureEditorPlainGfmTarget } from "./plain-gfm-target";
 import { requestWholeTableTranspose } from "../app/table-transpose-modal";
 import { EditorView, WidgetType } from "@codemirror/view";
-import { App, Component, Menu, Notice, Scope, editorInfoField, type Editor, type TFile } from "obsidian";
+import { App, Component, Menu, Notice, Scope, editorInfoField, setIcon, type Editor, type TFile } from "obsidian";
 
 import { createTranslator, operationNotice, withCount } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
@@ -44,7 +49,7 @@ import {
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
 import { renderStructuralTable, tableRenderingComplete } from "../rendering/table-renderer";
-import { copyTableForWord } from "../app/table-html-copy";
+import { copyTableForWord, tableCopySession, type TableCopySession } from "../app/table-html-copy";
 import { cellClipboardText } from "./table-interchange";
 import {
   readTableRangeFromDataTransfer,
@@ -74,6 +79,7 @@ import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, struct
 const TOUCH_DOUBLE_TAP_MAX_MS = 600;
 const CLEAR_SELECTION_EVENT = "structural-tables-clear-selection";
 const interactions = new WeakMap<HTMLElement, StructuralTableInteraction>();
+const completedAxisPointers = new WeakSet<EditorView>();
 interface CellCommitViewport {
   document: Document;
   editor: Editor | undefined;
@@ -103,6 +109,7 @@ function samePresentation(left: StructuralTablesSettings, right: StructuralTable
 
 /** Immutable CodeMirror description; DOM-owned interactions retain drafts across source shifts. */
 export class StructuralTableWidget extends WidgetType {
+  private readonly copySession: TableCopySession;
   constructor(
     private readonly app: App,
     private readonly table: StructuralTable,
@@ -113,7 +120,7 @@ export class StructuralTableWidget extends WidgetType {
     private readonly exportImage?: ExportTableImage,
     private readonly cellCommitGeometry?: { height: number; minHeight: number },
     private readonly previewGfm?: PreviewPlainGfm,
-  ) { super(); }
+  ) { super(); this.copySession = tableCopySession(app); }
 
   override get estimatedHeight(): number {
     const height = this.cellCommitGeometry?.height;
@@ -125,12 +132,13 @@ export class StructuralTableWidget extends WidgetType {
       && this.table.range.from === other.table.range.from && this.table.range.to === other.table.range.to
       && this.table.sourceTableIndex === other.table.sourceTableIndex
       && this.sourcePath === other.sourcePath && samePresentation(this.settings, other.settings)
-      && this.promote === other.promote && this.exportImage === other.exportImage && this.previewGfm === other.previewGfm;
+      && this.promote === other.promote && this.exportImage === other.exportImage && this.previewGfm === other.previewGfm
+      && this.copySession === other.copySession;
   }
 
   override toDOM(view: EditorView): HTMLElement {
     const interaction = new StructuralTableInteraction(
-      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage, this.previewGfm,
+      this.app, this.table, this.sourcePath, this.settings, this.getSettings, this.promote, this.exportImage, this.previewGfm, this.copySession,
     );
     const host = interaction.mount(view, this.cellCommitGeometry?.minHeight);
     interactions.set(host, interaction);
@@ -139,7 +147,7 @@ export class StructuralTableWidget extends WidgetType {
   }
 
   override updateDOM(host: HTMLElement): boolean {
-    return interactions.get(host)?.rebind(this.table, this.sourcePath, this.settings) ?? false;
+    return interactions.get(host)?.rebind(this.table, this.sourcePath, this.settings, this.copySession) ?? false;
   }
 
   override destroy(host: HTMLElement): void {
@@ -169,14 +177,21 @@ class StructuralTableInteraction {
   private pointerWindow: Window | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private host: HTMLElement | null = null;
+  private finishActiveGrid: ((first: TableCellCoordinate, last: TableCellCoordinate) => boolean) | null = null;
+  private finishActiveDraft: (() => boolean) | null = null;
   private finishActiveOperation: ((operation: TableOperation, next: TableCellCoordinate, axis?: AxisSelection) => void) | null = null;
   private axisSelection: AxisSelection | null = null;
   private axisAnchor = 0;
   private touchAxisAnchor: { axis: TableAxis; index: number } | null = null;
   private axisDrag: TableAxisDrag | null = null;
+  private axisPreview: { selection: AxisSelection; index: number; anchor: number;
+    pointerId: number; touchAnchor: { axis: TableAxis; index: number } | null; restore: () => void; complete: () => void } | null = null;
+  private cancelledAxisClick = false;
   private selectionMenuOpen = false;
   private selectionMenuSession: FrozenGridSelection | null = null;
   private selectionEpoch = 0;
+  private menuOwner: TableMenuOwner | null = null;
+  private onMenuPointerAway: ((event: PointerEvent) => void) | null = null;
 
   constructor(
     private readonly app: App,
@@ -187,6 +202,7 @@ class StructuralTableInteraction {
     private readonly promote?: (editor: Editor, getInfo: BaseEditorInfo, table: StructuralTable) => void,
     private readonly exportImage?: ExportTableImage,
     private readonly previewGfm?: PreviewPlainGfm,
+    private readonly copySession = tableCopySession(app),
   ) {}
 
   restoreCellCommitViewport(view: EditorView, snapshot: CellCommitViewport): void {
@@ -225,8 +241,8 @@ class StructuralTableInteraction {
     }).catch(cleanup);
   }
 
-  rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings): boolean {
-    if (this.table.source !== table.source || this.sourcePath !== sourcePath
+  rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings, copySession: TableCopySession): boolean {
+    if (this.copySession !== copySession || this.table.source !== table.source || this.sourcePath !== sourcePath
       || !samePresentation(this.settings, settings)) return false;
     const sameSourceIdentity = this.table.range.from === table.range.from
       && this.table.range.to === table.range.to
@@ -250,6 +266,9 @@ class StructuralTableInteraction {
     host.dataset.tableKind = this.table.structural ? "structural" : "ordinary";
     bindTableSourceSnapshot(host, this.table, this.sourcePath);
     this.host = host;
+    const menuOwner = new TableMenuOwner(this.app, host.ownerDocument);
+    this.menuOwner = menuOwner;
+    this.component.register(() => menuOwner.dispose());
     const rendered = renderStructuralTable(this.app, this.table, host, this.sourcePath, this.component);
     if (host.style.minHeight !== "") {
       const component = this.component; const document = host.ownerDocument;
@@ -278,6 +297,7 @@ class StructuralTableInteraction {
     host.addEventListener(CLEAR_SELECTION_EVENT, () => this.clearSelection());
     host.addEventListener("focusin", () => host.classList.add("is-add-controls-active"));
     this.component.registerDomEvent(host.ownerDocument, "pointerdown", (event) => {
+      this.onMenuPointerAway?.(event);
       const target = event.target;
       if (target instanceof host.ownerDocument.defaultView!.Node && !host.contains(target)) {
         // A DOM menu item is outside the table too. Its public onClick may
@@ -306,7 +326,11 @@ class StructuralTableInteraction {
       || view.state.field(editorInfoField, false)?.file?.path !== pending.sourcePath
       || view.state.doc.sliceString(pending.from, pending.from + pending.source.length) !== pending.source) return false;
     pendingCellFocus.delete(view);
-    if (pending.axisSelection !== undefined) this.focusAxis(pending.axisSelection);
+    if (pending.axisSelection !== undefined) {
+      if (pending.axisFocus?.isCurrent?.() === false) { pending.axisFocus.onReady?.(); return true; }
+      this.focusAxis(pending.axisSelection, pending.axisFocus);
+      pending.axisFocus?.onReady?.();
+    }
     else if (pending.edit) {
       this.beginCellEdit(view, pending.coordinate, pending.entryIntent ?? "select-all");
       this.cellElement(pending.coordinate)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
@@ -322,11 +346,14 @@ class StructuralTableInteraction {
   }
 
   destroy(): void {
+    this.axisPreview = null;
     this.preserveDraft?.();
     this.preserveDraft = null;
     this.axisDrag?.destroy();
     this.axisDrag = null;
     this.finishActiveOperation = null;
+    this.finishActiveGrid = null;
+    this.finishActiveDraft = null;
     this.releaseCellScope();
     this.releaseNavigationScope();
     this.pointerWindow?.removeEventListener("pointerup", this.endPointerSelection);
@@ -345,6 +372,8 @@ class StructuralTableInteraction {
     this.touchPointerId = undefined;
     this.component?.unload();
     this.component = null;
+    this.menuOwner = null;
+    this.onMenuPointerAway = null;
   }
 
   private installInteraction(view: EditorView, host: HTMLElement, rendered: HTMLTableElement): void {
@@ -376,15 +405,15 @@ class StructuralTableInteraction {
     });
     rendered.addEventListener("focusout", () => this.releaseNavigationScope());
     rendered.addEventListener("pointerdown", (event) => this.startPointerSelection(event, view));
-    rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event));
+    rendered.addEventListener("pointerover", (event) => this.extendPointerSelection(event, view));
     rendered.addEventListener("pointermove", (event) => {
       this.revealHandlesForPointer(event);
       this.extendTextSelection(event);
     });
     rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
-    rendered.addEventListener("copy", (event) => { this.handleRangeCopyCut(event, view, false); });
-    rendered.addEventListener("cut", (event) => { this.handleRangeCopyCut(event, view, true); });
-    rendered.addEventListener("paste", (event) => { this.handleRangePaste(event, view); });
+    host.addEventListener("copy", (event) => { this.handleRangeCopyCut(event, view, false); });
+    host.addEventListener("cut", (event) => { this.handleRangeCopyCut(event, view, true); });
+    host.addEventListener("paste", (event) => { this.handleRangePaste(event, view); });
     rendered.addEventListener("contextmenu", (event) => this.openContextMenu(event, view));
     rendered.addEventListener("dblclick", (event) => {
       if (event.target !== null && "closest" in event.target
@@ -418,17 +447,27 @@ class StructuralTableInteraction {
   }
 
   private readonly endPointerSelection = (event: PointerEvent): void => {
+    const preview = this.axisPreview;
+    if (preview !== null && preview.pointerId === event.pointerId) {
+      const handle = this.host?.querySelector<HTMLElement>(`[data-structural-${preview.selection.axis}-handle='${preview.index}']`);
+      const rect = handle?.getBoundingClientRect();
+      if (rect !== undefined && rect.width > 0 && rect.height > 0
+        && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) this.rollbackAxisPreview();
+      else preview.complete();
+    }
     this.dragging = false;
     if (event.pointerId === this.touchPointerId) this.touchPointerId = undefined;
   };
 
   private readonly cancelPointerSelection = (event: PointerEvent): void => {
+    this.rollbackAxisPreview();
     this.dragging = false;
     this.clickEditCandidate = null;
     if (this.touchPointerId !== undefined && event.pointerId === this.touchPointerId) this.abortPointerSelection();
   };
 
   private readonly abortPointerSelection = (): void => {
+    this.rollbackAxisPreview();
     this.dragging = false;
     this.clickEditCandidate = null;
     this.touchPointerId = undefined;
@@ -718,9 +757,11 @@ class StructuralTableInteraction {
     if (!event.isPrimary || event.button !== 0) return;
     const targetElement = event.target !== null && "closest" in event.target ? event.target as Element : null;
     const link = targetElement?.closest("a") ?? null;
-    if (targetElement?.closest("textarea, input") != null || (link !== null && !event.altKey)) return;
+    if (link !== null && !event.altKey) return;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
+    if (event.pointerType === "mouse") this.startMouseRangeGesture(event, view, coordinate);
+    if (targetElement?.closest("textarea, input") != null) return;
     const activeDraft = activeCellEditors.get(this.renderedTable!.ownerDocument);
     if (activeDraft === undefined || !activeDraft.isConnected) this.syncSourceCursor(view, coordinate);
     this.axisSelection = null;
@@ -764,6 +805,57 @@ class StructuralTableInteraction {
     if (activeDraft === undefined || !activeDraft.isConnected) cell?.focus({ preventScroll: true });
   }
 
+  private currentInteraction(view: EditorView): StructuralTableInteraction | null {
+    for (const host of view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
+      const current = interactions.get(host);
+      if (current?.sourcePath === this.sourcePath && current.table.sourceTableIndex === this.table.sourceTableIndex
+        && host.closest(".cm-editor") === view.dom) return current;
+    }
+    return null;
+  }
+
+  private startMouseRangeGesture(event: PointerEvent, view: EditorView, origin: TableCellCoordinate): void {
+    const document = view.dom.ownerDocument;
+    const file = view.state.field(editorInfoField, false)?.file;
+    const editorIdentity = view.state.field(editorInfoField, false)?.editor;
+    const before = this.selectionAnchor !== null && this.selectionHead !== null
+      ? { first: this.selectionAnchor, last: this.selectionHead } : null;
+    const current = (): StructuralTableInteraction | null => {
+      const info = view.state.field(editorInfoField, false);
+      return view.dom.isConnected && view.dom.ownerDocument === document && info?.file === file
+        && info?.editor === editorIdentity && info?.file?.path === this.sourcePath ? this.currentInteraction(view) : null;
+    };
+    beginMouseRangeGesture(view, document, event, origin, {
+      current: () => current() !== null,
+      coordinate: (pointer) => {
+        const owner = current();
+        if (owner === null) return null;
+        const target = document.elementFromPoint?.(pointer.clientX, pointer.clientY) ?? pointer.target;
+        return owner.coordinateFor(target);
+      },
+      select: (first, last) => {
+        const owner = current();
+        if (owner === null) return false;
+        if (owner.finishActiveGrid !== null && !owner.finishActiveGrid(first, last)) return false;
+        const next = current();
+        if (next !== null) {
+          next.clickEditCandidate = null;
+          next.dragging = false;
+          next.selectBounds(first, last);
+          document.getSelection()?.removeAllRanges();
+          next.cellElement(first)?.focus({ preventScroll: true });
+        }
+        return true;
+      },
+      cancel: () => {
+        const owner = current();
+        if (owner === null) return;
+        if (before === null) owner.clearSelection();
+        else owner.selectBounds(before.first, before.last);
+      },
+    });
+  }
+
   private startTouchSelection(coordinate: TableCellCoordinate): void {
     // A completed range remains actionable by long press; tapping outside starts another range.
     if (this.touchRangeAnchor === null && (this.selection?.cells.length ?? 0) > 1
@@ -789,7 +881,8 @@ class StructuralTableInteraction {
     )) ?? false;
   }
 
-  private extendPointerSelection(event: PointerEvent): void {
+  private extendPointerSelection(event: PointerEvent, view: EditorView): void {
+    if (hasMouseRangeGesture(view)) return;
     if (!this.dragging) return;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null || (coordinate.row === this.selectionHead?.row && coordinate.column === this.selectionHead.column)) return;
@@ -995,12 +1088,17 @@ class StructuralTableInteraction {
     view: EditorView,
     cut: boolean,
   ): boolean {
+    if (event.defaultPrevented || this.clipboardEventOwner(event) !== this.host) return false;
     if (event.target !== null && "closest" in event.target
       && (event.target as Element).closest("textarea, input") !== null) return false;
     const frozen = this.freezeGridSelection(view);
     if (frozen === null || event.clipboardData === null) return false;
     event.preventDefault();
     event.stopPropagation();
+    if (this.currentTableForFrozenSelection(view, frozen) === null) {
+      new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
+      return true;
+    }
     if (!writeTableRangeToDataTransfer(event.clipboardData, frozen.payload)) {
       new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardWriteFailed"));
       return true;
@@ -1012,6 +1110,7 @@ class StructuralTableInteraction {
   }
 
   private handleRangePaste(event: ClipboardEvent, view: EditorView): boolean {
+    if (event.defaultPrevented || this.clipboardEventOwner(event) !== this.host) return false;
     if (event.target !== null && "closest" in event.target
       && (event.target as Element).closest("textarea, input") !== null) return false;
     const frozen = this.freezeGridSelection(view);
@@ -1030,12 +1129,19 @@ class StructuralTableInteraction {
     return true;
   }
 
-  private copyFrozenSelection(view: EditorView, frozen: FrozenGridSelection, cut: boolean): Promise<void> {
-    return copyFrozenRange(frozen, cut, () => this.clearFrozenSelection(view, frozen), createTranslator(this.getSettings().language));
+  private clipboardEventOwner(event: ClipboardEvent): Element | null {
+    return event.target !== null && "closest" in event.target
+      ? (event.target as Element).closest(".structural-tables-live-preview") : null;
   }
 
-  private pasteFrozenSelectionFromNavigator(view: EditorView, frozen: FrozenGridSelection): Promise<void> {
-    return pasteFrozenRange(frozen, (payload) => this.pasteFrozenSelection(view, frozen, payload), createTranslator(this.getSettings().language));
+  private copyFrozenSelection(view: EditorView, frozen: FrozenGridSelection, cut: boolean,
+    isCurrent = (): boolean => true): Promise<void> {
+    return copyFrozenRange(frozen, cut, () => isCurrent() && this.clearFrozenSelection(view, frozen), createTranslator(this.getSettings().language));
+  }
+
+  private pasteFrozenSelectionFromNavigator(view: EditorView, frozen: FrozenGridSelection,
+    isCurrent = (): boolean => true): Promise<void> {
+    return pasteFrozenRange(frozen, (payload) => isCurrent() && this.pasteFrozenSelection(view, frozen, payload), createTranslator(this.getSettings().language));
   }
 
   private revealHandlesForPointer(event: PointerEvent): void {
@@ -1075,9 +1181,33 @@ class StructuralTableInteraction {
       && (event.target as Element).closest("textarea.structural-tables-cell-editor") !== null) return;
     const coordinate = this.coordinateFor(event.target);
     if (coordinate === null) return;
-    this.syncSourceCursor(view, coordinate);
     event.preventDefault();
     event.stopPropagation();
+    const prior = activeCellEditors.get(view.dom.ownerDocument);
+    if (prior?.isConnected && this.host?.contains(prior) !== true) {
+      const priorHost = prior.closest<HTMLElement>(".structural-tables-live-preview");
+      const priorOwner = priorHost === null ? undefined : interactions.get(priorHost);
+      if (priorHost?.closest(".cm-editor") !== view.dom || priorOwner?.finishActiveDraft == null
+        || !priorOwner.finishActiveDraft()) return;
+      const next = this.currentInteraction(view);
+      if (next !== null) {
+        next.selectBounds(coordinate, coordinate);
+        next.cellElement(coordinate)?.focus({ preventScroll: true });
+        next.showSelectionMenu(view, Menu.forEvent(event));
+      }
+      return;
+    }
+    const priorRange = this.selectionAnchor !== null && this.selectionHead !== null && this.isCellSelected(coordinate)
+      ? { first: this.selectionAnchor, last: this.selectionHead } : { first: coordinate, last: coordinate };
+    if (this.finishActiveGrid !== null && !this.finishActiveGrid(priorRange.first, priorRange.last)) return;
+    const owner = this.currentInteraction(view);
+    if (owner !== null && owner !== this) {
+      owner.selectBounds(priorRange.first, priorRange.last);
+      owner.cellElement(coordinate)?.focus({ preventScroll: true });
+      owner.showSelectionMenu(view, Menu.forEvent(event));
+      return;
+    }
+    this.syncSourceCursor(view, coordinate);
     this.touchRangeAnchor = null;
     this.lastTouchTap = null;
     if (!this.isCellSelected(coordinate)) {
@@ -1085,17 +1215,18 @@ class StructuralTableInteraction {
       this.selectionHead = coordinate;
       this.updateSelection();
     }
-    this.showSelectionMenu(event, view);
+    this.showSelectionMenu(view, Menu.forEvent(event));
   }
 
-  private showSelectionMenu(event: MouseEvent, view: EditorView): void {
+  private showSelectionMenu(view: EditorView, menu: Menu): void {
     const frozen = this.freezeGridSelection(view);
     if (frozen === null) return;
     const selection = frozen.selection;
-    const menu = Menu.forEvent(event);
     this.selectionMenuSession = frozen;
     this.selectionMenuOpen = true;
-    menu.onHide(() => {
+    const menuSession = this.menuOwner?.open(menu);
+    if (menuSession == null) return;
+    menuSession.onHide(() => {
       if (this.selectionMenuSession !== frozen) return;
       this.selectionMenuOpen = false;
       queueMicrotask(() => {
@@ -1105,8 +1236,16 @@ class StructuralTableInteraction {
       });
     });
     const t = createTranslator(this.getSettings().language);
+    const protectedDraft = (): boolean => {
+      const editor = this.host?.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor");
+      if (editor == null) return false;
+      const coordinate = this.coordinateFor(editor);
+      const cell = coordinate === null ? undefined : this.table.rows[coordinate.row]?.cells[coordinate.column];
+      return composingCellEditors.has(editor) || cell === undefined || editor.value !== cell.raw.trim();
+    };
+    const clipboardCurrent = (): boolean => menuSession.isCurrent() && !protectedDraft();
     const activate = (action: () => void): void => {
-      if (this.selectionMenuSession !== frozen) {
+      if (this.selectionMenuSession !== frozen || !menuSession.canActivate()) {
         new Notice(t("notice.staleTable"));
         return;
       }
@@ -1118,33 +1257,52 @@ class StructuralTableInteraction {
       }
       action();
     };
+    const activateClipboard = (action: () => void): void => activate(() => {
+      if (protectedDraft()) { new Notice(t("menu.finishEditing")); return; }
+      action();
+    });
     const info = view.state.field(editorInfoField, false);
     const sourceCoordinate = frozen.anchor;
     const direction = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl" ? "rtl" : "ltr";
     const menuOptions = { fullEditor: true, explicitRemoval: true, direction } as const;
-    const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => this.applyMenuOperation(
-      view,
-      operation,
-      undefined,
-      intent === "owned-grid" ? frozen.axisSelection : undefined,
-      intent,
-      frozen,
-    ));
+    const applySelectionOperation = (operation: TableOperation, intent?: TableOperationIntent): void => activate(() => {
+      if (this.finishActiveOperation !== null) {
+        this.finishActiveOperation(operation, frozen.anchor, frozen.axisSelection);
+        return;
+      }
+      this.applyMenuOperation(view, operation, undefined,
+        frozen.axisSelection, intent, frozen);
+    });
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("copy")
       .setTitle(t("menu.copySelection"))
-      .onClick(() => activate(() => { void this.copyFrozenSelection(view, frozen, false); })));
+      .onClick(() => activateClipboard(() => { void this.copyFrozenSelection(view, frozen, false, clipboardCurrent); })));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("scissors")
       .setTitle(t("menu.cutSelection"))
-      .onClick(() => activate(() => { void this.copyFrozenSelection(view, frozen, true); })));
+      .onClick(() => activateClipboard(() => { void this.copyFrozenSelection(view, frozen, true, clipboardCurrent); })));
     menu.addItem((item) => item
       .setSection("structural-tables-clipboard")
       .setIcon("clipboard-paste")
       .setTitle(t("menu.pasteSelection"))
-      .onClick(() => activate(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen); })));
+      .onClick(() => activateClipboard(() => { void this.pasteFrozenSelectionFromNavigator(view, frozen, clipboardCurrent); })));
+    menu.addItem((item) => item.setSection("structural-tables-clipboard").setIcon("clipboard-paste")
+      .setTitle(t("menu.pastePlainText")).setDisabled(new Set(selection.cells.map((cell) => `${cell.anchorRow}:${cell.anchorColumn}`)).size !== 1)
+      .onClick(() => activateClipboard(() => {
+        if (new Set(selection.cells.map((cell) => `${cell.anchorRow}:${cell.anchorColumn}`)).size !== 1) return;
+        const initial = view.state.doc;
+        void Promise.resolve().then(() => (frozen.host.ownerDocument.defaultView?.navigator.clipboard ?? navigator.clipboard).readText()).then((text) => {
+          if (!clipboardCurrent() || view.state.doc !== initial || this.currentTableForFrozenSelection(view, frozen) === null) {
+            new Notice(t("notice.staleTable")); return;
+          }
+          const literal = pasteLiteralCellText("", 0, 0, text);
+          if (literal === null) { new Notice(t("notice.clipboardUnsupported")); return; }
+          this.applyMenuOperation(view, (table) => editCellContent(table, frozen.anchor.row, frozen.anchor.column, literal),
+            undefined, undefined, "owned-grid", frozen);
+        }).catch(() => new Notice(t("notice.rangeClipboardReadFailed")));
+      })));
     addSelectionEditingMenuItems(menu, t, selection, applySelectionOperation, menuOptions);
     // Whole-table confirmation outlives the grid selection. Snapshot the
     // editor/file/source, not its ephemeral selection epoch, for the modal.
@@ -1182,16 +1340,16 @@ class StructuralTableInteraction {
         this.previewGfm?.(tableIdentity, gfmTarget);
       }));
     }
-    menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activate(() => {
+    menu.addItem((item) => item.setSection("structural-tables-output").setTitle(t("menu.copyWholeHtml")).setIcon("copy").onClick(() => activateClipboard(() => {
       void copyTableForWord(this.app, tableIdentity, this.getSettings().appearance, {
         sourcePath: frozen.sourcePath, direction,
-        isCurrent: () => this.host === frozen.host && frozen.host.isConnected
+        isCurrent: () => clipboardCurrent() && this.host === frozen.host && frozen.host.isConnected
           && view.dom.isConnected && view.dom.ownerDocument === ownerDocument
           && view.state.field(editorInfoField, false)?.editor === editorIdentity
           && view.state.field(editorInfoField, false)?.file === fileIdentity
           && fileIdentity?.path === frozen.sourcePath
           && reparseUnchangedTable(view.state.doc.toString(), tableIdentity) !== null,
-      }, t);
+      }, t, this.copySession);
     })));
     if (this.exportImage !== undefined) {
       addImageExportMenuItem(menu, t, () => activate(() => {
@@ -1306,8 +1464,20 @@ class StructuralTableInteraction {
     }
     this.selectionAnchor = { row: anchor.row, column: anchor.column };
     this.selectionHead = this.selectionAnchor;
+    this.selectionMenuSession = null;
+    this.selectionMenuOpen = false;
+    this.menuOwner?.dismiss();
     this.updateSelection();
 
+    const draftFile = view.state.field(editorInfoField, false)?.file;
+    const draftEditor = view.state.field(editorInfoField, false)?.editor;
+    const draftHost = this.host;
+    const draftDocument = element.ownerDocument;
+    const ownsDraftTarget = (): boolean => view.dom.isConnected && view.dom.ownerDocument === draftDocument
+      && draftHost !== null && this.host === draftHost && draftHost.isConnected
+      && view.state.field(editorInfoField, false)?.file === draftFile
+      && view.state.field(editorInfoField, false)?.editor === draftEditor
+      && (draftFile == null || draftFile.path === this.sourcePath);
     const editor = element.ownerDocument.createElement("textarea");
     editor.className = "structural-tables-cell-editor";
     editor.dir = "auto";
@@ -1340,6 +1510,11 @@ class StructuralTableInteraction {
     let settled = false;
     const draft = new CellDraftSession(editor);
     let contextMenuOpen = false;
+    let contextMenuSession: TableMenuSession | null = null;
+    let menuPointerAway = false;
+    this.onMenuPointerAway = (event) => {
+      if (contextMenuSession?.isVisible() && event.target !== editor) menuPointerAway = true;
+    };
     const applyDraftMutation = (group: DraftHistoryGroup, mutate: () => void): void => {
       draft.mutate(group, mutate);
       resizeEditor();
@@ -1494,10 +1669,13 @@ class StructuralTableInteraction {
     };
     const settle = (): void => {
       settled = true;
+      this.onMenuPointerAway = null;
       composingCellEditors.delete(editor);
       releaseCellEditorFocus(editor);
       this.preserveDraft = null;
       this.finishActiveOperation = null;
+    this.finishActiveGrid = null;
+    this.finishActiveDraft = null;
       this.releaseCellScope(scope);
     };
     const retainDraft = (message: string): void => {
@@ -1517,6 +1695,7 @@ class StructuralTableInteraction {
         restore(focus);
         return;
       }
+      if (!ownsDraftTarget()) { retainDraft(t("notice.staleTable")); return; }
       const snapshot = new TableDocumentSnapshot(view.state.doc.toString());
       const current = reparseUnchangedTable(snapshot, this.table);
       if (current === null) {
@@ -1543,6 +1722,15 @@ class StructuralTableInteraction {
         retainDraft(operationNotice(t, result.code));
         return;
       }
+      if (axis !== undefined && result.code === "rows-deleted") {
+        const row = Math.max(0, Math.min(axis.start, current.rows.length - (axis.end - axis.start + 1) - 1));
+        axis = { axis: "row", start: row, end: row };
+        next = { row, column: Math.min(next?.column ?? 0, current.columnCount - 1) };
+      } else if (axis !== undefined && result.code === "columns-deleted") {
+        const column = Math.max(0, Math.min(axis.start, current.columnCount - (axis.end - axis.start + 1) - 1));
+        axis = { axis: "column", start: column, end: column };
+        next = { row: Math.min(next?.row ?? 0, current.rows.length - 1), column };
+      }
       settle();
       if (!result.changed) {
         restore(focus);
@@ -1552,6 +1740,7 @@ class StructuralTableInteraction {
         return;
       }
       const nativeCallout = this.host?.closest(".callout") != null;
+      const tableDeleted = result.code === "table-deleted";
       const scroller = element.closest<HTMLElement>(".structural-tables-container");
       const info = view.state.field(editorInfoField, false);
       const hostStyle = this.host === null ? null : this.host.ownerDocument.defaultView?.getComputedStyle(this.host);
@@ -1572,7 +1761,7 @@ class StructuralTableInteraction {
       };
       const history = tableWriteHistory(current, result.source, this.sourcePath,
         axis === undefined ? anchor : next ?? anchor,
-        axis === undefined ? {} : { undoCoordinate: anchor });
+        tableDeleted ? { restorePresentation: true } : axis === undefined ? {} : { undoCoordinate: anchor });
       const blurEffect = !focus && next === null && !nativeCallout
         ? structuralTableCellBlurCommit.of({
           from: current.range.from, before: current.source, after: result.source,
@@ -1592,10 +1781,21 @@ class StructuralTableInteraction {
           if (hosts.length === 1) interactions.get(hosts[0]!)?.restoreCellCommitViewport(view, snapshot);
         });
       }
-      if (nativeCallout && (focus || next !== null)) {
+      if (tableDeleted) requestNativeFocus(view, { ...target, edit: false });
+      else if (nativeCallout && (focus || next !== null)) {
         this.restoreCalloutFocus(view, result.source, next ?? anchor, next !== null && axis === undefined,
           false, target.from, nextIntent, pastedBounds, axis);
       } else if (next !== null || focus) requestTableFocus(view, target);
+    };
+    this.finishActiveGrid = (first, last) => {
+      if (draft.composing) return false;
+      finish(true, null, true, undefined, "select-all", { first, last });
+      return settled;
+    };
+    this.finishActiveDraft = () => {
+      if (draft.composing) return false;
+      finish(true, null, false);
+      return settled;
     };
     this.finishActiveOperation = (operation, next, axis) => {
       if (!draft.composing) finish(true, next, true, operation, "select-all", undefined, axis);
@@ -1709,30 +1909,24 @@ class StructuralTableInteraction {
     };
     registerDraftFormat("b", "**");
     registerDraftFormat("i", "*");
+    const navigateDraftHistory = (redo: boolean, event: KeyboardEvent): void => {
+      if (!draft.hasHistory && draft.pendingInput === null && editor.value === anchor.raw.trim()
+        && reparseUnchangedTable(view.state.doc.toString(), this.table) !== null
+        && view.state.field(editorInfoField, false)?.editor !== undefined) {
+        finish(false, null, false);
+        this.handleHistory(event, view, anchor);
+        return;
+      }
+      event.preventDefault(); event.stopPropagation();
+      if (draft.navigateHistory(redo)) { resizeEditor(); editor.focus({ preventScroll: true }); }
+    };
     const registerDraftHistory = (
-      modifiers: ("Mod" | "Ctrl" | "Shift")[],
-      key: "z" | "y",
-      redo: boolean,
+      modifiers: ("Mod" | "Ctrl" | "Shift")[], key: "z" | "y", redo: boolean,
     ): void => {
       scope.register(modifiers, key, (event) => {
         if (settled || draft.composing || event.isComposing || contextMenuOpen
           || !ownsCellEditorFocus(editor) || editor.ownerDocument.activeElement !== editor) return true;
-        // A fresh unchanged draft has no local history to protect. Release it
-        // before the host transaction so history restores its annotated cell.
-        if (!draft.hasHistory && draft.pendingInput === null
-          && editor.value === anchor.raw.trim()
-          && reparseUnchangedTable(view.state.doc.toString(), this.table) !== null
-          && view.state.field(editorInfoField, false)?.editor !== undefined) {
-          finish(false, null, false);
-          this.handleHistory(event, view, anchor);
-          return false;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        if (draft.navigateHistory(redo)) {
-          resizeEditor();
-          editor.focus({ preventScroll: true });
-        }
+        navigateDraftHistory(redo, event);
         return false;
       });
     };
@@ -1786,7 +1980,7 @@ class StructuralTableInteraction {
       }
       draft.prepareInput(event);
     });
-    editor.addEventListener("paste", (event) => {
+    const pasteClipboard = (event: ClipboardEvent): void => {
       if (event.clipboardData === null) return;
       const html = event.clipboardData?.getData("text/html") ?? "";
       const payload = readTableRangeFromDataTransfer(event.clipboardData, editor.ownerDocument);
@@ -1824,15 +2018,24 @@ class StructuralTableInteraction {
         return;
       }
       if (result.kind === "text" && result.fallback) new Notice(t("notice.clipboardPlainFallback"));
-      const pasted = result.kind === "empty" ? "" : result.text;
+      const pasted = payload !== null ? payload.rawByOwner[payload.owners[0]![0]!]!
+        : result.kind === "empty" ? "" : result.text;
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
-      // A fragment may be inside an existing math/code/link span. Preserve it
-      // in the draft and validate the full cell only when committing.
+      // External HTML text has literal intent. Owned ranges keep their raw Markdown.
+      const literal = html !== "" && payload === null
+        ? pasteLiteralCellText(editor.value, start, end, pasted) : undefined;
+      if (literal === null) { new Notice(t("notice.clipboardUnsupported")); return; }
       applyDraftMutation("paste", () => {
-        editor.setRangeText(pasted, start, end, "end");
+        if (literal === undefined) editor.setRangeText(pasted, start, end, "end");
+        else {
+          const inserted = literal.length - editor.value.length + end - start;
+          editor.value = literal;
+          editor.setSelectionRange(start + inserted, start + inserted);
+        }
       });
-    });
+    };
+    editor.addEventListener("paste", pasteClipboard);
     editor.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -1840,11 +2043,81 @@ class StructuralTableInteraction {
       const end = editor.selectionEnd;
       contextMenuOpen = true;
       const menu = Menu.forEvent(event);
+      const menuSession = this.menuOwner?.open(menu);
+      if (menuSession == null) return;
+      contextMenuSession = menuSession;
+      menuPointerAway = false;
+      const snapshot = draft.snapshot();
+      const sourceAtOpen = view.state.doc;
+      const currentDraft = (): boolean => contextMenuSession === menuSession && menuSession.isCurrent()
+        && !settled && !draft.composing && editor.isConnected && ownsDraftTarget()
+        && view.state.doc === sourceAtOpen && editor.value === snapshot.value
+        && editor.selectionStart === snapshot.start && editor.selectionEnd === snapshot.end;
+      const activate = (action: () => void): void => {
+        if (!menuSession.canActivate() || !currentDraft()) return;
+        menuPointerAway = false;
+        action();
+      };
       menu.addItem((item) => item
         .setSection("structural-tables-cell")
         .setIcon("corner-down-left")
         .setTitle(t("menu.insertCellBreak"))
-        .onClick(() => insertBreak(start, end)));
+        .onClick(() => activate(() => insertBreak(start, end))));
+      const clipboard = editor.ownerDocument.defaultView?.navigator.clipboard ?? navigator.clipboard;
+      const item = (key: Parameters<typeof t>[0], icon: string, action: () => void): void => {
+        menu.addItem((entry) => entry.setSection("structural-tables-cell-edit").setTitle(t(key)).setIcon(icon)
+          .setDisabled(draft.composing).onClick(() => activate(action)));
+      };
+      item("menu.undo", "undo", () => navigateDraftHistory(false, new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true })));
+      item("menu.redo", "redo", () => navigateDraftHistory(true, new KeyboardEvent("keydown", { key: "y", ctrlKey: true, cancelable: true })));
+      const copy = (cut: boolean): void => {
+        void Promise.resolve().then(() => {
+          if (!currentDraft()) return;
+          return clipboard.writeText(snapshot.value.slice(snapshot.start, snapshot.end));
+        }).then(() => {
+          if (cut && currentDraft()) applyDraftMutation("deletion", () => editor.setRangeText("", snapshot.start, snapshot.end, "end"));
+        }).catch(() => new Notice(t("notice.clipboardFailed")));
+      };
+      item("menu.cut", "scissors", () => copy(true));
+      item("menu.copy", "copy", () => copy(false));
+      const paste = (plain: boolean): void => {
+        if (!plain) {
+          void Promise.resolve().then(() => readCellClipboardData(clipboard)).then((data) => {
+            if (!currentDraft()) { new Notice(t("notice.staleTable")); return; }
+            pasteClipboard({ clipboardData: data, preventDefault: () => {}, stopPropagation: () => {} } as ClipboardEvent);
+          }).catch(() => new Notice(t("notice.rangeClipboardReadFailed")));
+          return;
+        }
+        void Promise.resolve().then(() => clipboard.readText()).then((text) => {
+          if (!currentDraft()) { new Notice(t("notice.staleTable")); return; }
+          const value = pasteLiteralCellText(snapshot.value, snapshot.start, snapshot.end, text);
+          if (value === null) { new Notice(t("notice.clipboardUnsupported")); return; }
+          const inserted = value.length - snapshot.value.length + snapshot.end - snapshot.start;
+          applyDraftMutation("paste", () => { editor.value = value; editor.setSelectionRange(snapshot.start + inserted, snapshot.start + inserted); });
+        }).catch(() => new Notice(t("notice.rangeClipboardReadFailed")));
+      };
+      item("menu.paste", "clipboard-paste", () => paste(false));
+      item("menu.pastePlainText", "clipboard-paste", () => paste(true));
+      item("menu.selectAll", "text-select", () => editor.select());
+      item("menu.bold", "bold", () => toggleDraftInlineFormat("**"));
+      item("menu.italic", "italic", () => toggleDraftInlineFormat("*"));
+      item("menu.finishEditing", "check", () => finish(true));
+      item("menu.cancelEditing", "x", () => finish(false));
+      addTableSubmenu(menu, t("menu.tableOperations"), (submenu) => {
+        const selection = structuralTableSelectionFromBounds(this.table, anchor, anchor);
+        if (selection === null) return;
+        const apply = (operation: TableOperation): void => {
+          activate(() => finish(true, null, true, operation));
+        };
+        const direction = this.renderedTable?.ownerDocument.defaultView?.getComputedStyle(this.renderedTable).direction === "rtl" ? "rtl" : "ltr";
+        const options = { fullEditor: true, explicitRemoval: true, direction } as const;
+        addSelectionEditingMenuItems(submenu, t, selection, apply, options);
+        addSelectionRemovalMenuItems(submenu, t, selection, apply, options);
+      }, (submenu, menuEvent) => {
+        if (!menuSession.canActivate() || !currentDraft()) return;
+        menuPointerAway = false;
+        menuSession.showFallbackMenu(submenu, menuEvent);
+      });
       const draftAtOpen = editor.value;
       for (const suggestion of mathPipeSuggestions(draftAtOpen)) {
         menu.addItem((item) => item
@@ -1852,19 +2125,23 @@ class StructuralTableInteraction {
           .setIcon("replace")
           .setTitle(t(suggestion.kind === "absolute-value"
             ? "menu.useMathAbsoluteSuggestion" : "menu.useMathConditionalSuggestion"))
-          .onClick(() => {
-            if (settled || draft.composing || editor.value !== draftAtOpen) return;
+          .onClick(() => activate(() => {
             editor.value = suggestion.replacement;
             resizeEditor();
             finish(true);
-          }));
+          })));
       }
-      menu.onHide(() => {
+      menuSession.onHide(() => {
         // Menu dismissal can run before the same Escape reaches the app scope.
         // Keep the guard until that event has finished, then return to the draft.
         (editor.ownerDocument.defaultView ?? window).setTimeout(() => {
+          if (contextMenuSession !== menuSession || menuSession.isVisible()) return;
           contextMenuOpen = false;
-          if (!settled && ownsCellEditorFocus(editor)) editor.focus({ preventScroll: true });
+          if (!menuSession.isCurrent()) return;
+          const document = editor.ownerDocument;
+          const active = document.activeElement;
+          if (!settled && ownsCellEditorFocus(editor) && !menuPointerAway
+            && (active === editor || active === document.body || active === document.documentElement)) editor.focus({ preventScroll: true });
         }, 0);
       });
     });
@@ -1883,7 +2160,27 @@ class StructuralTableInteraction {
         finish(true, null, false);
       }
     });
-    editor.addEventListener("blur", () => {
+    editor.addEventListener("blur", (event) => {
+      if (this.axisPreview !== null) { this.releaseCellScope(scope); return; }
+      const target = event.relatedTarget !== null && "closest" in event.relatedTarget ? event.relatedTarget as HTMLElement : null;
+      const handle = target?.closest<HTMLElement>("[data-structural-row-handle], [data-structural-column-handle]");
+      if (this.axisPreview === null && handle !== null && handle !== undefined && this.host?.contains(handle)) {
+        const axis: TableAxis = handle.dataset.structuralRowHandle === undefined ? "column" : "row";
+        const index = Number(axis === "row" ? handle.dataset.structuralRowHandle : handle.dataset.structuralColumnHandle);
+        const selection = this.axisSelection?.axis === axis && index >= this.axisSelection.start && index <= this.axisSelection.end
+          ? this.axisSelection : { axis, start: index, end: index };
+        const focus = { index, anchor: selection === this.axisSelection ? this.axisAnchor : index, touchAnchor: null };
+        const owner = this.completeAxisSelection(view, selection, focus);
+        const source = view.state.doc;
+        // Native focus completes after blur dispatch; the original target may
+        // have been removed by the commit. Restore only that empty focus slot.
+        queueMicrotask(() => {
+          const document = owner?.host?.ownerDocument;
+          if (owner !== null && view.state.doc === source && this.currentInteraction(view) === owner
+            && document !== undefined && document.activeElement === document.body && !owner.selectionMenuOpen) owner.focusAxis(selection, focus);
+        });
+        return;
+      }
       if (!contextMenuOpen && !draft.composing) releaseCellEditorFocus(editor);
       if (!draft.composing && !contextMenuOpen && draft.rejectedValue !== editor.value) {
         // Let the native pointer handler finish choosing its source destination
@@ -1967,6 +2264,7 @@ class StructuralTableInteraction {
     this.axisDrag = new TableAxisDrag(host, rendered, () => this.table, () => this.axisSelection,
       (result) => operationNotice(t, result.code),
       (selection, destination) => {
+        completedAxisPointers.add(view);
         const { axis, start, end } = selection;
         const movedStart = destination > end ? destination - (end - start + 1) : destination;
         const nextSelection = { axis, start: movedStart, end: movedStart + end - start };
@@ -1976,7 +2274,14 @@ class StructuralTableInteraction {
         // together instead of letting focus/blur discard this first drag.
         if (this.finishActiveOperation !== null) this.finishActiveOperation(operation, next, nextSelection);
         else this.applyMenuOperation(view, operation, next, nextSelection);
-      });
+        if (this.finishActiveGrid !== null) this.rollbackAxisPreview();
+        else this.axisPreview = null;
+      }, (outcome) => { if (outcome === "cancel") this.rollbackAxisPreview(); });
+    const ownerWindow = host.ownerDocument.defaultView;
+    if (ownerWindow !== null) this.component?.registerDomEvent(ownerWindow, "keydown", (event) => {
+      if (event.key !== "Escape" || this.axisPreview === null) return;
+      event.preventDefault(); event.stopPropagation(); this.rollbackAxisPreview();
+    }, { capture: true });
     const installAxisHandle = (handle: HTMLButtonElement, axis: TableAxis, index: number): void => {
       // Obsidian listens to touch events separately from pointer events for sidebar swipes.
       // Keep those gestures local to the handle without disabling its native long-press menu.
@@ -1984,10 +2289,36 @@ class StructuralTableInteraction {
         handle.addEventListener(type, (event) => event.stopPropagation(), { passive: true });
       }
       handle.addEventListener("pointerdown", (event) => {
+        if (event.isPrimary && event.button === 2) { event.preventDefault(); event.stopPropagation(); return; }
         if (!event.isPrimary || event.button !== 0) return;
         event.preventDefault();
         event.stopPropagation();
-        if (this.axisDrag?.start(event, axis, index)) return;
+        this.cancelledAxisClick = false;
+        completedAxisPointers.delete(view);
+        this.rollbackAxisPreview(false);
+        const before = { anchor: this.selectionAnchor, head: this.selectionHead, axis: this.axisSelection,
+          axisAnchor: this.axisAnchor, touchAnchor: this.touchAxisAnchor };
+        const retainPreview = (): void => {
+          if (this.finishActiveGrid === null || this.axisSelection === null) return;
+          const selection = this.axisSelection;
+          const focus = { index, anchor: this.axisAnchor, touchAnchor: this.touchAxisAnchor };
+          const restore = (): void => {
+              this.axisAnchor = before.axisAnchor;
+              this.touchAxisAnchor = before.touchAnchor;
+              this.axisSelection = before.axis;
+              this.selectionAnchor = before.anchor;
+              this.selectionHead = before.head;
+              if (before.anchor === null || before.head === null) this.clearSelection();
+              else this.updateSelection();
+          };
+          this.axisPreview = { selection, index, anchor: focus.anchor, touchAnchor: focus.touchAnchor, pointerId: event.pointerId, restore,
+            complete: () => {
+              this.axisPreview = null;
+              completedAxisPointers.add(view);
+              this.completeAxisSelection(view, selection, focus, restore);
+            } };
+        };
+        if (this.axisDrag?.start(event, axis, index)) { retainPreview(); return; }
         const touchAnchor = event.pointerType === "touch" ? this.touchAxisAnchor : null;
         const extendTouch = touchAnchor?.axis === axis && touchAnchor.index !== index;
         if (extendTouch) this.axisAnchor = touchAnchor.index;
@@ -1997,31 +2328,92 @@ class StructuralTableInteraction {
         // Focusing the handle while a modified textarea is active synchronously
         // blurs and commits it, which destroys this drag controller mid-pointer.
         // Retain the live editor until drop; the drop callback combines edits.
-        if (this.finishActiveOperation === null || event.shiftKey || extendTouch) {
+        if (this.finishActiveOperation === null) {
           handle.focus({ preventScroll: true });
           this.activateAxisClearScope(view, handle, axis, index);
         }
         // Arm the new merge-closed selection on the same held pointer.
         if (!event.shiftKey && !extendTouch) this.axisDrag?.start(event, axis, index);
+        retainPreview();
       });
-      handle.addEventListener("click", () => {
-        if (this.axisDrag?.consumeClick()) return;
-        if (this.axisSelection?.axis !== axis || index < this.axisSelection.start || index > this.axisSelection.end) {
-          this.axisAnchor = index;
-          this.selectAxis({ axis, start: index, end: index });
+      handle.addEventListener("click", (event) => {
+        const consumed = this.axisDrag?.consumeClick();
+        if (event.detail > 0 && (consumed || this.cancelledAxisClick || completedAxisPointers.has(view))) {
+          completedAxisPointers.delete(view);
+          this.rollbackAxisPreview(); this.cancelledAxisClick = false; return;
         }
-        this.activateAxisClearScope(view, handle, axis, index);
+        completedAxisPointers.delete(view);
+        const preview = this.axisPreview;
+        this.axisPreview = null;
+        const selected = preview?.selection ?? (this.axisSelection?.axis === axis
+          && index >= this.axisSelection.start && index <= this.axisSelection.end ? this.axisSelection : { axis, start: index, end: index });
+        const owner = this.completeAxisSelection(view, selected,
+          { index, anchor: preview?.anchor ?? (selected === this.axisSelection ? this.axisAnchor : index),
+            touchAnchor: preview?.touchAnchor ?? this.touchAxisAnchor }, preview?.restore);
+        if (owner === null) return;
       });
       handle.addEventListener("contextmenu", (event) => {
-        this.touchAxisAnchor = null;
+        completedAxisPointers.delete(view);
         event.preventDefault();
         event.stopPropagation();
-        if (this.axisSelection?.axis !== axis || index < this.axisSelection.start || index > this.axisSelection.end) {
-          this.axisAnchor = index;
-          this.selectAxis({ axis, start: index, end: index });
+        this.rollbackAxisPreview(false);
+        const selection = this.axisSelection?.axis === axis && index >= this.axisSelection.start && index <= this.axisSelection.end
+          ? this.axisSelection : { axis, start: index, end: index };
+        const identity = view.state.field(editorInfoField, false);
+        const document = host.ownerDocument;
+        const file = identity?.file; const editorIdentity = identity?.editor; const sourcePath = this.sourcePath;
+        const x = event.clientX; const y = event.clientY;
+        let cleanup = (): void => {};
+        let cancelled = false;
+        let source: EditorView["state"]["doc"] | null = null;
+        let menuCurrent = (): boolean => true;
+        const current = (): boolean => {
+          const info = view.state.field(editorInfoField, false);
+          return !cancelled && view.dom.isConnected && view.dom.ownerDocument === document && view.state.doc === source
+            && info?.file === file && info?.editor === editorIdentity && file?.path === sourcePath && menuCurrent();
+        };
+        const focus: NonNullable<PendingCellFocus["axisFocus"]> = { index,
+          anchor: selection === this.axisSelection ? this.axisAnchor : index, touchAnchor: null,
+          isCurrent: current, onReady: () => {
+            cleanup();
+            if (!current()) return;
+            const live = this.currentInteraction(view);
+            if (live === null) return;
+            const menu = new Menu();
+            live.showSelectionMenu(view, menu);
+            menu.showAtPosition({ x, y }, document);
+          } };
+        const owner = this.completeAxisSelection(view, selection, focus);
+        if (owner !== null) owner.showSelectionMenu(view, Menu.forEvent(event));
+        else {
+          const pending = pendingCellFocus.get(view);
+          if (pending?.axisFocus !== focus) return;
+          source = view.state.doc;
+          menuCurrent = captureTableMenuGeneration(this.app, document);
+          const invalidate = (): void => {
+            cancelled = true;
+            if (pendingCellFocus.get(view) === pending) cancelPendingTableFocus(view);
+            cleanup();
+          };
+          const visibility = (): void => { if (document.hidden) invalidate(); };
+          const window = document.defaultView;
+          const timer = window?.setTimeout(invalidate, 5000);
+          cleanup = () => {
+            if (timer !== undefined) window?.clearTimeout(timer);
+            document.removeEventListener("pointerdown", invalidate, true);
+            document.removeEventListener("keydown", invalidate, true);
+            document.removeEventListener("wheel", invalidate, true);
+            document.removeEventListener("beforeinput", invalidate, true);
+            document.removeEventListener("visibilitychange", visibility);
+            window?.removeEventListener("blur", invalidate);
+          };
+          document.addEventListener("pointerdown", invalidate, true);
+          document.addEventListener("keydown", invalidate, true);
+          document.addEventListener("wheel", invalidate, true);
+          document.addEventListener("beforeinput", invalidate, true);
+          document.addEventListener("visibilitychange", visibility);
+          window?.addEventListener("blur", invalidate);
         }
-        this.activateAxisClearScope(view, handle, axis, index);
-        this.showSelectionMenu(event, view);
       });
     };
     const rowHandles = this.table.rows.map((_row, row) => {
@@ -2029,7 +2421,7 @@ class StructuralTableInteraction {
       handle.type = "button";
       handle.className = "structural-tables-row-handle";
       handle.dataset.structuralRowHandle = String(row);
-      handle.textContent = "⋮";
+      this.appendHandleIcon(handle, "grip-vertical");
       handle.setAttribute("aria-label", withCount(t("handle.row"), row + 1));
       handle.title = t("handle.dragHint");
       installAxisHandle(handle, "row", row);
@@ -2041,7 +2433,7 @@ class StructuralTableInteraction {
       handle.type = "button";
       handle.className = "structural-tables-column-handle";
       handle.dataset.structuralColumnHandle = String(column);
-      handle.textContent = "⋯";
+      this.appendHandleIcon(handle, "grip-horizontal");
       handle.setAttribute("aria-label", withCount(t("handle.column"), column + 1));
       handle.title = t("handle.dragHint");
       installAxisHandle(handle, "column", column);
@@ -2104,6 +2496,18 @@ class StructuralTableInteraction {
     }
   }
 
+  private appendHandleIcon(handle: HTMLElement, icon: string): void {
+    const decoration = handle.ownerDocument.createElement("span");
+    decoration.className = "structural-tables-handle-icon";
+    decoration.setAttribute("aria-hidden", "true");
+    setIcon(decoration, icon);
+    const svg = decoration.querySelector("svg");
+    svg?.setAttribute("aria-hidden", "true");
+    svg?.setAttribute("focusable", "false");
+    svg?.setAttribute("tabindex", "-1");
+    handle.appendChild(decoration);
+  }
+
   private installRovingHandles(
     handles: HTMLButtonElement[],
     orientation: "horizontal" | "vertical",
@@ -2114,7 +2518,7 @@ class StructuralTableInteraction {
       handle.tabIndex = index === 0 ? 0 : -1;
       handle.addEventListener("focus", () => {
         handles.forEach((candidate) => { candidate.tabIndex = candidate === handle ? 0 : -1; });
-        const axis = orientation === "vertical" ? "row" : "column";
+        const axis: TableAxis = orientation === "vertical" ? "row" : "column";
         this.activateAxisClearScope(view, handle, axis, index);
       });
       handle.addEventListener("blur", () => this.releaseNavigationScope());
@@ -2134,19 +2538,24 @@ class StructuralTableInteraction {
         event.preventDefault();
         event.stopPropagation();
         if (targetIndex === index) return;
-        const target = handles[targetIndex];
-        if (orientation === "horizontal") {
-          const scroller = rendered.closest<HTMLElement>(".structural-tables-container");
+        const axis: TableAxis = orientation === "vertical" ? "row" : "column";
+        const selection = this.axisSelection?.axis === axis && targetIndex >= this.axisSelection.start && targetIndex <= this.axisSelection.end
+          ? this.axisSelection : { axis, start: targetIndex, end: targetIndex };
+        const owner = this.completeAxisSelection(view, selection,
+          { index: targetIndex, anchor: selection === this.axisSelection ? this.axisAnchor : targetIndex, touchAnchor: null });
+        const target = owner?.host?.querySelector<HTMLElement>(`[data-structural-${axis}-handle='${targetIndex}']`);
+        const table = owner?.renderedTable;
+        if (orientation === "horizontal" && table != null) {
+          const scroller = table.closest<HTMLElement>(".structural-tables-container");
           if (scroller !== null) {
-            const bounds = tableAxisBoundaries(rendered, "column", handles.length);
+            const bounds = tableAxisBoundaries(table, "column", owner!.table.columnCount);
             const center = (bounds[targetIndex]! + bounds[targetIndex + 1]!) / 2;
             const rect = scroller.getBoundingClientRect();
             scroller.scrollLeft += center - Math.max(rect.left + 12, Math.min(rect.right - 12, center));
-            this.positionHandles?.();
+            owner!.positionHandles?.();
           }
         } else target?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
         target?.focus({ preventScroll: true });
-        target?.click();
       });
     });
   }
@@ -2173,10 +2582,55 @@ class StructuralTableInteraction {
     };
   }
 
-  private focusAxis(selection: AxisSelection): void {
+  private rollbackAxisPreview(cancelClick = true): void {
+    const preview = this.axisPreview;
+    if (preview === null) return;
+    this.axisPreview = null;
+    preview.restore();
+    if (cancelClick) this.cancelledAxisClick = true;
+  }
+
+  private completeAxisSelection(view: EditorView, requested: AxisSelection,
+    focus: NonNullable<PendingCellFocus["axisFocus"]>, restore?: () => void): StructuralTableInteraction | null {
+    const first = requested.axis === "row" ? { row: requested.start, column: 0 } : { row: 0, column: requested.start };
+    const last = requested.axis === "row" ? { row: requested.end, column: this.table.columnCount - 1 }
+      : { row: this.table.rows.length - 1, column: requested.end };
+    const bounds = structuralTableSelectionFromBounds(this.table, first, last);
+    if (bounds === null) { restore?.(); return null; }
+    const selection: AxisSelection = { axis: requested.axis, start: requested.axis === "row" ? bounds.minRow : bounds.minColumn,
+      end: requested.axis === "row" ? bounds.maxRow : bounds.maxColumn };
+    if (this.finishActiveGrid !== null && !this.finishActiveGrid(first, last)) {
+      restore?.();
+      const editor = this.host?.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor");
+      editor?.focus({ preventScroll: true });
+      queueMicrotask(() => {
+        if (editor?.isConnected && ownsCellEditorFocus(editor) && this.finishActiveGrid !== null) {
+          const active = editor.ownerDocument.activeElement;
+          if (active === editor.ownerDocument.body || active === editor || this.host?.contains(active)) editor.focus({ preventScroll: true });
+        }
+      });
+      return null;
+    }
+    this.selectionMenuSession = null; this.selectionMenuOpen = false; this.menuOwner?.dismiss();
+    const pending = pendingCellFocus.get(view);
+    if (pending !== undefined && pending.from === this.table.range.from && pending.sourcePath === this.sourcePath) {
+      pending.axisSelection = selection; pending.axisFocus = focus;
+    }
+    const owner = this.currentInteraction(view);
+    if (owner !== null) {
+      delete focus.onReady;
+      delete focus.isCurrent;
+      owner.host?.ownerDocument.getSelection()?.removeAllRanges();
+      owner.focusAxis(selection, focus);
+    }
+    return owner;
+  }
+
+  private focusAxis(selection: AxisSelection, focus?: PendingCellFocus["axisFocus"]): void {
     this.selectAxis(selection);
-    this.axisAnchor = selection.start;
-    this.host?.querySelector<HTMLElement>(`[data-structural-${selection.axis}-handle='${selection.start}']`)
+    this.axisAnchor = focus?.anchor ?? selection.start;
+    this.touchAxisAnchor = focus?.touchAnchor ?? null;
+    this.host?.querySelector<HTMLElement>(`[data-structural-${selection.axis}-handle='${focus?.index ?? selection.start}']`)
       ?.focus({ preventScroll: true });
   }
 

@@ -1,3 +1,4 @@
+import MarkdownIt from "markdown-it";
 import { describe, expect, it } from "vitest";
 import { mathCellInputProblem, mathPipeSuggestions, normalizeTableCellText } from "../src/core/table-cell-syntax";
 import { editCellAndAppendRow, editCellContent } from "../src/core/operations";
@@ -89,10 +90,14 @@ describe("math cell input fidelity", () => {
     expect(normalizeTableCellText(String.raw`Cost \$5 | item`)).toBe(String.raw`Cost \$5 \| item`);
   });
 
-  it("refuses HTML table import before source-math text can be escaped or flattened", () => {
-    expect(importedHtmlTableToStructuralSource([{ section: "body", cells: [
+  it("imports external math-looking text literally while retaining table safety", () => {
+    const source = importedHtmlTableToStructuralSource([{ section: "body", cells: [
       { text: "$|x|$", rowSpan: 1, columnSpan: 1, header: false },
       { text: "value", rowSpan: 1, columnSpan: 1, header: false },
-    ] }])).toBeNull();
+    ] }])!;
+    const parsed = parseEditableTables(source).tables[0]!;
+    expect(parsed).toMatchObject({ valid: true, columnCount: 2 });
+    expect(parsed.rows[0]!.cells[0]!.content).toContain("&#36;");
+    expect(new MarkdownIt({ html: true }).renderInline(parsed.rows[0]!.cells[0]!.content)).toBe("$|x|$");
   });
 });

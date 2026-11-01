@@ -91,31 +91,35 @@ document.addEventListener("pointerdown", () => { pointers += 1; }, { capture: tr
 document.addEventListener("keydown", (event) => { dispatchScopeKey(event); }, { capture: true });
 // The host mock contributes real menu buttons while product code still builds
 // and validates its public menu. Chromium supplies pointer/focus/click ordering.
-document.addEventListener("contextmenu", () => {
+document.addEventListener("contextmenu", (event) => {
+  Menu.forEvent(event);
+  const menu = lastMenu!;
+  let wrapper: HTMLElement | null = null;
+  let hidden = false;
+  menu.onHide(() => { hidden = true; wrapper?.remove(); });
   setTimeout(() => {
-    document.querySelector("#host-menu")?.remove();
-    const menu = lastMenu;
+    if (hidden || !event.defaultPrevented) return;
     const t = createTranslator(interfaceLanguage);
     const actions = [["transpose-menu-item", "menu.transposeTable"], ["menu-insert-left", "menu.insertColumnLeft"],
       ["menu-insert-right", "menu.insertColumnRight"], ["menu-move-left", "menu.moveColumnsLeft"], ["menu-move-right", "menu.moveColumnsRight"]] as const;
-    const wrapper = document.body.createDiv(); wrapper.id = "host-menu";
+    const surface = document.body.createDiv(); wrapper = surface; surface.id = "host-menu";
     for (const [id, key] of actions) {
       const item = menu?.items.find((candidate) => candidate.title === t(key));
       if (item === undefined) continue;
-      const button = wrapper.createEl("button", { text: item.title }); button.id = id; button.style.display = "block";
-      button.onclick = () => { item.callback?.(); menu?.hide(); wrapper.remove(); };
+      const button = surface.createEl("button", { text: item.title }); button.id = id; button.style.display = "block";
+      button.onclick = () => { item.callback?.(); menu?.hide(); surface.remove(); };
     }
   });
 }, true);
 
-function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | `focus-wide${string}` | "switch" | "switch-rtl"): void {
+function reset(mode: "owned" | "source" | "native" | "native-child" | "popout-source" | "popout-draft" | "rtl" | "ltr-arabic" | "rtl-ascii-draft" | "ltr-arabic-draft" | "ltr-mixed-draft" | "focus" | "focus-after" | "focus-canceled" | `focus-wide${string}` | "switch" | "switch-rtl" | "switch-delayed"): void {
   component?.unload(); cm?.destroy(); other?.destroy();
   document.body.replaceChildren(); notices.length = 0; changes = 0; pointers = 0;
   alignmentCase = null;
   holdCommitRendering = false; heldRenders.splice(0).forEach((resolve) => resolve()); detachedParent = null;
   focusTrace.length = 0; traceFocus = mode.startsWith("focus-wide");
   commitGeometry.length = 0;
-  delayedCommitRendering = mode.includes("blank") || mode.includes("mouse");
+  delayedCommitRendering = mode.includes("blank") || mode.includes("mouse") || mode === "switch-delayed";
   replacementDraft = mode.includes("shrink") ? "QA" : delayedCommitRendering ? "Stir fried peppers 7 QA" : "last-cell-final-longx";
   files = new Map(); component = new Component();
   const file = new TFile("A.md"); files.set(file.path, file);
@@ -399,6 +403,12 @@ async function setupPointerText(raw: string, visible: string, tag: "span" | "str
 }
 
 (window as typeof window & { transposeBrowser?: unknown }).transposeBrowser = { reset, switchFile, result, switchState, visualCaretProbe, fractionalCaretProbe, interfaceBidi, setupAlignment, alignmentState, setupPointerText,
+  repeatSourceSelection: () => {
+    const transaction = cm!.state.update({ selection: cm!.state.selection });
+    cm!.dispatch(transaction);
+    return { declared: transaction.selection !== undefined,
+      equal: transaction.state.selection.eq(transaction.startState.selection), docChanged: transaction.docChanged };
+  },
   currentVisualExit: () => textareaVisualExit(document.querySelector<HTMLTextAreaElement>("textarea.structural-tables-cell-editor")!, "down"),
   refresh: () => cm!.dispatch({ effects: structuralTableSourceFocus.of(true) }),
   holdRendering: () => { holdCommitRendering = true; },

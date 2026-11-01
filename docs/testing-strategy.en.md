@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-25
+last_synced: 2026-10-29
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -129,6 +129,12 @@ Cover:
 - the whole-note HTML-import route leaving mixed prose, multiple tables, images, attachments, links, MathML/SVG, and other unsafe payloads to Obsidian's native paste;
 - GFM orientation plans checked with an independent Markdown parser; actual command/native/owned-menu entry points, shared result/source/clipboard bytes, hidden-cell warnings, stale file/view/source identity, active drafts, asynchronous render races, Reading View without a write callback, and a single isolated editor write with Undo/Redo.
 - the whole-note HTML-import route using complete plain-text fallback for headings, inherited preserved whitespace and preserved newlines, including zero replacement when safe fallback is absent.
+
+Whole-table import and restoration separately exercise their production entries against complete candidate notes: adjacent pipe prose above/below, hidden overflow, partial-table selections, identical neighboring tables, code/HTML/math protection and all three line endings. Refusal preserves full source, selection, records and write counts. A blank-line positive control uses an independent Markdown parser to check visible prose and one Undo/Redo. Complete plain fallback retains raw payload bytes and the same neighboring-ownership protection without guessing an equivalent table.
+
+Whole-table HTML copy drives real registered commands and the menu helper through controlled MarkdownRenderer barriers. Check that late A cannot overwrite newer B, unload and replacement instances invalidate old work, render components release, and obsolete notices stop. Later ordinary source edits still permit the command's captured snapshot; an already dispatched clipboard write is not pretended to be retracted. These port regressions do not prove real-host clipboard or unload timing.
+
+The opt-in acceptance provider supplies a one-shot public MarkdownRenderer gate only for the marked Whole table boundaries fixture in Source mode. It matches one unique literal A cell, the exact file/app/source snapshot and a fresh detached target; it calls the original renderer before holding its successful result. Require the visible caught/holding state before a newer B copy, tested-plugin disable or ordinary source edit, then explicitly Release. Verify the actual product/clipboard independently and retain the diagnostic event record; armed-only, early background capture, renderer failure, cancellation and timeout are not passing boundaries. Provider regressions exercise those three real command flows, transparent unmatched calls, this/argument/result/error forwarding, one synchronous consumption, foreign-wrapper preservation and release on reset, unload or expiry. The wrapper stays outside production assets, and changed provider bytes require a newly frozen acceptance input; the injected await boundary does not establish natural latency or rich clipboard fidelity on mobile.
 
 <!-- section: base-promotion -->
 ## Base conversion

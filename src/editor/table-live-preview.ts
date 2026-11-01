@@ -422,14 +422,25 @@ export class StructuralTableEditorController {
           }
         }
         this.calloutTables.schedule();
-        const externalSelectionChanged = update.transactions.some((transaction) =>
+        const externalSelections = update.transactions.filter((transaction) =>
           transaction.selection !== undefined
           && !transaction.effects.some((effect) => effect.is(structuralTableLogicalCursorSync)));
-        if (!externalSelectionChanged) return;
-        if (this.sourcePointerPending) {
+        if (externalSelections.length === 0) return;
+        const sourcePointerIntent = this.sourcePointerPending;
+        if (sourcePointerIntent) {
           this.sourcePointerResolved = true;
           this.scheduleSourceFocus();
         }
+        const contextChanged = update.transactions.some((transaction) =>
+          transaction.startState.field(editorInfoField, false)?.file !== transaction.state.field(editorInfoField, false)?.file
+          || transaction.startState.field(editorInfoField, false)?.editor !== transaction.state.field(editorInfoField, false)?.editor);
+        // Hosts can repeat the source caret after focus settles. A declaration
+        // alone must not discard the visual range that still owns that caret.
+        const selectionChanged = externalSelections.some((transaction) =>
+          !transaction.startState.selection.eq(transaction.state.selection));
+        const sourceFocusIntent = update.transactions.some((transaction) => transaction.effects.some((effect) =>
+          effect.is(structuralTableSourceFocus) && effect.value));
+        if (!sourcePointerIntent && !sourceFocusIntent && !update.docChanged && !contextChanged && !selectionChanged) return;
         for (const host of this.view.dom.querySelectorAll<HTMLElement>(".structural-tables-live-preview")) {
           clearTableWidgetSelection(host);
         }

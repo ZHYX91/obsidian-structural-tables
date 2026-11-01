@@ -5,7 +5,7 @@ import { EditorState, StateEffect, Transaction } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import type { App, Command, Editor, EditorPosition, TFile as HostFile } from "obsidian";
 import { Component, MarkdownView, editorInfoField } from "obsidian";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StructuralTablesPlugin } from "../src/app/plugin";
 import { DEFAULT_SETTINGS } from "../src/config/settings";
@@ -129,5 +129,74 @@ describe("transpose editor entry history", () => {
       expect(undo(cm)).toBe(true);
       expect(cm.state.doc.toString()).toBe(transposed);
     } finally { component.unload(); cm.destroy(); }
+  });
+});
+
+
+describe("source menu captured ownership", () => {
+  it.each((["current", "rebind", "replace", "rename", "detach", "unload", "remount", "adopt"] as const).flatMap((change) =>
+    (["selection", "image", "promotion"] as const).map((entry) => ({ change, entry }))))("keeps $entry source menu on its captured owner: $change", ({ change, entry }) => {
+    const source = ORIGINAL.replace("| --- | --- |", "| --- || --- |");
+    const containerEl = document.body.appendChild(document.createElement("div"));
+    const file = new TFile("A.md");
+    let stored = file;
+    let cm: EditorView;
+    const posToOffset = (position: EditorPosition): number => cm.state.doc.line(position.line + 1).from + position.ch;
+    const offsetToPos = (offset: number): EditorPosition => {
+      const line = cm.state.doc.lineAt(offset);
+      return { line: line.number - 1, ch: offset - line.from };
+    };
+    const editor = {
+      getValue: () => cm.state.doc.toString(), getCursor: () => offsetToPos(cm.state.selection.main.head),
+      getLine: (line: number) => cm.state.doc.line(line + 1).text,
+      listSelections: () => [{ anchor: offsetToPos(cm.state.selection.main.anchor), head: offsetToPos(cm.state.selection.main.head) }],
+      posToOffset, offsetToPos,
+    } as unknown as Editor;
+    const info = { editor, file: file as unknown as HostFile, app: {} as App, hoverPopover: null };
+    cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: source,
+      selection: { anchor: source.indexOf("North"), head: source.indexOf("North") + "North | 1".length },
+      extensions: [history(), editorInfoField.init(() => info)],
+    }) });
+    const view = Object.assign(Object.create(MarkdownView.prototype) as MarkdownView, { containerEl, editor, file });
+    let menuCallback!: (menu: Menu, editor: Editor, view: MarkdownView) => void;
+    const app = { vault: { getFileByPath: (path: string) => path === stored.path ? stored : null }, workspace: {
+      iterateAllLeaves: (callback: (leaf: { view: MarkdownView }) => void) => { if (containerEl.isConnected) callback({ view }); },
+      on: (_event: string, callback: typeof menuCallback) => { menuCallback = callback; return {}; },
+    } } as unknown as App;
+    const invoked = vi.fn();
+    const plugin = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
+      app, settings: { ...DEFAULT_SETTINGS, language: "en" }, transposeRequestsActive: true,
+      exportImage: invoked, previewBasePromotion: invoked,
+    }) as unknown as StructuralTablesPlugin;
+    try {
+      (plugin as unknown as { registerEditorMenu: () => void }).registerEditorMenu();
+      const menu = new Menu(); menuCallback(menu, editor, view);
+      const title = entry === "selection" ? "Insert row below" : entry === "image" ? "Export whole table as image…" : "Expand structure and upgrade to Base…";
+      const action = menu.items.find((item) => item.title === title)!;
+      expect(action?.callback).toBeTypeOf("function");
+      if (change === "rebind" || change === "replace") {
+        stored = new TFile(change === "rebind" ? "B.md" : "A.md");
+        view.file = stored as unknown as HostFile; info.file = stored as unknown as HostFile;
+      } else if (change === "rename") file.path = "Renamed.md";
+      else if (change === "detach") containerEl.remove();
+      else if (change === "unload") plugin.onunload();
+      else if (change === "remount") {
+        cm.destroy();
+        cm = new EditorView({ parent: containerEl, state: EditorState.create({ doc: source, extensions: [history(), editorInfoField.init(() => info)] }) });
+      } else if (change === "adopt") {
+        const other = document.implementation.createHTMLDocument("Other window"); other.body.append(other.adoptNode(containerEl));
+      }
+      const before = undoDepth(cm.state);
+      action.callback!();
+      if (change === "current" && entry === "selection") {
+        expect(parseEditableTables(cm.state.doc.toString()).tables[0]!.rows).toHaveLength(3);
+        expect(undoDepth(cm.state)).toBe(before + 1);
+        expect(undo(cm)).toBe(true); expect(cm.state.doc.toString()).toBe(source);
+      } else {
+        expect(cm.state.doc.toString()).toBe(source);
+        expect(undoDepth(cm.state)).toBe(before);
+      }
+      expect(invoked).toHaveBeenCalledTimes(change === "current" && entry !== "selection" ? 1 : 0);
+    } finally { cm.destroy(); containerEl.remove(); }
   });
 });

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Literal table clipboard</title>
+<style>body{font:18px/1.5 sans-serif;margin:24px}td,th{border:1px solid;padding:10px}button{margin:12px;padding:10px}</style>
+<h1>Literal table clipboard</h1>
+<p>Copy the visible table or its literal sample cell, then paste through Obsidian.</p>
+<button id="copy-table">Copy table</button>
+<button id="copy-cell">Copy single cell</button>
+<button id="copy-plain">Copy plain-text sample</button>
+<output id="status" aria-live="polite"></output>
+<table id="sample">
+<thead><tr><th>Case</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Literal</td><td id="literal">[[Plan]] `hello` **important** &lt;!--VISIBLE--&gt; &amp;copy; &lt;br&gt;</td></tr>
+<tr><td>Break</td><td>First<br>Second</td></tr>
+<tr><td>Pipe</td><td>甲 | 乙\path</td></tr>
+<tr><td>Spaces</td><td>&nbsp;A&#8239;</td></tr>
+<tr><td>Markers</td><td>&lt; ^</td></tr>
+</tbody>
+</table>
+<script>
+const table = document.querySelector('#sample');
+const cell = document.querySelector('#literal');
+const status = document.querySelector('#status');
+async function copy(html, text) {
+  try {
+    await navigator.clipboard.write([new ClipboardItem({
+      'text/html': new Blob([html], {type:'text/html'}),
+      'text/plain': new Blob([text], {type:'text/plain'})
+    })]);
+    status.textContent = 'Copied HTML and plain text';
+  } catch (error) { status.textContent = 'Copy failed: ' + String(error); }
+}
+document.querySelector('#copy-table').onclick = () => copy(table.outerHTML,
+  [...table.rows].map(row => [...row.cells].map(value => value.innerText).join('\t')).join('\n'));
+document.querySelector('#copy-cell').onclick = () => copy('<table><tr>' + cell.outerHTML + '</tr></table>', cell.innerText);
+document.querySelector('#copy-plain').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText('甲 | 乙\\path\tTAB\n[[Plan]] `hello` **important** <!--VISIBLE--> &copy; <br>\n<\n^');
+    status.textContent = 'Copied plain text';
+  } catch (error) { status.textContent = 'Copy failed: ' + String(error); }
+};
+</script>
+</html>

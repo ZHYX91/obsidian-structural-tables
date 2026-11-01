@@ -13,6 +13,7 @@ import { calloutBlocks, matchingBlocks, renderTableSignatures } from "../renderi
 import type { ExportTableImage } from "../app/table-image-modal";
 import type { PreviewPlainGfm } from "../app/plain-gfm-modal";
 import { installReadingOutputMenu } from "./table-image-menu";
+import { tableCopySession } from "../app/table-html-copy";
 
 class CalloutRenderSession extends MarkdownRenderChild {
   active = true;
@@ -60,9 +61,10 @@ export class StructuralTableReadingProcessor {
     private readonly getSettings: () => StructuralTablesSettings,
     private readonly exportImage?: ExportTableImage,
     private readonly previewGfm?: PreviewPlainGfm,
+    private readonly copySession = tableCopySession(app),
   ) {
-    this.blockMapper = new ReadingBlockMapper(app, getSettings, exportImage, previewGfm);
-    this.standalone = new StandaloneTableRenderer(app, getSettings, exportImage, previewGfm);
+    this.blockMapper = new ReadingBlockMapper(app, getSettings, exportImage, previewGfm, copySession);
+    this.standalone = new StandaloneTableRenderer(app, getSettings, exportImage, previewGfm, copySession);
   }
 
   process(container: HTMLElement, context: MarkdownPostProcessorContext): Promise<void> | void {
@@ -162,7 +164,7 @@ export class StructuralTableReadingProcessor {
       // queued cell rendering while the visible table is still alive.
       component.containerEl = wrapper;
       installReadingOutputMenu(this.app, wrapper, table, context.sourcePath, component,
-        () => createTranslator(this.getSettings().language), this.exportImage, this.previewGfm);
+        () => createTranslator(this.getSettings().language), this.exportImage, this.previewGfm, this.copySession);
       existing.replaceWith(wrapper);
       ownReadingLayout(wrapper, component);
       context.addChild(component);
@@ -212,7 +214,7 @@ export class StructuralTableReadingProcessor {
       wrapper.dataset.tableKind = plan.table.structural ? "structural" : "ordinary";
       wrapper.dataset.structuralTablesProcessed = "true";
       installReadingOutputMenu(this.app, wrapper, plan.table, context.sourcePath, session,
-        () => createTranslator(this.getSettings().language), this.exportImage, this.previewGfm);
+        () => createTranslator(this.getSettings().language), this.exportImage, this.previewGfm, this.copySession);
       targets[0]!.before(wrapper);
       for (const target of targets) target.remove();
     }

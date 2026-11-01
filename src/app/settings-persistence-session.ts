@@ -9,16 +9,19 @@ import {
   SettingsSaveCoordinator,
   type SettingsSaveStatus,
 } from "./settings-save-coordinator";
+import type { SettingsTaskScheduler } from "./settings-store-queue";
 
 export class SettingsPersistenceSession {
   private readonly coordinator: SettingsSaveCoordinator<StructuralTablesSettings> | null;
   private readonly initial: StructuralTablesSettings;
   private readonly incompatibleSchemaVersion: string | null;
   private readonly requiresMigration: boolean;
+  private closed = false;
 
   constructor(
     loaded: NormalizedStructuralTablesData,
     persist: (data: PersistedStructuralTablesData) => Promise<void>,
+    schedule?: SettingsTaskScheduler,
   ) {
     if (loaded.state === "incompatible") {
       this.coordinator = null;
@@ -30,7 +33,7 @@ export class SettingsPersistenceSession {
     this.coordinator = new SettingsSaveCoordinator(async (settings) => persist({
       schemaVersion: SETTINGS_SCHEMA_VERSION,
       settings: cloneSettings(settings),
-    }));
+    }), schedule);
     this.initial = cloneSettings(loaded.data.settings);
     this.incompatibleSchemaVersion = null;
     this.requiresMigration = loaded.requiresMigration;
@@ -47,6 +50,7 @@ export class SettingsPersistenceSession {
   }
 
   assertWritable(): void {
+    if (this.closed) throw new Error("Settings session is closed.");
     if (this.incompatibleSchemaVersion == null) return;
     throw new Error(
       `Structural Tables settings schema ${this.incompatibleSchemaVersion} is incompatible and read-only.`,
@@ -63,6 +67,11 @@ export class SettingsPersistenceSession {
 
   flush(): Promise<void> {
     return this.coordinator?.flush() ?? Promise.resolve();
+  }
+
+  close(): Promise<void> {
+    this.closed = true;
+    return this.coordinator?.close() ?? Promise.resolve();
   }
 
   status(): SettingsSaveStatus {

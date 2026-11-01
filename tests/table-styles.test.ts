@@ -21,6 +21,22 @@ describe("table editing styles", () => {
     expect(editorRule).toContain("background: transparent !important");
     expect(editorRule).toContain("background: transparent");
   });
+
+  it("paints handle keyboard focus on the grip while keeping the larger target transparent", () => {
+    const styles = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
+    const targetRule = /\.structural-tables-live-preview button:is\(\.structural-tables-row-handle, \.structural-tables-column-handle\)[^{]*\{(?<body>[^}]*)\}/u
+      .exec(styles)?.groups?.body ?? "";
+    expect(targetRule).toContain("background: transparent");
+    expect(targetRule).toContain("box-shadow: none");
+    expect(targetRule).toContain("outline: none");
+
+    const gripFocusRule = /\.structural-tables-row-handle:focus-visible \.structural-tables-handle-icon,\s*\.structural-tables-column-handle:focus-visible \.structural-tables-handle-icon\s*\{(?<body>[^}]*)\}/gu;
+    const focusRules = [...styles.matchAll(gripFocusRule)].map((match) => match.groups?.body ?? "");
+    expect(focusRules.some((rule) => rule.includes("outline: 2px solid var(--interactive-accent)")
+      && rule.includes("outline-offset: -2px"))).toBe(true);
+    expect(styles).toMatch(/\.structural-tables-row-handle\.is-selected:focus-visible \.structural-tables-handle-icon,[^}]*outline-color: var\(--table-drag-handle-color-active, var\(--text-on-accent\)\)/u);
+    expect(styles).toMatch(/@media \(forced-colors: active\)\s*\{[^}]*outline-color: Highlight/u);
+  });
 });
 
 

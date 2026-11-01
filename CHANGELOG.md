@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.11.0 - 2026-11-01
+
+- Recognize table continuations in tab-indented lists without changing authored indentation, source positions or line endings.
+- Keep conversion menus bound to the table where they opened, and refuse HTML processing instructions, declarations and CDATA whose meaning cannot be preserved.
+
 - Bind HTML/Markdown conversion previews to the original full-note editor and isolate Undo/Redo from adjacent typing. Refuse hidden Markdown comments, highlighting, list-indented HTML, and content-sensitive HTML whitespace instead of silently changing meaning.
 
 - Add explicit, previewed Markdown-to-HTML and HTML-to-Markdown table conversion commands. Keep header and merge semantics with the existing dialect when ordinary GFM is insufficient; require acknowledgement for HTML styling/attribute loss and refuse unsupported rich content or unsafe source boundaries.

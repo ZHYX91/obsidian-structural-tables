@@ -21,13 +21,13 @@ describe("generated release workflow boundary", () => {
     const inputs = workflow.match(/ {4}inputs:\n([\s\S]*?)\n\npermissions:/u)?.[1] ?? "";
     const names = [...inputs.matchAll(/^ {6}([a-z][a-z0-9_]+):$/gmu)]
       .map((match) => match[1]);
-    expect(names).toEqual(["mode"]);
+    expect(names).toEqual(["mode", "candidate_artifact_id"]);
     expect(workflow).toMatch(/^ {2}push:/mu);
     expect(workflow).not.toMatch(/acceptance_closure|authorization_b64|release_authorization/u);
     expect(workflow).not.toMatch(/^ {2}(?:pull_request|schedule):/mu);
   });
 
-  it("performs one CI rebuild and no dist restoration", () => {
+  it("builds once for verification and reuses the exact candidate for publication", () => {
     expect(workflow.match(/npm run release:check/gu)).toHaveLength(1);
     expect(verify).toContain("node scripts/release.mjs bundle");
     expect(verify).toContain("node scripts/release.mjs verify-source --bundle-dir");

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "package": "@zhyx/obsidian-release-core",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "runtime": "obsidian-release-core.mjs",
-  "sha256": "3bc2637dc75cdf410b753407e4415b378ceb2cdca0ed5d22bfa3308014517b8b"
+  "sha256": "8c174dda1debd1eca202f99ce578c69d36b6269aedd48a8dbfd37fff4a4a0f37"
 }

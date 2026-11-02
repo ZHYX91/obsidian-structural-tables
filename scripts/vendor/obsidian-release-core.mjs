@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 
-export const RELEASE_CORE_VERSION = "3.2.1";
+export const RELEASE_CORE_VERSION = "3.2.2";
 export const RELEASE_CORE_PACKAGE_NAME = "@zhyx/obsidian-release-core";
 export const RELEASE_CORE_VENDOR_LOCK_SCHEMA_VERSION = 2;
 export const CANDIDATE_BUNDLE_SCHEMA_VERSION = 3;
@@ -1934,6 +1934,34 @@ async function inspectExistingGitHubRelease({
   });
 }
 
+// Reconcile only after transport and event binding have been verified. Never mutate
+// GitHub here; uncertain reads remain unknown instead of being called a conflict.
+export async function reconcileGitHubPublication({ projectRoot, config: configInput, verifiedBundle,
+  commandRunner = defaultCommandRunner, env = process.env }) {
+  const config = validateReleaseConfig(configInput);
+  await assertCurrentExactTag(path.resolve(projectRoot), verifiedBundle.candidateBundle, commandRunner);
+  try {
+    return await inspectExistingGitHubRelease({ projectRoot: path.resolve(projectRoot), config,
+      verifiedBundle, commandRunner, env });
+  } catch (error) {
+    const conflicts = [
+      [/^GitHub (?:Release|draft) asset inventory contains unexpected or duplicate files/u, "Release asset inventory conflicts with candidate"],
+      [/^GitHub Release public asset inventory must be exactly:/u, "Published asset inventory conflicts with candidate"],
+      [/^GitHub Release ID or tag identity changed/u, "Release identity changed"],
+      [/^GitHub Release must be the exact owned draft/u, "Release ownership or publication state conflicts with candidate"],
+      [/^GitHub Release (?:asset metadata|hosted bytes) mismatch:/u, "Release asset metadata or bytes conflict with candidate"],
+      [/^GitHub tag source commit differs from Candidate Bundle source/u, "Remote tag differs from candidate"],
+      [/^GitHub Release tag identity or stable publication state changed/u, "Release tag or publication state changed"],
+    ];
+    const conflict = error instanceof ReleaseCoreError ? conflicts.find(([pattern]) => pattern.test(error.message)) : undefined;
+    const knownCode = error instanceof ReleaseCoreError && /^RELEASE_CORE_[A-Z_]{1,64}$/u.test(error.code)
+      ? error.code : "RECONCILIATION_UNKNOWN";
+    return Object.freeze({ status: conflict ? "conflict" : "unknown", repository: config.publication.repository,
+      tag: verifiedBundle.candidateBundle.plugin.version, reasonCode: knownCode,
+      reason: conflict ? conflict[1] : "Remote verification did not complete" });
+  }
+}
+
 export async function preflightGitHubPublication({
   projectRoot,
   config: configInput,
@@ -2326,6 +2354,7 @@ jobs:
   post_verify:
     name: Verify immutable hosted release state
     needs: [verify, publish]
+    if: \${{ always() && needs.verify.result == 'success' && (needs.publish.result == 'success' || needs.publish.result == 'failure') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -2356,9 +2385,22 @@ jobs:
         run: node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
       - name: Verify immutable hosted bytes and provenance
+        if: needs.publish.result == 'success'
         env:
           GH_TOKEN: \${{ github.token }}
         run: node scripts/release.mjs post-verify --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+
+      - name: Reconcile remote state after failed publication
+        if: needs.publish.result == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+          BUNDLE_DIGEST: \${{ needs.verify.outputs.bundle_digest }}
+        run: |
+          set -euo pipefail
+          node scripts/release.mjs reconcile-github-event --bundle-dir "$RUNNER_TEMP/candidate-bundle" --bundle-digest "$BUNDLE_DIGEST" > "$RUNNER_TEMP/publication-reconciliation.json"
+          cat "$RUNNER_TEMP/publication-reconciliation.json"
+          node -e 'const r=require(process.argv[1]);if(r.status!=="exact")process.exit(1)' "$RUNNER_TEMP/publication-reconciliation.json"
 `;
 }
 
@@ -3069,7 +3111,7 @@ export async function runReleaseCli({
       outputDirectory: options.get("--output-dir"),
     });
   }
-  if (["event-publication-boundary", "event-publication-preflight", "publish-github-event"].includes(command)) {
+  if (["event-publication-boundary", "event-publication-preflight", "publish-github-event", "reconcile-github-event"].includes(command)) {
     const options = parseCliOptions(arguments_, ["--bundle-dir", "--bundle-digest", "--notes-file"],
       ["--bundle-dir", "--bundle-digest"]);
     const verifiedBundle = await verifyTransportCandidateBundle({ projectRoot, config,
@@ -3077,6 +3119,8 @@ export async function runReleaseCli({
     const boundary = await validateGitHubEventPublication({ projectRoot, config, verifiedBundle,
       bundleSha256: options.get("--bundle-digest"), commandRunner, env });
     if (command === "event-publication-boundary") return boundary;
+    if (command === "reconcile-github-event") return reconcileGitHubPublication({
+      projectRoot, config, verifiedBundle, commandRunner, env });
     if (command === "event-publication-preflight") return inspectExistingGitHubRelease({
       projectRoot, config: validateReleaseConfig(config), verifiedBundle, commandRunner, env });
     return publishGitHub({ projectRoot, config, verifiedBundle, boundary, commandRunner, env,
@@ -3204,6 +3248,8 @@ function printableReleaseResult(result) {
   for (const name of [
     "command",
     "status",
+    "reasonCode",
+    "reason",
     "pluginId",
     "version",
     "commit",

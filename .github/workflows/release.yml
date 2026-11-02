@@ -211,6 +211,7 @@ jobs:
   post_verify:
     name: Verify immutable hosted release state
     needs: [verify, publish]
+    if: ${{ always() && needs.verify.result == 'success' && (needs.publish.result == 'success' || needs.publish.result == 'failure') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -241,6 +242,19 @@ jobs:
         run: node scripts/release.mjs verify-transport --bundle-dir "$RUNNER_TEMP/candidate-bundle"
 
       - name: Verify immutable hosted bytes and provenance
+        if: needs.publish.result == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/release.mjs post-verify --bundle-dir "$RUNNER_TEMP/candidate-bundle"
+
+      - name: Reconcile remote state after failed publication
+        if: needs.publish.result == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE_DIGEST: ${{ needs.verify.outputs.bundle_digest }}
+        run: |
+          set -euo pipefail
+          node scripts/release.mjs reconcile-github-event --bundle-dir "$RUNNER_TEMP/candidate-bundle" --bundle-digest "$BUNDLE_DIGEST" > "$RUNNER_TEMP/publication-reconciliation.json"
+          cat "$RUNNER_TEMP/publication-reconciliation.json"
+          node -e 'const r=require(process.argv[1]);if(r.status!=="exact")process.exit(1)' "$RUNNER_TEMP/publication-reconciliation.json"

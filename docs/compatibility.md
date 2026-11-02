@@ -16,7 +16,7 @@ The conversion commands work on complete source-owned tables, not arbitrary HTML
 
 Other Markdown editors may recognize the exported HTML table without interpreting Structural Tables' Markdown extensions. HTML inside a Markdown block does not automatically parse Markdown syntax; review text semantics before conversion.
 
-Source conversion requires an unindented table opener and blank-line separation. Preserved-whitespace HTML and hidden content are refused rather than flattened. Literal HTML cell punctuation is encoded safely in Markdown; the conservative reverse converter can refuse that encoded result, so conversion is not a promise of unrestricted round trips. Each confirmed replacement has its own Undo step and is bound to the original attached editor.
+Source conversion requires an unindented table opener and blank-line separation. Preserved-whitespace HTML and hidden content are refused rather than flattened. Literal HTML cell punctuation is encoded safely in Markdown and can be converted back to HTML. The reverse converter decodes supported numeric and basic named text entities once, then escapes the result as HTML text; it never interprets encoded markup as active syntax. Unknown named entities and invalid/control-code numeric entities remain unsupported. Explicit leading, trailing and repeated `<br>` elements are preserved; collapsible HTML formatting whitespace is still trimmed. Each confirmed replacement has its own Undo step and is bound to the original attached editor.
 
 ## FakeLink and separate windows
 

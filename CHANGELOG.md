@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.11.1 - 2026-11-02
+
+- Update the development-only minimatch dependencies to 11.0.4 with reviewed legacy lint-call adaptations and installed-caller regression checks.
+
+- Keep imported plain text and punctuation convertible back to HTML by decoding supported text entities once before escaping HTML output.
+- Preserve leading, trailing, and repeated explicit HTML cell line breaks while still trimming collapsible formatting whitespace.
 
 ## 0.11.0 - 2026-11-01
 

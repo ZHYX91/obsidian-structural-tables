@@ -13,11 +13,14 @@ const HTML_BLOCK_ELEMENTS = new Set(["ADDRESS", "ARTICLE", "BLOCKQUOTE", "DIV", 
 // CSS-collapsible ASCII whitespace is distinct from nonbreaking Unicode spaces.
 const COLLAPSIBLE_HTML_WHITESPACE = /[ \t\r\n\f\v]+/gu;
 
-function trimCollapsibleHtmlWhitespace(value: string): string {
-  return value.replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/gu, "");
+type HtmlCellTextPart = string | { readonly explicitBreak: true };
+
+function endsInBreak(parts: readonly HtmlCellTextPart[]): boolean {
+  const last = parts[parts.length - 1];
+  return last !== undefined && (typeof last !== "string" || last.endsWith("\n"));
 }
 
-function appendHtmlCellText(node: Node, parts: string[]): void {
+function appendHtmlCellText(node: Node, parts: HtmlCellTextPart[]): void {
   if (node.nodeType === 3) {
     parts.push((node.textContent ?? "").replace(COLLAPSIBLE_HTML_WHITESPACE, " "));
     return;
@@ -25,19 +28,32 @@ function appendHtmlCellText(node: Node, parts: string[]): void {
   if (node.nodeType !== 1) return;
   const element = node as Element;
   if (element.tagName === "BR") {
-    parts.push("\n");
+    parts.push({ explicitBreak: true });
     return;
   }
   const block = HTML_BLOCK_ELEMENTS.has(element.tagName);
-  if (block && parts.length > 0 && !parts[parts.length - 1]?.endsWith("\n")) parts.push("\n");
+  if (block && parts.length > 0 && !endsInBreak(parts)) parts.push("\n");
   for (const child of node.childNodes) appendHtmlCellText(child, parts);
-  if (block && !parts[parts.length - 1]?.endsWith("\n")) parts.push("\n");
+  if (block && !endsInBreak(parts)) parts.push("\n");
 }
 
 export function htmlCellText(cell: HTMLTableCellElement): string {
-  const parts: string[] = [];
+  const parts: HtmlCellTextPart[] = [];
   for (const child of cell.childNodes) appendHtmlCellText(child, parts);
-  return trimCollapsibleHtmlWhitespace(parts.join("").replace(/[ \t]*\n[ \t]*/gu, "\n"));
+  // Trim formatting whitespace and generated block boundaries, stopping at
+  // explicit BR nodes so leading, trailing and repeated authored breaks survive.
+  while (typeof parts[0] === "string") {
+    parts[0] = parts[0].replace(/^[ \t\r\n\f\v]+/u, "");
+    if (parts[0] !== "") break;
+    parts.shift();
+  }
+  while (typeof parts[parts.length - 1] === "string") {
+    const last = (parts[parts.length - 1] as string).replace(/[ \t\r\n\f\v]+$/u, "");
+    if (last !== "") { parts[parts.length - 1] = last; break; }
+    parts.pop();
+  }
+  return parts.map((part) => typeof part === "string" ? part : "\n").join("")
+    .replace(/[ \t]*\n[ \t]*/gu, "\n");
 }
 
 interface ClipboardTable {

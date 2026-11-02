@@ -34,7 +34,7 @@ describe("Markdown to HTML source", () => {
       "| Name | Value |\n| --- | --- |\n| A | $x^2$ |",
       "| Name | Value |\n| --- | --- |\n| A | %%secret%% |",
       "| Name | Value |\n| --- | --- |\n| A | ==highlight== |",
-      "| Name | Value |\n| --- | --- |\n| A | &amp; |",
+      "| Name | Value |\n| --- | --- |\n| A | &copy; |",
       "| Name | Value |\n| --- | --- |\n| A | V | hidden |",
     ];
     for (const source of examples) {
@@ -44,6 +44,13 @@ describe("Markdown to HTML source", () => {
     const quoted = parseStructuralTables("> | --- | --- |\n> | A | 1 |").tables[0]!;
     expect(markdownTableToHtmlSource(quoted, "htmlconversiontest")).toBeNull();
   });
+
+  it.each(["&#0;", "&#128;", "&#xD800;", "&#1114112;", "&#99999999;", "&constructor;", "&unknown;"])(
+    "refuses uncertain entity semantics: %s", (entity) => {
+      const table = parseEditableTables(`| H | V |\n| --- | --- |\n| A | ${entity} |`).tables[0]!;
+      expect(markdownTableToHtmlSource(table, "entitytest")).toBeNull();
+    },
+  );
 
   it.each(["<?secret?>", "<!SECRET value>", "<![CDATA[secret]]>", "<!--secret-->", "<span>secret</span>"])(
     "rejects raw HTML tokens rather than making them visible: %s", (token) => {

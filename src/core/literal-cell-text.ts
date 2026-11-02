@@ -1,5 +1,27 @@
 import { closedCodeSpanEnd } from "./table-cell-syntax";
 
+export const TABLE_TEXT_ENTITY_PATTERN = /&(?:#[xX]?[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/gu;
+const NAMED_TEXT_ENTITIES: Readonly<Record<string, string>> = {
+  amp: "&", AMP: "&", lt: "<", LT: "<", gt: ">", GT: ">",
+  quot: '"', QUOT: '"', apos: "'", nbsp: "\u00a0",
+};
+
+/** Decode one known text entity only; never reinterpret its decoded contents. */
+export function decodeLiteralTableEntity(entity: string): string | null {
+  const named = /^&([A-Za-z][A-Za-z0-9]*);$/u.exec(entity);
+  if (named !== null) return Object.prototype.hasOwnProperty.call(NAMED_TEXT_ENTITIES, named[1]!)
+    ? NAMED_TEXT_ENTITIES[named[1]!]! : null;
+  const numeric = /^&#(?:([0-9]{1,7})|[xX]([0-9a-fA-F]{1,6}));$/u.exec(entity);
+  if (numeric === null) return null;
+  const code = numeric[1] === undefined ? Number.parseInt(numeric[2]!, 16) : Number(numeric[1]);
+  // Leave replacement/control-code semantics to the Markdown renderer rather
+  // than guessing at invalid scalars or HTML's legacy control-code remapping.
+  if (code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)
+    || (code < 32 && code !== 9 && code !== 10 && code !== 13)
+    || (code >= 127 && code <= 159)) return null;
+  return String.fromCodePoint(code);
+}
+
 function closingToken(source: string, token: string, from: number): number {
   for (let index = from; index < source.length; index += 1) {
     if (source[index] === "\\") { index += 1; continue; }

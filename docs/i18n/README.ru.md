@@ -66,6 +66,8 @@
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**Обновление вручную:** В существующей папке плагина замените только `main.js`, `manifest.json` и `styles.css` файлами из одного выпуска. Сохраните `data.json`, чтобы не потерять настройки.
+
 <!-- section: usage -->
 ## Использование
 

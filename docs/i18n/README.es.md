@@ -66,6 +66,8 @@ Para la instalación manual, extrae `structural-tables-<version>.zip` en `Vault/
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**Actualización manual:** En la carpeta existente del complemento, sustituye solo `main.js`, `manifest.json` y `styles.css` por archivos de la misma versión. Conserva `data.json` para mantener la configuración.
+
 <!-- section: usage -->
 ## Uso
 

@@ -69,6 +69,8 @@ Structural Tables 要求 Obsidian 1.12.7 或更高版本，支持桌面版 Obsid
 
 如需手动安装，请从[最新版本](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest)下载 `structural-tables-<version>.zip`，解压到 `Vault/.obsidian/plugins/`。压缩包包含 `structural-tables/` 目录及其中的 `main.js`、`manifest.json` 和 `styles.css`。重新加载 Obsidian，再在第三方插件中启用 Structural Tables。
 
+**手动升级：** 在现有插件文件夹中，仅用同一版本的 `main.js`、`manifest.json` 和 `styles.css` 替换对应文件。保留 `data.json`，以保留设置。
+
 <!-- section: usage -->
 ## 用法
 

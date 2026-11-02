@@ -66,6 +66,8 @@ Pour l’installation manuelle, extrayez `structural-tables-<version>.zip` dans 
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**Mise à jour manuelle :** Dans le dossier existant du module, remplacez uniquement `main.js`, `manifest.json` et `styles.css` par les fichiers d’une même version. Conservez `data.json` pour garder vos réglages.
+
 <!-- section: usage -->
 ## Utilisation
 

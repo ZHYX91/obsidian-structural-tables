@@ -69,6 +69,8 @@ Install Structural Tables from Obsidian's Community plugins directory: open **Se
 
 For manual installation, download `structural-tables-<version>.zip` from the [latest release](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest) and extract it into `Vault/.obsidian/plugins/`. The archive contains the `structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`. Reload Obsidian, then enable Structural Tables under Community plugins.
 
+**Manual upgrades:** Replace only `main.js`, `manifest.json`, and `styles.css` in the existing plugin folder with files from the same release. Keep `data.json` to preserve your settings.
+
 <!-- section: usage -->
 ## Usage
 

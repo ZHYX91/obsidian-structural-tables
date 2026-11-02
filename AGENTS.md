@@ -1,54 +1,27 @@
-# Repository guidance
+# Structural Tables maintenance rules
 
-- Begin audits read-only and preserve unrelated user changes.
-- Treat `src/core` as host-independent pure logic; it must not import Obsidian.
-- Structural syntax changes require positive, negative, and false-positive fixtures.
-- Reading View and Live Preview must never mutate Markdown.
-- Editing commands must refuse invalid tables and unintended loss of unselected or hidden content. Explicit user-authorized clear/remove actions may discard the selected visible content; existing guarded delete/merge APIs keep their loss-prevention contract.
-- A green `npm run check` is not real Obsidian runtime acceptance; use `docs/ACCEPTANCE.md`.
-- Use Conventional Commit subjects and normal Git identity; do not add agent attribution.
+Read the [documentation index](docs/README.md) and the relevant product contracts before changing behavior. Keep the repository independently buildable and preserve unrelated local changes.
 
-## Settings surface policy
+## Product boundaries
 
-Declarative settings are intentionally disabled because non-empty definitions would bypass
-Structural Tables' three-tab `PluginSettingTab.display()` layout on Obsidian 1.13 and degrade the
-user experience. Keep `getSettingDefinitions()` absent or empty. Do not flag the `display()`
-deprecation, absent or empty definitions, or missing settings search, and do not propose a
-declarative migration unless the user explicitly asks to revisit this decision.
+- Keep `src/core` host-independent. Structural syntax changes require positive, negative and false-positive fixtures.
+- Reading View and Live Preview must not mutate Markdown.
+- Editing commands refuse invalid tables and unintended loss of unselected or hidden content. Explicit clear/remove actions may discard the selected visible content; preserve the existing guarded mutation contracts.
+- Keep the plugin-rendered top-tab settings surface. Declarative definitions must remain empty or absent unless an explicit product decision changes the layout.
 
-## Manual installation release policy
+## Changes and verification
 
-The versioned `structural-tables-<version>.zip` is an intentional required public release asset for
-users who install without the Obsidian Community marketplace. Community ignores it during plugin
-ingestion, so the automated-review `extra unsupported files` recommendation is expected and must
-not be treated as a defect or a reason to remove the archive. The deterministic ZIP contains one
-`structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`, byte-identical to
-the three loose release assets. Release checks must preserve and verify all four public assets.
+- Follow the existing TypeScript style and dependency boundaries. Prefer focused changes over new generic abstractions.
+- Run checks appropriate to the change. Documentation moves require `check:docs-i18n`, `check:readme-i18n` and affected checker tests; follow [CONTRIBUTING.md](CONTRIBUTING.md) for source and release gates.
+- Use isolated disposable Vaults for fixtures. Production deployment requires authorization for the exact target; preserve plugin `data.json` unless reset is explicitly authorized.
+- Source tests, packaged artifacts, real-host behavior and publication are distinct facts. Record only observed acceptance and keep missing coverage explicit.
+- Preserve the release contract's three loose plugin assets and versioned manual-install ZIP. Verify candidate identity and do not overwrite immutable release assets.
+- Keep credentials, private Vault contents, local paths, generated dependencies and runtime evidence out of commits. Use Conventional Commit subjects when a commit is authorized.
 
-## Public documentation
+## Documentation
 
-`CHANGELOG.md` is the only public document that records release history. README and user help
-describe the product as it works now: compatibility, installation, usage, settings, limitations,
-privacy, and support. Do not add version banners, dated acceptance evidence, release-status
-narratives, or superseded plans outside the changelog. Keep migration or deprecation guidance only
-when users still need to act, and state the required action directly. Engineering documents describe
-the current contract and repeatable process rather than past executions.
-
-## Deployment and host acceptance
-
-Deploy to a production Vault only when the user explicitly names and authorizes the exact target. Before copying, resolve the target plugin directory, record or back up the currently installed runtime assets, and hash `data.json` when present. Replace only the verified production assets declared by the release contract, preserve `data.json` unless the user explicitly authorizes a reset, and verify the installed hashes after copying.
-
-Acceptance fixtures, cleanup scripts, and destructive test operations may target only explicitly identified temporary Vaults; never point them at an ordinary or production Vault. Source checks, packaged-candidate checks, deployed-host behavior, and Android emulator evidence remain separate claims.
-
-Select representative acceptance by change impact on the exact candidate. Changes to desktop
-interaction, settings, editor integration or lifecycle require affected real-host scenarios.
-Changes to mobile interaction or shared mobile-runtime behavior require affected Android emulator
-scenarios when the plugin supports mobile. Documentation-only or host-independent logic changes
-may omit hosts with a recorded reason. Cover the original reported case and a relevant boundary;
-use one suitable environment for equivalent coverage and expand only for distinct risks.
-Run the selected checks when the environment is available; claim acceptance only for observed
-passing scope. Confirmed serious product defects block the affected release. Missing host/tool
-evidence is assessed by risk and recorded as unverified, without an automatic publication block
-or separate approval step. Record failures and follow-up honestly. Full host closure is not required
-for a scoped release, and the CI publication workflow does not automatically enforce host coverage.
-Source/build checks, version identity, asset integrity and build provenance remain required. Android physical devices and iOS are out of scope.
+- Standard entry points belong at the root; detailed product guidance belongs in `docs/`, indexed by `docs/README.md`. Ordinary names use lowercase words separated by hyphens.
+- Stable English documents use `name.md`; Chinese sources use `name.zh-CN.md`. Update both together or explicitly mark an incomplete translation outdated. README translations use `docs/i18n/README.<locale>.md`.
+- Root README repository links use canonical GitHub URLs for the Obsidian catalog. Translated READMEs use relative links; retain the checked language-navigation order.
+- Maintain one authoritative text for each rule. Keep architecture decisions and repeatable development, test and release instructions with the product; local plans and execution evidence belong to the maintainer workspace.
+- Describe current behavior and useful compatibility guidance. Release history belongs in `CHANGELOG.md`; candidate state, progress and historical acceptance do not belong in this file.

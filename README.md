@@ -50,7 +50,7 @@ Structural Tables requires Obsidian 1.12.7 or later and supports desktop Obsidia
 
 Inside a Structural Table, exact `<`, `^`, and delimiter `||` tokens have special meanings. If another enabled table plugin is known to use the same syntax, Structural Tables shows a one-time conflict warning.
 
-For Advanced Tables, FakeLink, and Markdown-based image exporters, see the [compatibility notes](docs/compatibility.en.md). They cover the source-editing handoff, third-party sorting risks, and the Obsidian 1.13.7 separate-window workaround.
+For Advanced Tables, FakeLink, and Markdown-based image exporters, see the [compatibility notes](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/compatibility.md). They cover the source-editing handoff, third-party sorting risks, and the Obsidian 1.13.7 separate-window workaround.
 
 ### A note on table compatibility and an apology
 
@@ -283,14 +283,14 @@ npm ci
 npm run check
 ```
 
-Run `npm run test:browser -- /path/to/chromium` for the separate browser gate used by CI. It requires an installed Chromium and a loadable local font; the [testing strategy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/testing-strategy.en.md#browser-fixtures) explains focused suites and retained diagnostics. These local fixtures do not run Obsidian.
+Run `npm run test:browser -- /path/to/chromium` for the separate browser gate used by CI. It requires an installed Chromium and a loadable local font; the [testing strategy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/testing-strategy.md#browser-fixtures) explains focused suites and retained diagnostics. These local fixtures do not run Obsidian.
 
 Developer references:
 
-- [Product requirements](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/product-requirements.en.md)
-- [UX specification](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/ux-spec.en.md)
-- [Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.en.md)
-- [Testing strategy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/testing-strategy.en.md)
+- [Product requirements](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/product-requirements.md)
+- [UX specification](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/ux-spec.md)
+- [Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md)
+- [Testing strategy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/testing-strategy.md)
 - [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
 - [Contributing guide](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md)
 - [Security policy](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/SECURITY.md)

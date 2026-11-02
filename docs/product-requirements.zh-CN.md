@@ -7,7 +7,7 @@ status: stable
 last_synced: 2026-10-24
 ---
 
-[English](product-requirements.en.md)
+[English](product-requirements.md)
 
 # Structural Tables — 产品需求
 

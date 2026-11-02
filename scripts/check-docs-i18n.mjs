@@ -61,7 +61,7 @@ function markers(source, file) {
 
 for (const stem of stems) {
   const sourceName = `${stem}.zh-CN.md`;
-  const translationName = `${stem}.en.md`;
+  const translationName = `${stem}.md`;
   const sourcePath = `docs/${sourceName}`;
   const translationPath = `docs/${translationName}`;
   const [source, translation] = await Promise.all([

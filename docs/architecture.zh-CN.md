@@ -7,7 +7,7 @@ status: stable
 last_synced: 2026-10-29
 ---
 
-[English](architecture.en.md)
+[English](architecture.md)
 
 # Structural Tables — 架构
 

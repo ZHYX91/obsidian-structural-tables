@@ -143,7 +143,7 @@ assert.doesNotMatch(gfmExample, /[\u3400-\u9fff]/u,
   "English GFM conversion example must use localized content");
 const supportedLocaleNames = [...(await readFile("src/config/locale.ts", "utf8")).matchAll(/\{ id: "[^"]+", name: "([^"]+)"/gu)]
   .map((match) => match[1]);
-for (const spec of ["docs/ux-spec.en.md", "docs/ux-spec.zh-CN.md"]) {
+for (const spec of ["docs/ux-spec.md", "docs/ux-spec.zh-CN.md"]) {
   const text = await readFile(spec, "utf8");
   const languageLine = text.split("\n").find((line) => /^(?:- language:|- 语言：)/u.test(line));
   assert.ok(languageLine, `${spec} must list interface languages`);

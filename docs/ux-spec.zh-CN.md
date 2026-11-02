@@ -7,7 +7,7 @@ status: stable
 last_synced: 2026-10-29
 ---
 
-[English](ux-spec.en.md)
+[English](ux-spec.md)
 
 # Structural Tables — 交互规范
 

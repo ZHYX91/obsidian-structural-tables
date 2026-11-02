@@ -7,7 +7,7 @@ status: stable
 last_synced: 2026-10-29
 ---
 
-[English](testing-strategy.en.md)
+[English](testing-strategy.md)
 
 # Structural Tables — 测试策略
 

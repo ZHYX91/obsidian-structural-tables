@@ -66,6 +66,8 @@ Obsidian の「設定 → コミュニティプラグイン → 閲覧」で Str
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**手動更新：** 既存のプラグインフォルダー内の `main.js`、`manifest.json`、`styles.css` だけを、同じリリースのファイルで置き換えてください。設定を保持するため、`data.json` は残してください。
+
 <!-- section: usage -->
 ## 使い方
 

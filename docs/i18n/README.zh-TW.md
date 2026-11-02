@@ -66,6 +66,8 @@
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**手動升級：** 在現有外掛資料夾中，僅以同一版本的 `main.js`、`manifest.json` 和 `styles.css` 替換對應檔案。保留 `data.json`，以保留設定。
+
 <!-- section: usage -->
 ## 使用方式
 

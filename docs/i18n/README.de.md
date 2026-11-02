@@ -66,6 +66,8 @@ Zur manuellen Installation `structural-tables-<version>.zip` nach `Vault/.obsidi
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**Manuelles Update:** Ersetzen Sie im vorhandenen Plugin-Ordner nur `main.js`, `manifest.json` und `styles.css` durch Dateien derselben Version. Behalten Sie `data.json`, damit Ihre Einstellungen erhalten bleiben.
+
 <!-- section: usage -->
 ## Verwendung
 

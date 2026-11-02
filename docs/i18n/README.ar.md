@@ -66,6 +66,8 @@
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**التحديث اليدوي:** داخل مجلد الإضافة الحالي، استبدل فقط `main.js` و`manifest.json` و`styles.css` بملفات من الإصدار نفسه. احتفظ بملف `data.json` للحفاظ على إعداداتك.
+
 <!-- section: usage -->
 ## طريقة الاستخدام
 

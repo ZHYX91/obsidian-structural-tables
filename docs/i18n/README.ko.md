@@ -66,6 +66,8 @@ Obsidian의 “설정 → 커뮤니티 플러그인 → 탐색”에서 Structur
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**수동 업데이트:** 기존 플러그인 폴더에서 `main.js`, `manifest.json`, `styles.css`만 같은 릴리스의 파일로 교체하세요. 설정을 유지하려면 `data.json`을 보존하세요.
+
 <!-- section: usage -->
 ## 사용법
 

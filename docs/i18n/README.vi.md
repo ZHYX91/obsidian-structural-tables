@@ -66,6 +66,8 @@ Trong Obsidian, mở “Cài đặt → Plugin cộng đồng → Duyệt”, t�
 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
+**Cập nhật thủ công:** Trong thư mục plugin hiện có, chỉ thay `main.js`, `manifest.json` và `styles.css` bằng các tệp cùng một bản phát hành. Giữ lại `data.json` để bảo toàn cài đặt.
+
 <!-- section: usage -->
 ## Cách sử dụng
 

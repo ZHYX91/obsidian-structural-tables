@@ -3,7 +3,7 @@ import { parseTableWrite } from "./table-write-validation";
 import { serializeStructuralTable } from "./serializer";
 import { closedCodeSpanEnd, existingTableCellText } from "./table-cell-syntax";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
-import { literalTableCellText } from "./literal-cell-text";
+import { decodeLiteralTableEntity, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -246,7 +246,9 @@ function htmlCell(table: StructuralTable, cell: StructuralCell, association?: Ht
   const suffix = attributes.length === 0 ? "" : ` ${attributes.join(" ")}`;
   const content = cell.content
     .split(/(<br\s*\/?>)/giu)
-    .map((part) => /^<br\s*\/?>$/iu.test(part) ? "<br>" : escapeHtml(part))
+    .map((part) => /^<br\s*\/?>$/iu.test(part) ? "<br>" : escapeHtml(
+      part.replace(TABLE_TEXT_ENTITY_PATTERN, (entity) => decodeLiteralTableEntity(entity) ?? entity),
+    ))
     .join("");
   return `    <${tag}${suffix}>${content}</${tag}>`;
 }

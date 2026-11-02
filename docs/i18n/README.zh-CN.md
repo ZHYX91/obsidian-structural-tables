@@ -255,7 +255,7 @@ Shift+Enter、单元格右键菜单和多行粘贴都可以插入视觉换行。
 
 外观设置只影响显示，不会修改 Markdown。
 
-**导出 Word 文档：** 本插件用扩展 Markdown 语法保存合并单元格和复杂表头。需要转换 DOCX 时，可以使用 [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) 搭配另行安装的本机 DocWen，并在 DocWen 的 Markdown 语法设置中开启 **Structural Tables 输入扩展**；如果还需要从 Word 转回结构化 Markdown，则开启相应的输出扩展。这项可选的 Assistant 工作流支持 Windows 和 Linux，不支持 macOS 或移动端。
+**导出 Word 文档：** 本插件用扩展 Markdown 语法保存合并单元格和复杂表头。需要转换 DOCX 时，可以使用 [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) 搭配另行安装的本机 DocWen，并在 **DocWen → 设置 → 解析 Markdown**中开启 **Structural Tables 输入扩展**；如果还需要从 Word 转回结构化 Markdown，则在 **设置 → 生成 Markdown**开启相应的输出扩展。这项可选的 Assistant 工作流支持 Windows 和 Linux，不支持 macOS 或移动端。
 
 <!-- section: limitations -->
 ## 局限

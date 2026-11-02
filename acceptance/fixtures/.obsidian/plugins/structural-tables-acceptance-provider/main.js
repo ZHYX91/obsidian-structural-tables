@@ -1,6 +1,44 @@
 const { Plugin, MarkdownView, Notice, TFile, Component, MarkdownRenderer, Modal } = require("obsidian");
 module.exports = class extends Plugin {
   onload() {
+    // Explicit synthetic input preparation only; no product actions or verdicts.
+    this.addCommand({
+      id: "prepare-audit-html-literal-roundtrip",
+      name: "Prepare audit HTML literal roundtrip",
+      callback: async () => {
+        const folder = "Audit HTML roundtrip";
+        try {
+          if (await this.app.vault.adapter.exists(folder)) {
+            new Notice(`Audit fixture folder already exists: ${folder}. Use a fresh disposable Vault.`);
+            return;
+          }
+          const fixtures = {
+            "Audit HTML literal roundtrip.md": [
+              "# Audit HTML literal roundtrip",
+              "",
+              "Leading audit sentinel: leave this paragraph unchanged.",
+              "",
+              "<table>",
+              "<tr><th>Literal</th><th>Breaks</th></tr>",
+              "<tr><td>A &amp; B</td><td><br>A<br><br></td></tr>",
+              "<tr><td>10.50</td><td><br><br></td></tr>",
+              "<tr><td>&amp;#38; &lt;b&gt;literal&lt;/b&gt;</td><td>plain</td></tr>",
+              "</table>",
+              "",
+              "Trailing audit sentinel: leave this paragraph unchanged.",
+              "",
+            ].join("\n"),
+          };
+          await this.app.vault.createFolder(folder);
+          for (const [name, content] of Object.entries(fixtures)) {
+            await this.app.vault.create(`${folder}/${name}`, content);
+          }
+          new Notice(`Prepared synthetic audit inputs in ${folder}; inspect them through the product UI.`);
+        } catch (error) {
+          new Notice(`Audit fixture preparation failed: ${String(error)}`);
+        }
+      },
+    });
     this.addCommand({ id: "arm-html-copy-gate", name: "Arm one HTML copy renderer gate", callback: () => this.copyGateArm() });
     this.addCommand({ id: "release-html-copy-gate", name: "Release HTML copy renderer gate", callback: () => this.copyGateClose?.("release-command") });
     this.addCommand({ id: "disarm-html-copy-gate", name: "Disarm HTML copy renderer gate", callback: () => this.copyGateClose?.("disarm-command") });

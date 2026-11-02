@@ -255,7 +255,7 @@ Choose **Follow Obsidian** or select one of twelve interface languages: English,
 
 Appearance settings affect only rendering; they never change Markdown.
 
-**Export to Word:** Structural Tables uses extra Markdown syntax for merged cells and header structure. For compatible DOCX conversion, [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) can work with the separate local DocWen application. Enable the Structural Tables **input** extension in DocWen's Markdown syntax settings (and the output extension when converting back to Markdown). This optional Assistant workflow supports Windows and Linux; it is unavailable on macOS and mobile.
+**Export to Word:** Structural Tables uses extra Markdown syntax for merged cells and header structure. For compatible DOCX conversion, [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) can work with the separate local DocWen application. Enable the Structural Tables **input** extension in **DocWen → Settings → Parse Markdown** (and the output extension in **Settings → Generate Markdown** when converting back to Markdown). This optional Assistant workflow supports Windows and Linux; it is unavailable on macOS and mobile.
 
 <!-- section: limitations -->
 ## Limitations

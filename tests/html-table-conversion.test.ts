@@ -5,6 +5,7 @@ import { markdownTableToHtmlSource } from "../src/core/table-html-conversion";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { validateDocumentReplacement } from "../src/core/document-replacement";
 import { hasIsolatedTableBoundary, htmlTableSourceAt } from "../src/core/html-table-source";
+import MarkdownIt from "markdown-it";
 
 const html = [
   "<table>",
@@ -15,6 +16,40 @@ const html = [
 ].join("\n");
 
 describe("HTML to Markdown source", () => {
+  it.each([
+    "A &amp; B", "10.50", "&lt;b&gt;literal&lt;/b&gt;", "*literal* [note](target) $value$",
+    "&amp;#42;", "&amp;lt;script&amp;gt;", "&#128512;", "&nbsp;A&nbsp;", "&#9;A",
+  ])("round trips plain cell text through its literal Markdown encoding: %s", (cell) => {
+    const input = `<table><tr><th>Item</th><th>Value</th></tr><tr><td>${cell}</td><td>2</td></tr></table>`;
+    const plan = planHtmlTableToMarkdown(input)!;
+    expect(plan).not.toBeNull();
+    expect(plan.losesAttributes).toBe(false);
+    const table = parseEditableTables(plan.source).tables[0]!;
+    const exported = markdownTableToHtmlSource(table, "roundtrip")!;
+    expect(exported).not.toBeNull();
+    const cellOf = (source: string) => new DOMParser().parseFromString(source, "text/html").querySelector("td")!;
+    const renderedMarkdown = new MarkdownIt({ html: true }).render(plan.source);
+    expect(cellOf(exported).textContent).toBe(cellOf(renderedMarkdown).textContent);
+    expect(cellOf(exported).querySelector("a,script,b,em,code")).toBeNull();
+  });
+
+  it.each([
+    ["<br>A<br><br>", "<br>A<br><br>"],
+    ["<br><br>", "<br><br>"],
+    [" \n<br> A <br> \t", "<br>A<br>"],
+    [" \n A \n ", "A"],
+    ["A<br>B", "A<br>B"],
+  ])("preserves explicit edge breaks while trimming HTML formatting whitespace: %s", (cell, expected) => {
+    const input = `<table><tr><th>Item</th><th>Value</th></tr><tr><td>${cell}</td><td>2</td></tr></table>`;
+    const plan = planHtmlTableToMarkdown(input)!;
+    expect(plan).not.toBeNull();
+    expect(plan.losesAttributes).toBe(false);
+    const table = parseEditableTables(plan.source).tables[0]!;
+    const exported = markdownTableToHtmlSource(table, "breaktest")!;
+    const output = new DOMParser().parseFromString(exported, "text/html").querySelector("td")!;
+    expect(output.innerHTML).toBe(expected);
+  });
+
   it("preserves row/column headers and merges with the existing extended syntax", () => {
     const plan = planHtmlTableToMarkdown(html)!;
     expect(plan).not.toBeNull();

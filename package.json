@@ -1,6 +1,6 @@
 {
   "name": "obsidian-structural-tables",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Render semantic Markdown tables with merged cells, multi-row headers, and row headers in Obsidian.",
   "type": "module",
   "main": "dist/main.js",
@@ -32,7 +32,9 @@
     "release:post-verify": "node scripts/release.mjs post-verify",
     "check": "npm run check:runtime && npm run format:check && npm run check:readme-i18n && npm run check:docs-i18n && npm run lint && npm run typecheck && npm run test:coverage && npm run check:coverage-scope && npm run build:bundle && npm run check:production && npm run release:validate",
     "release:check": "npm run check && npm run release:validate-tag",
-    "check:coverage-scope": "node scripts/check-coverage-scope.mjs"
+    "check:coverage-scope": "node scripts/check-coverage-scope.mjs",
+    "postinstall": "node scripts/prepare-lint-dependencies.mjs",
+    "prelint": "node scripts/prepare-lint-dependencies.mjs && node scripts/check-lint-dependencies.mjs"
   },
   "keywords": [
     "obsidian",
@@ -76,7 +78,31 @@
     "obsidian": {
       "moment": "2.31.0"
     },
-    "@codemirror/state": "$@codemirror/state"
+    "@codemirror/state": "$@codemirror/state",
+    "@eslint/config-array": {
+      "minimatch": "11.0.4"
+    },
+    "@eslint/eslintrc": {
+      "minimatch": "11.0.4"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.4"
+    },
+    "eslint": {
+      "minimatch": "11.0.4"
+    },
+    "eslint-plugin-json-schema-validator": {
+      "minimatch": "11.0.4"
+    },
+    "eslint-plugin-n": {
+      "minimatch": "11.0.4"
+    },
+    "eslint-plugin-import": {
+      "minimatch": "11.0.4"
+    },
+    "eslint-plugin-react": {
+      "minimatch": "11.0.4"
+    }
   },
   "dependencies": {
     "html-to-image": "1.11.13",

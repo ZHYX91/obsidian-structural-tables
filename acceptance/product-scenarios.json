@@ -883,6 +883,27 @@
         "Only the original attached complete-note editor is modified, after explicit confirmation, in one independent Undo operation. Surrounding text and tables remain unchanged.",
         "Unsupported meaning and ambiguous source boundaries refuse without writing; style-only loss needs acknowledgement. No blanket rich-text or unrestricted round-trip support is claimed."
       ]
+    },
+    {
+      "id": "audit-html-literal-roundtrip",
+      "title": "HTML literal text and explicit edge breaks survive source conversion",
+      "surfaces": [
+        "desktop"
+      ],
+      "requiredCapabilities": {
+        "desktop": []
+      },
+      "steps": [
+        "In a fresh disposable Vault, run Structural Tables acceptance provider: Prepare audit HTML literal roundtrip. This explicit setup only creates synthetic source files under Audit HTML roundtrip; it invokes no tested product action and produces no verdict. Existing audit folders are never overwritten. Do not prepare these inputs for unrelated scenarios.",
+        "Open Audit HTML literal roundtrip.md in Source mode and record its complete text. Place the caret in the standalone HTML table and invoke Convert current HTML table to Markdown through the product command. Cancel the first preview and verify no source change, then reopen and confirm.",
+        "Inspect the converted table in Live Preview or Reading View: its literal cells read A & B, 10.50 and &#38; <b>literal</b>. The last cell must not turn into bold markup or decode a second time. Inspect Source mode as well: the A break cell retains one leading and two trailing explicit br tokens, and the break-only cell retains two.",
+        "Invoke Convert current Markdown table to HTML on that same imported table. The supported encoded text must produce a confirmable preview without an unsupported-entity error. Confirm and inspect both source and rendered table: literal text and all five explicit br elements survive, while the header/tail text outside the table is unchanged.",
+        "Use the native host Undo and Redo once for the HTML export, then Undo the export and the import. Each conversion is a separate undoable operation; the complete note returns to the recorded original. Capture the relevant previews, rendered literal values, source breaks and final source comparison."
+      ],
+      "expected": [
+        "The product accepts its own safe entity encoding on reverse conversion and preserves literal ampersands, decimal punctuation and nested encoded text without creating HTML formatting.",
+        "Explicit leading, trailing, consecutive and break-only br content survives HTML-to-Markdown-to-HTML conversion. Cancellation and host history preserve the surrounding note and the original input."
+      ]
     }
   ]
 }

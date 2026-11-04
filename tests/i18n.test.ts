@@ -27,6 +27,9 @@ describe("i18n", () => {
     ["fr-FR", "fr"], ["pt-BR", "pt-BR"], ["pt_BR", "pt-BR"], ["pt", "pt-BR"],
     ["pt-PT", "en"], ["ru-RU", "ru"], ["ko-KR", "ko"], ["vi-VN", "vi"],
     ["", "en"], ["arbitrary", "en"],
+    ["zh-CN-x-tw", "zh-CN"], ["zh-CN-u-ca-chinese-x-hant", "zh-CN"],
+    ["zh-TW-u-ca-chinese", "zh-TW"], ["zh-x-hk", "zh-CN"],
+    ["pt-PT-x-br", "en"], ["pt-u-nu-latn", "pt-BR"],
   ] as const)("resolves Obsidian %s to %s", (input, expected) => {
     vi.spyOn(host, "getLanguage").mockReturnValue(input);
     expect(resolveLocale("auto", input)).toBe(expected);

@@ -24,7 +24,9 @@ export function sanitizeInterfaceLanguage(value: unknown): InterfaceLanguage {
 /** Obsidian uses both short language IDs and BCP 47-style regional IDs. */
 export function resolveLocale(language: InterfaceLanguage, hostLanguage: string): LocaleId {
   if (language !== "auto") return language;
-  const [base, ...subtags] = hostLanguage.trim().toLowerCase().replace(/_/gu, "-").split("-");
+  const [base, ...allSubtags] = hostLanguage.trim().toLowerCase().replace(/_/gu, "-").split("-");
+  const extensionIndex = allSubtags.findIndex((part) => part.length === 1);
+  const subtags = extensionIndex < 0 ? allSubtags : allSubtags.slice(0, extensionIndex);
   if (base === "zh") {
     if (subtags.includes("hant")) return "zh-TW";
     if (subtags.includes("hans")) return "zh-CN";

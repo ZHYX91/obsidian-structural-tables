@@ -5062,6 +5062,37 @@ describe("StructuralTableEditorController", () => {
     view.destroy();
   });
 
+  it.each([false, true])("preserves Markdown block boundaries through a real cell commit and Undo/Redo (ordinary=%s)", async (ordinary) => {
+    const before = "# Before | explanation\n";
+    const tableSource = `| A | ${ordinary ? "B" : "<"} |\n| --- | --- |\n| x | y |`;
+    const after = "\n- After | explanation\n\nEnd";
+    const source = before + tableSource + after;
+    const targetRow = parseEditableTables(source).tables[0]!.rows.findIndex((row) => row.cells[1]?.content === "y");
+    let writes = 0;
+    const listener = EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; });
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history(), listener], undefined,
+      { takeOverOrdinaryTables: ordinary });
+    try {
+      const cell = parent.querySelector<HTMLElement>(`[data-structural-row='${targetRow}'][data-structural-column='1']`)!;
+      expect(cell).not.toBeNull();
+      cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
+      expect(editor).not.toBeNull();
+      replaceDraftText(editor, "CHANGED");
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await vi.waitFor(() => expect(view.state.doc.toString()).toContain("CHANGED"));
+      const updated = view.state.doc.toString();
+      expect(updated.startsWith(before)).toBe(true);
+      expect(updated.endsWith(after)).toBe(true);
+      expect(parseEditableTables(updated).tables[0]?.rows[1]?.cells[1]?.content).toBe("CHANGED");
+      expect(writes).toBe(1);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(updated);
+    } finally { view.destroy(); }
+  });
+
   it("pastes one Excel cell without its TSV quoting or trailing record separator", async () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;

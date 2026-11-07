@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-29
+last_synced: 2026-11-07
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -74,6 +74,7 @@ At minimum, cover:
 - delimiter cells with one or more hyphens and left/center/right alignment;
 - short GFM body rows rendering missing cells as empty, while extra source cells are preserved and protected from lossy writes;
 - headerless tables, single-data-row tables, multi-row column headers, and row headers;
+- adjacent headings and list items containing pipes, literal marker text, and immediate GFM header precedence; cell-editor commits and Undo/Redo must preserve the complete neighboring source;
 - `<` / `^` merges, escaped literal markers, and the `||` row-header divider;
 - escaped pipes, code spans, code blocks, frontmatter, comments, raw HTML, and math blocks;
 - LF, CRLF, and CR with exact source ranges.

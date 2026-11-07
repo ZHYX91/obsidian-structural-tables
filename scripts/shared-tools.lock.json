@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "ZHYX91/obsidian-property-order",
+    "commit": "b458f984ba944c75518167333fbd05329e489489"
+  },
+  "files": {
+    "scripts/runtime-contract.mjs": "2d27e101df7d3925004995173629892a0ef28bd4bf2ca977f7db45fd6a8c6c36",
+    "scripts/prepare-lint-dependencies.mjs": "114dc46cec7b13e958868dd4f4f2b3a559fadd6b716bab9335368e124ee9e5d9",
+    "scripts/check-lint-dependencies.mjs": "eac929c9986c803faa0f305936ce02b6cf15f3275050159fa01ce3f0761fa4b9"
+  }
+}

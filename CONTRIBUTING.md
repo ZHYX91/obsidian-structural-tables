@@ -40,3 +40,35 @@ probes use each caller's installed ESLint peer; they do not establish compatibil
 different ESLint major. The normal lint command independently checks the active repository
 configuration without disabling rules. If installation used `--ignore-scripts`, run
 `npm run prelint` before invoking ESLint directly.
+
+## Shared maintenance tool snapshots
+
+`scripts/shared-tools.lock.json` records the source repository, one full reviewed commit,
+and SHA-256 values for `runtime-contract.mjs`, `prepare-lint-dependencies.mjs` and
+`check-lint-dependencies.mjs`. Their existing paths are the snapshots; there is no second
+copy or runtime dependency on another plugin. The source is
+[Property Order](https://github.com/ZHYX91/obsidian-property-order).
+
+`npm run check:tools` compares the checked-in files with this local lock. It runs offline;
+it does not query GitHub or authenticate the recorded commit remotely. Runtime checks,
+installation hooks, lint preparation and build entry points reject drift before loading
+these tools. Runtime checks require the exact Node/npm versions and agreement between
+`.node-version`, `engines.node` and `packageManager`. With dependencies installed, builds
+need no network connection or sibling repository to obtain maintenance code.
+
+To update a snapshot:
+
+1. Review changes to the three source files in Property Order and select the full commit
+   containing those changes. Preserve the reviewed lint adaptations until their upstream
+   callers support the newer API.
+2. Copy all three files from that exact commit into the same paths in each consuming
+   repository. Update the lock's commit and SHA-256 values from those exact bytes together;
+   an arbitrary local edit and a new hash are not evidence of reviewed upstream source.
+3. For Property Order itself, commit the reviewed source changes first, then update its
+   lock to that existing commit in a follow-up commit. This keeps the source identity
+   concrete without requiring a commit to name itself.
+4. Run `npm run check:tools`, `npm run check:runtime`, `npm run test:tools`, and
+   `npm run check`. Review the installed lint-caller probes as part of the normal lint gate.
+
+The source snapshot and dependency lock serve different purposes. Updating these scripts
+alone does not authorize changing dependency versions, publishing packages or releasing a plugin.

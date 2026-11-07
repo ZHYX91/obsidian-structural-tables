@@ -1,18 +1,20 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import "./check-shared-tools.mjs";
+
+const { assertRuntimeContract, parseNpmVersion } = await import("./runtime-contract.mjs");
 
 const root = process.cwd();
 const packageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 const nodeVersion = (await readFile(path.join(root, ".node-version"), "utf8")).trim();
-const expectedNode = packageJson.engines?.node;
-
-if (expectedNode !== nodeVersion) {
-  throw new Error(`Node contract mismatch: package=${expectedNode} .node-version=${nodeVersion}`);
-}
-if (process.versions.node !== nodeVersion) {
-  throw new Error(`Expected Node ${nodeVersion}, received ${process.versions.node}`);
-}
+const currentNpmVersion = parseNpmVersion(process.env.npm_config_user_agent);
+assertRuntimeContract({
+  configuredNodeVersion: nodeVersion,
+  currentNodeVersion: process.versions.node,
+  currentNpmVersion,
+  packageJson,
+});
 // Browser-only dependencies are pinned and bundled; no host package loader or CDN.
 const bundledDependencies = { "html-to-image": "1.11.13", yaml: "2.9.1" };
 if (JSON.stringify(packageJson.dependencies ?? {}) !== JSON.stringify(bundledDependencies)) {
@@ -53,4 +55,4 @@ for (const file of sourceFiles) {
   }
 }
 
-process.stdout.write(`Runtime contract passed for Node ${nodeVersion}; ${sourceFiles.length} source files, with reviewed local PNG resource loading.\n`);
+process.stdout.write(`Runtime contract passed for Node ${nodeVersion} and npm ${currentNpmVersion}; ${sourceFiles.length} source files, with reviewed local PNG resource loading.\n`);

@@ -19,6 +19,9 @@ interface ParsedDelimiter {
 }
 
 const DELIMITER_CELL = /^:?-+:?$/u;
+// Rows without an outer pipe can begin a distinct heading or list block. The
+// immediate, equal-width GFM header still takes precedence over those markers.
+const ROW_BLOCK_START = /^(?:#{1,6}|[-+*]|\d{1,9}[.)])(?:[\t ]|$)/u;
 
 function alignmentFor(token: string): ColumnAlignment {
   const trimmed = token.trim();
@@ -29,6 +32,7 @@ function alignmentFor(token: string): ColumnAlignment {
 }
 
 function parseDelimiter(line: string, sourceLine: number): ParsedDelimiter | null {
+  if (ROW_BLOCK_START.test(line)) return null;
   const parsed = splitTablePipeRow(line);
   if (parsed === null) return null;
   const diagnostics: TableDiagnostic[] = [];
@@ -189,12 +193,15 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     const sameContainer = (line: number): boolean => prefixes[line] === prefix;
     const headerRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
     const immediateLine = delimiterLine - 1;
-    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : splitTablePipeRow(lines[immediateLine] ?? "");
-    if (immediateHeader !== null) {
+    const immediateSource = lines[immediateLine] ?? "";
+    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : splitTablePipeRow(immediateSource);
+    if (immediateHeader !== null && (!ROW_BLOCK_START.test(immediateSource)
+      || immediateHeader.cells.length === delimiter.columnCount)) {
       headerRows.push({ line: immediateLine, parsed: immediateHeader });
       if (immediateHeader.cells.length === delimiter.columnCount) {
         for (let line = delimiterLine - 2; line >= 0; line -= 1) {
-          const parsed = ignored.has(line) || !sameContainer(line) ? null : splitTablePipeRow(lines[line] ?? "");
+          const parsed = ignored.has(line) || !sameContainer(line) || ROW_BLOCK_START.test(lines[line] ?? "")
+            ? null : splitTablePipeRow(lines[line] ?? "");
           if (parsed === null || parsed.cells.length !== delimiter.columnCount) break;
           headerRows.unshift({ line, parsed });
         }
@@ -202,7 +209,8 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     }
     const bodyRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
     for (let line = delimiterLine + 1; line < lines.length; line += 1) {
-      if (ignored.has(line) || !sameContainer(line) || (lines[line] ?? "").trim() === "") break;
+      if (ignored.has(line) || !sameContainer(line) || ROW_BLOCK_START.test(lines[line] ?? "")
+        || (lines[line] ?? "").trim() === "") break;
       const parsed = splitTablePipeRow(lines[line] ?? "");
       if (parsed === null) break;
       bodyRows.push({ line, parsed });

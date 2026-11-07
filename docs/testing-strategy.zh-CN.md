@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-10-29
+last_synced: 2026-11-07
 ---
 
 [English](testing-strategy.md)
@@ -73,6 +73,7 @@ GFM 样本调用产品对话框、捕获的目标和真实 CodeMirror，驱动�
 - GFM 分隔单元格使用一个或多个连字符，以及左/中/右对齐写法；
 - GFM 数据行少列时补空显示，多出的源码单元格保留且禁止有损写入；
 - 无列标题表格、单数据行表格、多行列标题和行标题；
+- 含管道的相邻标题和列表项、字面量标记，以及紧接分隔行的 GFM 表头优先级；单元格编辑提交与撤销／重做必须保留全部相邻原文；
 - `<` / `^` 合并、转义后的字面量记号和 `||` 行标题分隔；
 - 转义管道、代码跨度、代码块、frontmatter、注释、raw HTML 和数学块；
 - LF、CRLF、CR 三种换行和精确源码范围。

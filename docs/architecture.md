@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-29
+last_synced: 2026-11-08
 translation_of: architecture.zh-CN.md
 ---
 
@@ -62,7 +62,7 @@ The interaction responsibilities are split into `cell-draft-session` (raw value,
 
 Commands and in-place edits produce candidate source from a pure in-memory ownership grid and parse it again. Row/column transformations rebuild rectangular merge ownership and migrate surviving anchors. Guarded operations refuse invalid boundaries plus unintended loss of unselected or hidden content; explicit clear/remove intents may discard only the user-selected visible owners. Cell input escapes unescaped pipes outside code spans before one whole-table CodeMirror transaction. Every explicit source write aligns separator pipes by terminal display width, including CJK and emoji, while preserving row-header dividers, alignment markers, escaped pipes, Wiki links, code spans, and the note's existing LF, CRLF, or CR line ending. Rendering never calls the serializer or writes source.
 
-A synchronous edit captures the exact original document string in a `TableDocumentSnapshot` and parses that original only once. Target revalidation and neighboring-table checks share this snapshot. Validation still parses the complete result document, checks the intended result and every neighbor, and rechecks the editor's exact source before dispatch. Snapshots are operation-local; they are never reused after an asynchronous gap or a changed document.
+A synchronous edit captures the exact original document string in a `TableDocumentSnapshot` and parses that original only once. Target revalidation and neighboring-table checks share this snapshot. Validation still parses the complete result document, checks the intended result and every neighbor, and rechecks the editor's exact source before dispatch. Transpose commands and owned-table menus generate only the candidate source; the same complete-document validation checks transposed content, roles, merge topology and alignment against its before/after parses, without another document snapshot or neighboring-table pass. Snapshots are operation-local; they are never reused after an asynchronous gap or a changed document.
 
 <!-- section: interchange -->
 ## Interchange

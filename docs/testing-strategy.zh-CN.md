@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-11-07
+last_synced: 2026-11-08
 ---
 
 [English](testing-strategy.md)
@@ -107,7 +107,7 @@ GFM 样本调用产品对话框、捕获的目标和真实 CodeMirror，驱动�
 
 可视方向键的几何测试使用真实 Chromium 的 textarea 折行、显式换行和光标坐标，区分首末视觉行与内部行。几何未知及 RTL／混合双向文本保留原生行为；测试修饰键、组合输入和非折叠选区的排除条件，再核对撤销／重做及焦点。序列化测试还要覆盖 ASCII、中文、组合字符和 emoji 的显示宽度。Live Preview 的 DOM 测试覆盖焦点、Tab/Shift+Tab、输入法组合态、把手、选区清理以及撤销/重做。
 
-快照回归须保留精确邻表，拒绝吸收相邻管道文字和使用过期原文。使用 `node scripts/benchmark-document-validation.mjs` 量测同步的原文／目标／结果校验，记录运行环境、CPU、笔记字节数、表格数量与宽度、P50/P95 及超过 50 ms 的样本数。优化前后使用相同合成输入；结果不代表 Obsidian 或原生输入法延迟。
+快照回归须保留精确邻表，拒绝吸收相邻管道文字和使用过期原文。实际转置命令写入的回归分别统计原文与结果全文解析，要求各一次，并验证只产生一条撤销记录；核心验证拒绝仍能解析为有效表格、但内容、角色、对齐或方向不符合转置语义的候选。使用 `node scripts/benchmark-document-validation.mjs` 量测同步的原文／目标／结果校验，记录运行环境、CPU、笔记字节数、表格数量与宽度、P50/P95 及超过 50 ms 的样本数。优化前后使用相同合成输入；结果不代表 Obsidian 或原生输入法延迟。
 
 外观预览测试使用产品渲染器，核对合并单元格和四个显示属性，并断言没有 Vault 读写或编辑控件。关闭或重建设置页时必须释放待完成渲染。草稿、焦点和剪贴板职责提取继续运行原有编辑／历史／源码身份回归和相关 Chromium 场景。
 

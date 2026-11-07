@@ -33,12 +33,12 @@ import {
   insertTableColumn,
   pasteTableRangeRaw,
   reorderTableAxis,
+  transposeTable,
   type TableAxis,
 } from "../core/operations";
 import { TableAxisDrag, tableAxisBoundaries, type AxisSelection } from "./table-axis-drag";
 import { reparseUnchangedTable, TableDocumentSnapshot } from "../core/table-snapshot";
 import { validateTableOperationInDocument } from "../core/table-operation-document";
-import { transposeTableInDocument } from "../core/table-transpose-validation";
 import { parseEditableTables } from "../core/parser";
 import {
   sameTableRangeTopology,
@@ -1324,7 +1324,7 @@ class StructuralTableInteraction {
           && reparseUnchangedTable(view.state.doc.toString(), tableIdentity) !== null;
       },
       apply: (): void => this.applyMenuOperation(
-        view, (current) => transposeTableInDocument(view.state.doc.toString(), current), undefined, undefined, "owned-grid", undefined, frozen.anchor,
+        view, transposeTable, undefined, undefined, "owned-grid", undefined, frozen.anchor,
       ),
     };
     addWholeTableTransposeMenuItem(menu, t, () => activate(() => requestWholeTableTranspose(

@@ -4,7 +4,7 @@ import { planTransposeTable, transposeTable } from "../src/core/operations";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
 import * as tableParser from "../src/core/parser";
-import { transposeTableInDocument } from "../src/core/table-transpose-validation";
+import { validateTableOperationInDocument } from "../src/core/table-operation-document";
 
 function parse(source: string): StructuralTable {
   const table = parseEditableTables(source).tables[0];
@@ -48,7 +48,7 @@ describe("whole-table structural transpose", () => {
     const table = parse(source);
     const parser = vi.spyOn(tableParser, "parseEditableTables");
     try {
-      const result = transposeTableInDocument(source, table);
+      const result = validateTableOperationInDocument(source, table, transposeTable(table));
       expect(result.changed).toBe(true);
       const updated = source.slice(0, table.range.from) + result.source + source.slice(table.range.to);
       const parsedSources = parser.mock.calls.map(([text]) => text);
@@ -65,7 +65,7 @@ describe("whole-table structural transpose", () => {
     const table = parse(source);
     const parser = vi.spyOn(tableParser, "parseEditableTables");
     try {
-      expect(transposeTableInDocument(source.replace("| A | B |", "| changed | B |"), table))
+      expect(validateTableOperationInDocument(source.replace("| A | B |", "| changed | B |"), table, transposeTable(table)))
         .toMatchObject({ changed: false, code: "transpose-boundary-unsafe", source: table.source });
       expect(parser).toHaveBeenCalledTimes(1);
       expect(parser.mock.calls[0]![0]).not.toContain("changed");
@@ -78,7 +78,7 @@ describe("whole-table structural transpose", () => {
     const source = context + ["| P | Q | R |", "| H1 | H2 |", "| --- | --- |", "| A | B |", "| C | D |"].map((line) => prefix + line).join("\n");
     const table = parse(source);
     expect(table.rows.length).toBe(3); expect(table.columnCount).toBe(2);
-    const result = transposeTableInDocument(source, table);
+    const result = validateTableOperationInDocument(source, table, transposeTable(table));
     expect(result.changed).toBe(false);
     expect(result.code).toBe("transpose-boundary-unsafe");
     expect(result.source).toBe(table.source);
@@ -86,7 +86,7 @@ describe("whole-table structural transpose", () => {
 
   it("allows a separated transpose without changing preceding or following tables and prose", () => {
     const source = "| P | Q | R |\n\n| H1 | H2 |\n| --- | --- |\n| A | B |\n| C | D |\n\nAfter.\n\n| Keep | This |\n| --- | --- |\n| x | y |";
-    const table = parse(source); const result = transposeTableInDocument(source, table);
+    const table = parse(source); const result = validateTableOperationInDocument(source, table, transposeTable(table));
     expect(result.changed).toBe(true);
     const updated = source.slice(0, table.range.from) + result.source + source.slice(table.range.to);
     expectExactTranspose(table, parse(updated));

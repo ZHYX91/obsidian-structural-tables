@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.11.2 - 2026-11-09
 
+- Validate whole-table transpose in one pass over the original and updated note, preserving neighboring tables, merged cells, and header roles.
+- Respect the host locale's script and region when extensions are present, and correct the French overflow warning.
 - Preserve adjacent headings and list items containing pipes when editing or formatting a table, while retaining valid GFM headers and multi-row structural headers.
 
 ## 0.11.1 - 2026-11-02

@@ -33,8 +33,12 @@
     "check": "npm run check:runtime && npm run format:check && npm run check:readme-i18n && npm run check:docs-i18n && npm run lint && npm run typecheck && npm run test:coverage && npm run check:coverage-scope && npm run build:bundle && npm run check:production && npm run release:validate",
     "release:check": "npm run check && npm run release:validate-tag",
     "check:coverage-scope": "node scripts/check-coverage-scope.mjs",
-    "postinstall": "node scripts/prepare-lint-dependencies.mjs",
-    "prelint": "node scripts/prepare-lint-dependencies.mjs && node scripts/check-lint-dependencies.mjs"
+    "postinstall": "node scripts/check-shared-tools.mjs && node scripts/prepare-lint-dependencies.mjs",
+    "prelint": "node scripts/check-shared-tools.mjs && node scripts/prepare-lint-dependencies.mjs && node scripts/check-lint-dependencies.mjs",
+    "check:tools": "node scripts/check-shared-tools.mjs",
+    "test:tools": "vitest run tests/scripts/shared-maintenance-tools.test.ts",
+    "prebuild": "node scripts/check-runtime.mjs",
+    "prebuild:bundle": "node scripts/check-runtime.mjs"
   },
   "keywords": [
     "obsidian",

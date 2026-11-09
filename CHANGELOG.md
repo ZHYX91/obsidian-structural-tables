@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Preserve adjacent headings and list items containing pipes when editing or formatting a table, while retaining valid GFM headers and multi-row structural headers.
+
 ## 0.11.1 - 2026-11-02
 
 - Update the development-only minimatch dependencies to 11.0.4 with reviewed legacy lint-call adaptations and installed-caller regression checks.

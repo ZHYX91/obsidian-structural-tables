@@ -250,7 +250,7 @@ const fr = {
   "operation.columnMoved": "Colonnes déplacées.",
   "operation.columnsDeleted": "Colonnes supprimées.",
   "operation.contentWouldBeLost": "Avant la fusion, videz toutes les cellules sélectionnées sauf la première dans l’ordre source afin de ne pas perdre leur contenu.",
-  "operation.gfmOverflowReadonly": "Ce tableau GFM contient des cellules supplémentaires que Obsidian ne montre pas. Modifiez-les en Markdown avant d’utiliser Structural Tables.",
+  "operation.gfmOverflowReadonly": "Ce tableau GFM contient des cellules supplémentaires qu’Obsidian ne montre pas. Modifiez-les en Markdown avant d’utiliser Structural Tables.",
   "operation.headerCountInvalid": "Les en-têtes de colonnes doivent utiliser zéro ou plusieurs lignes consécutives depuis le haut du tableau.",
   "operation.headerRowsSet": "En-têtes de colonnes mis à jour.",
   "operation.invalidResult": "Impossible d’effectuer l’opération sans rendre le tableau invalide. La note est inchangée.",

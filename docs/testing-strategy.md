@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-11-07
+last_synced: 2026-11-08
 translation_of: testing-strategy.zh-CN.md
 ---
 
@@ -108,7 +108,7 @@ Core operation tests cover:
 
 Visual arrow geometry tests use real Chromium textarea wrapping/explicit line breaks and caret coordinates to distinguish first/last visual lines from internal lines. Unknown geometry and RTL/mixed bidi keep native behavior. Test key modifier, composition and noncollapsed-selection exclusion, then undo/redo and focus. Serialization tests also cover display width for ASCII, CJK, combining characters, and emoji. Live Preview DOM tests cover focus, Tab/Shift+Tab, IME composition, handles, selection clearing, and undo/redo.
 
-Snapshot regressions must preserve exact neighboring tables and reject adjacent-pipe absorption and stale source. Measure the synchronous original/target/result validation with `node scripts/benchmark-document-validation.mjs`: record runtime, CPU, note bytes, table count/width, P50/P95 and samples over 50 ms. Compare the same synthetic inputs before and after optimization; this is not an Obsidian or native-IME latency result.
+Snapshot regressions must preserve exact neighboring tables and reject adjacent-pipe absorption and stale source. The actual transpose command write counts original and complete-result parses separately, requiring one of each and a single undo record. Core validation rejects candidates that still parse as valid tables but have incorrect transposed content, roles, alignment or orientation. Measure the synchronous original/target/result validation with `node scripts/benchmark-document-validation.mjs`: record runtime, CPU, note bytes, table count/width, P50/P95 and samples over 50 ms. Compare the same synthetic inputs before and after optimization; this is not an Obsidian or native-IME latency result.
 
 Appearance-preview tests use the production renderer, verify merged cells and all four display attributes, and assert no Vault reads/writes or editing controls. Closing or rebuilding settings must release pending render work. Draft, focus and clipboard extraction retains the existing edit/history/source-identity regressions and the relevant Chromium suites.
 

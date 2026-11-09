@@ -1,11 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { editCellContent, insertTableColumn, pasteTableRangeRaw, removeTable, setHeaderRowCount } from "../src/core/operations";
+import { editCellContent, insertTableColumn, pasteTableRangeRaw, removeTable, setHeaderRowCount, transposeTable } from "../src/core/operations";
 import { validateTableOperationInDocument } from "../src/core/table-operation-document";
 import { parseEditableTables } from "../src/core/parser";
 import { tableRangePayload } from "../src/core/table-range-clipboard";
 import { reparseUnchangedTable, TableDocumentSnapshot } from "../src/core/table-snapshot";
 
 describe("complete-document structural writes", () => {
+  it.each(["content", "roles", "alignment", "orientation"])("refuses a claimed transpose with incorrect %s", (change) => {
+    const note = "Before\n\n| Name | Value |\n| --- | --- |\n| North | 1 |\n| South | 2 |\n\nAfter";
+    const snapshot = new TableDocumentSnapshot(note);
+    const table = snapshot.tables[0]!;
+    const transpose = transposeTable(table);
+    expect(transpose.changed).toBe(true);
+    const source = change === "content" ? transpose.source.replace("North", "Lost")
+      : change === "roles" ? transpose.source.replace("||", "|")
+        : change === "alignment" ? transpose.source.replace(/-{3,}/u, ":---")
+          : editCellContent(table, 1, 0, "Changed").source;
+    // Every candidate still parses as a valid table with unchanged neighbors;
+    // the transpose postcondition must reject its changed meaning.
+    expect(parseEditableTables(source).tables[0]?.valid).toBe(true);
+    expect(validateTableOperationInDocument(snapshot, table, { ...transpose, source })).toMatchObject({
+      changed: false, code: "transpose-boundary-unsafe", source: table.source,
+    });
+  });
+
   it("shares the original parse while retaining complete-result and neighbor validation", () => {
     const note = "| outside | prose | extra |\n| H | V |\n| --- || --- |\n| a | b |\n\n| Keep | Me |\n| --- | --- |";
     const snapshot = new TableDocumentSnapshot(note);

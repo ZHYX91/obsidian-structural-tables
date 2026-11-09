@@ -9,6 +9,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createTranslator } from "../src/config/i18n";
 import { parseEditableTables } from "../src/core/parser";
+import * as tableParser from "../src/core/parser";
 import { captureEditorTransposeTarget } from "../src/editor/table-transpose-target";
 import { requestWholeTableTranspose } from "../src/app/table-transpose-modal";
 import { notices, TFile } from "./mocks/obsidian";
@@ -90,6 +91,25 @@ beforeAll(() => {
 afterEach(() => { editors.splice(0).forEach((editor) => editor.destroy()); document.body.replaceChildren(); notices.length = 0; });
 
 describe("frozen transpose editor ownership", () => {
+  it("shares one original and result parse through the actual command write", () => {
+    const source = "Before.\n\n| H1 | H2 |\n| --- | --- |\n| A | B |\n| C | D |\n\nAfter.\n\n| Keep | This |\n| --- | --- |\n| x | y |";
+    const f = fixture(document, source);
+    const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view)!;
+    const parser = vi.spyOn(tableParser, "parseEditableTables");
+    try {
+      target.apply();
+      const updated = f.state.source();
+      expect(f.state.writes()).toBe(1);
+      expect(updated).not.toBe(source);
+      const parsedSources = parser.mock.calls.map(([text]) => text);
+      expect(parsedSources.filter((text) => text === source)).toHaveLength(1);
+      expect(parsedSources.filter((text) => text === updated)).toHaveLength(1);
+      expect(updated.startsWith("Before.\n\n")).toBe(true);
+      expect(updated.slice(updated.indexOf("\n\nAfter."))).toBe(source.slice(source.indexOf("\n\nAfter.")));
+      expect(undoDepth(f.cm.state)).toBe(1);
+    } finally { parser.mockRestore(); }
+  });
+
   it("writes once only to the original editor while its original file and source remain current", () => {
     const f = fixture();
     const target = captureEditorTransposeTarget(f.app, f.state.editor, f.table, t, f.view);

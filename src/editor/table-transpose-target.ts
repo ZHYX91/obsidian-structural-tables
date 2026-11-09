@@ -2,7 +2,7 @@ import { Notice, type MarkdownView, type App, type Editor } from "obsidian";
 
 import { operationNotice, type Translate } from "../config/i18n";
 import type { StructuralTable } from "../core/model";
-import { transposeTableInDocument } from "../core/table-transpose-validation";
+import { transposeTable } from "../core/operations";
 import { requestWholeTableTranspose, type TableTransposeRequest } from "../app/table-transpose-modal";
 import { captureEditorTableCommandTarget } from "./table-command-target";
 
@@ -21,7 +21,7 @@ export function captureEditorTransposeTarget(
   const target = captureEditorTableCommandTarget(app, editor, table, viewHint, isActive);
   if (target === null) return null;
   const apply = (): void => {
-    const result = target.apply(transposeTableInDocument);
+    const result = target.apply((_source, current) => transposeTable(current));
     if (result === null) {
       new Notice(t("notice.staleTable"));
       return;

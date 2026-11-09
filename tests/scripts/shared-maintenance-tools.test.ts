@@ -29,9 +29,11 @@ function fixture(): string {
 }
 
 function run(directory: string, args: string[], npm = npmVersion) {
+  const inheritedEnv = Object.fromEntries(Object.entries(process.env)
+    .filter(([key]) => key.toLowerCase() !== "npm_config_user_agent"));
   return spawnSync(process.execPath, args, {
     cwd: directory, encoding: "utf8", timeout: 15_000,
-    env: { ...process.env, npm_config_user_agent: npm === "" ? "" : `npm/${npm} node/v${process.versions.node}` },
+    env: { ...inheritedEnv, npm_config_user_agent: npm === "" ? "" : `npm/${npm} node/v${process.versions.node}` },
   });
 }
 

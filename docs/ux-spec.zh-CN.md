@@ -4,7 +4,7 @@ language: zh-CN
 source_language: zh-CN
 translation_status: source
 status: stable
-last_synced: 2026-10-29
+last_synced: 2026-11-13
 ---
 
 [English](ux-spec.md)
@@ -95,6 +95,8 @@ Markdown 转 HTML、HTML 转 Markdown 与复制整表 HTML、转换为普通 GFM
 普通 `div`/`span` 包装和额外的 `text/*` MIME 表示本身不会禁用这一窄范围纯文本回退。
 
 thead 或连续 th 行成为列表头，表体最左侧连续 th 列成为行表头，rowspan/colspan 转换为规范的 `^`/`<`。
+
+对符合结构转换条件的 HTML 表格，笔记编辑器粘贴与显式 HTML 转 Markdown 共用限制：展开后的矩形网格最多 10,000 个单元格（包括合并覆盖位置和补齐的空单元格），生成并对齐的 Markdown 最多 1,000,000 个 UTF-16 代码单元。共享导入器验证跨度为正安全整数，在每次展开分配前检查网格预算，并在格式化前计算列对齐补空格后的输出预算。任一预算超限时完整拒绝，包括其余内容安全的空表，不截断表格，也不自动退回纯文本或原生粘贴；笔记与当前选区保持不变，请缩小表格后重试。这些限制仅适用于插件转换，不限制已有 Markdown 表格。不受支持的富文本 HTML 仍遵循上述回退规则，不进入结构展开。
 
 单元格导入为纯文本，HTML 换行和块边界统一转换为规范 `<br>` 视觉换行。
 

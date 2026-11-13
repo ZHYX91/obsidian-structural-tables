@@ -1,6 +1,6 @@
 import { Platform, type Editor } from "obsidian";
 
-import type { ImportedHtmlRow } from "../core/interchange";
+import type { ImportedHtmlRow, ImportedHtmlTableResult } from "../core/interchange";
 import { importedHtmlTableToStructuralSource } from "../core/interchange";
 import { validateDocumentReplacement } from "../core/document-replacement";
 
@@ -178,13 +178,12 @@ function isPlainFallbackTextSemanticTable(html: string): boolean {
   );
 }
 
-export function structuralSourceFromClipboardHtml(html: string): string | null {
+function importedClipboardTable(html: string): ImportedHtmlTableResult | null {
   const parsed = parsedClipboardTable(html);
   if (
     parsed === null
     || hasMeaningfulContentOutsideTable(parsed.document)
     || hasUnsupportedCellContent(parsed.table)
-    || !hasMeaningfulTableContent(parsed.table)
   ) return null;
   const { table } = parsed;
   const rows: ImportedHtmlRow[] = Array.from(table.rows).map((row) => {
@@ -199,7 +198,13 @@ export function structuralSourceFromClipboardHtml(html: string): string | null {
       })),
     };
   });
-  return importedHtmlTableToStructuralSource(rows);
+  const result = importedHtmlTableToStructuralSource(rows);
+  return result.kind === "too-large" || hasMeaningfulTableContent(table) ? result : null;
+}
+
+export function structuralSourceFromClipboardHtml(html: string): string | null {
+  const result = importedClipboardTable(html);
+  return result?.kind === "table" ? result.source : null;
 }
 
 export type WholeTableClipboardImport =
@@ -208,12 +213,14 @@ export type WholeTableClipboardImport =
   | { kind: "blocked-empty" }
   | { kind: "blocked-unsafe-text" }
   | { kind: "blocked-boundary" }
+  | { kind: "blocked-size" }
   | { kind: "native" };
 
 /** Classify the complete clipboard payload before taking ownership of a note-level paste. */
 export function wholeTableClipboardImport(html: string, plain: string): WholeTableClipboardImport {
-  const source = structuralSourceFromClipboardHtml(html);
-  if (source !== null) return { kind: "table", source };
+  const imported = importedClipboardTable(html);
+  if (imported?.kind === "table") return imported;
+  if (imported?.kind === "too-large") return { kind: "blocked-size" };
   if (isPureEmptyClipboardTable(html)) {
     return plain !== "" ? { kind: "plain", text: plain } : { kind: "blocked-empty" };
   }

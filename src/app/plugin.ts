@@ -487,6 +487,7 @@ export class StructuralTablesPlugin extends Plugin {
       else if (result === "plain") new Notice(t("notice.clipboardPlainFallback"));
       else if (result === "blocked-empty") new Notice(t("notice.htmlEmptyTableBlocked"));
       else if (result === "blocked-boundary") new Notice(t("operation.invalidResult"));
+      else if (result === "blocked-size") new Notice(t("notice.htmlTableTooLarge"));
       else new Notice(t("notice.htmlTextSemanticsBlocked"));
     }));
   }

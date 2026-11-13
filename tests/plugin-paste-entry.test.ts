@@ -4,6 +4,7 @@ import type { App, Editor } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StructuralTablesPlugin } from "../src/app/plugin";
+import { createTranslator } from "../src/config/i18n";
 import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { notices } from "./mocks/obsidian";
 import { parseEditableTables } from "../src/core/parser";
@@ -80,6 +81,34 @@ beforeEach(() => {
 });
 
 describe("registered whole-note HTML paste entry", () => {
+  it("blocks oversized HTML before replacing a real editor selection or adding history", () => {
+    const source = "Before\n\nKEEP THIS SELECTION\n\nAfter";
+    const f = tableCommandEditor(source);
+    try {
+      const from = source.indexOf("KEEP");
+      f.cm.dispatch({ selection: { anchor: from, head: from + "KEEP THIS SELECTION".length } });
+      const selection = f.cm.state.selection;
+      Object.assign(f.editor, {
+        listSelections: () => [{ anchor: f.editor.offsetToPos(f.cm.state.selection.main.anchor), head: f.editor.offsetToPos(f.cm.state.selection.main.head) }],
+        getCursor: (which?: "from" | "to") => f.editor.offsetToPos(which === "from"
+          ? f.cm.state.selection.main.from : f.cm.state.selection.main.to),
+        replaceSelection: (insert: string) => f.cm.dispatch(f.cm.state.replaceSelection(insert)),
+      });
+      const html = '<table><tbody><tr><td rowspan="40" colspan="1000">value</td></tr>'
+        + "<tr></tr>".repeat(39) + "</tbody></table>";
+      const { event, preventDefault } = clipboardEvent(html, "COMPLETE-PLAIN-FALLBACK");
+
+      registeredPasteHandler()(event, f.editor);
+
+      expect(preventDefault).toHaveBeenCalledOnce();
+      expect(f.source()).toBe(source);
+      expect(f.cm.state.selection.eq(selection)).toBe(true);
+      expect(f.writes()).toBe(0);
+      expect(undo(f.cm)).toBe(false);
+      expect(notices).toEqual([createTranslator("en")("notice.htmlTableTooLarge")]);
+    } finally { f.destroy(); }
+  });
+
   it.each([false, true])("checks the complete selected document before table paste (blank=%s)", (blank) => {
     const marker = "PLACEHOLDER";
     const neighbor = "| Later prose | stays visible | IMPORTANT THIRD CELL |";

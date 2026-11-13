@@ -48,9 +48,10 @@ describe("reviewed write and container integrity", () => {
       section: i === 0 ? "head" as const : "body" as const,
       cells: cells.map(text => ({ text, rowSpan: 1, columnSpan: 1, header: i === 0 })),
     }));
-    const source = importedHtmlTableToStructuralSource(rows)!;
-    expect(source).not.toBeNull();
-    const html = new MarkdownIt({ html: true }).render(source);
+    const imported = importedHtmlTableToStructuralSource(rows);
+    expect(imported.kind).toBe("table");
+    if (imported.kind !== "table") throw new Error("Expected a converted table");
+    const html = new MarkdownIt({ html: true }).render(imported.source);
     expect((html.match(/<td>/gu) ?? [])).toHaveLength(4);
     expect(html).toContain("KEEP-1"); expect(html).toContain("KEEP-2");
     expect(html).toContain(`<td>${text.replace(/</gu, "&lt;")}</td>`);

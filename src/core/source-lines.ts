@@ -242,7 +242,7 @@ export function ignoredMarkdownLines(
         while (list !== null && !thematicBreak(line)) {
           const marker = list[2]!;
           const markerIndent = listIndent + list[1]!.length;
-          const sibling = exitedList !== undefined && exitedList.marker === marker.at(-1)
+          const sibling = exitedList !== undefined && exitedList.marker === marker[marker.length - 1]
             && markerIndent < exitedList.indent;
           // GFM recognizes an immediate equal-width table header before a
           // list marker. Do not create a list scope from that cell's text.
@@ -264,7 +264,7 @@ export function ignoredMarkdownLines(
           // Sibling list items may have identical indentation but distinct paragraphs.
           paragraph = null;
           listIndent += list[0].length;
-          listIndents.push({ indent: listIndent, marker: marker.at(-1)! });
+          listIndents.push({ indent: listIndent, marker: marker[marker.length - 1]! });
           exitedList = undefined;
           line = line.slice(list[0].length);
           list = /^( {0,3})([-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);

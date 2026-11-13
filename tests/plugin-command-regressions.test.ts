@@ -184,6 +184,37 @@ describe("whole-table HTML command notices", () => {
 });
 
 describe("registered conversion command entry", () => {
+  it("keeps oversized HTML and the real editor selection unchanged without a preview", () => {
+    const html = '<table><tbody><tr><td rowspan="40" colspan="1000">value</td></tr>'
+      + "<tr></tr>".repeat(39) + "</tbody></table>";
+    const source = html + "\n\nAfter";
+    const f = tableCommandEditor(source);
+    try {
+      const commands: Array<{ id: string; editorCallback?: (editor: Editor, context: { file: TFile | null }) => void }> = [];
+      const plugin = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
+        app: f.app,
+        settings: { ...DEFAULT_SETTINGS, language: "en" },
+        localizedCommands: [],
+        addCommand: (command: typeof commands[number]) => { commands.push(command); return command; },
+      }) as unknown as { registerCommands: () => void };
+      plugin.registerCommands();
+      f.cm.dispatch({ selection: { anchor: html.indexOf("value"), head: html.indexOf("value") + 5 } });
+      const selection = f.cm.state.selection;
+      const opened = vi.spyOn(ConversionPreviewModal.prototype, "open");
+
+      const command = commands.find(({ id }) => id === "convert-current-html-table-to-markdown");
+      expect(command?.editorCallback).toBeDefined();
+      command!.editorCallback!(f.editor, { file: f.file as unknown as TFile });
+
+      expect(opened).not.toHaveBeenCalled();
+      expect(f.source()).toBe(source);
+      expect(f.cm.state.selection.eq(selection)).toBe(true);
+      expect(f.writes()).toBe(0);
+      expect(undo(f.cm)).toBe(false);
+      expect(notices).toEqual([createTranslator("en")("notice.htmlFormatUnsupported")]);
+    } finally { f.destroy(); }
+  });
+
   it("passes the current source file into both preview commands", () => {
     const formatCurrent = vi.fn();
     const previewPlainGfmConversion = vi.fn();

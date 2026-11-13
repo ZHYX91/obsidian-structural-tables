@@ -104,8 +104,9 @@ export function planHtmlTableToMarkdown(source: string): HtmlToMarkdownPlan | nu
       header: cell.tagName === "TH",
     })),
   }));
-  const markdown = importedHtmlTableToStructuralSource(rows);
-  if (markdown === null) return null;
+  const converted = importedHtmlTableToStructuralSource(rows);
+  if (converted.kind !== "table") return null;
+  const markdown = converted.source;
   const parsed = parseEditableTables(markdown).tables[0];
   if (parsed === undefined || !parsed.valid || parsed.rows.length !== rows.length
     || parsed.range.from !== 0 || parsed.range.to !== markdown.length) return null;

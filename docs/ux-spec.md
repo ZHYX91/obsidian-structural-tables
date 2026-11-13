@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-10-29
+last_synced: 2026-11-13
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -96,6 +96,8 @@ Mixed-content, multi-table, image, HTML `embed`, attachment, link, MathML/SVG, r
 Ordinary `div`/`span` wrappers and additional `text/*` MIME representations do not by themselves disable the narrow plain-text fallback.
 
 A thead or consecutive th rows become column headers, consecutive leftmost th columns in the body become row headers, and rowspan/colspan become canonical `^`/`<` markers.
+
+For HTML tables eligible for structural conversion, both note-editor paste and explicit HTML-to-Markdown conversion allow at most 10,000 cells in the expanded rectangular grid (including merged and padded cells) and 1,000,000 UTF-16 code units in the generated, aligned Markdown. The shared importer checks positive safe-integer spans and bounds each expansion before allocating it; column padding is budgeted before formatting. An import that exceeds either budget is refused in full, including an otherwise-empty safe table, without truncation or an automatic plain-text/native fallback. The note and selection are kept; use a smaller table. These limits apply to plugin conversion, not to existing Markdown tables. Unsupported rich HTML still follows the fallback rules above without entering structural expansion.
 
 Cell content is imported as plain text, with HTML break and block boundaries normalized to canonical `<br>` visual breaks.
 

@@ -91,11 +91,13 @@ describe("math cell input fidelity", () => {
   });
 
   it("imports external math-looking text literally while retaining table safety", () => {
-    const source = importedHtmlTableToStructuralSource([{ section: "body", cells: [
+    const imported = importedHtmlTableToStructuralSource([{ section: "body", cells: [
       { text: "$|x|$", rowSpan: 1, columnSpan: 1, header: false },
       { text: "value", rowSpan: 1, columnSpan: 1, header: false },
-    ] }])!;
-    const parsed = parseEditableTables(source).tables[0]!;
+    ] }]);
+    expect(imported.kind).toBe("table");
+    if (imported.kind !== "table") throw new Error("Expected a converted table");
+    const parsed = parseEditableTables(imported.source).tables[0]!;
     expect(parsed).toMatchObject({ valid: true, columnCount: 2 });
     expect(parsed.rows[0]!.cells[0]!.content).toContain("&#36;");
     expect(new MarkdownIt({ html: true }).renderInline(parsed.rows[0]!.cells[0]!.content)).toBe("$|x|$");

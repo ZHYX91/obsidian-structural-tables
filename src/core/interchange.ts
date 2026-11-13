@@ -1,6 +1,6 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
-import { serializeStructuralTable } from "./serializer";
+import { markdownSourceDisplayWidth, serializeStructuralTable } from "./serializer";
 import { closedCodeSpanEnd, existingTableCellText } from "./table-cell-syntax";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
 import { decodeLiteralTableEntity, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
@@ -31,7 +31,16 @@ export interface ImportedHtmlRow {
 interface ImportedAnchor extends ImportedHtmlCell {
   row: number;
   column: number;
+  literal: string;
 }
+
+// Bound both span expansion and aligned-source padding before allocating them.
+// These are import limits; existing Markdown tables keep their current contract.
+export const HTML_TABLE_IMPORT_LIMITS = Object.freeze({ cells: 10_000, sourceCharacters: 1_000_000 });
+
+export type ImportedHtmlTableResult =
+  | { kind: "table"; source: string }
+  | { kind: "unsupported" | "too-large" };
 
 const CONFLICTING_PLUGIN_IDS = new Map<string, string>([
   ["sheets", "Sheets Extended"],
@@ -314,10 +323,34 @@ export function enabledConflictingPlugins(enabledPluginIds: Iterable<string>): s
   return [...names].sort((left, right) => left.localeCompare(right));
 }
 
-export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlRow[]): string | null {
-  if (rows.some((row) => row.cells.some((cell) => literalTableCellText(cell.text) === null))) return null;
-  if (rows.length === 0 || rows.every((row) => row.cells.length === 0)) return null;
+export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlRow[]): ImportedHtmlTableResult {
+  if (rows.length === 0) return { kind: "unsupported" };
+  // Imported tables need at least two columns, including padded empty cells.
+  if (rows.length > Math.floor(HTML_TABLE_IMPORT_LIMITS.cells / 2)) return { kind: "too-large" };
+  const maxColumns = Math.floor(HTML_TABLE_IMPORT_LIMITS.cells / rows.length);
+  const literals = new Map<ImportedHtmlCell, string>();
+  let cellCount = 0;
+  let textCharacters = 0;
+  for (const [rowIndex, row] of rows.entries()) {
+    if (row.cells.length > HTML_TABLE_IMPORT_LIMITS.cells - cellCount) return { kind: "too-large" };
+    cellCount += row.cells.length;
+    for (const cell of row.cells) {
+      if (!Number.isSafeInteger(cell.rowSpan) || cell.rowSpan < 1
+        || !Number.isSafeInteger(cell.columnSpan) || cell.columnSpan < 1
+        || cell.rowSpan > rows.length - rowIndex) return { kind: "unsupported" };
+      if (cell.columnSpan > maxColumns
+        || cell.text.length > HTML_TABLE_IMPORT_LIMITS.sourceCharacters - textCharacters) return { kind: "too-large" };
+      const literal = literalTableCellText(cell.text);
+      if (literal === null) return { kind: "unsupported" };
+      if (literal.length > HTML_TABLE_IMPORT_LIMITS.sourceCharacters - textCharacters) return { kind: "too-large" };
+      textCharacters += literal.length;
+      literals.set(cell, literal);
+    }
+  }
+  if (cellCount === 0) return { kind: "unsupported" };
   const owners: (ImportedAnchor | undefined)[][] = rows.map(() => []);
+  const widths: number[] = [];
+  let contentWidthDifference = 0;
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
     const sourceRow = rows[rowIndex];
     if (sourceRow === undefined) continue;
@@ -325,14 +358,20 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
     let column = 0;
     for (const sourceCell of sourceRow.cells) {
       while (rowOwners[column] !== undefined) column += 1;
-      const rowSpan = Math.max(1, Math.min(sourceCell.rowSpan, rows.length - rowIndex));
-      const columnSpan = Math.max(1, sourceCell.columnSpan);
-      const anchor: ImportedAnchor = { ...sourceCell, rowSpan, columnSpan, row: rowIndex, column };
+      const { rowSpan, columnSpan } = sourceCell;
+      // Check the complete rectangular width, not just this cell's span area.
+      // Subtraction keeps huge spans from overflowing a product or an array size.
+      if (columnSpan > maxColumns - column) return { kind: "too-large" };
+      const literal = literals.get(sourceCell)!;
+      const width = markdownSourceDisplayWidth(literal);
+      widths[column] = Math.max(widths[column] ?? 3, width);
+      contentWidthDifference += literal.length - width;
+      const anchor: ImportedAnchor = { ...sourceCell, row: rowIndex, column, literal };
       for (let coveredRow = rowIndex; coveredRow < rowIndex + rowSpan; coveredRow += 1) {
         const target = owners[coveredRow] ?? [];
         owners[coveredRow] = target;
         for (let coveredColumn = column; coveredColumn < column + columnSpan; coveredColumn += 1) {
-          if (target[coveredColumn] !== undefined) return null;
+          if (target[coveredColumn] !== undefined) return { kind: "unsupported" };
           target[coveredColumn] = anchor;
         }
       }
@@ -341,22 +380,7 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
   }
   let columnCount = 0;
   for (const row of owners) if (row.length > columnCount) columnCount = row.length;
-  if (columnCount < 2) return null;
-  for (let row = 0; row < owners.length; row += 1) {
-    const target = owners[row] ?? [];
-    for (let column = 0; column < columnCount; column += 1) {
-      if (target[column] === undefined) {
-        target[column] = {
-          text: "",
-          rowSpan: 1,
-          columnSpan: 1,
-          header: false,
-          row,
-          column,
-        };
-      }
-    }
-  }
+  if (columnCount < 2) return { kind: "unsupported" };
   let headerRowCount = 0;
   for (const [rowIndex, row] of rows.entries()) {
     if (row.section !== "head" && (row.cells.length === 0 || !row.cells.every((cell) => cell.header))) break;
@@ -368,9 +392,31 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
     if (!bodyOwners.every((row) => row[column]?.header === true)) break;
     rowHeaderColumnCount = column + 1;
   }
+  let lineCharacters = 3 * columnCount + 1 + (rowHeaderColumnCount > 0 ? 1 : 0);
+  for (let column = 0; column < columnCount; column += 1) lineCharacters += widths[column] ?? 3;
+  // Canonical formatting repeats each column width on every row and the
+  // delimiter. UTF-16 length can differ from display width (CJK/emoji/marks).
+  const availableCharacters = HTML_TABLE_IMPORT_LIMITS.sourceCharacters - rows.length - contentWidthDifference;
+  if (lineCharacters > Math.floor(availableCharacters / (rows.length + 1))) return { kind: "too-large" };
+  for (let row = 0; row < owners.length; row += 1) {
+    const target = owners[row] ?? [];
+    for (let column = 0; column < columnCount; column += 1) {
+      if (target[column] === undefined) {
+        target[column] = {
+          text: "",
+          literal: "",
+          rowSpan: 1,
+          columnSpan: 1,
+          header: false,
+          row,
+          column,
+        };
+      }
+    }
+  }
   const values = owners.map((row, rowIndex) => row.map((anchor, columnIndex) => {
     if (anchor === undefined) return "";
-    if (anchor.row === rowIndex && anchor.column === columnIndex) return literalTableCellText(anchor.text)!;
+    if (anchor.row === rowIndex && anchor.column === columnIndex) return anchor.literal;
     return anchor.row === rowIndex ? "<" : "^";
   }));
   const delimiters = Array.from({ length: columnCount }, () => "---");
@@ -381,5 +427,5 @@ export function importedHtmlTableToStructuralSource(rows: readonly ImportedHtmlR
   lines.splice(headerRowCount, 0, delimiter);
   const candidate = lines.join("\n");
   const parsed = parseTableWrite(candidate, values, headerRowCount, rowHeaderColumnCount, Array.from({ length: columnCount }, () => "default"));
-  return parsed !== null ? serializeStructuralTable(parsed) : null;
+  return parsed !== null ? { kind: "table", source: serializeStructuralTable(parsed) } : { kind: "unsupported" };
 }

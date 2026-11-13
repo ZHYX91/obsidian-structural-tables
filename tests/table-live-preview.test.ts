@@ -4977,6 +4977,37 @@ describe("StructuralTableEditorController", () => {
     } finally { view.destroy(); }
   });
 
+  it.each([false, true])("keeps repeated owned merges working with native menus preferred (takeover=%s)", async (takeOverOrdinaryTables) => {
+    const source = "| A | B | C |\n| --- | --- | --- |\n| x | < | z |\n| d |  | f |\n| g |  | i |\n\nOutside";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()], undefined, { takeOverOrdinaryTables });
+    Menu.useNativeMenu = true;
+    try {
+      for (const row of [2, 3]) {
+        const first = parent.querySelector<HTMLElement>(`[data-structural-row='${row}'][data-structural-column='0']`)!;
+        const last = parent.querySelector<HTMLElement>(`[data-structural-row='${row}'][data-structural-column='1']`)!;
+        dispatchPointerDown(first, "mouse");
+        last.dispatchEvent(new MouseEvent("pointerover", { bubbles: true, buttons: 1 }));
+        document.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+        last.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+        const menu = lastMenu!;
+        const merge = menu.items.find((item) => item.title === "Merge selected cells")!;
+        expect(merge).toBeDefined();
+        // Electron's native menu-will-close reaches the renderer before click.
+        if (menu.useNativeMenu) { menu.hide(); await Promise.resolve(); }
+        merge.callback?.();
+        menu.hide();
+        await Promise.resolve();
+        const table = parseEditableTables(view.state.doc.toString()).tables[0]!;
+        expect(table.rows[row]!.cells[0]!.columnSpan).toBe(2);
+      }
+      expect(new Menu().useNativeMenu).toBe(true);
+      expect(undo(view)).toBe(true);
+      expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[3]!.cells[0]!.columnSpan).toBe(1);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { Menu.useNativeMenu = false; view.destroy(); }
+  });
+
   it("keeps desktop pointer drag ownership separate from touch selection", () => {
     const { parent, view } = mountEditor(screenshotTable, { anchor: screenshotTable.length });
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;

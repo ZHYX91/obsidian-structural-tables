@@ -6196,6 +6196,50 @@ describe("interaction batches one and two: real event ownership", () => {
     } finally { view.destroy(); }
   });
 
+  it.each(["Copy", "Cut"] as const)("does not overwrite the clipboard for text-menu %s without selected text", async (action) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | KEEP |\n\nEnd";
+    let clipboard = "Previous clipboard";
+    const writeText = vi.fn(async (value: string) => { clipboard = value; });
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.setSelectionRange(2, 2);
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      const item = lastMenu!.items.find((entry) => entry.title === action)!;
+      expect(item.disabled).toBe(true);
+      // A retained callback must also refuse, independently of native menu styling.
+      item.callback!();
+      await Promise.resolve(); await Promise.resolve();
+      expect(writeText).not.toHaveBeenCalled();
+      expect(clipboard).toBe("Previous clipboard");
+      expect(editor.value).toBe("Alpha");
+      expect(editor.selectionStart).toBe(2); expect(editor.selectionEnd).toBe(2);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undoDepth(view.state)).toBe(0);
+    } finally { view.destroy(); }
+  });
+
+  it.each(["Copy", "Cut"] as const)("keeps text-menu %s effective for a non-empty draft selection", async (action) => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| Alpha | KEEP |\n\nEnd";
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.setSelectionRange(1, 4);
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      expect(lastMenu!.items.find((entry) => entry.title === action)!.disabled).toBe(false);
+      clickCurrentMenuItem(action, true);
+      await vi.waitFor(() => expect(writeText).toHaveBeenCalledExactlyOnceWith("lph"));
+      await vi.waitFor(() => expect(editor.value).toBe(action === "Cut" ? "Aa" : "Alpha"));
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undoDepth(view.state)).toBe(0);
+    } finally { view.destroy(); }
+  });
+
   it.each(["Cut", "Paste as plain text"] as const)("revokes pending text-menu %s when an identical draft menu replaces it", async (action) => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";
     let release!: (value: string) => void;

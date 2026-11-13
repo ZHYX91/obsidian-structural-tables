@@ -4,7 +4,8 @@ import type { App, Component, Editor } from "obsidian";
 import { MarkdownView, Menu } from "obsidian";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
-import { EditorState } from "@codemirror/state";
+import { EditorState, StateEffect } from "@codemirror/state";
+import { history, redoDepth, undoDepth } from "@codemirror/commands";
 import { Decoration, EditorView } from "@codemirror/view";
 import { editorInfoField, type TFile as HostFile } from "obsidian";
 
@@ -130,6 +131,35 @@ afterEach(() => {
 });
 
 describe("native table menu bridge", () => {
+  it.each([false, true])("keeps captured structural edits bound to the registered plugin lifetime (unloaded=%s)", (unloaded) => {
+    const source = "| H | V |\n| --- | --- |\n| A |  |";
+    const { markdownView } = fixture(false, undefined, false, source);
+    const cm = EditorView.findFromDOM(markdownView.containerEl.querySelector<HTMLElement>(".cm-editor")!)!;
+    let writes = 0;
+    cm.dispatch({ effects: StateEffect.appendConfig.of([
+      history(), EditorView.updateListener.of((update) => { if (update.docChanged) writes += 1; }),
+    ]) });
+    const cells = [...markdownView.containerEl.querySelectorAll<HTMLTableCellElement>("tbody td")];
+    cells.forEach((cell) => cell.classList.add("is-selected"));
+    openContextMenu(cells[0]!);
+    const merge = lastMenu?.items.find((item) => item.title === "Merge selected cells");
+    expect(merge?.callback).toBeTypeOf("function");
+    const selection = cm.state.selection;
+    if (unloaded) for (const cleanup of cleanupCallbacks.splice(0)) cleanup();
+    merge!.callback!();
+    expect(writes).toBe(unloaded ? 0 : 1);
+    expect(undoDepth(cm.state)).toBe(unloaded ? 0 : 1);
+    expect(redoDepth(cm.state)).toBe(0);
+    if (unloaded) {
+      expect(markdownView.editor.getValue()).toBe(source);
+      expect(cm.state.selection.eq(selection)).toBe(true);
+    } else {
+      const table = parseEditableTables(markdownView.editor.getValue()).tables[0]!;
+      expect(table.rows[1]!.cells[0]!.columnSpan).toBe(2);
+      expect(table.rows[1]!.cells[0]!.content).toBe("A");
+    }
+  });
+
   it.each([false, true])("checks full-note boundaries when removing native column headers (separated=%s)", (separated) => {
     const preceding = "| outside | prose | extra |\n" + (separated ? "\n" : "");
     const source = preceding + "| H | V |\n| --- | --- |\n| a | b |\n| c | d |";

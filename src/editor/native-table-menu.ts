@@ -137,7 +137,7 @@ export class NativeTableMenuBridge {
     if (hasSelectionMenuItems(selection)) {
       addSelectionMenuItems(
         menu, t, selection,
-        (operation) => { if (target.isCurrent()) this.applyMenuOperation(markdownView.editor, table, operation); },
+        (operation) => { if (!this.disposed && target.isCurrent()) this.applyMenuOperation(markdownView.editor, table, operation); },
       );
     }
     const transposeTarget = captureEditorTransposeTarget(
@@ -194,6 +194,7 @@ export class NativeTableMenuBridge {
   }
 
   private applyMenuOperation(editor: Editor, expected: StructuralTable, operation: TableOperation): void {
+    if (this.disposed) return;
     const t = createTranslator(this.getSettings().language);
     const snapshot = new TableDocumentSnapshot(editor.getValue());
     const current = reparseUnchangedTable(snapshot, expected);
@@ -202,7 +203,9 @@ export class NativeTableMenuBridge {
       return;
     }
     const result = validateTableOperationInDocument(snapshot, current, operation(current));
-    if (editor.getValue() !== snapshot.source) {
+    const latest = editor.getValue();
+    if (this.disposed) return;
+    if (latest !== snapshot.source) {
       new Notice(t("notice.staleTable"));
       return;
     }

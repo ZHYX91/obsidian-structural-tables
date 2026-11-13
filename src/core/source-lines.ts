@@ -318,7 +318,8 @@ export function ignoredMarkdownLines(
       }
     }
     const continuesParagraph: boolean = paragraph !== null
-      && paragraph.quoteDepth >= quoteDepth && paragraph.listIndent >= listIndent;
+      && (paragraph.quoteDepth > quoteDepth
+        || (paragraph.quoteDepth === quoteDepth && paragraph.listIndent >= listIndent));
     if (!indentedCode && protectedBlock === null
       && (HTML_BLOCK_START.test(line) || (!continuesParagraph && HTML_STANDALONE_TAG.test(line)))) {
       onHtmlLine?.(line, index);
@@ -352,6 +353,12 @@ export function ignoredMarkdownLines(
     // Indentation cannot interrupt an existing paragraph. Complete reference
     // definitions, unlike ordinary text containing a colon, do not start one.
     const referenceDefinition: boolean = !continuesParagraph && isSingleLineReferenceDefinition(line);
+    // Missing container markers can continue a paragraph lazily, but cannot
+    // open a table outside that paragraph. Indents belong to their quote
+    // scope, so a restored outer list must not reset the inner paragraph.
+    if (continuesParagraph && paragraph !== null
+      && (paragraph.quoteDepth > quoteDepth || paragraph.listIndent > listIndent)
+      && !atxHeading && !thematicBreak) ignored.add(index);
     paragraph = line.trim() === "" || (indentedCode && !continuesParagraph) || protectedBlock !== null
       || atxHeading || thematicBreak || setextUnderline || referenceDefinition
       ? null : continuesParagraph ? paragraph : { quoteDepth, listIndent };

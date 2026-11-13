@@ -25,6 +25,42 @@ const prefixed = (source: string, prefix: string): string => source.split("\n").
 const endings = ["\n", "\r\n", "\r"] as const;
 
 describe("protected HTML in alternating Markdown containers", () => {
+  it.each([
+    { name: "quote inside list", head: "- item\n  > quote", prefix: "    " },
+    { name: "list after exited fence", head: "- > ```\n> - child", prefix: "> " },
+  ].flatMap((entry) => [false, true].flatMap((structural) =>
+    endings.map((ending) => ({ ...entry, structural, ending })))))(
+    "keeps lazy paragraph text protected in $name (structural=$structural, $ending)", (entry) => {
+      const content = prefixed(entry.structural ? fake : fake.replace("<", "B"), entry.prefix);
+      const note = (entry.head + "\n" + content + "\n\n" + real).replace(/\n/gu, entry.ending);
+      expect(native.parse(note, {}).filter((token) => token.type === "table_open")).toHaveLength(1);
+      expect(parseEditableTables(note).tables.map((table) => table.source))
+        .toEqual([real.replace(/\n/gu, entry.ending)]);
+
+      const separated = (entry.head + "\n" + entry.prefix.trimEnd() + "\n" + content
+        + "\n\n" + real).replace(/\n/gu, entry.ending);
+      expect(native.parse(separated, {}).filter((token) => token.type === "table_open")).toHaveLength(2);
+      expect(parseEditableTables(separated).tables.map((table) => table.source)).toEqual([
+        content.replace(/\n/gu, entry.ending), real.replace(/\n/gu, entry.ending),
+      ]);
+    },
+  );
+
+  it.each(endings)("rejects a stale target newly owned by a lazy quote paragraph with %s endings", (ending) => {
+    const initial = ("- item\n  >      \n" + prefixed(fake, "    ") + "\n\n" + real).replace(/\n/gu, ending);
+    const table = parseEditableTables(initial).tables[0]!;
+    const updated = initial.replace(">      ", "> quote");
+    expect(updated.slice(table.range.from, table.range.to)).toBe(table.source);
+    const snapshot = new TableDocumentSnapshot(updated);
+    expect(reparseUnchangedTable(snapshot, table)).toBeNull();
+    for (const operation of [editCellContent(table, 1, 0, "MUTATED"), removeTable(table), transposeTable(table)]) {
+      expect(operation.changed).toBe(true);
+      for (const document of [updated, snapshot]) {
+        expect(validateTableOperationInDocument(document, table, operation)).toMatchObject({ changed: false, source: table.source });
+      }
+    }
+  });
+
   it.each(containers.flatMap((container) => htmlBlocks.flatMap(([opening, closing]) =>
     endings.map((ending) => ({ ...container, tag: opening, closing, ending })))))(
     "keeps $tag literal in $name with $ending endings and preserves the following table", (entry) => {

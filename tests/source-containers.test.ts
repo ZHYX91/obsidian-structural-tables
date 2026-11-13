@@ -73,11 +73,13 @@ describe("source containers", () => {
     const nested = ["| Fake | < |", "| --- | --- |", "| literal | KEEP |", "</span>"]
       .map((line) => prefix + line).join("\n");
     const source = head + "\n" + nested + "\n\n" + tableSource;
-    const nativeHtml = new MarkdownIt({ html: true }).parse(source, {}).some((token) =>
+    const nativeTokens = new MarkdownIt({ html: true }).parse(source, {});
+    const nativeHtml = nativeTokens.some((token) =>
       token.type === "html_block" && token.content.includes("<span id='literal'>"));
     expect(nativeHtml).toBe(ownsHtml);
     const tables = parseEditableTables(source).tables;
-    expect(tables.some((table) => table.source.includes("| Fake | < |"))).toBe(!ownsHtml);
+    // Inline HTML in a lazy quote/list paragraph is not a table either.
+    expect(tables.length).toBe(nativeTokens.filter((token) => token.type === "table_open").length);
     expect(tables.some((table) => table.source === tableSource)).toBe(true);
   });
 

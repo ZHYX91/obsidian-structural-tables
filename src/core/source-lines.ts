@@ -1,4 +1,4 @@
-import { closedCodeSpanEnd } from "./table-cell-syntax";
+import { closedCodeSpanEnd, splitTablePipeRow } from "./table-cell-syntax";
 
 /** Source lines exclude their terminators; offsets always address the original text. */
 export function sourceLines(source: string): { lines: string[]; offsets: number[] } {
@@ -28,6 +28,7 @@ export function withSourcePrefix(source: string, prefix: string): string {
 }
 
 type ProtectedBlock = "%%" | "<!--" | "$$";
+interface ListScope { indent: number; marker: string }
 
 const RAW_LITERAL_HTML_START = /^ {0,3}<(?:pre|script|style|textarea)(?=[\t >]|$)/iu;
 const RAW_LITERAL_HTML_END = /<\/(?:pre|script|style|textarea)>/iu;
@@ -117,6 +118,37 @@ function isSingleLineReferenceDefinition(line: string): boolean {
   return tail.trim() === "" || /^[\t ]+(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^()\\])*\))[\t ]*$/u.test(tail);
 }
 
+/** Continue quotes through their owning list indentation without reading literal inner markers. */
+function quotePrefix(line: string, inheritedIndents: readonly number[], maximumDepth = Number.POSITIVE_INFINITY): {
+  length: number;
+  indents: number[];
+  padding: number[];
+  retainedDepth: number;
+} {
+  const indents: number[] = [];
+  const padding: number[] = [];
+  let length = 0;
+  let retainedDepth = 0;
+  let inherited = true;
+  while (indents.length < maximumDepth) {
+    const spaces = /^ */u.exec(line.slice(length))![0].length;
+    if (line[length + spaces] !== ">") break;
+    let indent = inherited ? inheritedIndents[indents.length] ?? 0 : 0;
+    if (spaces < indent || spaces > indent + 3) {
+      // A quote outside the old list starts a new container, even at the same depth.
+      inherited = false;
+      indent = 0;
+      if (spaces > 3) break;
+    }
+    if (inherited && indents.length < inheritedIndents.length) retainedDepth += 1;
+    indents.push(indent);
+    padding.push(spaces);
+    length += spaces + 1;
+    if (line[length] === " ") length += 1;
+  }
+  return { length, indents, padding, retainedDepth };
+}
+
 export function ignoredMarkdownLines(
   lines: readonly string[],
   visibleFenceInfo: ReadonlySet<string> = new Set<string>(),
@@ -133,7 +165,9 @@ export function ignoredMarkdownLines(
   let htmlSpecial: { end: string; indent: number } | null = null;
   let frontmatter = /^---[\t ]*$/u.test(lines[0]?.replace(/^\uFEFF/u, "") ?? "");
   let quoteDepth = 0;
-  let listIndents: number[] = [];
+  let quoteIndents: number[] = [];
+  const listsByQuote: ListScope[][] = [[]];
+  let listIndents = listsByQuote[0]!;
   // CommonMark type-7 HTML may begin immediately after a completed block.
   // Track paragraph continuity within the same quote/list container instead
   // of requiring a blank line before every standalone HTML tag.
@@ -153,13 +187,22 @@ export function ignoredMarkdownLines(
       if (index > 0 && /^(?:---|\.\.\.)[\t ]*$/u.test(original)) frontmatter = false;
       continue;
     }
-    let quote = /^(?: {0,3}>[\t ]?)*/u.exec(original)?.[0] ?? "";
-    let depth = quote.split(">").length - 1;
-    if ((fence !== null || protectedBlock !== null || rawLiteralHtml || htmlBlock || htmlSpecial !== null) && depth >= quoteDepth) {
-      quote = (quote.match(/ {0,3}>[\t ]?/gu) ?? []).slice(0, quoteDepth).join("");
-      depth = quoteDepth;
+    const protectedRegion = fence !== null || protectedBlock !== null || rawLiteralHtml || htmlBlock || htmlSpecial !== null;
+    const quote = quotePrefix(original, quoteIndents, protectedRegion ? quoteDepth : undefined);
+    const depth = quote.indents.length;
+    if (quote.retainedDepth < depth) {
+      // A newly opened quote belongs only to lists whose content indentation
+      // it actually reaches. Do this before hiding the prefix, or a top-level
+      // quote could revive an exited list and expose later code as a table.
+      const parentLists = listsByQuote[quote.retainedDepth];
+      if (parentLists !== undefined) {
+        while (parentLists.length > 0 && parentLists[parentLists.length - 1]!.indent > quote.padding[quote.retainedDepth]!) {
+          parentLists.pop();
+        }
+        quote.indents[quote.retainedDepth] = parentLists[parentLists.length - 1]?.indent ?? 0;
+      }
     }
-    if (depth !== quoteDepth) {
+    if (depth !== quoteDepth || quote.retainedDepth < quoteDepth) {
       fence = null;
       protectedBlock = null;
       rawLiteralHtml = false;
@@ -167,16 +210,20 @@ export function ignoredMarkdownLines(
       htmlSpecial = null;
       // A missing quote prefix can be a lazy continuation of its paragraph.
       // Block starters below still end that paragraph; a new deeper quote cannot.
-      if (paragraph === null || depth > paragraph.quoteDepth) paragraph = null;
-      listIndents = [];
+      if (paragraph === null || depth > paragraph.quoteDepth || quote.retainedDepth < depth) paragraph = null;
+      listsByQuote.length = quote.retainedDepth + 1;
+      while (listsByQuote.length <= depth) listsByQuote.push([]);
+      listIndents = listsByQuote[depth]!;
+      quoteIndents = quote.indents;
       quoteDepth = depth;
     }
     const unquoted = original.slice(quote.length);
     const indent = /^ */u.exec(unquoted)?.[0].length ?? 0;
+    let exitedList: ListScope | undefined;
     if (unquoted.trim() !== "") {
-      while (listIndents.length > 0 && indent < listIndents[listIndents.length - 1]!) listIndents.pop();
+      while (listIndents.length > 0 && indent < listIndents[listIndents.length - 1]!.indent) exitedList = listIndents.pop();
     }
-    let listIndent = listIndents[listIndents.length - 1] ?? 0;
+    let listIndent = listIndents[listIndents.length - 1]?.indent ?? 0;
     let line = unquoted.slice(listIndent);
     if (line.trim() !== "" && listIndent < protectedIndent) protectedBlock = null;
     if (line.trim() !== "" && listIndent < rawLiteralIndent) rawLiteralHtml = false;
@@ -184,43 +231,56 @@ export function ignoredMarkdownLines(
     if (line.trim() !== "" && htmlSpecial !== null && listIndent < htmlSpecial.indent) htmlSpecial = null;
     if (line.trim() !== "" && fence !== null && listIndent < fence.listIndent) fence = null;
 
-    // A list marker is a container, including when its first content is a fence.
+    // Lists and quotes can alternate on the same opening line. Resolve their
+    // containers before classifying HTML, fences, comments or ordinary prose.
     // Markers inside an active code/comment block remain literal content.
     if (fence === null && protectedBlock === null && !rawLiteralHtml && !htmlBlock && htmlSpecial === null) {
-      let list = /^( {0,3})([-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
-      // Thematic breaks take precedence over list markers at every container depth.
-      const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
-      while (list !== null && !thematicBreak(line)) {
-        const marker = list[2]!;
-        // Only an ordered list beginning with 1 can interrupt a paragraph.
-        // Outdenting from the preceding item starts a distinct list paragraph.
-        if (paragraph !== null && paragraph.listIndent <= listIndent
-          && /^\d/u.test(marker) && !/^1[.)]$/u.test(marker)) break;
-        // Sibling list items may have identical indentation but distinct paragraphs.
-        paragraph = null;
-        listIndent += list[0].length;
-        listIndents.push(listIndent);
-        line = line.slice(list[0].length);
-        list = /^( {0,3})([-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
-      }
-    }
-
-    if (fence === null && protectedBlock === null && !rawLiteralHtml && !htmlBlock && htmlSpecial === null) {
-      const nestedQuote = /^(?: {0,3}>[\t ]?)*/u.exec(line)?.[0] ?? "";
-      const nestedDepth = nestedQuote.split(">").length - 1;
-      const nestedLine = line.slice(nestedQuote.length);
-      const nestedOpening = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(nestedLine);
-      const nestedRun = nestedOpening?.[1];
-      const nestedInfo = (nestedOpening?.[2] ?? "").trim();
-      if (nestedDepth > 0 && nestedRun !== undefined
-        && (nestedRun[0] === "~" || !nestedInfo.includes("`"))) {
-        // A block quote may begin after a list marker on the same line
-        // (- > ```), while continuation lines expose the quote prefix at
-        // the physical line start. Record that effective quote depth now so
-        // the following quoted lines remain inside the same fence scope.
-        line = nestedLine;
-        quoteDepth = depth + nestedDepth;
+      for (;;) {
+        let list = /^( {0,3})([-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
+        // Thematic breaks take precedence over list markers at every container depth.
+        const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
+        while (list !== null && !thematicBreak(line)) {
+          const marker = list[2]!;
+          const markerIndent = listIndent + list[1]!.length;
+          const sibling = exitedList !== undefined && exitedList.marker === marker[marker.length - 1]
+            && markerIndent < exitedList.indent;
+          // GFM recognizes an immediate equal-width table header before a
+          // list marker. Do not create a list scope from that cell's text.
+          const next = lines[index + 1] ?? "";
+          const prefix = sourcePrefix(lines[index] ?? "");
+          const header = splitTablePipeRow(line);
+          const nextContent = next.slice(prefix.length);
+          const delimiter = sourcePrefix(next) === prefix && !/^[-+*](?:[\t ]|$)/u.test(nextContent)
+            ? splitTablePipeRow(nextContent) : null;
+          if (!sibling && header !== null && delimiter !== null && header.cells.length === delimiter.cells.length
+            && delimiter.cells.every((cell) => /^:?-+:?$/u.test(cell.trim()))) {
+            paragraph = null;
+            break;
+          }
+          // Only an ordered list beginning with 1 can interrupt a paragraph.
+          // Outdenting from the preceding item starts a distinct list paragraph.
+          if (paragraph !== null && paragraph.listIndent <= listIndent
+            && /^\d/u.test(marker) && !/^1[.)]$/u.test(marker)) break;
+          // Sibling list items may have identical indentation but distinct paragraphs.
+          paragraph = null;
+          listIndent += list[0].length;
+          listIndents.push({ indent: listIndent, marker: marker[marker.length - 1]! });
+          exitedList = undefined;
+          line = line.slice(list[0].length);
+          list = /^( {0,3})([-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
+        }
+        const nestedQuote = quotePrefix(line, []);
+        if (nestedQuote.indents.length === 0) break;
+        // Keep the outer list scope so an unclosed protected block ends when
+        // its quote exits, and ordinary list content can resume afterwards.
+        quoteIndents.push(listIndent, ...nestedQuote.indents.slice(1));
+        quoteDepth = quoteIndents.length;
+        while (listsByQuote.length <= quoteDepth) listsByQuote.push([]);
+        listIndents = listsByQuote[quoteDepth]!;
+        exitedList = undefined;
+        line = line.slice(nestedQuote.length);
         listIndent = 0;
+        paragraph = null;
       }
     }
 
@@ -278,7 +338,8 @@ export function ignoredMarkdownLines(
       }
     }
     const continuesParagraph: boolean = paragraph !== null
-      && paragraph.quoteDepth >= quoteDepth && paragraph.listIndent >= listIndent;
+      && (paragraph.quoteDepth > quoteDepth
+        || (paragraph.quoteDepth === quoteDepth && paragraph.listIndent >= listIndent));
     if (!indentedCode && protectedBlock === null
       && (HTML_BLOCK_START.test(line) || (!continuesParagraph && HTML_STANDALONE_TAG.test(line)))) {
       onHtmlLine?.(line, index);
@@ -312,6 +373,12 @@ export function ignoredMarkdownLines(
     // Indentation cannot interrupt an existing paragraph. Complete reference
     // definitions, unlike ordinary text containing a colon, do not start one.
     const referenceDefinition: boolean = !continuesParagraph && isSingleLineReferenceDefinition(line);
+    // Missing container markers can continue a paragraph lazily, but cannot
+    // open a table outside that paragraph. Indents belong to their quote
+    // scope, so a restored outer list must not reset the inner paragraph.
+    if (continuesParagraph && paragraph !== null
+      && (paragraph.quoteDepth > quoteDepth || paragraph.listIndent > listIndent)
+      && !atxHeading && !thematicBreak) ignored.add(index);
     paragraph = line.trim() === "" || (indentedCode && !continuesParagraph) || protectedBlock !== null
       || atxHeading || thematicBreak || setextUnderline || referenceDefinition
       ? null : continuesParagraph ? paragraph : { quoteDepth, listIndent };

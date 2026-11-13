@@ -66,6 +66,9 @@ const menusByEvent = new WeakMap<Event, Menu>();
 function recordShownMenu(menu: Menu): void { lastMenu = menu; }
 
 export class Menu {
+  static useNativeMenu = false;
+  useNativeMenu = Menu.useNativeMenu;
+  setUseNativeMenu(value: boolean): this { this.useNativeMenu = value; return this; }
   readonly items: MenuItem[] = [];
   showAtPosition(_position: { x: number; y: number }): this { recordShownMenu(this); return this; }
   private readonly hideCallbacks: Array<() => void> = [];

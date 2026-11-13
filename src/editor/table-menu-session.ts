@@ -53,6 +53,10 @@ export class TableMenuSession {
   onHide(callback: () => void): void { this.hideCallbacks.add(callback); }
 
   private track(menu: Menu): void {
+    // Electron native menus can deliver onClick after onHide's microtasks.
+    // Keep owned menus in the renderer so dismissal can revoke stale actions
+    // immediately without racing a legitimate native activation.
+    menu.setUseNativeMenu(false);
     this.visible.add(menu);
     menu.onHide(() => {
       if (!this.visible.delete(menu) || this.visible.size > 0) return;

@@ -2,6 +2,10 @@
 
 This page collects version-specific workarounds and interactions with other Obsidian plugins. For normal usage, see the [Structural Tables README](../README.md).
 
+## Desktop context menus
+
+Menus owned by Structural Tables use Obsidian's HTML menu, including when the system-native menu preference is enabled. Native menu dismissal can reach the plugin before the selected action and incorrectly invalidate its frozen selection. HTML menus keep dismissal and activation in the same renderer; stale-source and dismissed-menu checks remain enforced. Ordinary tables with takeover disabled keep Obsidian's own menu and applicable plugin contributions.
+
 ## Advanced Tables and other source-editing plugins
 
 Structural Tables uses the exact `<`, `^`, and delimiter-row `||` tokens for merges and row headers. Another table plugin may interpret those same characters differently.

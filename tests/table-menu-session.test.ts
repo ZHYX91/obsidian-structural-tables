@@ -4,12 +4,31 @@ import type { App, Menu } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 
 import { TableMenuOwner } from "../src/editor/table-menu-session";
+import { addTableSubmenu } from "../src/editor/table-submenu";
 import { App as MockApp, Menu as MockMenu } from "./mocks/obsidian";
 
 const app = (): App => new MockApp() as unknown as App;
 const menu = (): Menu => new MockMenu() as unknown as Menu;
 
 describe("owned table menu sessions", () => {
+  it("keeps built-in table submenus in the renderer under the native preference", () => {
+    MockMenu.useNativeMenu = true;
+    const owner = new TableMenuOwner(app(), document);
+    try {
+      const root = new MockMenu();
+      owner.open(root as unknown as Menu);
+      const populate = vi.fn();
+      addTableSubmenu(root as unknown as Menu, "Table operations", populate);
+      const child = root.items[0]!.submenu!;
+      expect(populate).toHaveBeenCalledWith(child);
+      expect(child.useNativeMenu).toBe(false);
+      expect(new MockMenu().useNativeMenu).toBe(true);
+    } finally {
+      owner.dispose();
+      MockMenu.useNativeMenu = false;
+    }
+  });
+
   it("uses renderer menus for owned roots and fallback children without changing the host preference", () => {
     MockMenu.useNativeMenu = true;
     const owner = new TableMenuOwner(app(), document);

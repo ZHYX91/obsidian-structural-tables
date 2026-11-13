@@ -6,9 +6,15 @@ export function addTableSubmenu(menu: Menu, title: string, populate: (submenu: M
   menu.addItem((item: MenuItem) => {
     item.setSection("structural-tables-cell-table").setTitle(title).setIcon("table");
     const native = item as MenuItem & { setSubmenu?: () => Menu };
-    if (typeof native.setSubmenu === "function") populate(native.setSubmenu());
+    if (typeof native.setSubmenu === "function") {
+      const submenu = native.setSubmenu();
+      // The host creates a new Menu without inheriting its parent's preference.
+      submenu.setUseNativeMenu(false);
+      populate(submenu);
+    }
     else item.onClick((event) => {
       const submenu = new Menu();
+      submenu.setUseNativeMenu(false);
       populate(submenu);
       if (showFallback !== undefined) { showFallback(submenu, event); return; }
       const pointer = event as MouseEvent;

@@ -484,6 +484,24 @@
       ]
     },
     {
+      "id": "native-menu-activation",
+      "title": "Repeated table actions with the native-menu preference",
+      "surfaces": ["desktop"],
+      "requiredCapabilities": { "desktop": [] },
+      "steps": [
+        "Open Native menu activation in a disposable Vault. Record the actual host/version, original full note and native-menu preference. Enable the host native-menu preference only in this fixture profile; keep ordinary-table takeover disabled.",
+        "In Live Preview select two cells in the first body row and merge through the actual context menu, then merge another pair in a different row. The native ordinary-table contribution and the subsequent owned table menu must both work. Use host Undo twice and compare the complete original note.",
+        "Enable ordinary-table takeover. Open and dismiss a selected range menu with Escape, reselect and reopen it, then merge two distinct pairs in different rows. Verify both writes and independent Undo steps.",
+        "Edit a cell and inspect its text menu and built-in Table operations submenu. Both owned menus must render in the host window under the native preference. Activate an applicable table operation and verify the exact note change and host Undo.",
+        "Switch to another fixture and reopen this note, then perform another merge. Record the resulting source and confirm unrelated host menus still use the native preference. Restore the fixture note through host Undo."
+      ],
+      "expected": [
+        "Valid repeated actions succeed without a stale-table notice with takeover either off or on; Escape dismissal permits a fresh selection and menu.",
+        "Owned root and child menus use HTML without changing the global native preference. Unrelated host menus retain their configured presentation.",
+        "Each confirmed operation has its own Undo step and preserves surrounding note text. Actual platform/version evidence is reported separately from untested platforms."
+      ]
+    },
+    {
       "id": "editing-and-selection",
       "title": "Cell editing, selection, focus and navigation",
       "surfaces": [

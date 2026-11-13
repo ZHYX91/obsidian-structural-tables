@@ -33,18 +33,12 @@ function renderedTables(container: HTMLElement): HTMLTableElement[] {
     && table.closest(".internal-embed, .markdown-embed, .cm-editor") === owner);
 }
 
-function sectionSource(
-  text: string,
-  lineStart: number,
-  lineEnd: number,
-): string | null {
-  if (!Number.isInteger(lineStart) || !Number.isInteger(lineEnd) || lineStart < 0 || lineEnd < lineStart) {
-    return null;
-  }
-  const ending = text.includes("\r\n") ? "\r\n" : text.includes("\r") ? "\r" : "\n";
-  const lines = text.split(/\r\n|\r|\n/gu);
-  if (lineStart >= lines.length) return null;
-  return lines.slice(lineStart, Math.min(lineEnd + 1, lines.length)).join(ending);
+interface ReadingSourceSnapshot {
+  docId: string;
+  sourcePath: string;
+  text: string;
+  lineCount: number;
+  tables: readonly StructuralTable[];
 }
 
 function diagnosticTitle(table: StructuralTable, settings: StructuralTablesSettings): string {
@@ -54,6 +48,7 @@ function diagnosticTitle(table: StructuralTable, settings: StructuralTablesSetti
 
 export class StructuralTableReadingProcessor {
   private readonly calloutSessions = new WeakMap<HTMLElement, CalloutRenderSession>();
+  private readonly sourceSnapshots: ReadingSourceSnapshot[] = [];
   private readonly blockMapper: ReadingBlockMapper;
   private readonly standalone: StandaloneTableRenderer;
   constructor(
@@ -77,11 +72,13 @@ export class StructuralTableReadingProcessor {
     if (section === null || section === undefined) {
       return this.standalone.process(container, context);
     }
-    const source = sectionSource(section.text, section.lineStart, section.lineEnd);
-    if (source === null) return;
+    if (!Number.isInteger(section.lineStart) || !Number.isInteger(section.lineEnd)
+      || section.lineStart < 0 || section.lineEnd < section.lineStart) return;
+    const snapshot = this.sourceSnapshot(context, section.text, section.lineStart);
+    if (snapshot === undefined) return;
     // Parse with the note's container and protected-region context intact, then
     // translate source lines into this renderer section's coordinate system.
-    const allTables = parseEditableTables(section.text).tables;
+    const allTables = snapshot.tables;
     const parsed = allTables
       .filter((table) => table.startLine >= section.lineStart && table.endLine <= section.lineEnd)
       .map((table) => ({
@@ -170,6 +167,29 @@ export class StructuralTableReadingProcessor {
       context.addChild(component);
     });
     if (deferred.length > 0) this.blockMapper.process(container, context, section, deferred);
+  }
+
+  private sourceSnapshot(context: MarkdownPostProcessorContext, text: string,
+    lineStart: number): ReadingSourceSnapshot | undefined {
+    const index = this.sourceSnapshots.findIndex((snapshot) => snapshot.docId === context.docId
+      && snapshot.sourcePath === context.sourcePath);
+    const previous = this.sourceSnapshots[index];
+    const current = previous?.text === text ? previous : undefined;
+    const lineCount = current?.lineCount ?? text.split(/\r\n|\r|\n/gu).length;
+    if (lineStart >= lineCount) return;
+    const snapshot = current ?? {
+      docId: context.docId,
+      sourcePath: context.sourcePath,
+      text,
+      lineCount,
+      tables: parseEditableTables(text).tables,
+    };
+    // Sections and interleaved views share immutable source results, not DOM or
+    // render lifetimes. Bound retention as the user visits other notes.
+    if (index >= 0) this.sourceSnapshots.splice(index, 1);
+    this.sourceSnapshots.push(snapshot);
+    if (this.sourceSnapshots.length > 4) this.sourceSnapshots.shift();
+    return snapshot;
   }
 
   private async processCallout(container: HTMLElement, context: MarkdownPostProcessorContext,

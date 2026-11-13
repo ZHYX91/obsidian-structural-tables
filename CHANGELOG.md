@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.3 - 2026-11-14
+
+- Keep owned table menus and submenus in the renderer so repeated merge actions remain usable with the system-native menu preference enabled, while preserving stale-target and unload checks.
+- Protect HTML examples and lazy paragraph continuations inside nested Markdown lists and blockquotes from table editing operations.
+- Limit supported HTML imports to 10,000 expanded cells and 1,000,000 UTF-16 units of Markdown, with explicit refusal that preserves source and selection.
+- Reuse complete-note parse results across Reading View sections, invalidating cached results when the source changes.
+- Reject retained native-table actions after plugin unload and preserve the clipboard when cell-text Copy or Cut has no selection.
+
 ## 0.11.2 - 2026-11-09
 
 - Validate whole-table transpose in one pass over the original and updated note, preserving neighboring tables, merged cells, and header roles.

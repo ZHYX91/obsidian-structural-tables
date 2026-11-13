@@ -486,8 +486,12 @@
     {
       "id": "native-menu-activation",
       "title": "Repeated table actions with the native-menu preference",
-      "surfaces": ["desktop"],
-      "requiredCapabilities": { "desktop": [] },
+      "surfaces": [
+        "desktop"
+      ],
+      "requiredCapabilities": {
+        "desktop": []
+      },
       "steps": [
         "Open Native menu activation in a disposable Vault. Record the actual host/version, original full note and native-menu preference. Enable the host native-menu preference only in this fixture profile; keep ordinary-table takeover disabled.",
         "In Live Preview select two cells in the first body row and merge through the actual context menu, then merge another pair in a different row. The native ordinary-table contribution and the subsequent owned table menu must both work. Use host Undo twice and compare the complete original note.",

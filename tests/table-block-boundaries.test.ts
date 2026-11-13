@@ -27,13 +27,24 @@ describe("table Markdown block boundaries", () => {
     }
   });
 
-  it.each(["# Before | explanation", "###### Before | explanation", "- Before | explanation", "2. Before | explanation"])(
+  it.each(["# Before | explanation", "###### Before | explanation"])(
     "does not extend column headers across the preceding block %j", (before) => {
       const source = `${before}\n${TABLE}`;
       const table = parseEditableTables(source).tables[0]!;
       expect(table.source).toBe(TABLE);
       expect(table.headerRowCount).toBe(1);
       expect(table.range.from).toBe(before.length + 1);
+    },
+  );
+
+  it.each(["- Before | explanation", "2. Before | explanation"])(
+    "does not acquire a lazy list paragraph after %j", (before) => {
+      const source = `${before}\n${TABLE}`;
+      expect(markdown.parse(source, {}).some((token) => token.type === "table_open")).toBe(false);
+      expect(parseEditableTables(source).tables).toEqual([]);
+      const separated = `${before}\n\n${TABLE}`;
+      expect(markdown.parse(separated, {}).filter((token) => token.type === "table_open")).toHaveLength(1);
+      expect(parseEditableTables(separated).tables[0]?.source).toBe(TABLE);
     },
   );
 
@@ -44,6 +55,19 @@ describe("table Markdown block boundaries", () => {
       const table = parseEditableTables(source).tables[0]!;
       expect(table).toMatchObject({ valid: true, structural: false, headerRowCount: 1, source });
       expect(table.rows[0]?.cells[0]?.content).toBe(firstCell);
+    },
+  );
+
+  it.each(["- Header", "+ Header", "* Header", "0. Header", "2) Header"])(
+    "lets an immediate table header end an outer lazy paragraph: %j", (firstCell) => {
+      for (const [head, prefix] of [["> plain\n", ""], ["- item\n  > quote\n", "    "]] as const) {
+        const source = head + withSourcePrefix(`${firstCell} | Value\n--- | ---\nx | y`, prefix);
+        const native = markdown.parse(source, {}).filter((token) => token.type === "table_open");
+        expect(native).toHaveLength(1);
+        const table = parseEditableTables(source).tables[0]!;
+        expect(table).toMatchObject({ valid: true, structural: false, headerRowCount: 1 });
+        expect(table.source).toBe(source.slice(head.length));
+      }
     },
   );
 

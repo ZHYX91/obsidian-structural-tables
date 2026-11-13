@@ -1,4 +1,4 @@
-import { closedCodeSpanEnd } from "./table-cell-syntax";
+import { closedCodeSpanEnd, splitTablePipeRow } from "./table-cell-syntax";
 
 /** Source lines exclude their terminators; offsets always address the original text. */
 export function sourceLines(source: string): { lines: string[]; offsets: number[] } {
@@ -238,6 +238,19 @@ export function ignoredMarkdownLines(
         // Thematic breaks take precedence over list markers at every container depth.
         const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
         while (list !== null && !thematicBreak(line)) {
+          // GFM recognizes an immediate equal-width table header before a
+          // list marker. Do not create a list scope from that cell's text.
+          const next = lines[index + 1] ?? "";
+          const prefix = sourcePrefix(lines[index] ?? "");
+          const header = splitTablePipeRow(line);
+          const nextContent = next.slice(prefix.length);
+          const delimiter = sourcePrefix(next) === prefix && !/^[-+*](?:[\t ]|$)/u.test(nextContent)
+            ? splitTablePipeRow(nextContent) : null;
+          if (header !== null && delimiter !== null && header.cells.length === delimiter.cells.length
+            && delimiter.cells.every((cell) => /^:?-+:?$/u.test(cell.trim()))) {
+            paragraph = null;
+            break;
+          }
           const marker = list[2]!;
           // Only an ordered list beginning with 1 can interrupt a paragraph.
           // Outdenting from the preceding item starts a distinct list paragraph.

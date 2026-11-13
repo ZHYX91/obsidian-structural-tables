@@ -2064,13 +2064,14 @@ class StructuralTableInteraction {
         .setTitle(t("menu.insertCellBreak"))
         .onClick(() => activate(() => insertBreak(start, end))));
       const clipboard = editor.ownerDocument.defaultView?.navigator.clipboard ?? navigator.clipboard;
-      const item = (key: Parameters<typeof t>[0], icon: string, action: () => void): void => {
+      const item = (key: Parameters<typeof t>[0], icon: string, action: () => void, disabled = false): void => {
         menu.addItem((entry) => entry.setSection("structural-tables-cell-edit").setTitle(t(key)).setIcon(icon)
-          .setDisabled(draft.composing).onClick(() => activate(action)));
+          .setDisabled(draft.composing || disabled).onClick(() => activate(action)));
       };
       item("menu.undo", "undo", () => navigateDraftHistory(false, new KeyboardEvent("keydown", { key: "z", ctrlKey: true, cancelable: true })));
       item("menu.redo", "redo", () => navigateDraftHistory(true, new KeyboardEvent("keydown", { key: "y", ctrlKey: true, cancelable: true })));
       const copy = (cut: boolean): void => {
+        if (snapshot.start === snapshot.end) return;
         void Promise.resolve().then(() => {
           if (!currentDraft()) return;
           return clipboard.writeText(snapshot.value.slice(snapshot.start, snapshot.end));
@@ -2078,8 +2079,8 @@ class StructuralTableInteraction {
           if (cut && currentDraft()) applyDraftMutation("deletion", () => editor.setRangeText("", snapshot.start, snapshot.end, "end"));
         }).catch(() => new Notice(t("notice.clipboardFailed")));
       };
-      item("menu.cut", "scissors", () => copy(true));
-      item("menu.copy", "copy", () => copy(false));
+      item("menu.cut", "scissors", () => copy(true), start === end);
+      item("menu.copy", "copy", () => copy(false), start === end);
       const paste = (plain: boolean): void => {
         if (!plain) {
           void Promise.resolve().then(() => readCellClipboardData(clipboard)).then((data) => {

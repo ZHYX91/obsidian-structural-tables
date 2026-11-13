@@ -28,6 +28,7 @@ export function withSourcePrefix(source: string, prefix: string): string {
 }
 
 type ProtectedBlock = "%%" | "<!--" | "$$";
+interface ListScope { indent: number; marker: string }
 
 const RAW_LITERAL_HTML_START = /^ {0,3}<(?:pre|script|style|textarea)(?=[\t >]|$)/iu;
 const RAW_LITERAL_HTML_END = /<\/(?:pre|script|style|textarea)>/iu;
@@ -165,7 +166,7 @@ export function ignoredMarkdownLines(
   let frontmatter = /^---[\t ]*$/u.test(lines[0]?.replace(/^\uFEFF/u, "") ?? "");
   let quoteDepth = 0;
   let quoteIndents: number[] = [];
-  const listsByQuote: number[][] = [[]];
+  const listsByQuote: ListScope[][] = [[]];
   let listIndents = listsByQuote[0]!;
   // CommonMark type-7 HTML may begin immediately after a completed block.
   // Track paragraph continuity within the same quote/list container instead
@@ -195,10 +196,10 @@ export function ignoredMarkdownLines(
       // quote could revive an exited list and expose later code as a table.
       const parentLists = listsByQuote[quote.retainedDepth];
       if (parentLists !== undefined) {
-        while (parentLists.length > 0 && parentLists[parentLists.length - 1]! > quote.padding[quote.retainedDepth]!) {
+        while (parentLists.length > 0 && parentLists[parentLists.length - 1]!.indent > quote.padding[quote.retainedDepth]!) {
           parentLists.pop();
         }
-        quote.indents[quote.retainedDepth] = parentLists[parentLists.length - 1] ?? 0;
+        quote.indents[quote.retainedDepth] = parentLists[parentLists.length - 1]?.indent ?? 0;
       }
     }
     if (depth !== quoteDepth || quote.retainedDepth < quoteDepth) {
@@ -218,10 +219,11 @@ export function ignoredMarkdownLines(
     }
     const unquoted = original.slice(quote.length);
     const indent = /^ */u.exec(unquoted)?.[0].length ?? 0;
+    let exitedList: ListScope | undefined;
     if (unquoted.trim() !== "") {
-      while (listIndents.length > 0 && indent < listIndents[listIndents.length - 1]!) listIndents.pop();
+      while (listIndents.length > 0 && indent < listIndents[listIndents.length - 1]!.indent) exitedList = listIndents.pop();
     }
-    let listIndent = listIndents[listIndents.length - 1] ?? 0;
+    let listIndent = listIndents[listIndents.length - 1]?.indent ?? 0;
     let line = unquoted.slice(listIndent);
     if (line.trim() !== "" && listIndent < protectedIndent) protectedBlock = null;
     if (line.trim() !== "" && listIndent < rawLiteralIndent) rawLiteralHtml = false;
@@ -238,6 +240,10 @@ export function ignoredMarkdownLines(
         // Thematic breaks take precedence over list markers at every container depth.
         const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
         while (list !== null && !thematicBreak(line)) {
+          const marker = list[2]!;
+          const markerIndent = listIndent + list[1]!.length;
+          const sibling = exitedList !== undefined && exitedList.marker === marker.at(-1)
+            && markerIndent < exitedList.indent;
           // GFM recognizes an immediate equal-width table header before a
           // list marker. Do not create a list scope from that cell's text.
           const next = lines[index + 1] ?? "";
@@ -246,12 +252,11 @@ export function ignoredMarkdownLines(
           const nextContent = next.slice(prefix.length);
           const delimiter = sourcePrefix(next) === prefix && !/^[-+*](?:[\t ]|$)/u.test(nextContent)
             ? splitTablePipeRow(nextContent) : null;
-          if (header !== null && delimiter !== null && header.cells.length === delimiter.cells.length
+          if (!sibling && header !== null && delimiter !== null && header.cells.length === delimiter.cells.length
             && delimiter.cells.every((cell) => /^:?-+:?$/u.test(cell.trim()))) {
             paragraph = null;
             break;
           }
-          const marker = list[2]!;
           // Only an ordered list beginning with 1 can interrupt a paragraph.
           // Outdenting from the preceding item starts a distinct list paragraph.
           if (paragraph !== null && paragraph.listIndent <= listIndent
@@ -259,7 +264,8 @@ export function ignoredMarkdownLines(
           // Sibling list items may have identical indentation but distinct paragraphs.
           paragraph = null;
           listIndent += list[0].length;
-          listIndents.push(listIndent);
+          listIndents.push({ indent: listIndent, marker: marker.at(-1)! });
+          exitedList = undefined;
           line = line.slice(list[0].length);
           list = /^( {0,3})([-+*]|\d{1,9}[.)])([\t ]{1,4})(?=\S)/u.exec(line);
         }
@@ -271,6 +277,7 @@ export function ignoredMarkdownLines(
         quoteDepth = quoteIndents.length;
         while (listsByQuote.length <= quoteDepth) listsByQuote.push([]);
         listIndents = listsByQuote[quoteDepth]!;
+        exitedList = undefined;
         line = line.slice(nestedQuote.length);
         listIndent = 0;
         paragraph = null;

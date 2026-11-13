@@ -90,6 +90,29 @@ describe("table Markdown block boundaries", () => {
     }
   });
 
+  it.each(["-", "+", "*", "1.", "1)"].flatMap((marker) => ["\n", "\n\n"].flatMap((separator) =>
+    [false, true].map((structural) => ({ marker, separator, structural })))))(
+    "retains sibling list ownership before a delimiter ($marker/$separator, structural=$structural)", ({ marker, separator, structural }) => {
+      const source = `${marker} plain${separator}${marker} H | ${structural ? "<" : "V"}\n--- | ---\na | b`;
+      expect(markdown.parse(source, {}).some((token) => token.type === "table_open")).toBe(false);
+      expect(parseEditableTables(source).tables).toEqual([]);
+      const other = marker === "-" ? "+" : "-";
+      const changedMarker = `${marker} plain${separator}${other} H | V\n--- | ---\na | b`;
+      expect(markdown.parse(changedMarker, {}).filter((token) => token.type === "table_open")).toHaveLength(1);
+      expect(parseEditableTables(changedMarker).tables[0]?.valid).toBe(true);
+    },
+  );
+
+  it.each([" ", "  ", "   "])("keeps an outdented sibling inside the existing list after %j", (indent) => {
+    for (const prefix of ["", "> "]) {
+      for (const ending of ["\n", "\r\n", "\r"]) {
+        const source = withSourcePrefix(`${indent}- plain\n- H | <\n--- | ---\na | b`, prefix).replace(/\n/gu, ending);
+        expect(markdown.parse(source, {}).some((token) => token.type === "table_open")).toBe(false);
+        expect(parseEditableTables(source).tables).toEqual([]);
+      }
+    }
+  });
+
   it.each([
     "#tag", "####### text", "-text", "+text", "1.text", "1234567890. text",
     "\\# text", "\\- text", "*emphasis*", "`# text`",

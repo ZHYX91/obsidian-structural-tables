@@ -2,6 +2,7 @@
 
 import type { App, Command, Editor, TFile } from "obsidian";
 import { MarkdownRenderer, Platform } from "obsidian";
+import MarkdownIt from "markdown-it";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StructuralTablesPlugin } from "../src/app/plugin";
@@ -249,6 +250,50 @@ describe("registered conversion command entry", () => {
     expect(previewPlainGfmConversion).toHaveBeenCalledWith(editor, file);
     expect(previewMarkdownAsHtml).toHaveBeenCalledWith(editor, file);
     expect(previewHtmlAsMarkdown).toHaveBeenCalledWith(editor, file);
+  });
+});
+
+describe("registered structural commands preserve protected blocks", () => {
+  const table = "| H | < |\n| --- | --- |\n| a | b |";
+  const real = "| REAL | < |\n| --- | --- |\n| keep | safe |";
+  it.each([
+    "[link]:\n  /url\n<span>\n" + table + "\n</span>",
+    "[link]: /url\n  \"title\"\n<span>\n" + table + "\n</span>",
+    "-\n    ```\n" + table.split("\n").map((line) => "  " + line).join("\n") + "\n  ```",
+    "> text\n    > ```\n" + table.split("\n").map((line) => "> " + line).join("\n") + "\n> ```",
+  ])("leaves literal content intact and still edits the adjacent real table: %s", (block) => {
+    const source = block + "\n\n" + real;
+    expect(new MarkdownIt({ html: true }).parse(source, {}).filter((token) => token.type === "table_open")).toHaveLength(1);
+    const f = tableCommandEditor(source);
+    try {
+      const commands: Array<{ id: string; editorCallback?: (editor: Editor, context: { file: TFile | null }) => void }> = [];
+      const plugin = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
+        app: f.app, settings: { ...DEFAULT_SETTINGS, language: "en" }, localizedCommands: [],
+        addCommand: (command: typeof commands[number]) => { commands.push(command); return command; },
+      }) as unknown as { registerCommands: () => void };
+      plugin.registerCommands();
+      const split = commands.find(({ id }) => id === "split-current-merged-cell");
+      expect(split?.editorCallback).toBeDefined();
+      f.cm.dispatch({ selection: { anchor: source.indexOf("| H") + 2 } });
+      const selection = f.cm.state.selection;
+
+      split!.editorCallback!(f.editor, { file: f.file as unknown as TFile });
+
+      expect(f.source()).toBe(source);
+      expect(f.cm.state.selection.eq(selection)).toBe(true);
+      expect(f.writes()).toBe(0);
+      expect(undo(f.cm)).toBe(false);
+      expect(notices).toEqual([createTranslator("en")("notice.noTable")]);
+
+      f.cm.dispatch({ selection: { anchor: source.indexOf("| REAL") + 2 } });
+      split!.editorCallback!(f.editor, { file: f.file as unknown as TFile });
+      expect(f.writes()).toBe(1);
+      expect(f.source().slice(0, block.length + 2)).toBe(block + "\n\n");
+      expect(f.source()).not.toBe(source);
+      expect(undo(f.cm)).toBe(true);
+      expect(f.source()).toBe(source);
+      expect(undo(f.cm)).toBe(false);
+    } finally { f.destroy(); }
   });
 });
 

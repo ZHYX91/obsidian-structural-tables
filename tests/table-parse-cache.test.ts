@@ -1,4 +1,5 @@
 import { EditorState } from "@codemirror/state";
+import MarkdownIt from "markdown-it";
 import { describe, expect, it } from "vitest";
 import { parseEditableTables } from "../src/core/parser";
 import { mapTablesThroughProseEdit } from "../src/editor/table-parse-cache";
@@ -16,7 +17,7 @@ describe("prose edit cache", () => {
     "<pre>", '<PRE class="literal">', "</pre>", "<script", "</SCRIPT>", "<style>", "</STYLE>",
     "<textarea>", "</TEXTAREA>",
     "<div>", "</details>", "<span>", "<?xml", "?>", "<![CDATA[", "]]>", "<!DOCTYPE", ">",
-    "# Heading", "***", "___", "=", "--",
+    "# Heading", "***", "___", "=", "--", "+", "*", "1.", "1)", "+   ", "[label", "label]",
     "ordinary prose <pre> inline", "<prelude> is not a literal raw tag",
   ])("reparses potential structure %j", (insert) => {
     const state = EditorState.create({ doc: source });
@@ -35,6 +36,14 @@ describe("prose edit cache", () => {
     const transaction = start.update({ changes: { from: 2, to: 3, insert: "；" } });
 
     expect(mapTablesThroughProseEdit(tables, transaction)).not.toBeNull();
+  });
+
+  it("keeps unrelated prose reusable after a reference paragraph ends", () => {
+    const start = EditorState.create({ doc: `[link]: /url\n  "title"\n\n中文，说明。\n\n| A | B |\n| --- | --- |\n| 1 | 2 |` });
+    const tables = parseEditableTables(start.doc.toString()).tables;
+    const from = start.doc.toString().indexOf("，");
+    const transaction = start.update({ changes: { from, to: from + 1, insert: "；" } });
+    expect(mapTablesThroughProseEdit(tables, transaction)).toEqual(parseEditableTables(transaction.state.doc.toString()).tables);
   });
 
   const table = "| A | < |\n| --- | --- |\n| x | y |";
@@ -59,6 +68,37 @@ describe("prose edit cache", () => {
       const mapped = mapTablesThroughProseEdit(cached, transaction);
       cached = [...(mapped ?? parseEditableTables(transaction.state.doc.toString()).tables)];
       expect(cached, `${prefix}${insert}${suffix}`).toEqual(complete);
+      state = transaction.state;
+    }
+  });
+
+  it.each([
+    { name: "reference destination", prefix: "[link]:\n", initial: "  url", suffix: "\n<span>\n" + table + "\n</span>", edits: ["  url more", "  url"] },
+    { name: "reference title", prefix: "[link]: /url\n", initial: "  \"title\"", suffix: "\n<span>\n" + table + "\n</span>", edits: ["  \"title", "  \"title\""] },
+    { name: "multiline reference title", prefix: "[link]: /url \"first\n", initial: "  last\"", suffix: "\n<span>\n" + table + "\n</span>", edits: ["  last", "  last\""] },
+    { name: "multiline label", prefix: "[first\n", initial: "last]: /url", suffix: "\n<span>\n" + table + "\n</span>", edits: ["last] /url", "last]: /url"] },
+    ...["+", "*", "1.", "1)"].map((marker) => {
+      const indent = " ".repeat(marker.length + 1);
+      return { name: "empty list " + marker, prefix: "", initial: marker,
+        suffix: "\n" + indent + "  ```\n" + table.split("\n").map((line) => indent + line).join("\n") + "\n" + indent + "  ```",
+        edits: ["text", marker] };
+    }),
+  ])("invalidates successive $name ownership changes while preserving its adjacent real table", ({ prefix, initial, suffix, edits }) => {
+    const real = "| REAL | B |\n| --- | --- |\n| keep | safe |";
+    let state = EditorState.create({ doc: prefix + initial + suffix + "\n\n" + real });
+    let cached = parseEditableTables(state.doc.toString()).tables;
+    expect(cached).toHaveLength(1);
+    for (const [index, insert] of edits.entries()) {
+      const line = state.doc.lineAt(prefix.length);
+      const transaction = state.update({ changes: { from: line.from, to: line.to, insert } });
+      const complete = parseEditableTables(transaction.state.doc.toString()).tables;
+      expect(mapTablesThroughProseEdit(cached, transaction)).toBeNull();
+      cached = parseEditableTables(transaction.state.doc.toString()).tables;
+      expect(cached).toEqual(complete);
+      expect(cached).toHaveLength(index % 2 === 0 ? 2 : 1);
+      expect(new MarkdownIt({ html: true }).parse(transaction.state.doc.toString(), {})
+        .filter((token) => token.type === "table_open")).toHaveLength(cached.length);
+      expect(cached[cached.length - 1]?.source).toBe(real);
       state = transaction.state;
     }
   });

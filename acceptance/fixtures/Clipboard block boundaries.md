@@ -1,14 +1,16 @@
 # Clipboard block boundaries
 
+<!-- structural-tables-clipboard-boundaries-fixture -->
+
 Copy this complete table as Word / HTML. Unsupported block content must retain
 its exact source as literal cell text in both HTML and plain-text clipboard data.
 The inline control retains bold text and the real break. Copy makes no note edit.
 
 | Content | Value |
 | --- || --- |
-| <div>FIRST</div><div>SECOND</div> | KEEP |
-| <ul><li>FIRST</li><li>SECOND</li></ul> | KEEP |
-| **FIRST** <span>SECOND</span><br>THIRD | KEEP |
+| <div>FIRST</div><div>SECOND</div> | KEEP-ST-CLIPBOARD-BOUNDARY |
+| <ul><li>FIRST</li><li>SECOND</li></ul> | KEEP-ST-CLIPBOARD-BOUNDARY |
+| **FIRST** <span>SECOND</span><br>THIRD | KEEP-ST-CLIPBOARD-BOUNDARY |
 
 ## Range-carrier paste destination
 

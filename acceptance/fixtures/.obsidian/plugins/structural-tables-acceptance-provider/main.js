@@ -108,13 +108,22 @@ module.exports = class extends Plugin {
       callback: async () => {
         if (require("obsidian").Platform.isMobileApp) return;
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!view?.file || !["HTML boundaries and code interchange.md", "GFM clipboard result.md"].includes(view.file.path)) return;
+        if (!view?.file || !["HTML boundaries and code interchange.md", "GFM clipboard result.md", "Clipboard block boundaries.md"].includes(view.file.path)) return;
         const { createHash } = require("node:crypto");
         const source = await this.app.vault.read(view.file);
+        const clipboardFixture = view.file.path === "Clipboard block boundaries.md";
+        if (clipboardFixture && (!source.includes("<!-- structural-tables-clipboard-boundaries-fixture -->") || source.length > 65536)) {
+          new Notice("Clipboard boundary observation requires the bounded marked fixture."); return;
+        }
         const root = view.containerEl;
         const clipboard = require("electron").clipboard;
         const clipboardText = clipboard.readText();
-        const ownsClipboard = clipboardText.includes("KEEP-0") || clipboardText.includes("BROWSER-KEEP");
+        const ownsClipboard = clipboardFixture
+          ? clipboardText.length <= 65536 && clipboardText.includes("KEEP-ST-CLIPBOARD-BOUNDARY")
+            && clipboardText.includes("FIRST") && clipboardText.includes("SECOND")
+          : clipboardText.includes("KEEP-0") || clipboardText.includes("BROWSER-KEEP");
+        const clipboardHtml = ownsClipboard ? clipboard.readHTML() : null;
+        const boundedText = (value) => clipboardFixture ? (value ?? "").slice(0, 4096) : value;
         const report = {
           observedAt: new Date().toISOString(), file: view.file.path,
           hostVersion: require("obsidian").apiVersion,
@@ -127,16 +136,18 @@ module.exports = class extends Plugin {
             ownedAncestor: Boolean(element.closest(".structural-tables-live-preview, .structural-tables-container")),
           })),
           tables: Array.from(root.querySelectorAll("table"))
-            .filter((table) => table.getClientRects().length > 0).map((table) => ({
+            .filter((table) => table.getClientRects().length > 0).slice(0, clipboardFixture ? 16 : undefined).map((table) => ({
             class: table.className,
             owned: Boolean(table.closest(".structural-tables-live-preview, .structural-tables-container")),
-            cells: Array.from(table.querySelectorAll("th, td")).map((cell) => ({
-              text: cell.textContent, rowSpan: cell.rowSpan, colSpan: cell.colSpan,
-              code: Array.from(cell.querySelectorAll("code")).map((code) => code.textContent),
+            cells: Array.from(table.querySelectorAll("th, td")).slice(0, clipboardFixture ? 64 : undefined).map((cell) => ({
+              text: boundedText(cell.textContent), rowSpan: cell.rowSpan, colSpan: cell.colSpan,
+              code: Array.from(cell.querySelectorAll("code")).slice(0, clipboardFixture ? 16 : undefined).map((code) => boundedText(code.textContent)),
             })),
           })),
           clipboard: { formats: clipboard.availableFormats(), fixtureOwned: ownsClipboard,
-            text: ownsClipboard ? clipboardText : null, html: ownsClipboard ? clipboard.readHTML() : null },
+            text: ownsClipboard ? clipboardText : null,
+            html: clipboardFixture && (clipboardHtml?.length ?? 0) > 65536 ? null : clipboardHtml,
+            ...(clipboardFixture ? { htmlOverLimit: (clipboardHtml?.length ?? 0) > 65536, diagnosticOnly: true } : {}) },
         };
         await this.app.vault.adapter.write(`_html-boundary-observation-${Date.now()}.json`, JSON.stringify(report, null, 2));
         new Notice("HTML boundary observation recorded.");

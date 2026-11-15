@@ -111,6 +111,19 @@ function expandedTabs(line: string): string {
   });
 }
 
+/** Strip an expanded container prefix, preserving tabs inside reference content. */
+function referenceContent(source: string, prefixColumns: number): string {
+  let column = 0;
+  let index = 0;
+  while (index < source.length && (column < prefixColumns || /[\t ]/u.test(source[index]!))) {
+    column += source[index] === "\t" ? 4 - column % 4 : 1;
+    index += 1;
+  }
+  // A container can consume only part of a tab. The remaining indentation
+  // still counts in columns; destination, label and title bytes stay literal.
+  return " ".repeat(Math.max(0, column - prefixColumns)) + source.slice(index);
+}
+
 /** Continue quotes through their owning list indentation without reading literal inner markers. */
 function quotePrefix(line: string, inheritedIndents: readonly number[], maximumDepth = Number.POSITIVE_INFINITY): {
   length: number;
@@ -155,7 +168,7 @@ function isGfmHeader(line: string, next: string | null): boolean {
 
 /** Reference continuations can be indented or lazy, but cannot consume a new block. */
 function referenceContinuation(lines: readonly string[], index: number, quoteIndents: readonly number[], listIndent: number, requireQuotePrefix = false): string | null {
-  const contentAt = (at: number): { line: string; lazyQuote: boolean } | null => {
+  const contentAt = (at: number): { line: string; source: string; lazyQuote: boolean } | null => {
     const source = lines[at];
     if (source === undefined) return null;
     const expanded = expandedTabs(source);
@@ -164,12 +177,14 @@ function referenceContinuation(lines: readonly string[], index: number, quoteInd
     const unquoted = expanded.slice(quote.length);
     if (/^[\t ]*$/u.test(unquoted)) return null;
     const spaces = /^ */u.exec(unquoted)![0].length;
-    return { line: unquoted.slice(Math.min(spaces, listIndent)), lazyQuote: quote.indents.length < quoteIndents.length };
+    const indent = Math.min(spaces, listIndent);
+    return { line: unquoted.slice(indent), source: referenceContent(source, quote.length + indent),
+      lazyQuote: quote.indents.length < quoteIndents.length };
   };
   const content = contentAt(index);
   if (content === null || (requireQuotePrefix && content.lazyQuote)) return null;
   const { line } = content;
-  if (/^ {4}/u.test(line)) return line;
+  if (/^ {4}/u.test(line)) return content.source;
   const fence = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
   const next = contentAt(index + 1);
   if (/^ {0,3}(?:>|#{1,6}(?:[\t ]|$)|<!--|<\?|<![A-Za-z]|<!\[CDATA\[)/u.test(line)
@@ -179,7 +194,7 @@ function referenceContinuation(lines: readonly string[], index: number, quoteInd
     // GFM tables cannot interrupt a quote's lazy reference continuation.
     // Both header and delimiter must carry their owning quote markers.
     || (!content.lazyQuote && isGfmHeader(line, next === null || next.lazyQuote ? null : next.line))) return null;
-  return line;
+  return content.source;
 }
 
 export function ignoredMarkdownLines(
@@ -408,7 +423,8 @@ export function ignoredMarkdownLines(
     // complete definition before looking for inline comments or math in it.
     const reference: number | null = !continuesParagraph && !indentedCode && protectedBlock === null && /^ {0,3}\[/u.test(line)
       && !isGfmHeader(line, referenceContinuation(lines, index + 1, quoteIndents, listIndent, true))
-      ? referenceDefinitionEnd(line, (offset) => referenceContinuation(lines, index + offset, quoteIndents, listIndent)) : null;
+      ? referenceDefinitionEnd(referenceContent(lines[index] ?? "", original.length - line.length),
+        (offset) => referenceContinuation(lines, index + offset, quoteIndents, listIndent)) : null;
     if (reference !== null) {
       referenceEnd = index + reference;
       ignored.add(index);

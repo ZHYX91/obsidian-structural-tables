@@ -32,6 +32,36 @@ function expectProtected(block: string, ending: string): void {
 }
 
 describe("protected Markdown block continuations", () => {
+  it.each(["[a]: a\\\tb", "[a]:\n  a\\\tb", "[a\n label]: a\\\tb"].flatMap((definition) =>
+    ["", "> ", "> > "].flatMap((prefix) => endings.map((ending) => ({ definition, prefix, ending })))))(
+    "preserves escaped tabs in reference content ($definition/$prefix/$ending)", ({ definition, prefix, ending }) => {
+      const block = withSourcePrefix(definition + "\n<span>\n" + fake + "\n</span>", prefix);
+      const environment: { references?: Record<string, { href: string }> } = {};
+      markdown.parse(block.replace(/\n/gu, ending), environment);
+      expect(Object.values(environment.references ?? {}).map((reference) => reference.href)).toEqual(["a%5C%09b"]);
+      expectProtected(block, ending);
+    },
+  );
+
+  it.each([
+    "- [a]: a\\\tb\n  <span>\n" + withSourcePrefix(fake, "  ") + "\n  </span>",
+    "- [a]:\n\ta\\\tb\n  <span>\n" + withSourcePrefix(fake, "  ") + "\n  </span>",
+    ">\t[a]: a\\\tb\n> <span>\n" + withSourcePrefix(fake, "> ") + "\n> </span>",
+    "- >\t[a]:\n  >\ta\\\tb\n  > <span>\n" + withSourcePrefix(fake, "  > ") + "\n  > </span>",
+  ])("uses tab columns only for reference container indentation: %s", (block) => {
+    for (const ending of endings) expectProtected(block, ending);
+  });
+
+  it.each(["[a]: a\\ b", "[a]:\n  a\\ b", "[a]:\n  a\tb"])(
+    "retains ordinary prose after an invalid spaced destination: %s", (definition) => {
+      const source = definition + "\n<span>\n" + fake + "\n</span>";
+      const environment: { references?: unknown } = {};
+      expect(markdown.parse(source, environment).filter((token) => token.type === "table_open")).toHaveLength(1);
+      expect(environment.references).toBeUndefined();
+      expect(parseEditableTables(source).tables.map((table) => table.source)).toEqual([fake]);
+    },
+  );
+
   it.each(definitions.flatMap((definition) => ["", "> ", "> > "].flatMap((prefix) =>
     endings.map((ending) => ({ definition, prefix, ending })))))(
     "finishes a complete reference before standalone HTML ($definition/$prefix/$ending)", ({ definition, prefix, ending }) => {
@@ -206,6 +236,8 @@ describe("protected Markdown block continuations", () => {
 
   it.each(endings)("refuses unchanged-byte stale targets newly owned by protected blocks (%j)", (ending) => {
     for (const [initialHead, protectedHead, body] of [
+      ["[a]: a\\ b", "[a]: a\\\tb", "\n<span>\n" + fake + "\n</span>"],
+      ["[a]:\n  a\\ b", "[a]:\n  a\\\tb", "\n<span>\n" + fake + "\n</span>"],
       ["plain :", "[link]:", "\n  /url\n<span>\n" + fake + "\n</span>"],
       ["-x", "- ", "\n    ```\n" + withSourcePrefix(fake, "  ") + "\n  ```"],
       ["x text", "> text", "\n    > ```\n" + withSourcePrefix(fake, "> ") + "\n> ```"],

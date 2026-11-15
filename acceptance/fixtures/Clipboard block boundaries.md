@@ -12,9 +12,12 @@ The inline control retains bold text and the real break. Copy makes no note edit
 
 ## Range-carrier paste destination
 
-Paste each actual browser clipboard sample from Clipboard range markers.html into
-Alpha using native Paste and the active-cell menu. Inspect draft text before
-committing, then compare the complete note after Commit, Undo and Redo.
+Use the browser samples in Clipboard range markers.html, or run the provider's
+Prepare range marker clipboard samples command for explicitly synthetic system
+clipboard input. Record which source supplied the input; provider setup does not
+qualify external-browser copying. Paste into Alpha using native Paste and the
+active-cell menu. Inspect draft text before committing, then compare the complete
+note after Commit, Undo and Redo.
 
 | H | V |
 | --- || --- |

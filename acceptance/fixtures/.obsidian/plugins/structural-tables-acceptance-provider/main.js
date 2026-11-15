@@ -47,6 +47,31 @@ module.exports = class extends Plugin {
     });
     this.addCommand({ id: "operation-safety-setup", name: "Prepare operation safety boundary", callback: () => this.safetySetup() });
     this.register(() => this.safetyRestore?.());
+    this.addCommand({ id: "range-marker-samples", name: "Prepare range marker clipboard samples", callback: () => {
+      const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (require("obsidian").Platform.isMobileApp || view?.file?.path !== "Clipboard block boundaries.md") {
+        new Notice("Open Clipboard block boundaries on desktop to prepare these synthetic inputs."); return;
+      }
+      const modal = new Modal(this.app);
+      modal.setTitle("Synthetic rich clipboard inputs");
+      modal.contentEl.createEl("p", { text: "These fixed HTML/text samples only prepare the system clipboard. Perform Paste through the product UI; this does not qualify external-browser copying." });
+      const samples = [
+        ["Ordinary marker text", "<span>data-structural-tables-range</span>", "data-structural-tables-range"],
+        ["Ordinary attribute value", '<span title="data-structural-tables-range">Safe</span>', "Safe"],
+        ["Malformed actual carrier", '<table data-structural-tables-range="bad"><tr><td>Fallback</td></tr></table>', "Fallback"],
+      ];
+      for (const [label, html, text] of samples) {
+        const button = modal.contentEl.createEl("button", { text: label });
+        button.addEventListener("click", () => {
+          try {
+            require("electron").clipboard.write({ html, text });
+            new Notice(`${label}: synthetic HTML/text input prepared; no product action performed.`);
+            modal.close();
+          } catch (error) { new Notice(`Clipboard preparation failed: ${String(error)}`); }
+        });
+      }
+      modal.open();
+    } });
     this.addCommand({ id: "clipboard-fidelity-samples", name: "Prepare clipboard fidelity samples", callback: () => {
       const modal = new Modal(this.app);
       modal.setTitle("Clipboard fidelity input samples");

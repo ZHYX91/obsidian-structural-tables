@@ -73,6 +73,7 @@ describe("prose edit cache", () => {
   });
 
   it.each([
+    { name: "escaped-tab reference destination", prefix: "[link]:\n", initial: "  a\\\tb", suffix: "\n<span>\n" + table + "\n</span>", edits: ["  a\\ b", "  a\\\tb"] },
     { name: "reference destination", prefix: "[link]:\n", initial: "  url", suffix: "\n<span>\n" + table + "\n</span>", edits: ["  url more", "  url"] },
     { name: "reference title", prefix: "[link]: /url\n", initial: "  \"title\"", suffix: "\n<span>\n" + table + "\n</span>", edits: ["  \"title", "  \"title\""] },
     { name: "multiline reference title", prefix: "[link]: /url \"first\n", initial: "  last\"", suffix: "\n<span>\n" + table + "\n</span>", edits: ["  last", "  last\""] },

@@ -31,7 +31,7 @@ function expectProtected(block: string, ending: string): void {
   expect(source.slice(tables[0]!.range.from, tables[0]!.range.to)).toBe(tables[0]!.source);
 }
 
-describe("protected Markdown block continuations", () => {
+describe("reference definitions and following block ownership", () => {
   it.each(["[a]: a\\\tb", "[a]:\n  a\\\tb", "[a\n label]: a\\\tb"].flatMap((definition) =>
     ["", "> ", "> > "].flatMap((prefix) => endings.map((ending) => ({ definition, prefix, ending })))))(
     "preserves escaped tabs in reference content ($definition/$prefix/$ending)", ({ definition, prefix, ending }) => {
@@ -160,6 +160,9 @@ describe("protected Markdown block continuations", () => {
     expect(parseEditableTables(source).tables.map((table) => table.source)).toEqual([real]);
   });
 
+});
+
+describe("list and quote container continuations", () => {
   it.each(["-", "*", "+", "1.", "1)"].flatMap((marker) => ["```", "<pre>"].flatMap((opening) =>
     endings.map((ending) => ({ marker, opening, ending })))))(
     "resolves an empty list item before its protected block ($marker/$opening/$ending)", ({ marker, opening, ending }) => {
@@ -234,6 +237,9 @@ describe("protected Markdown block continuations", () => {
     expect(parseEditableTables(source).tables.map((table) => table.source)).toEqual([withSourcePrefix(fake, "> "), real]);
   });
 
+});
+
+describe("final writes against changed block ownership", () => {
   it.each(endings)("refuses unchanged-byte stale targets newly owned by protected blocks (%j)", (ending) => {
     for (const [initialHead, protectedHead, body] of [
       ["[a]: a\\ b", "[a]: a\\\tb", "\n<span>\n" + fake + "\n</span>"],

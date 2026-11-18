@@ -130,8 +130,15 @@ describe("Structural Tables settings export guide", () => {
     expect(link?.attributes.get("href")).toBe("https://obsidian.md/plugins?id=docwen-assistant");
     expect(link?.attributes.get("target")).toBe("_blank");
     expect(link?.attributes.get("rel")).toBe("noopener noreferrer");
-    const note = elements.find(element => element.attributes.get("role") === "note");
-    expect(note?.attributes.get("aria-labelledby")).toBe("structural-tables-settings-export-guide-title");
+    const details = elements.find(element => element.tag === "details"
+      && element.attributes.get("class") === "structural-tables-settings-export-guide");
+    expect(details).toBeDefined();
+    expect(details?.children.find((element) => element.tag === "summary")?.textContent)
+      .toBe("将复杂表格导出为 Word");
+    // The compatibility explanation is deliberately visible outside details.
+    const brief = elements.find(element =>
+      element.attributes.get("class") === "structural-tables-settings-export-brief");
+    expect(brief?.textContent).toContain("输入扩展");
     expect(elements.filter(element => element.tag === "p").map(element => element.textContent).join(" "))
       .toContain("输入扩展");
 

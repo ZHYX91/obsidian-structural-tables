@@ -934,3 +934,20 @@
 }
 
 .structural-tables-settings-help a { cursor: var(--cursor, default); }
+
+/* Export instructions are optional; converter limitations remain visible above. */
+.structural-tables-settings-export-guide { padding: 0; margin-block: var(--size-4-2); }
+.structural-tables-settings-export-guide > summary {
+  color: var(--text-normal); cursor: pointer; display: list-item;
+  font-size: var(--font-ui-small); font-weight: var(--font-medium);
+  list-style: disclosure-closed inside; padding: var(--size-4-2) var(--size-4-3);
+}
+.structural-tables-settings-export-guide[open] > summary { list-style: disclosure-open inside; }
+.structural-tables-settings-export-guide > :not(summary) { margin-inline: var(--size-4-3); }
+.structural-tables-settings-export-guide > summary:focus-visible {
+  outline: 2px solid var(--interactive-accent); outline-offset: -2px;
+}
+.structural-tables-settings-export-brief {
+  color: var(--text-muted); font-size: var(--font-ui-small);
+  margin-block: var(--size-4-2); line-height: 1.45;
+}

@@ -249,3 +249,7 @@ Fresh installs follow the theme. Style, layout, and density are independent:
 Group style and zebra controls under **Style and shading**, and layout/density under **Layout and spacing**. A non-editable merged sample below reflects all four controls immediately, using the real table renderer. Explain that the sample does not read or edit notes, while settings are saved and apply throughout the Vault.
 
 Layout changes table position and width only. Appearance settings never rewrite Markdown.
+
+## Settings tutorial display
+
+The Word export walkthrough is a low-emphasis native disclosure, closed on first opening and remembered only while the settings tab remains open; hiding the settings clears it. A short warning about ordinary conversions and extended table syntax stays above the disclosure. Conflict alerts, ordinary-table takeover controls, visual diagnostics and real-time appearance preview remain visible and fully operative. No extra settings key or document write occurs when the tutorial toggles.

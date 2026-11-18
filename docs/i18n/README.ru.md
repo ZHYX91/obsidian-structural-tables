@@ -6,6 +6,8 @@
 
 Добавляет в Markdown-таблицы объединённые ячейки, многострочные заголовки столбцов, заголовки строк и таблицы без заголовков. Обычный просмотр таблицы не меняет исходный Markdown.
 
+[Установка](#st-installation) · [Использование](#st-usage)
+
 ## Снимки экрана
 
 ### Трёхлинейная таблица в режиме чтения
@@ -57,6 +59,8 @@
 
 Чтобы исправить ситуацию, плагин теперь позволяет преобразовывать таблицы из Markdown в HTML и обратно. Сложные заголовки и объединения сохраняются при переходе в HTML; поддерживаемые HTML-таблицы можно вернуть в Markdown. Обычный GFM используется везде, где его достаточно, а прежние расширения — лишь при необходимости. Перед заменой можно проверить исходный текст и возможные изменения содержимого или оформления.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## Установка
 
@@ -67,6 +71,8 @@
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **Обновление вручную:** В существующей папке плагина замените только `main.js`, `manifest.json` и `styles.css` файлами из одного выпуска. Сохраните `data.json`, чтобы не потерять настройки.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## Использование
@@ -93,7 +99,7 @@
 
 На компьютере просматривайте, копируйте и сохраняйте PNG всей таблицы. Несохранённые правки ячеек не попадут в изображение. На Android экспорт PNG недоступен.
 
-Перед преобразованием в Base сохраните заметку и переместите таблицу из цитаты или списка на верхний уровень. Объединения разворачиваются; восстановление исходной таблицы не удаляет созданные заметки записей.
+Сохраните заметку и вынесите таблицу из списка или цитаты. Заголовки станут свойствами. Перед преобразованием в Base разделите объединённые ячейки в области данных. При восстановлении таблицы созданные заметки сохраняются.
 
 Перед преобразованием в Base разделите объединённые ячейки в области данных. После преобразования установите курсор в блок Base и выполните **Создать запись в текущей базе**, чтобы добавить пустую запись.
 
@@ -129,6 +135,8 @@ HTML-таблицы преобразуются только в случае, к�
 
 Обычный GFM используется, когда его достаточно, иначе применяются `<`, `^` и `||`. Неподдерживаемые ссылки, формулы и сложная разметка блокируют преобразование. Удаление цветов, ширин и других HTML-атрибутов требует явного согласия. Полученную HTML-таблицу нельзя редактировать визуальными средствами плагина — для этого верните её в Markdown.
 
+Если редактирование прервано, выполните команду **Восстановить незавершённые изменения ячеек**, чтобы скопировать текст. При перезапуске Obsidian или плагина черновики удаляются.
+
 <!-- section: settings -->
 ## Настройки
 
@@ -137,6 +145,8 @@ HTML-таблицы преобразуются только в случае, к�
 Доступны оформление по теме, сетка и трёхлинейная таблица. Изменение внешнего вида или языка интерфейса не меняет Markdown и направление текста заметки.
 
 Под группами «Линии и фон» и «Размещение и интервалы» пример таблицы сразу показывает изменения. В нём используется фиксированный текст: заметки не читаются и не редактируются. Настройки применяются к таблицам во всём хранилище и сохраняются автоматически.
+
+Объединения и многострочные заголовки используют расширенный Markdown, который обычные конвертеры могут не понимать. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) и локальное приложение DocWen способны преобразовать поддерживаемые таблицы в Word. В DocWen включите расширение ввода Structural Tables в настройках синтаксиса Markdown. Для преобразования Word в Markdown нужно также расширение вывода. Только настольные Windows/Linux.
 
 <!-- section: limitations -->
 ## Ограничения
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[Архитектура](../architecture.md) · [Участие в разработке](../../CONTRIBUTING.md) · [История изменений](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## Поддержка
 
 Для вопросов — Q&A, для идей — Ideas, для воспроизводимых ошибок — GitHub Issues. Укажите версию Obsidian, тему, Markdown таблицы, ожидаемый и фактический результаты.
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Сообщить о проблеме безопасности конфиденциально](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 Об уязвимостях сообщайте только по закрытому каналу безопасности.
 
 <!-- section: license -->
 ## Лицензия
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

@@ -8,6 +8,7 @@ class MockElement {
   readonly listeners = new Map<string, (() => void)[]>();
   textContent = "";
   hidden = false;
+  open = false;
   disabled = false;
   type = "";
   tabIndex = 0;
@@ -138,14 +139,23 @@ describe("Structural Tables settings export guide", () => {
     // The compatibility explanation is deliberately visible outside details.
     const brief = elements.find(element =>
       element.attributes.get("class") === "structural-tables-settings-export-brief");
-    expect(brief?.textContent).toContain("输入扩展");
-    expect(elements.filter(element => element.tag === "p").map(element => element.textContent).join(" "))
-      .toContain("输入扩展");
+    expect(brief?.textContent).toContain("普通转换工具可能无法正确识别");
+    expect(details?.descendants()).not.toContain(brief);
+    const setup = details?.children.find(element => element.tag === "p");
+    expect(setup?.textContent).toContain("输入扩展");
+    expect(setup?.textContent).toContain("输出扩展");
+    expect(details?.open).toBe(false);
+    details!.open = true;
 
     const views = elements.find(element => element.attributes.get("role") === "tab"
       && element.textContent === "视图");
     expect(views).toBeDefined();
     views?.trigger("click");
     expect(container.descendants().some(element => element.tag === "a")).toBe(false);
+    container.querySelector("#structural-tables-settings-tab-general")!.trigger("click");
+    expect(container.descendants().find(el => el.tag === "details")?.open).toBe(true);
+    tab.hide();
+    tab.display();
+    expect(container.descendants().find(el => el.tag === "details")?.open).toBe(false);
   });
 });

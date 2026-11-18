@@ -6,6 +6,8 @@ Trang này hướng dẫn những thao tác thường dùng và các giới hạ
 
 Thêm ô gộp, nhiều hàng tiêu đề cột, tiêu đề hàng và bảng không có tiêu đề cột vào bảng Markdown. Chỉ xem bảng sẽ không viết lại nội dung Markdown của ghi chú.
 
+[Cài đặt](#st-installation) · [Cách sử dụng](#st-usage)
+
 ## Ảnh chụp màn hình
 
 ### Bảng ba đường kẻ trong chế độ đọc
@@ -57,6 +59,8 @@ Cú pháp cũ cho bảng không có tiêu đề cột và cho tiêu đề hàng 
 
 Để cải thiện, plugin đã thêm khả năng chuyển bảng giữa Markdown và HTML theo cả hai chiều. Bảng Markdown mở rộng có thể chuyển thành HTML mà giữ tiêu đề phức tạp và ô gộp; bảng HTML được hỗ trợ có thể chuyển lại thành Markdown. Khi GFM thông thường đủ biểu đạt, plugin sẽ dùng GFM; chỉ dùng cú pháp mở rộng cũ khi cần. Bạn có thể xem trước mã nguồn và những khác biệt về nội dung hay định dạng trước khi thay thế.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## Cài đặt
 
@@ -67,6 +71,8 @@ Trong Obsidian, mở “Cài đặt → Plugin cộng đồng → Duyệt”, t�
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **Cập nhật thủ công:** Trong thư mục plugin hiện có, chỉ thay `main.js`, `manifest.json` và `styles.css` bằng các tệp cùng một bản phát hành. Giữ lại `data.json` để bảo toàn cài đặt.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## Cách sử dụng
@@ -93,7 +99,7 @@ Có thể sao chép, cắt và dán vùng ô khi bố cục gộp vẫn được
 
 Trên máy tính có thể xem trước, sao chép hoặc lưu PNG của toàn bộ bảng. Các thay đổi ô chưa lưu không nằm trong ảnh. Di động không hỗ trợ xuất PNG.
 
-Trước khi chuyển thành Base, hãy lưu ghi chú và đưa bảng ra ngoài khối trích dẫn hoặc danh sách. Cấu trúc gộp sẽ được làm phẳng; khôi phục bảng gốc không xóa các ghi chú bản ghi đã tạo.
+Lưu ghi chú và đưa bảng ra ngoài danh sách hoặc trích dẫn. Tiêu đề sẽ trở thành thuộc tính. Hãy tách các ô dữ liệu đã gộp trước khi chuyển sang Base. Khi khôi phục bảng, các ghi chú bản ghi đã tạo vẫn được giữ lại.
 
 Hãy tách các ô gộp trong vùng dữ liệu trước khi chuyển bảng thành Base. Sau khi chuyển, đặt con trỏ trong khối Base và chạy **Tạo bản ghi trong Base hiện tại** để thêm một bản ghi trống.
 
@@ -129,6 +135,8 @@ Chuyển giữa bản xem trước kết quả và mã nguồn Markdown, rồi s
 
 Bảng dùng GFM thông thường nếu có thể, còn cấu trúc phức tạp dùng `<`, `^`, `||`. Liên kết, công thức hoặc văn bản có định dạng chưa hỗ trợ sẽ bị từ chối. Nếu mất màu, độ rộng hay thuộc tính HTML khác, bạn phải xác nhận rõ ràng. HTML kết quả chưa được chỉnh bằng trình sửa ô trực quan của plugin; hãy chuyển về Markdown để sửa cấu trúc.
 
+Nếu việc chỉnh sửa bị gián đoạn, dùng **Khôi phục nội dung chỉnh sửa ô bị gián đoạn** để sao chép nội dung. Bản nháp sẽ mất khi khởi động lại Obsidian hoặc phần bổ trợ.
+
 <!-- section: settings -->
 ## Cài đặt
 
@@ -137,6 +145,8 @@ Bảng dùng GFM thông thường nếu có thể, còn cấu trúc phức tạp
 Chọn Theo chủ đề, Lưới hoặc Bảng ba đường kẻ. Đổi giao diện hay ngôn ngữ plugin không thay đổi Markdown hoặc hướng văn bản của ghi chú.
 
 Bảng mẫu bên dưới “Đường kẻ và nền” và “Bố cục và khoảng cách” phản ánh thay đổi ngay lập tức. Bảng chỉ dùng văn bản cố định, không đọc hay sửa ghi chú. Cài đặt áp dụng cho các bảng trong toàn bộ kho và được lưu tự động.
+
+Ô gộp và tiêu đề nhiều hàng dùng cú pháp Markdown mở rộng mà trình chuyển đổi thông thường có thể không hiểu. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) kết hợp với ứng dụng DocWen cài riêng có thể chuyển các bảng được hỗ trợ sang Word. Trong DocWen, bật phần mở rộng đầu vào Structural Tables tại mục cú pháp Markdown. Khi chuyển Word sang Markdown cũng phải bật phần mở rộng đầu ra. Chỉ hỗ trợ máy tính Windows/Linux.
 
 <!-- section: limitations -->
 ## Giới hạn
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[Kiến trúc](../architecture.md) · [Hướng dẫn đóng góp](../../CONTRIBUTING.md) · [Lịch sử thay đổi](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## Hỗ trợ
 
 Hỏi đáp tại Q&A, đề xuất tại Ideas và báo lỗi có thể tái hiện tại GitHub Issues. Hãy cung cấp phiên bản Obsidian, chủ đề, Markdown của bảng, kết quả mong đợi và kết quả thực tế.
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Báo cáo riêng vấn đề bảo mật](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 Báo cáo lỗ hổng bảo mật qua kênh riêng thay vì đăng công khai.
 
 <!-- section: license -->
 ## Giấy phép
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

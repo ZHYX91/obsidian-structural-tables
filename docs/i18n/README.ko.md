@@ -6,6 +6,8 @@
 
 Markdown 표에 셀 병합, 여러 줄의 열 머리글, 행 머리글, 열 머리글이 없는 표를 추가합니다. 표를 보는 것만으로 노트의 Markdown 내용이 바뀌지는 않습니다.
 
+[설치](#st-installation) · [사용법](#st-usage)
+
 ## 화면 예시
 
 ### 읽기 보기의 삼선표
@@ -57,6 +59,8 @@ Obsidian 1.12.7 이상이 필요하며 데스크톱과 Android를 지원합니�
 
 이를 개선하기 위해 Markdown과 HTML 표의 양방향 변환을 추가했습니다. 확장 Markdown 표를 HTML로 바꿀 때 복잡한 머리글과 병합을 유지하고, 지원되는 HTML 표를 Markdown으로 돌릴 수도 있습니다. 일반 GFM으로 충분하면 그 문법을 쓰고 필요한 경우에만 기존 확장 문법을 사용합니다. 교체 전에 원본과 내용·서식의 차이를 미리 볼 수 있습니다.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## 설치
 
@@ -67,6 +71,8 @@ Obsidian의 “설정 → 커뮤니티 플러그인 → 탐색”에서 Structur
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **수동 업데이트:** 기존 플러그인 폴더에서 `main.js`, `manifest.json`, `styles.css`만 같은 릴리스의 파일로 교체하세요. 설정을 유지하려면 `data.json`을 보존하세요.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## 사용법
@@ -93,7 +99,7 @@ Obsidian의 “설정 → 커뮤니티 플러그인 → 탐색”에서 Structur
 
 데스크톱에서는 표 전체를 PNG로 미리 보거나 복사·저장할 수 있습니다. 저장하지 않은 셀 편집은 이미지에 포함되지 않습니다. 모바일은 PNG 내보내기를 지원하지 않습니다.
 
-Base로 변환하기 전에 노트를 저장하고 인용문이나 목록 속 표를 최상위로 옮기세요. 병합 구조는 펼쳐지며 원본 표를 복원해도 이미 만든 레코드 노트는 남습니다.
+노트를 저장하고 표를 인용문이나 목록 밖으로 옮기세요. 머리글은 속성이 됩니다. 데이터 영역에 병합된 셀이 있으면 Base로 변환하기 전에 나누세요. 표를 복원해도 생성된 레코드 노트는 남습니다.
 
 데이터 영역에 병합된 셀이 있다면 Base로 변환하기 전에 분할해야 합니다. 변환 후에는 Base 블록 안에 커서를 놓고 **현재 Base에 레코드 만들기** 명령으로 빈 레코드를 추가할 수 있습니다.
 
@@ -129,6 +135,8 @@ Markdown 표에 커서를 놓고 **현재 Markdown 표를 HTML로 변환…** �
 
 일반 GFM으로 표현할 수 있는 구조는 GFM을 쓰고, 필요할 때만 `<`, `^`, `||`를 사용합니다. 지원하지 않는 링크, 수식, 복잡한 서식은 변환하지 않습니다. HTML의 색상과 너비 등이 사라지면 별도 동의가 필요합니다. HTML로 변환한 표는 플러그인의 시각적 셀 편집 대상이 아니므로, 구조를 편집하려면 Markdown으로 되돌리세요.
 
+편집이 중단되면 **중단된 셀 편집 내용 복구** 명령으로 내용을 복사하세요. Obsidian이나 플러그인을 다시 시작하면 초안이 사라집니다.
+
 <!-- section: settings -->
 ## 설정
 
@@ -137,6 +145,8 @@ Markdown 표에 커서를 놓고 **현재 Markdown 표를 HTML로 변환…** �
 테마 따르기, 격자, 삼선표 중에서 고를 수 있습니다. 모양이나 인터페이스 언어를 바꿔도 Markdown 내용과 노트의 문자 방향은 바뀌지 않습니다.
 
 “선과 배경”, “배치와 간격” 아래의 예제 표에서 변경 결과를 바로 확인할 수 있습니다. 예제는 고정된 텍스트만 사용하며 노트를 읽거나 수정하지 않습니다. 설정은 보관함 전체의 표에 적용되고 자동으로 저장됩니다.
+
+병합된 셀과 여러 줄의 머리글은 일반 변환기가 이해하지 못할 수 있는 Markdown 확장 문법을 사용합니다. 별도로 설치한 DocWen과 [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant)로 지원되는 표를 Word로 변환할 수 있습니다. DocWen의 Markdown 문법 설정에서 Structural Tables 입력 확장을 켜세요. Word에서 Markdown으로 변환할 때는 출력 확장도 필요합니다. Windows/Linux 데스크톱만 지원합니다.
 
 <!-- section: limitations -->
 ## 제한 사항
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[구조](../architecture.md) · [기여 안내](../../CONTRIBUTING.md) · [변경 기록](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## 지원
 
 질문은 Q&A, 개선 아이디어는 Ideas, 재현 가능한 오류는 GitHub Issues에 남겨 주세요. Obsidian 버전, 테마, 표 Markdown, 기대한 결과와 실제 결과를 알려 주세요.
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [보안 문제 비공개 신고](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 보안 취약점은 공개하지 말고 비공개 보안 신고 기능을 이용하세요.
 
 <!-- section: license -->
 ## 라이선스
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

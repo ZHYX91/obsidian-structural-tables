@@ -14,7 +14,8 @@ type TabId = "general" | "views" | "appearance";
 // bypass display() and remove the established three-tab settings surface.
 export class StructuralTablesSettingTab extends PluginSettingTab {
   private activeTab: TabId = "general";
-  private readonly openedHelp = new Set<string>();
+  private exportGuide: HTMLDetailsElement | null = null;
+  private exportGuideExpanded = false;
   private statusCleanup: (() => void) | null = null;
   private appearancePreview: TableAppearancePreview | null = null;
 
@@ -23,6 +24,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
   }
 
   override display(): void {
+    if (this.exportGuide !== null) this.exportGuideExpanded = this.exportGuide.open;
+    this.exportGuide = null;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
     this.statusCleanup?.();
@@ -151,7 +154,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
   }
 
   override hide(): void {
-    this.openedHelp.clear();
+    this.exportGuide = null;
+    this.exportGuideExpanded = false;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
     this.statusCleanup?.();
@@ -172,12 +176,9 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       text: t("settings.exportGuide.body"),
     });
     const guide = container.createEl("details", { cls: "structural-tables-settings-export-guide" });
-    guide.open = this.openedHelp.has("word-export");
+    this.exportGuide = guide;
+    guide.open = this.exportGuideExpanded;
     guide.createEl("summary", { text: t("settings.exportGuide.title") });
-    guide.addEventListener("toggle", () => {
-      if (guide.open) this.openedHelp.add("word-export");
-      else this.openedHelp.delete("word-export");
-    });
     guide.createEl("p", { text: t("settings.exportGuide.setup") });
     const link = guide.createEl("a", {
       text: t("settings.exportGuide.link"),

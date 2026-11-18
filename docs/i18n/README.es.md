@@ -6,6 +6,8 @@ Aquí tienes las operaciones habituales y las precauciones principales. Para los
 
 Añade celdas combinadas, varias filas de encabezados, encabezados de fila y tablas sin encabezados a Markdown. Abrir o leer una tabla nunca reescribe el Markdown de la nota.
 
+[Instalación](#st-installation) · [Uso](#st-usage)
+
 ## Capturas de pantalla
 
 ### Tabla de tres líneas en vista de lectura
@@ -57,6 +59,8 @@ La sintaxis original para tablas sin encabezados de columna y con encabezados de
 
 Para remediarlo, el complemento permite convertir tablas entre Markdown y HTML. Al pasar a HTML se conservan los encabezados complejos y las celdas combinadas; las tablas HTML compatibles pueden convertirse de nuevo a Markdown. Se usa GFM normal cuando basta, y las extensiones existentes solo cuando hacen falta. Antes de reemplazar la tabla puedes revisar el código y las posibles diferencias de contenido o formato.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## Instalación
 
@@ -67,6 +71,8 @@ Para la instalación manual, extrae `structural-tables-<version>.zip` en `Vault/
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **Actualización manual:** En la carpeta existente del complemento, sustituye solo `main.js`, `manifest.json` y `styles.css` por archivos de la misma versión. Conserva `data.json` para mantener la configuración.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## Uso
@@ -93,7 +99,7 @@ Los rangos copiados o cortados solo se pegan si puede conservarse la estructura 
 
 En escritorio puedes previsualizar, copiar o guardar un PNG de la tabla completa. Los cambios de celda sin guardar no aparecen en la imagen. La exportación de PNG no está disponible en móvil.
 
-Guarda la nota y saca la tabla de listas o citas antes de convertirla en Base. La conversión aplana las combinaciones; restaurar la tabla original no elimina las notas de registro creadas.
+Guarda la nota y saca la tabla de listas o citas. Los encabezados pasan a ser propiedades. Separa las celdas de datos combinadas antes de convertir a Base. Restaurar la tabla conserva las notas de registro creadas.
 
 Antes de convertir a Base, separa las celdas combinadas del área de datos. Después, sitúa el cursor dentro del bloque Base y ejecuta **Crear un registro para la Base actual** para añadir un registro vacío.
 
@@ -129,6 +135,8 @@ Coloca el cursor en una tabla Markdown y ejecuta **Convertir tabla Markdown actu
 
 Se usa GFM normal cuando basta; para estructuras complejas se conservan `<`, `^` y `||`. No se convierten enlaces, fórmulas ni formatos enriquecidos incompatibles. Si se perderán colores, anchos u otros atributos HTML, se exige aceptación expresa. El editor visual de celdas no edita el HTML resultante: conviértelo de nuevo a Markdown para modificar la estructura.
 
+Si se interrumpe la edición, usa **Recuperar borradores de celda interrumpidos** para copiar el texto. Los borradores se pierden al reiniciar Obsidian o el complemento.
+
 <!-- section: settings -->
 ## Ajustes
 
@@ -137,6 +145,8 @@ Se usa GFM normal cuando basta; para estructuras complejas se conservan `<`, `^`
 Elige Seguir tema, Cuadrícula o Tabla de tres líneas. Cambiar la apariencia o el idioma de la interfaz no modifica Markdown ni la dirección de la nota.
 
 Debajo de «Líneas y fondo» y «Diseño y espaciado», una tabla de ejemplo refleja los cambios al instante. Usa texto fijo y no lee ni edita notas. Los ajustes se aplican a las tablas de toda la bóveda y se guardan automáticamente.
+
+Las celdas combinadas y los encabezados de columna de varias filas usan sintaxis Markdown adicional que los conversores habituales pueden no entender. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) y la aplicación local independiente DocWen pueden convertir las tablas admitidas a Word. En DocWen, activa la extensión de entrada de Structural Tables en la sección de sintaxis Markdown. La conversión de Word a Markdown también necesita la extensión de salida. Solo para equipos de escritorio con Windows/Linux.
 
 <!-- section: limitations -->
 ## Limitaciones
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[Arquitectura](../architecture.md) · [Cómo contribuir](../../CONTRIBUTING.md) · [Historial de cambios](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## Ayuda
 
 Para preguntas usa Q&A; para propuestas, Ideas; y para errores reproducibles, GitHub Issues. Indica la versión de Obsidian, el tema, el Markdown de la tabla y los resultados esperado y real.
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Informar de un problema de seguridad en privado](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 Comunica las vulnerabilidades de manera privada mediante el sistema de informes de seguridad.
 
 <!-- section: license -->
 ## Licencia
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

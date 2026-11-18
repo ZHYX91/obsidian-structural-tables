@@ -6,6 +6,8 @@
 
 Markdown の表でセルの結合、複数行の列見出し、行見出し、見出しのない表を使えます。表を開いたり表示したりするだけでノートの Markdown が書き換わることはありません。
 
+[インストール](#st-installation) · [使い方](#st-usage)
+
 ## スクリーンショット
 
 ### 閲覧ビューの三線表
@@ -57,6 +59,8 @@ Obsidian 1.12.7 以降が必要です。デスクトップ版と Android に対�
 
 この問題に対応するため、Markdown と HTML の表を双方向に変換できるようにしました。拡張 Markdown 表は複雑な見出しや結合を残したまま HTML にでき、対応する HTML 表は Markdown に戻せます。通常の GFM で表せる場合はそれを使い、必要な場合にだけ従来の拡張構文を使います。置き換える前にソースと内容・書式の違いを確認できます。
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## インストール
 
@@ -67,6 +71,8 @@ Obsidian の「設定 → コミュニティプラグイン → 閲覧」で Str
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **手動更新：** 既存のプラグインフォルダー内の `main.js`、`manifest.json`、`styles.css` だけを、同じリリースのファイルで置き換えてください。設定を保持するため、`data.json` は残してください。
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## 使い方
@@ -93,7 +99,7 @@ Obsidian の「設定 → コミュニティプラグイン → 閲覧」で Str
 
 デスクトップでは表全体の PNG をプレビュー、コピー、保存できます。未保存のセル編集は画像に入りません。モバイルでは画像出力できません。
 
-Base に変換する前にノートを保存し、引用やリスト内の表はトップレベルへ移動してください。結合情報は展開され、表を復元しても生成済みの記録ノートは残ります。
+ノートを保存し、表を引用やリストの外に移動します。見出しはプロパティになります。データ部分に結合セルがある場合は、Base に変換する前に分割してください。表を復元しても作成済みの記録ノートは残ります。
 
 データ部分に結合セルがある場合は、Base に変換する前に分割する必要があります。変換後は Base ブロック内にカーソルを置き、**現在の Base にレコードを作成**を実行すると、空のレコードを追加できます。
 
@@ -129,6 +135,8 @@ Markdown の表にカーソルを置いて **現在の Markdown 表を HTML に�
 
 通常の GFM で表せるものは GFM を使い、必要なら `<`、`^`、`||` を使います。対応外のリンク・数式・複雑な装飾は変換しません。HTML の色や幅などが失われる場合は明示的な同意が必要です。変換後の HTML は表のビジュアル編集対象にはならないため、構造を編集する際は Markdown に戻してください。
 
+編集中に操作が中断されたら、**編集が中断されたセルの下書きを復元** で内容をコピーできます。Obsidian またはプラグインを再起動すると下書きは消去されます。
+
 <!-- section: settings -->
 ## 設定
 
@@ -137,6 +145,8 @@ Markdown の表にカーソルを置いて **現在の Markdown 表を HTML に�
 テーマに従う、グリッド、三線表から選択できます。外観やインターフェース言語を変えても Markdown の内容や表の方向は変わりません。
 
 「罫線と背景」と「配置と余白」の下に、変更がすぐ反映されるサンプルを表示します。サンプルは固定の文字だけを使い、ノートを読み込んだり編集したりしません。設定は Vault 全体の表に適用され、自動保存されます。
+
+結合セルや複数行の列見出しには追加の Markdown 構文が使われ、一般的な変換ツールでは解釈できない場合があります。[DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) と別途インストールするローカルの DocWen アプリを使用すると、対応するテーブルを Word に変換できます。 DocWen の Markdown 構文設定で Structural Tables の入力拡張を有効にしてください。Word から Markdown への変換には出力拡張も必要です。Windows/Linux のデスクトップ版のみ対応しています。
 
 <!-- section: limitations -->
 ## 制限
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[設計](../architecture.md) · [開発に参加](../../CONTRIBUTING.md) · [変更履歴](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## サポート
 
 使い方は Q&A、アイデアは Ideas、再現できる問題は GitHub Issues に投稿してください。Obsidian のバージョン、テーマ、表の Markdown、期待する結果と実際の結果を添えてください。
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [セキュリティ上の問題を非公開で報告](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 脆弱性は公開せず、非公開のセキュリティ報告を利用してください。
 
 <!-- section: license -->
 ## ライセンス
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

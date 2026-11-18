@@ -6,6 +6,8 @@ Structural Tables adds merged cells, multi-row headers, row headers, and headerl
 
 Edit cells and rearrange tables in Live Preview, or read them without controls in Reading view. Tables can stay inside quotes, callouts, and lists. To convert one to an Obsidian Base, first move it outside those containers.
 
+[Installation](#st-installation) · [Usage](#st-usage)
+
 ## Screenshots
 
 ### Three-line table in Reading view
@@ -62,6 +64,8 @@ The original syntax for tables without column headers and for row headers does n
 
 To address this, Structural Tables now offers conversion between Markdown and HTML tables. You can convert an extended Markdown table to HTML while keeping complex headers and merged cells, or convert a supported HTML table back to Markdown. When ordinary GFM can represent the structure, the converter uses it; otherwise it uses the existing Structural Tables markers. You can review the source and any content or formatting differences before replacing the table.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## Installation
 
@@ -70,6 +74,8 @@ Install Structural Tables from Obsidian's Community plugins directory: open **Se
 For manual installation, download `structural-tables-<version>.zip` from the [latest release](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest) and extract it into `Vault/.obsidian/plugins/`. The archive contains the `structural-tables/` directory with `main.js`, `manifest.json`, and `styles.css`. Reload Obsidian, then enable Structural Tables under Community plugins.
 
 **Manual upgrades:** Replace only `main.js`, `manifest.json`, and `styles.css` in the existing plugin folder with files from the same release. Keep `data.json` to preserve your settings.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## Usage

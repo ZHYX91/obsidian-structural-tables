@@ -912,6 +912,7 @@
 
 /* Export instructions are optional; converter limitations remain visible above. */
 .structural-tables-settings-export-guide {
+  container-type: inline-size;
   background: transparent;
   border: 0;
   color: var(--text-muted);
@@ -978,14 +979,28 @@
   .structural-tables-settings-export-guide > summary:focus-visible { outline-color: Highlight; }
 }
 
-.structural-tables-settings-export-guide > p {
+.structural-tables-settings-export-guide[open] > .structural-tables-settings-export-guide-body {
+  box-sizing: border-box;
+  border-inline-start: 2px solid var(--background-modifier-border);
+  margin-block: 6px 0;
+  margin-inline-start: 6px;
+  padding-inline-start: 10px;
   color: var(--text-normal);
-  margin-block: 6px 4px;
-  margin-inline: 18px 0;
   overflow-wrap: anywhere;
 }
-.structural-tables-settings-export-guide > a { margin-inline-start: 18px; }
-.structural-tables-settings-export-guide > a:focus-visible {
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  .structural-tables-settings-export-guide[open] > .structural-tables-settings-export-guide-body {
+    border-inline-start-color: color-mix(in srgb, var(--interactive-accent) 30%, var(--background-modifier-border));
+  }
+}
+
+@container (max-width: 24rem) {
+  .structural-tables-settings-export-guide[open] > .structural-tables-settings-export-guide-body { margin-inline-start: 0; }
+}
+
+.structural-tables-settings-export-guide-body > p { margin-block: 0 4px; }
+.structural-tables-settings-export-guide-body > a:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }

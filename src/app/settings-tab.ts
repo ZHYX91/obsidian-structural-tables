@@ -179,8 +179,9 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.exportGuide = guide;
     guide.open = this.exportGuideExpanded;
     guide.createEl("summary", { text: t("settings.exportGuide.title") });
-    guide.createEl("p", { text: t("settings.exportGuide.setup") });
-    const link = guide.createEl("a", {
+    const body = guide.createDiv({ cls: "structural-tables-settings-export-guide-body" });
+    body.createEl("p", { text: t("settings.exportGuide.setup") });
+    const link = body.createEl("a", {
       text: t("settings.exportGuide.link"),
       href: "https://obsidian.md/plugins?id=docwen-assistant",
     });

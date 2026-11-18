@@ -141,7 +141,9 @@ describe("Structural Tables settings export guide", () => {
       element.attributes.get("class") === "structural-tables-settings-export-brief");
     expect(brief?.textContent).toContain("普通转换工具可能无法正确识别");
     expect(details?.descendants()).not.toContain(brief);
-    const setup = details?.children.find(element => element.tag === "p");
+    const body = details?.children.find(element => element.attributes.get("class") === "structural-tables-settings-export-guide-body");
+    expect(body?.children).toContain(link);
+    const setup = body?.children.find(element => element.tag === "p");
     expect(setup?.textContent).toContain("输入扩展");
     expect(setup?.textContent).toContain("输出扩展");
     expect(details?.open).toBe(false);

@@ -95,6 +95,8 @@ Negative tests must prove both the diagnostic and source preservation. Cover:
 <!-- section: commands -->
 ## Commands and editing
 
+The Live Preview suites share the editor setup in `tests/helpers/live-preview-editor.ts`. Rendering and source ownership stay in `table-live-preview.test.ts`. The `table-editor-*.test.ts` files cover focus, drafts, clipboard, selection and transpose through editor events.
+
 Core operation tests cover:
 
 - cell editing, merge, and split;

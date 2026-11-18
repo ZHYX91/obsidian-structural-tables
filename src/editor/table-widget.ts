@@ -1,5 +1,5 @@
 import { freezeGridSelection, currentFrozenTable, frozenSelectionBounds, copyFrozenRange, pasteFrozenRange,
-  type FrozenGridSelection } from "./range-clipboard-session";
+  registerGridClipboard, type FrozenGridSelection } from "./range-clipboard-session";
 import { beginMouseRangeGesture, hasMouseRangeGesture } from "./mouse-range-gesture";
 import { readCellClipboardData } from "./cell-clipboard-actions";
 import { addTableSubmenu } from "./table-submenu";
@@ -48,10 +48,7 @@ import {
 import { renderStructuralTable, tableRenderingComplete } from "../rendering/table-renderer";
 import { copyTableForWord, tableCopySession, type TableCopySession } from "../app/table-html-copy";
 import { cellClipboardText } from "./table-interchange";
-import {
-  readTableRangeFromDataTransfer,
-  writeTableRangeToDataTransfer,
-} from "./table-range-clipboard";
+import { readTableRangeFromDataTransfer } from "./table-range-clipboard";
 import {
   addBasePromotionMenuItem,
   addImageExportMenuItem,
@@ -157,6 +154,7 @@ export class StructuralTableWidget extends WidgetType {
 }
 
 class StructuralTableInteraction {
+  private releaseClipboard: (() => void) | null = null;
   private positionHandles: (() => void) | null = null;
   private preserveDraft: (() => void) | null = null;
   private cellScope: Scope | null = null;
@@ -343,6 +341,8 @@ class StructuralTableInteraction {
   }
 
   destroy(): void {
+    this.releaseClipboard?.();
+    this.releaseClipboard = null;
     this.axisPreview = null;
     this.preserveDraft?.();
     this.preserveDraft = null;
@@ -408,9 +408,13 @@ class StructuralTableInteraction {
       this.extendTextSelection(event);
     });
     rendered.addEventListener("click", (event) => this.openCellOnDesktopClick(event, view));
-    host.addEventListener("copy", (event) => { this.handleRangeCopyCut(event, view, false); });
-    host.addEventListener("cut", (event) => { this.handleRangeCopyCut(event, view, true); });
-    host.addEventListener("paste", (event) => { this.handleRangePaste(event, view); });
+    this.releaseClipboard = registerGridClipboard(host, {
+      freeze: () => this.freezeGridSelection(view),
+      current: (frozen) => this.currentTableForFrozenSelection(view, frozen) !== null,
+      clear: (frozen) => this.clearFrozenSelection(view, frozen),
+      paste: (frozen, payload) => this.pasteFrozenSelection(view, frozen, payload),
+      notify: (key) => new Notice(createTranslator(this.getSettings().language)(key)),
+    });
     rendered.addEventListener("contextmenu", (event) => this.openContextMenu(event, view));
     rendered.addEventListener("dblclick", (event) => {
       if (event.target !== null && "closest" in event.target
@@ -1078,57 +1082,6 @@ class StructuralTableInteraction {
       undefined, frozen.axisSelection, "owned-grid", frozen, undefined, pastedBounds,
     );
     return true;
-  }
-
-  private handleRangeCopyCut(
-    event: ClipboardEvent,
-    view: EditorView,
-    cut: boolean,
-  ): boolean {
-    if (event.defaultPrevented || this.clipboardEventOwner(event) !== this.host) return false;
-    if (event.target !== null && "closest" in event.target
-      && (event.target as Element).closest("textarea, input") !== null) return false;
-    const frozen = this.freezeGridSelection(view);
-    if (frozen === null || event.clipboardData === null) return false;
-    event.preventDefault();
-    event.stopPropagation();
-    if (this.currentTableForFrozenSelection(view, frozen) === null) {
-      new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
-      return true;
-    }
-    if (!writeTableRangeToDataTransfer(event.clipboardData, frozen.payload)) {
-      new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardWriteFailed"));
-      return true;
-    }
-    if (cut && !this.clearFrozenSelection(view, frozen)) {
-      new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
-    }
-    return true;
-  }
-
-  private handleRangePaste(event: ClipboardEvent, view: EditorView): boolean {
-    if (event.defaultPrevented || this.clipboardEventOwner(event) !== this.host) return false;
-    if (event.target !== null && "closest" in event.target
-      && (event.target as Element).closest("textarea, input") !== null) return false;
-    const frozen = this.freezeGridSelection(view);
-    if (frozen === null) return false;
-    event.preventDefault();
-    event.stopPropagation();
-    const result = event.clipboardData === null ? null
-      : readTableRangeFromDataTransfer(event.clipboardData, frozen.host.ownerDocument);
-    if (result?.kind !== "payload") {
-      new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardUnsupported"));
-      return true;
-    }
-    if (!this.pasteFrozenSelection(view, frozen, result.payload)) {
-      new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
-    }
-    return true;
-  }
-
-  private clipboardEventOwner(event: ClipboardEvent): Element | null {
-    return event.target !== null && "closest" in event.target
-      ? (event.target as Element).closest(".structural-tables-live-preview") : null;
   }
 
   private copyFrozenSelection(view: EditorView, frozen: FrozenGridSelection, cut: boolean,

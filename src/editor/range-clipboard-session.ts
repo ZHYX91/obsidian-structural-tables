@@ -4,7 +4,7 @@ import type { Translate } from "../config/i18n";
 import type { StructuralTable } from "../core/model";
 import { reparseUnchangedTable, type TableDocumentSnapshot } from "../core/table-snapshot";
 import { tableRangePayload, type TableRangeClipboardPayloadV1 } from "../core/table-range-clipboard";
-import { readTableRangeFromNavigator, writeTableRangeToNavigator } from "./table-range-clipboard";
+import { readTableRangeFromDataTransfer, readTableRangeFromNavigator, writeTableRangeToDataTransfer, writeTableRangeToNavigator } from "./table-range-clipboard";
 import type { AxisSelection } from "./table-axis-drag";
 import type { StructuralTableSelection, TableCellCoordinate } from "./table-selection";
 
@@ -120,4 +120,41 @@ export async function pasteFrozenRange(
     return;
   }
   if (!apply(result.payload)) new Notice(t("notice.staleTable"));
+}
+
+interface GridClipboardActions {
+  freeze(): FrozenGridSelection | null;
+  current(selection: FrozenGridSelection): boolean;
+  clear(selection: FrozenGridSelection): boolean;
+  paste(selection: FrozenGridSelection, payload: TableRangeClipboardPayloadV1): boolean;
+  notify(key: Parameters<Translate>[0]): void;
+}
+
+/** Only handle events from this grid. Text inputs and nested grids own their own clipboard. */
+export function registerGridClipboard(host: HTMLElement, actions: GridClipboardActions): () => void {
+  const handle = (event: ClipboardEvent): void => {
+    const target = event.target;
+    if (event.defaultPrevented || target === null || !("closest" in target)) return;
+    const element = target as Element;
+    if (element.closest(".structural-tables-live-preview") !== host || element.closest("textarea, input")) return;
+    const data = event.clipboardData;
+    if (data === null && event.type !== "paste") return;
+    const frozen = actions.freeze();
+    if (frozen === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.type === "paste") {
+      const result = data === null ? null : readTableRangeFromDataTransfer(data, host.ownerDocument);
+      if (result?.kind !== "payload") actions.notify("notice.rangeClipboardUnsupported");
+      else if (!actions.paste(frozen, result.payload)) actions.notify("notice.staleTable");
+      return;
+    }
+    if (!actions.current(frozen)) actions.notify("notice.staleTable");
+    else if (data === null || !writeTableRangeToDataTransfer(data, frozen.payload)) actions.notify("notice.rangeClipboardWriteFailed");
+    else if (event.type === "cut" && !actions.clear(frozen)) actions.notify("notice.staleTable");
+  };
+  const names = ["copy", "cut", "paste"] as const;
+  for (const name of names) host.addEventListener(name, handle);
+  return () => { for (const name of names) host.removeEventListener(name, handle); };
 }

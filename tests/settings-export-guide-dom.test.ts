@@ -135,7 +135,7 @@ describe("Structural Tables settings export guide", () => {
       && element.attributes.get("class") === "structural-tables-settings-export-guide");
     expect(details).toBeDefined();
     expect(details?.children.find((element) => element.tag === "summary")?.textContent)
-      .toBe("将复杂表格导出为 Word");
+      .toBe("如何将复杂表格导出为 Word");
     // The compatibility explanation is deliberately visible outside details.
     const brief = elements.find(element =>
       element.attributes.get("class") === "structural-tables-settings-export-brief");

@@ -293,7 +293,7 @@ const catalog = {
   "settings.help": "說明",
   "settings.guide": "使用指南",
   "settings.reportIssue": "回報問題",
-  "settings.exportGuide.title": "將複雜表格匯出至 Word",
+  "settings.exportGuide.title": "如何將複雜表格匯出至 Word",
   "settings.exportGuide.body": "合併儲存格與多列欄標題使用額外的 Markdown 語法，一般轉換工具可能無法辨識。DocWen Assistant 與另行安裝的本機 DocWen 應用程式可將支援的表格轉換至 Word。",
   "settings.exportGuide.setup": "請在 DocWen 的 Markdown 語法設定中啟用 Structural Tables 輸入擴充功能。從 Word 轉換為 Markdown 時也需啟用輸出擴充功能。僅支援 Windows/Linux 電腦版。",
   "settings.exportGuide.link": "了解 DocWen Assistant",

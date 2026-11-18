@@ -293,7 +293,7 @@ const ptBR = {
   "settings.help": "Ajuda",
   "settings.guide": "Guia de uso",
   "settings.reportIssue": "Relatar um problema",
-  "settings.exportGuide.title": "Exportar tabelas complexas para Word",
+  "settings.exportGuide.title": "Como exportar tabelas complexas para o Word",
   "settings.exportGuide.body": "Células mescladas e cabeçalhos de várias linhas usam sintaxe Markdown extra que conversores comuns podem não entender. DocWen Assistant e o aplicativo local DocWen convertem tabelas compatíveis para Word.",
   "settings.exportGuide.setup": "No DocWen, ative a extensão de entrada Structural Tables nas configurações de sintaxe Markdown. A conversão de Word para Markdown também exige a extensão de saída. Disponível apenas no desktop Windows/Linux.",
   "settings.exportGuide.link": "Saiba mais sobre o DocWen Assistant",

@@ -293,7 +293,7 @@ const ru = {
   "settings.help": "Справка",
   "settings.guide": "Руководство",
   "settings.reportIssue": "Сообщить о проблеме",
-  "settings.exportGuide.title": "Экспорт сложных таблиц в Word",
+  "settings.exportGuide.title": "Как экспортировать сложные таблицы в Word",
   "settings.exportGuide.body": "Объединения и многострочные заголовки используют расширенный Markdown, который обычные конвертеры могут не понимать. DocWen Assistant и локальное приложение DocWen способны преобразовать поддерживаемые таблицы в Word.",
   "settings.exportGuide.setup": "В DocWen включите расширение ввода Structural Tables в настройках синтаксиса Markdown. Для преобразования Word в Markdown нужно также расширение вывода. Только настольные Windows/Linux.",
   "settings.exportGuide.link": "О DocWen Assistant",

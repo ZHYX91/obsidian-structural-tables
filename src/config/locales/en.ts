@@ -291,7 +291,7 @@ const en = {
   "settings.help": "Help",
   "settings.guide": "Usage guide",
   "settings.reportIssue": "Report an issue",
-  "settings.exportGuide.title": "Export complex tables to Word",
+  "settings.exportGuide.title": "How to export complex tables to Word",
   "settings.exportGuide.body": "Merged cells and multi-row headers use extra Markdown syntax that ordinary converters may not understand. DocWen Assistant and the separate local DocWen app can convert supported tables to Word.",
   "settings.exportGuide.setup": "In DocWen, enable the Structural Tables input extension under Markdown syntax. Word-to-Markdown conversion also needs the output extension. Desktop Windows/Linux only.",
   "settings.exportGuide.link": "Learn about DocWen Assistant",

@@ -293,7 +293,7 @@ const ko = {
   "settings.help": "도움말",
   "settings.guide": "사용 안내",
   "settings.reportIssue": "문제 보고",
-  "settings.exportGuide.title": "복잡한 표를 Word로 내보내기",
+  "settings.exportGuide.title": "복잡한 표를 Word로 내보내는 방법",
   "settings.exportGuide.body": "병합된 셀과 여러 줄의 머리글은 일반 변환기가 이해하지 못할 수 있는 Markdown 확장 문법을 사용합니다. 별도로 설치한 DocWen과 DocWen Assistant로 지원되는 표를 Word로 변환할 수 있습니다.",
   "settings.exportGuide.setup": "DocWen의 Markdown 문법 설정에서 Structural Tables 입력 확장을 켜세요. Word에서 Markdown으로 변환할 때는 출력 확장도 필요합니다. Windows/Linux 데스크톱만 지원합니다.",
   "settings.exportGuide.link": "DocWen Assistant 자세히 보기",

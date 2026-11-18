@@ -293,7 +293,7 @@ const catalog = {
   "settings.help": "Hilfe",
   "settings.guide": "Anleitung",
   "settings.reportIssue": "Problem melden",
-  "settings.exportGuide.title": "Komplexe Tabellen nach Word exportieren",
+  "settings.exportGuide.title": "So exportieren Sie komplexe Tabellen nach Word",
   "settings.exportGuide.body": "Verbundene Zellen und mehrzeilige Spaltenüberschriften verwenden zusätzliche Markdown-Syntax, die gewöhnliche Konverter möglicherweise nicht verstehen. DocWen Assistant und die separate lokale DocWen-App können unterstützte Tabellen in Word umwandeln.",
   "settings.exportGuide.setup": "Aktivieren Sie in DocWen unter Markdown-Syntax die Eingabeerweiterung für Structural Tables. Für die Umwandlung von Word nach Markdown wird auch die Ausgabeerweiterung benötigt. Nur für Windows/Linux auf Desktop-Geräten.",
   "settings.exportGuide.link": "Mehr über DocWen Assistant erfahren",

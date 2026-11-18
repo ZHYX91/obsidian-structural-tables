@@ -25,7 +25,9 @@ describe("settings tab UI", () => {
     expect(source).toContain('tabindex: "0"');
     expect(source).toContain('t("settings.takeoverOrdinary")');
     expect(source).toContain('this.renderExportGuide(panels, t)');
-    expect(source).toContain('role", "note"');
+    expect(source).toContain('createEl("details"');
+    expect(source).toContain('createEl("summary"');
+    expect(source).toContain("structural-tables-settings-export-brief");
     expect(source).toContain('"noopener noreferrer"');
     expect(source).toContain("https://obsidian.md/plugins?id=docwen-assistant");
     expect(source).not.toContain("getSettingDefinitions(");

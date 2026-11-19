@@ -73,6 +73,7 @@ import {
 } from "./table-selection";
 
 import { retainCellDraft } from "./cell-draft-recovery";
+import { applyTableGridAccessibility } from "./table-grid-accessibility";
 import { bindTableSourceSnapshot, tableCellSourceOffset } from "./table-source-binding";
 import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus, tableSourcePointerPending } from "./table-source-focus";
 
@@ -379,6 +380,7 @@ class StructuralTableInteraction {
   private installInteraction(view: EditorView, host: HTMLElement, rendered: HTMLTableElement): void {
     this.renderedTable = rendered;
     rendered.classList.add("is-interactive");
+    applyTableGridAccessibility(rendered);
     const cells = Array.from(rendered.querySelectorAll<HTMLElement>(
       "[data-structural-row][data-structural-column]",
     ));

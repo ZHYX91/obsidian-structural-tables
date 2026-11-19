@@ -5,6 +5,7 @@ import { type App, Component, MarkdownRenderer } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
+import { applyTableGridAccessibility } from "../src/editor/table-grid-accessibility";
 import { renderStructuralTable, tableRenderingComplete } from "../src/rendering/table-renderer";
 
 interface ObsidianElementOptions {
@@ -24,6 +25,35 @@ beforeAll(() => {
   HTMLElement.prototype.createDiv = function createDiv(options?: ObsidianElementOptions): HTMLDivElement {
     return this.createEl("div", options);
   };
+});
+
+describe("logical grid coordinates", () => {
+  it("keeps header roles and logical columns across horizontal and vertical merges", async () => {
+    const source = "| Region | Quarter | < | Total |\n| --- || --- | --- | --- |\n| North | Jan | < | 40 |\n| ^ | Feb | < | 50 |";
+    const model = parseStructuralTables(source).tables[0]!;
+    const component = new Component();
+    try {
+      const table = renderStructuralTable({} as App, model, document.createElement("div"), "Report.md", component);
+      await tableRenderingComplete(table);
+      expect(table.getAttribute("role")).toBeNull();
+      applyTableGridAccessibility(table, model.columnCount);
+      expect(table.getAttribute("aria-colcount")).toBe("4");
+      const semantics = Array.from(table.rows, (row) =>
+        Array.from(row.cells, (cell) => [cell.getAttribute("role"), cell.getAttribute("aria-colindex")]),
+      );
+      expect(semantics).toEqual([
+        [["columnheader", "1"], ["columnheader", "2"], ["columnheader", "4"]],
+        [["rowheader", "1"], ["gridcell", "2"], ["gridcell", "4"]],
+        [["gridcell", "2"], ["gridcell", "4"]],
+      ]);
+      expect(table.rows[0]!.cells[1]!.colSpan).toBe(2);
+      expect(table.rows[0]!.cells[1]!.scope).toBe("colgroup");
+      expect(table.rows[1]!.cells[0]!.rowSpan).toBe(2);
+      expect(table.rows[1]!.cells[0]!.scope).toBe("rowgroup");
+    } finally {
+      component.unload();
+    }
+  });
 });
 
 describe("theme outer borders", () => {

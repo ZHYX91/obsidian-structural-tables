@@ -380,7 +380,7 @@ class StructuralTableInteraction {
   private installInteraction(view: EditorView, host: HTMLElement, rendered: HTMLTableElement): void {
     this.renderedTable = rendered;
     rendered.classList.add("is-interactive");
-    applyTableGridAccessibility(rendered);
+    applyTableGridAccessibility(rendered, this.table.columnCount);
     const cells = Array.from(rendered.querySelectorAll<HTMLElement>(
       "[data-structural-row][data-structural-column]",
     ));

@@ -6,7 +6,7 @@ describe("interactive table accessibility", () => {
   it("exposes row and cell coordinates and an explicit multi-selection state", () => {
     const table = document.createElement("table");
     table.innerHTML = "<tbody><tr><td data-structural-row='0' data-structural-column='0'>A</td><td data-structural-row='0' data-structural-column='1'>B</td></tr><tr><td data-structural-row='1' data-structural-column='0'>C</td><td data-structural-row='1' data-structural-column='1'>D</td></tr></tbody>";
-    applyTableGridAccessibility(table);
+    applyTableGridAccessibility(table, 2);
 
     expect(table.getAttribute("role")).toBe("grid");
     expect(table.getAttribute("aria-multiselectable")).toBe("true");
@@ -25,8 +25,8 @@ describe("interactive table accessibility", () => {
 
   it("preserves the selection state updated by the interaction layer", () => {
     const table = document.createElement("table");
-    table.innerHTML = "<tbody><tr><td aria-selected='true'>A</td></tr></tbody>";
-    applyTableGridAccessibility(table);
+    table.innerHTML = "<tbody><tr><td data-structural-column='0' aria-selected='true'>A</td></tr></tbody>";
+    applyTableGridAccessibility(table, 1);
     expect(table.querySelector("td")?.getAttribute("aria-selected")).toBe("true");
   });
 });

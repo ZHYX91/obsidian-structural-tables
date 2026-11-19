@@ -140,10 +140,12 @@ describe("Structural Tables settings export guide", () => {
     const brief = elements.find(element =>
       element.attributes.get("class") === "structural-tables-settings-export-brief");
     expect(brief?.textContent).toContain("普通转换工具可能无法正确识别");
+    expect(brief?.textContent).not.toContain("DocWen");
     expect(details?.descendants()).not.toContain(brief);
     const body = details?.children.find(element => element.attributes.get("class") === "structural-tables-settings-export-guide-body");
     expect(body?.children).toContain(link);
-    const setup = body?.children.find(element => element.tag === "p");
+    const [requirements, setup] = body?.children.filter(element => element.tag === "p") ?? [];
+    expect(requirements?.textContent).toContain("另行安装的本机 DocWen");
     expect(setup?.textContent).toContain("输入扩展");
     expect(setup?.textContent).toContain("输出扩展");
     expect(details?.open).toBe(false);

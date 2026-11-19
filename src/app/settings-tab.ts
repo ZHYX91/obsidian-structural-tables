@@ -180,6 +180,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     guide.open = this.exportGuideExpanded;
     guide.createEl("summary", { text: t("settings.exportGuide.title") });
     const body = guide.createDiv({ cls: "structural-tables-settings-export-guide-body" });
+    body.createEl("p", { text: t("settings.exportGuide.requirements") });
     body.createEl("p", { text: t("settings.exportGuide.setup") });
     const link = body.createEl("a", {
       text: t("settings.exportGuide.link"),

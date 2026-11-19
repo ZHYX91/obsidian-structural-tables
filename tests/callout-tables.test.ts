@@ -47,6 +47,30 @@ function mount(source: string, html: string, pending?: Promise<string[]>, detach
 afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup(); vi.restoreAllMocks(); });
 
 describe("source-owned callout mounting", () => {
+  it("classifies many offscreen tables in source order with a linear number of range reads", async () => {
+    const count = 40;
+    const source = "Introduction\n\n" + Array.from({ length: count }, (_, index) =>
+      `> [!note] ${index}\n${tableSource}\n`).join("\n");
+    const tables = parseEditableTables(source).tables;
+    let reads = 0;
+    const ranges = calloutRanges(source).map(({ from, to }) => ({
+      get from(): number { reads += 1; return from; },
+      get to(): number { reads += 1; return to; },
+    }));
+    const view = new EditorView({ state: EditorState.create({ doc: source }) });
+    vi.spyOn(view, "viewport", "get").mockReturnValue({ from: 0, to: 1 });
+    const manager = new CalloutTables(view, () => ({
+      tables, ranges, sourcePath: "Many.md", owns: (table) => table.valid && table.structural,
+      render: () => { throw new Error("Unexpected offscreen render"); },
+      widget: () => { throw new Error("Unexpected offscreen mount"); },
+    }));
+    cleanups.push(() => { manager.destroy(); view.destroy(); });
+    await Promise.resolve();
+    expect(tables).toHaveLength(count);
+    expect(manager.diagnostics).toEqual(tables.map(({ range }) => ({ ...range, state: "waiting-for-dom" })));
+    expect(reads).toBeLessThan(12 * count);
+  });
+
   it("keeps one owned host while constructing a detached editor and after attachment", async () => {
     const { root, manager, render } = mount(tableSource, tableHtml, undefined, true);
     await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("mounted"));

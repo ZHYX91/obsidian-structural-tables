@@ -72,9 +72,11 @@ export class StructuralTableEditorController {
     const exportImage = this.exportImage;
     const previewGfm = this.previewGfm;
     const views = this.views;
-    const readTables = (state: EditorState, cached: readonly StructuralTable[] | null): readonly StructuralTable[] | null => {
-      if (!settingsProvider().enableLivePreview || !state.field(editorLivePreviewField, false)) return null;
-      return cached ?? parseEditableTables(state.doc.toString()).tables;
+    const previewEnabled = (state: EditorState): boolean =>
+      settingsProvider().enableLivePreview && Boolean(state.field(editorLivePreviewField, false));
+    const scanDocument = (state: EditorState) => {
+      const source = state.doc.toString();
+      return { tables: parseEditableTables(source).tables, callouts: calloutRanges(source) };
     };
     const buildDecorations = (
       state: EditorState,
@@ -164,8 +166,7 @@ export class StructuralTableEditorController {
     };
     const decorationField = StateField.define<StructuralTableDecorationState>({
       create: (state) => {
-        const tables = readTables(state, null);
-        const callouts = calloutRanges(state.doc.toString());
+        const { tables, callouts } = previewEnabled(state) ? scanDocument(state) : { tables: null, callouts: [] };
         const sourceFocused = true;
         return {
           composing: false,
@@ -191,11 +192,22 @@ export class StructuralTableEditorController {
           }
           : undefined;
         if (!shouldRebuild(transaction)) return value;
-        const mapped = transaction.docChanged ? mapTablesThroughProseEdit(value.tables, transaction) : value.tables;
-        const tables = readTables(transaction.state, mapped);
-        const callouts = !transaction.docChanged ? value.callouts : mapped === null
-          ? calloutRanges(transaction.state.doc.toString())
-          : value.callouts.map((range) => ({ from: transaction.changes.mapPos(range.from, 1), to: transaction.changes.mapPos(range.to, -1) }));
+        let { tables, callouts } = value;
+        if (!previewEnabled(transaction.state)) {
+          tables = null;
+          callouts = [];
+        } else if (tables === null || transaction.docChanged) {
+          const mapped = mapTablesThroughProseEdit(tables, transaction);
+          if (mapped === null) {
+            ({ tables, callouts } = scanDocument(transaction.state));
+          } else {
+            tables = mapped;
+            callouts = callouts.map((range) => ({
+              from: transaction.changes.mapPos(range.from, 1),
+              to: transaction.changes.mapPos(range.to, -1),
+            }));
+          }
+        }
         const requested = transaction.effects.find((effect) => effect.is(structuralCalloutFallback))?.value;
         const sameFile = transaction.startState.field(editorInfoField, false)?.file?.path
           === transaction.state.field(editorInfoField, false)?.file?.path;

@@ -92,18 +92,33 @@ export class CalloutTables {
   private refresh(): void {
     const state = this.read();
     this.diagnostics.length = 0;
-    const roots = new Map(state.ranges.map((range) => [range, this.calloutAt(range)]));
-    const rangeFor = (table: StructuralTable): SourceRange | undefined => state.ranges.find((range) =>
-      table.range.from >= range.from && table.range.to <= range.to);
+    const groups = new Map<SourceRange, { root: HTMLElement | undefined; tables: StructuralTable[] }>();
+    const mountedCandidates = new Map<number, { root: HTMLElement | undefined; table: StructuralTable }>();
+    // The parser emits tables in source order. calloutRanges emits disjoint outer
+    // ranges, so nested tables belong to the same verified native block inventory.
+    let rangeIndex = 0;
+    for (const table of state.tables) {
+      let range = state.ranges[rangeIndex];
+      while (range !== undefined && range.to < table.range.from) range = state.ranges[++rangeIndex];
+      if (range === undefined) break;
+      if (table.range.from < range.from || table.range.to > range.to) continue;
+      let group = groups.get(range);
+      if (group === undefined) {
+        group = { root: this.calloutAt(range), tables: [] };
+        groups.set(range, group);
+      }
+      group.tables.push(table);
+      if (this.mounted.size > 0) mountedCandidates.set(table.range.from, { root: group.root, table });
+    }
     for (const entry of this.mounted.values()) {
-      const table = state.tables.find((candidate) => candidate.range.from === entry.range.from
-        && candidate.range.to === entry.range.to && candidate.source === entry.table.source);
-      const range = table === undefined ? undefined : rangeFor(table);
-      const root = range === undefined ? undefined : roots.get(range);
+      const candidate = mountedCandidates.get(entry.range.from);
+      const table = candidate?.table;
+      const root = candidate?.root;
       // Hover editors can build or temporarily detach their entire DOM. A host
       // still inside this editor remains owned: global isConnected would release
       // it and immediately remount it, repeatedly waking our own observer.
-      if (table !== undefined && root?.contains(entry.host) && this.view.dom.contains(entry.host)
+      if (table !== undefined && table.range.to === entry.range.to && table.source === entry.table.source
+        && root?.contains(entry.host) && this.view.dom.contains(entry.host)
         && entry.sourcePath === state.sourcePath && state.owns(table)) {
         const widget = state.widget(table);
         if (widget.updateDOM(entry.host)) { entry.table = table; entry.widget = widget; continue; }
@@ -112,9 +127,9 @@ export class CalloutTables {
     }
     const activeKeys = new Set<string>();
     const fallback: SourceRange[] = [];
-    for (const [range, root] of roots) {
+    const originals = new Map([...this.mounted].map(([host, entry]) => [host, entry.originals]));
+    for (const [range, { root, tables }] of groups) {
       // Unowned and invalid neighbours participate in matching but are never replaced.
-      const tables = state.tables.filter((table) => rangeFor(table) === range);
       if (!tables.some(state.owns)) continue;
       if (root === undefined && range.from >= this.view.viewport.from && range.from < this.view.viewport.to) {
         const { node } = this.view.domAtPos(range.from);
@@ -125,8 +140,7 @@ export class CalloutTables {
         if (line !== undefined && line !== null && line.closest(".cm-editor") === this.view.dom
           && line.textContent === this.view.state.doc.lineAt(range.from).text) fallback.push(range);
       }
-      const originals = new Map([...this.mounted].map(([host, entry]) => [host, entry.originals]));
-      const groups = root === undefined ? [] : calloutBlocks(root, originals);
+      const blocks = root === undefined ? [] : calloutBlocks(root, originals);
       const plans = tables.map((table) => {
         const key = JSON.stringify([state.sourcePath, table.source]);
         activeKeys.add(key);
@@ -139,7 +153,7 @@ export class CalloutTables {
           void state.render(table).then((signatures) => { pending.signatures = signatures; this.schedule(); },
             () => { pending.failed = true; this.schedule(); });
         }
-        const matches = matchingBlocks(groups, entry.signatures ?? []);
+        const matches = matchingBlocks(blocks, entry.signatures ?? []);
         const status: CalloutDiagnostic["state"] = entry.failed ? "render-failed" : entry.signatures === undefined ? "rendering"
           : matches.length === 0 ? "unmatched" : "ambiguous";
         return { table, status, matches, signatureKey: JSON.stringify(entry.signatures ?? []) };
@@ -161,6 +175,7 @@ export class CalloutTables {
             const host = widget.toDOM(this.view);
             target[0]!.before(host);
             for (const element of target) element.remove();
+            originals.set(host, target);
             this.mounted.set(host, { originals: target, host, widget, table: plan.table,
               range: plan.table.range, sourcePath: state.sourcePath });
             status = "mounted";

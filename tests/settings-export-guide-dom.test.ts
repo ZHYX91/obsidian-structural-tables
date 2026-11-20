@@ -64,6 +64,7 @@ class MockInput {
 
 vi.mock("obsidian", () => ({
   getLanguage: () => "en",
+  setIcon: (target: MockElement, name: string) => target.createEl("svg", { attr: { "data-icon": name } }),
   App: class {},
   PluginSettingTab: class {
     containerEl = new MockElement();
@@ -134,8 +135,14 @@ describe("Structural Tables settings export guide", () => {
     const details = elements.find(element => element.tag === "details"
       && element.attributes.get("class") === "structural-tables-settings-export-guide");
     expect(details).toBeDefined();
-    expect(details?.children.find((element) => element.tag === "summary")?.textContent)
-      .toBe("如何将复杂表格导出为 Word");
+    const summaries = details?.children.filter(element => element.tag === "summary") ?? [];
+    expect(summaries).toHaveLength(1);
+    const [title, icon] = summaries[0]!.children[0]!.children;
+    expect(title?.textContent).toBe("复杂表格与 Word 互转");
+    expect(icon?.tag).toBe("span");
+    expect(icon?.attributes.get("aria-hidden")).toBe("true");
+    expect(icon?.children[0]?.attributes.get("data-icon")).toBe("book-open");
+    expect(summaries[0]!.descendants().some(element => element.tag === "button" || element.tag === "a")).toBe(false);
     // The compatibility explanation is deliberately visible outside details.
     const brief = elements.find(element =>
       element.attributes.get("class") === "structural-tables-settings-export-brief");
@@ -144,10 +151,13 @@ describe("Structural Tables settings export guide", () => {
     expect(details?.descendants()).not.toContain(brief);
     const body = details?.children.find(element => element.attributes.get("class") === "structural-tables-settings-export-guide-body");
     expect(body?.children).toContain(link);
-    const [requirements, setup] = body?.children.filter(element => element.tag === "p") ?? [];
-    expect(requirements?.textContent).toContain("另行安装的本机 DocWen");
-    expect(setup?.textContent).toContain("输入扩展");
-    expect(setup?.textContent).toContain("输出扩展");
+    const instructions = body?.children.find(element => element.tag === "dl")?.children ?? [];
+    expect(instructions.map(element => element.tag)).toEqual(["dt", "dd", "dt", "dd", "dt", "dd"]);
+    expect(instructions.filter(element => element.tag === "dt").map(element => element.textContent))
+      .toEqual(["导出为 Word", "从 Word 导回 Markdown", "适用平台"]);
+    expect(instructions[1]?.textContent).toContain("输入扩展");
+    expect(instructions[3]?.textContent).toContain("输出扩展");
+    expect(instructions[5]?.textContent).toContain("另行安装的本机 DocWen");
     expect(details?.open).toBe(false);
     details!.open = true;
 

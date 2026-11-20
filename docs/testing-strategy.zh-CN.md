@@ -94,6 +94,8 @@ GFM 样本调用产品对话框、捕获的目标和真实 CodeMirror，驱动�
 <!-- section: commands -->
 ## 命令与编辑
 
+实时预览测试共用 `tests/helpers/live-preview-editor.ts` 创建编辑器。渲染和源码归属由 `table-live-preview.test.ts` 检查。焦点、草稿、剪贴板、选区和转置分别在 `table-editor-*.test.ts` 中通过编辑器事件验证。
+
 核心操作测试覆盖：
 
 - 单元格编辑、合并、拆分；

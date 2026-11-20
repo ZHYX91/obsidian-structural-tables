@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-11-13
+last_synced: 2026-11-15
 translation_of: architecture.zh-CN.md
 ---
 
@@ -81,7 +81,7 @@ Whole-table PNG export has its own desktop session. It renders the validated mod
 
 Whole-table HTML import and Base restoration share a pure-core complete-document replacement check. Candidate tables must map exactly to the standalone replacement's source ranges; tables outside the complete selection retain source, shifted ranges, prefixes and validity. Partial-table and hidden-overflow replacement are refused. Plain-text fallback keeps its payload bytes and must also prove that adjacent syntax creates no extra table ownership. An owned but refused paste prevents the default action rather than handing a write back to the native route.
 
-Word/HTML copying and direct text-copy commands use an application session owned by the loaded plugin instance. Each of these entries obtains a new invocation identity; old renders stop at cell-await boundaries and before system dispatch, and unload permanently invalidates their session. Commands retain their invocation snapshot while menus keep source guards. Render components are released on completion, failure or cancellation; an already dispatched system write cannot be retracted, and obsolete tasks stop notifying.
+Word/HTML copying, GFM preview Copy and direct text-copy commands use an application session owned by the loaded plugin instance. Each entry obtains a new invocation identity before asynchronous work; old renders stop at cell-await boundaries and before system dispatch, and unload permanently invalidates their session. GFM preview services and modals capture that session at construction, so pending validation cannot borrow a replacement instance's session. Commands retain their invocation snapshot while menus and previews keep source and draft guards. Closing a preview stops its pending Copy. Render components are released on completion, failure or cancellation; an already dispatched system write cannot be retracted, and obsolete tasks stop notifying.
 
 <!-- section: base-promotion -->
 ## Base promotion

@@ -4,7 +4,7 @@ language: en
 source_language: zh-CN
 translation_status: synced
 status: stable
-last_synced: 2026-11-13
+last_synced: 2026-11-15
 translation_of: ux-spec.zh-CN.md
 ---
 
@@ -111,7 +111,7 @@ Mobile range menus use verified text-only transport when the host rich bridge is
 
 Whole-table HTML copy commands bypass the mobile image-only rich bridge and use their complete tab-separated text alternative on mobile or when desktop rich clipboard support is unavailable. This TSV projection converts cell-internal line breaks and tabs to spaces while retaining row separators and column tabs. Both entry points report the actual clipboard form; the plain-text notice explains that header structure and merged cells were flattened and rich formatting is unavailable. A rejected clipboard write reports failure.
 
-Word/HTML copying and direct GFM/TSV/CSV copy commands share the latest invocation intent in the loaded plugin instance. A newer copy or unload stops later steps of an earlier asynchronous HTML render, preventing its clipboard dispatch and notices; a write already dispatched to the system cannot be retracted. A command copies its captured invocation snapshot, so ordinary later source edits alone do not cancel that snapshot. Menus retain their existing source-target checks.
+Word/HTML copying, GFM preview Copy and direct GFM/TSV/CSV copy commands share the latest invocation intent in the loaded plugin instance. A preview Copy claims that intent when clicked, before asynchronous source validation. A newer copy or unload stops pending work before clipboard dispatch and suppresses obsolete success or failure notices; closing a preview also cancels its pending Copy. A write already dispatched to the system cannot be retracted. A command copies its captured invocation snapshot, so ordinary later source edits alone do not cancel that snapshot. Menus and previews retain their source-target and draft checks, and copy success is reported only after the actual clipboard write succeeds.
 
 Range Copy also exposes portable HTML and plain Markdown. Range HTML escapes each owner's raw Markdown as text and represents spans; it does not render that Markdown as rich content. Plain Markdown makes the first copied row a header and retains structural markers where representable. It does not promise equivalent merge topology in external GFM, especially for vertical merges.
 

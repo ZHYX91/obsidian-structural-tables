@@ -12,7 +12,7 @@ export interface TableHtmlCopyTarget {
   isCurrent: () => boolean | Promise<boolean>;
 }
 
-/** Word/HTML entries and direct text-copy commands share the latest intent. */
+/** Word/HTML entries, GFM preview Copy and direct text commands share the latest intent. */
 export class TableCopySession {
   private active = true;
   private request: object | undefined;

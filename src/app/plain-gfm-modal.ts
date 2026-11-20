@@ -4,6 +4,7 @@ import { applyInterfaceLocale, operationNotice, type Translate } from "../config
 import type { StructuralTable } from "../core/model";
 import type { OperationResult } from "../core/operations";
 import { planPlainGfmConversion, type PlainGfmConversion, type PlainGfmOrientation, type PlainGfmPlan, type PlainGfmWarning } from "../core/plain-gfm-conversion";
+import { tableCopySession } from "./table-html-copy";
 
 export interface PlainGfmTarget {
   sourcePath: string;
@@ -47,7 +48,8 @@ export class PlainGfmModal extends Modal {
   private replaceButton: ButtonComponent | null = null;
 
   constructor(app: App, private readonly t: Translate, private readonly conversion: PlainGfmConversion,
-    private readonly target: PlainGfmTarget, private readonly onDispose: () => void = () => undefined) {
+    private readonly target: PlainGfmTarget, private readonly onDispose: () => void = () => undefined,
+    private readonly copySession = tableCopySession(app)) {
     super(app);
     this.orientation = conversion.recommended;
   }
@@ -153,12 +155,19 @@ export class PlainGfmModal extends Modal {
 
   private async perform(action: "copy" | "replace"): Promise<void> {
     if (this.closed || this.busy || this.rendering) return;
+    // Claim the click before asynchronous source validation so a late response
+    // cannot supersede a newer copy. Keep this modal bound to its loaded instance.
+    const currentCopy = action === "copy" ? this.copySession.begin() : null;
+    const isCurrent = () => !this.closed && (currentCopy?.() ?? true);
+    if (!isCurrent()) return;
     this.busy = true;
     this.updateButtons();
     const plan = this.plan();
     try {
-      if (!await this.target.isCurrent() || this.closed) {
-        if (!this.closed) new Notice(this.t("notice.staleTable"));
+      const targetCurrent = await this.target.isCurrent();
+      if (!isCurrent()) return;
+      if (!targetCurrent) {
+        new Notice(this.t("notice.staleTable"));
         return;
       }
       if (this.target.draftRoot.querySelector("textarea.structural-tables-cell-editor") !== null) {
@@ -169,7 +178,7 @@ export class PlainGfmModal extends Modal {
         const clipboard = this.target.ownerDocument.defaultView?.navigator.clipboard;
         if (clipboard === undefined) throw new Error("Clipboard unavailable");
         await clipboard.writeText(plan.source);
-        if (!this.closed) new Notice(this.t("notice.copied").replace("{format}", "GFM"));
+        if (isCurrent()) new Notice(this.t("notice.copied").replace("{format}", "GFM"));
       } else if (plan.canReplace && this.target.replace !== undefined) {
         const replace = this.target.replace;
         // Closing first lets the verified editor regain focus for Undo.
@@ -178,7 +187,9 @@ export class PlainGfmModal extends Modal {
         new Notice(result === null ? this.t("notice.staleTable") : operationNotice(this.t, result.code));
       }
     } catch {
-      new Notice(this.t(action === "copy" ? "notice.clipboardFailed" : "gfm.replaceFailed"));
+      if (action === "replace" || isCurrent()) {
+        new Notice(this.t(action === "copy" ? "notice.clipboardFailed" : "gfm.replaceFailed"));
+      }
     } finally {
       this.busy = false;
       if (!this.closed) this.updateButtons();
@@ -198,7 +209,8 @@ export class PlainGfmModal extends Modal {
 export class PlainGfmConversionService {
   private active = true;
   private readonly modals = new Set<PlainGfmModal>();
-  constructor(private readonly app: App, private readonly translator: () => Translate) {}
+  constructor(private readonly app: App, private readonly translator: () => Translate,
+    private readonly copySession = tableCopySession(app)) {}
 
   readonly open: PreviewPlainGfm = (table, target) => {
     const t = this.translator();
@@ -209,7 +221,7 @@ export class PlainGfmConversionService {
       if (target.draftRoot.querySelector("textarea.structural-tables-cell-editor") !== null) { new Notice(t("gfm.unsavedDraft")); return; }
       const conversion = planPlainGfmConversion(table);
       if (conversion === null) { new Notice(t("operation.tableInvalid")); return; }
-      const modal = new PlainGfmModal(this.app, t, conversion, target, () => this.modals.delete(modal));
+      const modal = new PlainGfmModal(this.app, t, conversion, target, () => this.modals.delete(modal), this.copySession);
       this.modals.add(modal);
       modal.open();
     })().catch(() => { if (this.active) new Notice(t("notice.staleTable")); });

@@ -204,6 +204,7 @@ const ru = {
   "handle.addRow": "Добавить строку",
   "handle.addColumn": "Добавить столбец",
   "handle.dragHint": "Удерживайте маркер и перетащите строку или столбец. Shift+нажатие либо выбор другого маркера расширяет выделение.",
+  "editor.grid": "Редактируемая таблица {count}",
   "editor.cell": "Изменить строку {row}, столбец {column}",
   "menu.mergeSelection": "Объединить выбранные ячейки",
   "menu.editSource": "Редактировать исходный Markdown таблицы",

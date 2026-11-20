@@ -204,6 +204,7 @@ const zhCN = {
   "handle.addRow": "添加行",
   "handle.addColumn": "添加列",
   "handle.dragHint": "按住行或列把手直接拖动即可移动；单击只选择。按住 Shift 点击，或轻点另一个把手，可扩展选区。",
+  "editor.grid": "可编辑表格 {count}",
   "editor.cell": "编辑第 {row} 行、第 {column} 列",
   "menu.mergeSelection": "合并所选单元格",
   "menu.editSource": "编辑表格源码",

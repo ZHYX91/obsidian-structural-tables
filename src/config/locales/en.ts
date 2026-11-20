@@ -202,6 +202,7 @@ const en = {
   "handle.addRow": "Add row",
   "handle.addColumn": "Add column",
   "handle.dragHint": "Drag a handle to move its row or column. Shift-click, or tap another handle, to select a range.",
+  "editor.grid": "Editable table {count}",
   "editor.cell": "Edit row {row}, column {column}",
   "menu.mergeSelection": "Merge selected cells",
   "menu.editSource": "Edit table source",

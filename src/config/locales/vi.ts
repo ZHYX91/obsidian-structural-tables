@@ -204,6 +204,7 @@ const vi = {
   "handle.addRow": "Thêm hàng",
   "handle.addColumn": "Thêm cột",
   "handle.dragHint": "Kéo tay nắm để di chuyển hàng hoặc cột. Nhấn Shift rồi nhấp, hoặc chạm tay nắm khác, để mở rộng vùng chọn.",
+  "editor.grid": "Bảng có thể chỉnh sửa {count}",
   "editor.cell": "Sửa hàng {row}, cột {column}",
   "menu.mergeSelection": "Gộp các ô đã chọn",
   "menu.editSource": "Sửa mã Markdown của bảng",

@@ -1,3 +1,9 @@
+import { withCount, type Translate } from "../config/i18n";
+
+export function labelTableGrid(table: HTMLTableElement, sourceTableIndex: number, t: Translate): void {
+  table.setAttribute("aria-label", withCount(t("editor.grid"), sourceTableIndex + 1));
+}
+
 /** Expose the interactive table as a multi-selectable grid to assistive technology. */
 export function applyTableGridAccessibility(table: HTMLTableElement, columnCount: number): void {
   const rows = Array.from(table.rows);

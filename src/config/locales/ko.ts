@@ -204,6 +204,7 @@ const ko = {
   "handle.addRow": "행 추가",
   "handle.addColumn": "열 추가",
   "handle.dragHint": "손잡이를 끌어 행이나 열을 이동하세요. Shift+클릭하거나 다른 손잡이를 탭하면 선택 범위를 넓힐 수 있습니다.",
+  "editor.grid": "편집 가능한 표 {count}",
   "editor.cell": "{row}행 {column}열 편집",
   "menu.mergeSelection": "선택한 셀 병합",
   "menu.editSource": "표의 Markdown 원문 편집",

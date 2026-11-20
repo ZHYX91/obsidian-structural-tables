@@ -73,7 +73,7 @@ import {
 } from "./table-selection";
 
 import { retainCellDraft } from "./cell-draft-recovery";
-import { applyTableGridAccessibility } from "./table-grid-accessibility";
+import { applyTableGridAccessibility, labelTableGrid } from "./table-grid-accessibility";
 import { bindTableSourceSnapshot, tableCellSourceOffset } from "./table-source-binding";
 import { structuralTableCellBlurCommit, structuralTableLogicalCursorSync, structuralTableSourceFocus, tableSourcePointerPending } from "./table-source-focus";
 
@@ -248,6 +248,9 @@ class StructuralTableInteraction {
     const sameSourceIdentity = this.table.range.from === table.range.from
       && this.table.range.to === table.range.to
       && this.table.sourceTableIndex === table.sourceTableIndex;
+    if (this.renderedTable !== null && this.table.sourceTableIndex !== table.sourceTableIndex) {
+      labelTableGrid(this.renderedTable, table.sourceTableIndex, createTranslator(settings.language));
+    }
     this.table = table;
     if (this.host !== null && !sameSourceIdentity) bindTableSourceSnapshot(this.host, table, sourcePath);
     this.updateSelection(!sameSourceIdentity);
@@ -381,6 +384,7 @@ class StructuralTableInteraction {
     this.renderedTable = rendered;
     rendered.classList.add("is-interactive");
     applyTableGridAccessibility(rendered, this.table.columnCount);
+    labelTableGrid(rendered, this.table.sourceTableIndex, createTranslator(this.settings.language));
     const cells = Array.from(rendered.querySelectorAll<HTMLElement>(
       "[data-structural-row][data-structural-column]",
     ));

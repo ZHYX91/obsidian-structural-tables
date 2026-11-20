@@ -204,6 +204,7 @@ const catalog = {
   "handle.addRow": "Añadir fila",
   "handle.addColumn": "Añadir columna",
   "handle.dragHint": "Mantén pulsado y arrastra un control para mover directamente la fila o columna. Un clic solo selecciona. Mayús+clic o tocar otro control amplía la selección.",
+  "editor.grid": "Tabla editable {count}",
   "editor.cell": "Editar fila {row}, columna {column}",
   "menu.mergeSelection": "Combinar celdas seleccionadas",
   "menu.editSource": "Editar código fuente de la tabla",

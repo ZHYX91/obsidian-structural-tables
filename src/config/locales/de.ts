@@ -204,6 +204,7 @@ const catalog = {
   "handle.addRow": "Zeile hinzufügen",
   "handle.addColumn": "Spalte hinzufügen",
   "handle.dragHint": "Griff gedrückt halten und ziehen, um Zeile oder Spalte direkt zu verschieben. Ein Klick wählt nur aus. Umschalt-Klick oder ein weiterer Tipp erweitert die Auswahl.",
+  "editor.grid": "Bearbeitbare Tabelle {count}",
   "editor.cell": "Zeile {row}, Spalte {column} bearbeiten",
   "menu.mergeSelection": "Ausgewählte Zellen verbinden",
   "menu.editSource": "Tabellenquelltext bearbeiten",

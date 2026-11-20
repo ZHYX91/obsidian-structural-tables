@@ -1,8 +1,20 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
-import { applyTableGridAccessibility } from "../src/editor/table-grid-accessibility";
+import { createTranslator } from "../src/config/i18n";
+import { applyTableGridAccessibility, labelTableGrid } from "../src/editor/table-grid-accessibility";
 
 describe("interactive table accessibility", () => {
+  it("names each editable grid in the selected language and updates its position when reused", () => {
+    const table = document.createElement("table");
+    const t = createTranslator("zh-CN");
+    labelTableGrid(table, 0, t);
+    expect(table.getAttribute("aria-label")).toBe("可编辑表格 1");
+    labelTableGrid(table, 1, t);
+    expect(table.getAttribute("aria-label")).toBe("可编辑表格 2");
+    labelTableGrid(table, 1, createTranslator("en"));
+    expect(table.getAttribute("aria-label")).toBe("Editable table 2");
+  });
+
   it("exposes row and cell coordinates and an explicit multi-selection state", () => {
     const table = document.createElement("table");
     table.innerHTML = "<tbody><tr><td data-structural-row='0' data-structural-column='0'>A</td><td data-structural-row='0' data-structural-column='1'>B</td></tr><tr><td data-structural-row='1' data-structural-column='0'>C</td><td data-structural-row='1' data-structural-column='1'>D</td></tr></tbody>";

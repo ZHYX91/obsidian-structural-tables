@@ -204,6 +204,7 @@ const catalog = {
   "handle.addRow": "行を追加",
   "handle.addColumn": "列を追加",
   "handle.dragHint": "ハンドルを押したままドラッグすると、その行または列を移動できます。クリックだけなら選択します。Shift＋クリック、または別のハンドルのタップで範囲を広げられます。",
+  "editor.grid": "編集可能な表 {count}",
   "editor.cell": "{row} 行目、{column} 列目を編集",
   "menu.mergeSelection": "選択したセルを結合",
   "menu.editSource": "テーブルのソースを編集",

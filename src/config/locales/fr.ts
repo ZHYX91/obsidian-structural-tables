@@ -204,6 +204,7 @@ const fr = {
   "handle.addRow": "Ajouter une ligne",
   "handle.addColumn": "Ajouter une colonne",
   "handle.dragHint": "Faites glisser une poignée pour déplacer sa ligne ou sa colonne. Maj-clic, ou un appui sur une autre poignée, étend la sélection.",
+  "editor.grid": "Tableau modifiable {count}",
   "editor.cell": "Modifier la ligne {row}, colonne {column}",
   "menu.mergeSelection": "Fusionner les cellules sélectionnées",
   "menu.editSource": "Modifier le code Markdown du tableau",

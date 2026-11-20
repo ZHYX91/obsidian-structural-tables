@@ -204,6 +204,7 @@ const ptBR = {
   "handle.addRow": "Adicionar linha",
   "handle.addColumn": "Adicionar coluna",
   "handle.dragHint": "Arraste a alça para mover a linha ou coluna. Shift+clique ou toque em outra alça para ampliar a seleção.",
+  "editor.grid": "Tabela editável {count}",
   "editor.cell": "Editar linha {row}, coluna {column}",
   "menu.mergeSelection": "Mesclar células selecionadas",
   "menu.editSource": "Editar código Markdown da tabela",

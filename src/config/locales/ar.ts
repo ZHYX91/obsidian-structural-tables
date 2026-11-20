@@ -204,6 +204,7 @@ const catalog = {
   "handle.addRow": "إضافة صف",
   "handle.addColumn": "إضافة عمود",
   "handle.dragHint": "اضغط باستمرار على مقبض صف أو عمود واسحبه لنقله مباشرةً؛ النقر وحده يحدده. استخدم Shift مع النقر أو المس مقبضًا آخر لتوسيع التحديد.",
+  "editor.grid": "الجدول القابل للتحرير {count}",
   "editor.cell": "تحرير الصف {row}، العمود {column}",
   "menu.mergeSelection": "دمج الخلايا المحددة",
   "menu.editSource": "تحرير مصدر الجدول",

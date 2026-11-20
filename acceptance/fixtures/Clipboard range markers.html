@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Range marker clipboard boundaries</title>
+<style>body{font:18px/1.5 sans-serif;margin:24px}button{display:block;margin:12px;padding:10px}</style>
+<h1>Range marker clipboard boundaries</h1>
+<p>The first two samples are ordinary HTML; the last sample has a malformed real range attribute and must be refused without falling back to its text.</p>
+<button id="text">Copy ordinary marker text</button>
+<button id="value">Copy ordinary attribute value</button>
+<button id="carrier">Copy malformed actual carrier</button>
+<output id="status" aria-live="polite"></output>
+<script>
+const samples = {
+  text: ['<span>data-structural-tables-range</span>', 'data-structural-tables-range'],
+  value: ['<span title="data-structural-tables-range">Safe</span>', 'Safe'],
+  carrier: ['<table data-structural-tables-range="bad"><tr><td>Fallback</td></tr></table>', 'Fallback'],
+};
+for (const [id, [html, text]] of Object.entries(samples)) {
+  document.getElementById(id).onclick = async () => {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], {type:'text/html'}),
+        'text/plain': new Blob([text], {type:'text/plain'}),
+      })]);
+      document.getElementById('status').textContent = 'Copied HTML and text: ' + id;
+    } catch (error) { document.getElementById('status').textContent = 'Copy failed: ' + String(error); }
+  };
+}
+</script>
+</html>

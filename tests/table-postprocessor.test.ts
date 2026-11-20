@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { type App, MarkdownRenderer, type MarkdownPostProcessorContext, MarkdownRenderChild } from "obsidian";
+import MarkdownIt from "markdown-it";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_SETTINGS } from "../src/config/settings";
@@ -35,6 +36,38 @@ function rawBlock(source: string): HTMLDivElement {
 }
 
 describe("StructuralTableReadingProcessor", () => {
+  it.each([
+    "[link]:\n  /url\n<span>\n| H | < |\n| --- | --- |\n| a | b |\n</span>",
+    "[link]: /url\n  \"title\"\n<span>\n| H | < |\n| --- | --- |\n| a | b |\n</span>",
+    "-\n    ```\n  | H | < |\n  | --- | --- |\n  | a | b |\n  ```",
+    "> text\n    > ```\n> | H | < |\n> | --- | --- |\n> | a | b |\n> ```",
+    "[link]: /url\n<span>\n| H | < |\n| --- | --- |\n| a | b |\n</span>",
+  ])("keeps native ownership of table-shaped protected block continuations: %s", async (source) => {
+    const markdown = new MarkdownIt({ html: true });
+    const tokens = markdown.parse(source, {});
+    expect(tokens.some((token) => ["html_block", "fence"].includes(token.type))).toBe(true);
+    expect(tokens.some((token) => token.type === "table_open")).toBe(false);
+    const root = document.body.appendChild(document.createElement("div"));
+    const section = root.appendChild(document.createElement("div"));
+    section.innerHTML = markdown.render(source);
+    const original = section.innerHTML;
+    const context = {
+      sourcePath: "Protected.md", docId: "protected-block-continuations", addChild: vi.fn(),
+      getSectionInfo: () => ({ text: source, lineStart: 0, lineEnd: source.split("\n").length - 1 }),
+    } as unknown as MarkdownPostProcessorContext;
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, target) => {
+      target.innerHTML = markdown.render(text);
+    });
+    try {
+      new StructuralTableReadingProcessor({} as App, () => DEFAULT_SETTINGS).process(section, context);
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      expect(root.querySelector(".structural-tables-table")).toBeNull();
+      expect(section.innerHTML).toBe(original);
+      expect(context.addChild).not.toHaveBeenCalled();
+      expect(render).not.toHaveBeenCalled();
+    } finally { render.mockRestore(); root.remove(); }
+  });
+
   it.each(["raw", "native", "callout", "standalone"])(
     "leaves %s editor content to Live Preview without acquiring render ownership",
     (kind) => {

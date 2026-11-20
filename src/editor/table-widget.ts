@@ -42,9 +42,6 @@ import { validateTableOperationInDocument } from "../core/table-operation-docume
 import { parseEditableTables } from "../core/parser";
 import {
   sameTableRangeTopology,
-  TABLE_RANGE_CLIPBOARD_MIME,
-  TABLE_RANGE_CLIPBOARD_WEB_MIME,
-  TABLE_RANGE_HTML_ATTRIBUTE,
   tableRangePayload,
   type TableRangeClipboardPayloadV1,
 } from "../core/table-range-clipboard";
@@ -1117,13 +1114,13 @@ class StructuralTableInteraction {
     if (frozen === null) return false;
     event.preventDefault();
     event.stopPropagation();
-    const payload = event.clipboardData === null ? null
+    const result = event.clipboardData === null ? null
       : readTableRangeFromDataTransfer(event.clipboardData, frozen.host.ownerDocument);
-    if (payload === null) {
+    if (result?.kind !== "payload") {
       new Notice(createTranslator(this.getSettings().language)("notice.rangeClipboardUnsupported"));
       return true;
     }
-    if (!this.pasteFrozenSelection(view, frozen, payload)) {
+    if (!this.pasteFrozenSelection(view, frozen, result.payload)) {
       new Notice(createTranslator(this.getSettings().language)("notice.staleTable"));
     }
     return true;
@@ -1983,14 +1980,13 @@ class StructuralTableInteraction {
     const pasteClipboard = (event: ClipboardEvent): void => {
       if (event.clipboardData === null) return;
       const html = event.clipboardData?.getData("text/html") ?? "";
-      const payload = readTableRangeFromDataTransfer(event.clipboardData, editor.ownerDocument);
-      const owned = (event.clipboardData.types ?? []).some((type) => type === TABLE_RANGE_CLIPBOARD_MIME
-        || type === TABLE_RANGE_CLIPBOARD_WEB_MIME) || html.includes(TABLE_RANGE_HTML_ATTRIBUTE);
-      if (owned && payload === null) {
+      const range = readTableRangeFromDataTransfer(event.clipboardData, editor.ownerDocument);
+      if (range.kind === "invalid") {
         event.preventDefault(); event.stopPropagation();
         new Notice(t("notice.rangeClipboardUnsupported"));
         return;
       }
+      const payload = range.kind === "payload" ? range.payload : null;
       if (payload !== null && (payload.rows > 1 || payload.columns > 1)) {
         event.preventDefault(); event.stopPropagation();
         if (draft.composing || editor.value !== anchor.raw.trim() || draft.pendingInput !== null) {

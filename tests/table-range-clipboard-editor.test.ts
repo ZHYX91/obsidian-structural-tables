@@ -140,7 +140,7 @@ describe("owned range clipboard bridge", () => {
   it("writes structured, plain, and HTML payloads synchronously to DataTransfer", () => {
     const transfer = new DataTransfer();
     expect(writeTableRangeToDataTransfer(transfer, payload)).toBe(true);
-    expect(readTableRangeFromDataTransfer(transfer)).toEqual(payload);
+    expect(readTableRangeFromDataTransfer(transfer)).toEqual({ kind: "payload", payload });
     const represented = tableRangeClipboardRepresentations(payload);
     expect(transfer.getData(TABLE_RANGE_CLIPBOARD_MIME)).toBe(represented.structured);
     expect(transfer.getData("text/plain")).toBe(represented.plain);
@@ -150,9 +150,9 @@ describe("owned range clipboard bridge", () => {
   it("does not reinterpret missing or malformed structured data", () => {
     const transfer = new DataTransfer();
     transfer.setData("text/plain", "| A |\n| --- |");
-    expect(readTableRangeFromDataTransfer(transfer)).toBeNull();
+    expect(readTableRangeFromDataTransfer(transfer)).toEqual({ kind: "none" });
     transfer.setData(TABLE_RANGE_CLIPBOARD_MIME, "{bad");
-    expect(readTableRangeFromDataTransfer(transfer)).toBeNull();
+    expect(readTableRangeFromDataTransfer(transfer)).toEqual({ kind: "invalid" });
   });
 
   it("uses navigator.write only when structured ClipboardItem support exists", async () => {
@@ -276,7 +276,7 @@ describe("owned range clipboard bridge", () => {
     transfer.setData("text/plain", tableRangeClipboardRepresentations(payload).plain);
     expect(transfer.types).not.toContain(TABLE_RANGE_CLIPBOARD_MIME);
     expect(transfer.types).not.toContain(TABLE_RANGE_CLIPBOARD_WEB_MIME);
-    expect(readTableRangeFromDataTransfer(transfer)).toEqual(payload);
+    expect(readTableRangeFromDataTransfer(transfer)).toEqual({ kind: "payload", payload });
   });
 
   it("recovers an event Copy HTML carrier in the Async reader when custom formats are lost", async () => {
@@ -299,25 +299,31 @@ describe("owned range clipboard bridge", () => {
     const html = tableRangeClipboardRepresentations(rawPayload).html;
     const transfer = new DataTransfer();
     transfer.setData("text/html", `<!--StartFragment-->${html}<!--EndFragment-->`);
-    expect(readTableRangeFromDataTransfer(transfer)).toEqual(rawPayload);
+    expect(readTableRangeFromDataTransfer(transfer)).toEqual({ kind: "payload", payload: rawPayload });
     expect(await readTableRangeFromNavigator(htmlOnlyClipboard(transfer.getData("text/html"))))
       .toEqual({ kind: "payload", payload: rawPayload });
   });
 
   it.each([
-    ["ordinary table", (): string => "<table><tr><td>A</td></tr></table>"],
-    ["non-table marker", (): string => carrierHtml(JSON.stringify(payload), "div")],
-    ["multiple carriers", (): string => tableRangeClipboardRepresentations(payload).html.repeat(2)],
-    ["empty carrier", (): string => carrierHtml("")],
-    ["malformed JSON", (): string => carrierHtml("{bad")],
-    ["wrong version", (): string => carrierHtml(JSON.stringify({ ...payload, version: 2 }))],
-    ["missing owner", (): string => carrierHtml(JSON.stringify({ ...payload, rawByOwner: { o0: "A" } }))],
-  ] as const)("rejects %s HTML instead of inferring a range", async (_label, htmlSource) => {
+    ["ordinary table", (): string => "<table><tr><td>A</td></tr></table>", "none"],
+    ["literal marker text", (): string => `<span>${TABLE_RANGE_HTML_ATTRIBUTE}</span>`, "none"],
+    ["marker in a comment", (): string => `<!--${TABLE_RANGE_HTML_ATTRIBUTE}--><span>A</span>`, "none"],
+    ["marker in an ordinary attribute value", (): string => `<span title="${TABLE_RANGE_HTML_ATTRIBUTE}">A</span>`, "none"],
+    ["non-table marker", (): string => carrierHtml(JSON.stringify(payload), "div"), "invalid"],
+    ["document body marker", (): string => `<body ${TABLE_RANGE_HTML_ATTRIBUTE}="bad">Fallback</body>`, "invalid"],
+    ["document html marker", (): string => `<html ${TABLE_RANGE_HTML_ATTRIBUTE}="bad"><body>Fallback</body></html>`, "invalid"],
+    ["marker in a document attribute value", (): string => `<body title="${TABLE_RANGE_HTML_ATTRIBUTE}">Fallback</body>`, "none"],
+    ["multiple carriers", (): string => tableRangeClipboardRepresentations(payload).html.repeat(2), "invalid"],
+    ["empty carrier", (): string => carrierHtml(""), "invalid"],
+    ["malformed JSON", (): string => carrierHtml("{bad"), "invalid"],
+    ["wrong version", (): string => carrierHtml(JSON.stringify({ ...payload, version: 2 })), "invalid"],
+    ["missing owner", (): string => carrierHtml(JSON.stringify({ ...payload, rawByOwner: { o0: "A" } })), "invalid"],
+  ] as const)("rejects %s HTML instead of inferring a range", async (_label, htmlSource, kind) => {
     const html = htmlSource();
     const transfer = new DataTransfer();
     transfer.setData("text/html", html);
     transfer.setData("text/plain", tableRangeClipboardRepresentations(payload).plain);
-    expect(readTableRangeFromDataTransfer(transfer)).toBeNull();
+    expect(readTableRangeFromDataTransfer(transfer)).toEqual({ kind });
     expect(await readTableRangeFromNavigator(htmlOnlyClipboard(html))).toEqual({ kind: "failed" });
   });
 
@@ -327,7 +333,7 @@ describe("owned range clipboard bridge", () => {
       transfer.setData(type, source);
       transfer.setData("text/html", tableRangeClipboardRepresentations(payload).html);
       expect(transfer.types).toContain(type);
-      expect(readTableRangeFromDataTransfer(transfer)).toBeNull();
+      expect(readTableRangeFromDataTransfer(transfer)).toEqual({ kind: "invalid" });
     }
   });
 
@@ -350,7 +356,7 @@ describe("owned range clipboard bridge", () => {
       if (type !== "text/html") throw new Error("Clipboard read denied");
       return tableRangeClipboardRepresentations(payload).html;
     });
-    expect(readTableRangeFromDataTransfer(transfer)).toBeNull();
+    expect(readTableRangeFromDataTransfer(transfer)).toEqual({ kind: "invalid" });
     expect(getData).not.toHaveBeenCalledWith("text/html");
     const getType = vi.fn(async () => { throw new Error("Clipboard read denied"); });
     const clipboard = { read: vi.fn(async () => [{ types: [TABLE_RANGE_CLIPBOARD_WEB_MIME, "text/html"], getType }]) } as unknown as Clipboard;
@@ -391,7 +397,7 @@ describe("owned range clipboard bridge", () => {
     vi.stubGlobal("document", undefined);
     try {
       const ownerDocument = realm.window.document;
-      expect(readTableRangeFromDataTransfer(transfer, ownerDocument)).toEqual(payload);
+      expect(readTableRangeFromDataTransfer(transfer, ownerDocument)).toEqual({ kind: "payload", payload });
       expect(await readTableRangeFromNavigator(htmlOnlyClipboard(html), ownerDocument))
         .toEqual({ kind: "payload", payload });
       expect(parse).toHaveBeenCalledTimes(2);

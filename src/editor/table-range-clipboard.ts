@@ -39,33 +39,57 @@ export function writeTableRangeToDataTransfer(
   }
 }
 
+export type TableRangeClipboardRead =
+  | { kind: "payload"; payload: TableRangeClipboardPayloadV1 }
+  | { kind: "none" }
+  | { kind: "invalid" };
+
 export function readTableRangeFromDataTransfer(
   transfer: DataTransfer,
   ownerDocument: Document = document,
-): TableRangeClipboardPayloadV1 | null {
+): TableRangeClipboardRead {
   try {
     for (const type of [TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_CLIPBOARD_WEB_MIME]) {
       const source = transfer.getData(type);
-      if (source !== "") return parseTableRangePayload(source);
-      if (transfer.types.includes(type)) return null;
+      if (source !== "") {
+        const payload = parseTableRangePayload(source);
+        return payload === null ? { kind: "invalid" } : { kind: "payload", payload };
+      }
+      if (transfer.types?.includes(type)) return { kind: "invalid" };
     }
     return readOwnedTableRangeHtml(transfer.getData("text/html"), ownerDocument);
   } catch {
-    return null;
+    return { kind: "invalid" };
   }
 }
 
 function readOwnedTableRangeHtml(
   html: string,
   ownerDocument: Document,
-): TableRangeClipboardPayloadV1 | null {
+): TableRangeClipboardRead {
+  if (html === "") return { kind: "none" };
   const Parser = ownerDocument.defaultView?.DOMParser;
-  if (typeof Parser !== "function") return null;
+  if (typeof Parser !== "function") return { kind: "invalid" };
   const parsed = new Parser().parseFromString(html, "text/html");
+  // An attribute claims an owned payload; its name in ordinary text does not.
+  // Keep malformed claims distinct so cell paste cannot downgrade them to text.
+  if (parsed.querySelector(`[${TABLE_RANGE_HTML_ATTRIBUTE}]`) === null) {
+    // This is only a fast prefilter; ownership still requires a DOM attribute.
+    if (!html.toLowerCase().includes(TABLE_RANGE_HTML_ATTRIBUTE)) return { kind: "none" };
+    // Document parsing drops orphaned table fragments such as td/tr. Parse them
+    // in an inert template context; neither this document nor its fragment enters UI.
+    const fragmentDocument = new Parser().parseFromString("<template></template>", "text/html");
+    const range = fragmentDocument.createRange();
+    range.selectNodeContents(fragmentDocument.querySelector("template")!);
+    // eslint-disable-next-line no-unsanitized/method -- Detached inert parsing only; the fragment is inspected, never attached or cloned into UI.
+    const fragment = range.createContextualFragment(html);
+    return { kind: fragment.querySelector(`[${TABLE_RANGE_HTML_ATTRIBUTE}]`) === null ? "none" : "invalid" };
+  }
   const carriers = parsed.querySelectorAll<HTMLTableElement>(`table[${TABLE_RANGE_HTML_ATTRIBUTE}]`);
-  if (carriers.length !== 1) return null;
+  if (carriers.length !== 1) return { kind: "invalid" };
   const source = carriers[0]!.getAttribute(TABLE_RANGE_HTML_ATTRIBUTE);
-  return source === null ? null : parseTableRangePayload(source);
+  const payload = source === null ? null : parseTableRangePayload(source);
+  return payload === null ? { kind: "invalid" } : { kind: "payload", payload };
 }
 
 type ClipboardItemConstructor = new (items: Record<string, Blob>) => ClipboardItem;
@@ -181,8 +205,8 @@ export async function readTableRangeFromNavigator(
     const htmlItems = items.filter((item) => item.types.includes("text/html"));
     if (htmlItems.length !== 1) return { kind: "failed" };
     const html = await htmlItems[0]!.getType("text/html");
-    const payload = readOwnedTableRangeHtml(await html.text(), ownerDocument);
-    return payload === null ? { kind: "failed" } : { kind: "payload", payload };
+    const result = readOwnedTableRangeHtml(await html.text(), ownerDocument);
+    return result.kind === "payload" ? result : { kind: "failed" };
   } catch {
     return { kind: "failed" };
   }

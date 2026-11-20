@@ -13,7 +13,7 @@ import { createTranslator } from "../src/config/i18n";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
 import { calloutRanges } from "../src/core/source-lines";
-import { TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_HTML_ATTRIBUTE } from "../src/core/table-range-clipboard";
+import { TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_CLIPBOARD_WEB_MIME, TABLE_RANGE_HTML_ATTRIBUTE } from "../src/core/table-range-clipboard";
 import { recoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
 import { structuralTableSourceFocus } from "../src/editor/table-source-focus";
@@ -5129,12 +5129,10 @@ describe("StructuralTableEditorController", () => {
     const cell = parent.querySelector<HTMLElement>("[data-structural-row='0'][data-structural-column='0']")!;
     cell.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
     const editor = cell.querySelector<HTMLTextAreaElement>("textarea")!;
-    const paste = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(paste, "clipboardData", {
-      value: { getData: (type: string) => type === "text/html"
-        ? '<td>"First"<br />Second</td>'
-        : '"""First""\nSecond"\r\n' },
-    });
+    const transfer = new DataTransfer();
+    transfer.setData("text/html", '<td>"First"<br />Second</td>');
+    transfer.setData("text/plain", '"""First""\nSecond"\r\n');
+    const paste = gridClipboardEvent("paste", transfer);
     editor.dispatchEvent(paste);
     expect(paste.defaultPrevented).toBe(true);
     expect(editor.value).toBe('&#34;First&#34;<br>Second');
@@ -6756,6 +6754,104 @@ describe("interaction batches one and two: real event ownership", () => {
     }
     vi.unstubAllGlobals();
   });
+
+  it.each([
+    { name: "ordinary span text", html: `<span>${TABLE_RANGE_HTML_ATTRIBUTE}</span>`, plain: TABLE_RANGE_HTML_ATTRIBUTE,
+      expected: "data&#45;structural&#45;tables&#45;range", fallback: true },
+    { name: "neighboring span text", html: "<span>data-structural-tables-other</span>", plain: "data-structural-tables-other",
+      expected: "data&#45;structural&#45;tables&#45;other", fallback: true },
+    { name: "plain text", html: "", plain: TABLE_RANGE_HTML_ATTRIBUTE, expected: TABLE_RANGE_HTML_ATTRIBUTE, fallback: false },
+    { name: "ordinary attribute value", html: `<span title="${TABLE_RANGE_HTML_ATTRIBUTE}">Safe</span>`, plain: "Safe", expected: "Safe", fallback: true },
+    { name: "table-cell fragment text", html: `<td>${TABLE_RANGE_HTML_ATTRIBUTE}</td>`, plain: TABLE_RANGE_HTML_ATTRIBUTE,
+      expected: "data&#45;structural&#45;tables&#45;range", fallback: false },
+    { name: "table-row fragment attribute value", html: `<tr><td title="${TABLE_RANGE_HTML_ATTRIBUTE}">Safe</td></tr>`, plain: "Safe",
+      expected: "Safe", fallback: false },
+  ].flatMap((sample) => ["native", "menu"].map((route) => ({ ...sample, route }))))(
+    "pastes $name containing a range-marker string through $route without claiming a range", async ({ html, plain, expected, fallback, route }) => {
+      const source = "Before\n\n| H | V |\n| --- || --- |\n| A | Alpha |\n\nEnd";
+      const transfer = new DataTransfer();
+      transfer.setData("text/plain", plain);
+      if (html !== "") transfer.setData("text/html", html);
+      const read = vi.fn(async () => [{ types: transfer.types, getType: async (type: string) => new Blob([transfer.getData(type)]) }]);
+      vi.stubGlobal("navigator", { clipboard: { read } });
+      const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+      const noticeStart = notices.length;
+      try {
+        const cell = parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!;
+        mouseGesture(cell);
+        const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+        editor.select();
+        if (route === "menu") {
+          editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+          clickCurrentMenuItem("Paste", true);
+          await vi.waitFor(() => expect(editor.value).toBe(expected));
+          await new Promise((resolve) => setTimeout(resolve, 1));
+        } else {
+          const event = gridClipboardEvent("paste", transfer);
+          editor.dispatchEvent(event);
+          expect(event.defaultPrevented).toBe(true);
+        }
+        expect(editor.value).toBe(expected);
+        expect(notices.slice(noticeStart)).toEqual(fallback ? [createTranslator("en")("notice.clipboardPlainFallback")] : []);
+        expect(view.state.doc.toString()).toBe(source);
+        expect(undoDepth(view.state)).toBe(0);
+
+        dispatchDraftShortcut(editor, "z");
+        expect(editor.value).toBe("Alpha");
+        dispatchDraftShortcut(editor, "z", "ctrl", true);
+        expect(editor.value).toBe(expected);
+        expect(view.state.doc.toString()).toBe(source);
+        expect(undoDepth(view.state)).toBe(0);
+
+        editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+        expect(parseEditableTables(view.state.doc.toString()).tables[0]!.rows[1]!.cells[1]!.raw.trim()).toBe(expected);
+        expect(undoDepth(view.state)).toBe(1);
+        expect(undo(view)).toBe(true);
+        expect(view.state.doc.toString()).toBe(source);
+      } finally { view.destroy(); }
+    },
+  );
+
+  it.each([
+    { name: "malformed HTML carrier", html: `<table ${TABLE_RANGE_HTML_ATTRIBUTE}="bad"><tr><td>Fallback</td></tr></table>`, type: "", value: "" },
+    { name: "non-table carrier attribute", html: `<span ${TABLE_RANGE_HTML_ATTRIBUTE}="bad">Fallback</span>`, type: "", value: "" },
+    { name: "document body carrier attribute", html: `<body ${TABLE_RANGE_HTML_ATTRIBUTE}="bad">Fallback</body>`, type: "", value: "" },
+    { name: "document html carrier attribute", html: `<html ${TABLE_RANGE_HTML_ATTRIBUTE}="bad"><body>Fallback</body></html>`, type: "", value: "" },
+    { name: "malformed custom MIME", html: "<span>Fallback</span>", type: TABLE_RANGE_CLIPBOARD_MIME, value: "bad" },
+    { name: "empty web custom MIME", html: "<span>Fallback</span>", type: TABLE_RANGE_CLIPBOARD_WEB_MIME, value: "" },
+  ].flatMap((sample) => ["native", "menu"].map((route) => ({ ...sample, route }))))(
+    "keeps $name from falling back to draft text through $route", async ({ html, type, value, route }) => {
+      const source = "Before\n\n| H | V |\n| --- || --- |\n| A | Alpha |\n\nEnd";
+      const transfer = new DataTransfer();
+      transfer.setData("text/plain", "Fallback");
+      transfer.setData("text/html", html);
+      if (type !== "") transfer.setData(type, value);
+      const read = vi.fn(async () => [{ types: transfer.types, getType: async (format: string) => new Blob([transfer.getData(format)]) }]);
+      vi.stubGlobal("navigator", { clipboard: { read } });
+      const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+      const noticeStart = notices.length;
+      try {
+        mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='1']")!);
+        const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+        editor.select();
+        if (route === "menu") {
+          editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+          clickCurrentMenuItem("Paste", true);
+          await vi.waitFor(() => expect(notices).toHaveLength(noticeStart + 1));
+        } else {
+          const event = gridClipboardEvent("paste", transfer);
+          editor.dispatchEvent(event);
+          expect(event.defaultPrevented).toBe(true);
+        }
+        expect(notices.slice(noticeStart)).toEqual([createTranslator("en")("notice.rangeClipboardUnsupported")]);
+        expect(editor.value).toBe("Alpha");
+        expect([editor.selectionStart, editor.selectionEnd]).toEqual([0, 5]);
+        expect(editor.isConnected).toBe(true);
+        expect(view.state.doc.toString()).toBe(source);
+        expect(undoDepth(view.state)).toBe(0);
+      } finally { view.destroy(); }
+    },
+  );
 
   it.each([false, true])("combines a draft and submenu command atomically; rejected=%s", (rejected) => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | KEEP |\n\nEnd";

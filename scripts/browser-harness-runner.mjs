@@ -115,6 +115,7 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
 
   try {
     const args = ["--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
+      "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-component-update",
       "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--user-data-dir=" + profile,
       `--window-size=${width},${height}`, ...extraArgs, "about:blank"];
     child = spawn(browser, args, { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });

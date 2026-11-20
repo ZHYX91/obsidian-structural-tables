@@ -6,6 +6,20 @@ import type { StructuralTable } from "../core/model";
 
 const INLINE_TAGS = new Set(["A", "B", "BR", "CODE", "DEL", "EM", "I", "MARK", "S", "STRONG", "SUB", "SUP", "U"]);
 const OMIT_TAGS = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT"]);
+const BLOCK_CONTENT = "address, article, aside, blockquote, center, dd, details, dialog, dir, div, dl, dt, fieldset, figcaption, figure, footer, form, "
+  + "h1, h2, h3, h4, h5, h6, header, hgroup, hr, legend, li, main, menu, nav, ol, pre, section, summary, table, ul";
+
+function hasBlockContent(rendered: HTMLElement): boolean {
+  if (rendered.querySelector(BLOCK_CONTENT) !== null) return true;
+  const paragraphs = rendered.querySelectorAll("p");
+  if (paragraphs.length === 0) return false;
+  // A single outer paragraph is the normal Markdown inline-rendering wrapper.
+  // Other paragraphs have boundaries that the portable inline writer cannot keep.
+  const paragraph = paragraphs[0]!;
+  return paragraphs.length !== 1 || paragraph.parentElement !== rendered
+    || Array.from(rendered.childNodes).some((node) => node !== paragraph
+      && (node.nodeType === 1 || (node.nodeType === 3 && (node.textContent ?? "").trim() !== "")));
+}
 
 function appendPortableContent(source: Node, target: Node): void {
   const document = target.ownerDocument!;
@@ -67,11 +81,11 @@ export async function renderTableClipboard(
         await MarkdownRenderer.render(app, cell.content, rendered, sourcePath, component);
         if (!isCurrent()) throw new Error("The table copy was cancelled.");
         element.replaceChildren();
-        if (rendered.querySelector("mjx-container, math, svg, img, .internal-embed, .internal-link, video, audio, canvas, iframe, object") !== null
+        if (hasBlockContent(rendered)
+          || rendered.querySelector("mjx-container, math, svg, img, .internal-embed, .internal-link, video, audio, canvas, iframe, object") !== null
           || Array.from(rendered.querySelectorAll("a[href]")).some((link) => !/^(https?:|mailto:)/iu.test(link.getAttribute("href") ?? ""))) {
-          // Portable HTML cannot preserve MathJax/SVG semantics reliably. Keep
-          // the original Markdown/LaTeX and attachment/link references instead
-          // of silently flattening or dropping them.
+          // Keep the original source when inline HTML would lose block boundaries,
+          // math semantics or attachment/link references.
           element.textContent = cell.content;
         } else {
           for (const child of rendered.childNodes) appendPortableContent(child, element);

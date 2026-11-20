@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import MarkdownIt from "markdown-it";
 import { App, Component, MarkdownRenderer, Platform } from "obsidian";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -145,6 +146,53 @@ describe("portable table clipboard", () => {
     expect(document.querySelector("tbody td")?.textContent).toBe(original);
     expect(document.querySelector("img, math, .internal-embed, a")).toBeNull();
     expect(result.text).toContain(original);
+  });
+
+  it.each([
+    "<div>FIRST</div><div>SECOND</div>",
+    "<ul><li>FIRST</li><li>SECOND</li></ul>",
+    "<ol><li>FIRST</li><li>SECOND</li></ol>",
+    "<dt>FIRST</dt><dt>SECOND</dt>",
+    "<dd>FIRST</dd><dd>SECOND</dd>",
+    "<p>FIRST</p><p>SECOND</p>",
+    "<blockquote><p>FIRST</p><p>SECOND</p></blockquote>",
+    "<pre>FIRST<br>SECOND</pre>",
+    "# FIRST",
+    "<table><tr><td>FIRST</td><td>SECOND</td></tr></table>",
+  ])("preserves original block content as text in HTML and TSV: %s", async (original) => {
+    const markdown = new MarkdownIt({ html: true });
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, text, element) => {
+      element.innerHTML = markdown.render(text);
+    });
+    const input = `| Content | Value |\n| --- | --- |\n| ${original} | 1 |`;
+    const table = parseEditableTables(input).tables[0]!;
+    expect(table.valid).toBe(true);
+    const result = await renderTableClipboard(new App(), table, "Note.md", "theme");
+    const document = new DOMParser().parseFromString(result.html, "text/html");
+    const cell = document.querySelector("tbody td")!;
+    expect(cell.textContent).toBe(original);
+    expect(cell.childElementCount).toBe(0);
+    expect(result.text.split("\n")[1]!.split("\t").map((value) => value.trim())).toEqual([original, "1"]);
+    expect(table.source).toBe(input);
+  });
+
+  it.each([
+    { original: "**FIRST** <span>SECOND</span><br>THIRD", text: "FIRST SECOND THIRD", selector: "strong, br", elements: 2 },
+    { original: "<span><strong>FIRST</strong></span><span>SECOND</span>", text: "FIRSTSECOND", selector: "strong", elements: 1 },
+    { original: "&lt;div&gt;FIRST&lt;/div&gt;", text: "<div>FIRST</div>", selector: "div", elements: 0 },
+  ])("keeps portable inline content and literal HTML-looking text: $original", async ({ original, text, selector, elements }) => {
+    const markdown = new MarkdownIt({ html: true });
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, value, element) => {
+      element.innerHTML = markdown.render(value);
+    });
+    const input = `| Content | Value |\n| --- | --- |\n| ${original} | 1 |`;
+    const table = parseEditableTables(input).tables[0]!;
+    const result = await renderTableClipboard(new App(), table, "Note.md", "theme");
+    const cell = new DOMParser().parseFromString(result.html, "text/html").querySelector("tbody td")!;
+    expect(cell.querySelectorAll(selector)).toHaveLength(elements);
+    expect(cell.querySelector("p, span")).toBeNull();
+    expect(result.text.split("\n")[1]!.split("\t").map((value) => value.trim())).toEqual([text, "1"]);
+    expect(table.source).toBe(input);
   });
 
   it("exports real three-line borders across the complete header group", async () => {

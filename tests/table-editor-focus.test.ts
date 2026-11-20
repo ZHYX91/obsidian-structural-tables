@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { parseEditableTables } from "../src/core/parser";
 import { StructuralTableEditorController } from "../src/editor/table-live-preview";
+import { StructuralTableWidget } from "../src/editor/table-widget";
 import { dispatchScopeCaptureThenDom, lastMenu } from "./mocks/obsidian";
 import {
   NativeCalloutWidget,
@@ -18,6 +19,22 @@ import {
 } from "./helpers/live-preview-editor";
 
 describe("Editor focus and navigation", () => {
+  it("distinguishes identical editable grids by position and relabels a reused grid", () => {
+    const table = "| H | V |\n| --- || --- |\n| A | B |";
+    const source = `Before\n\n${table}\n\nBetween\n\n${table}\n\nAfter`;
+    const { app, parent, view } = mountEditor(source, { anchor: source.length }, [], undefined, { language: "zh-CN" });
+    try {
+      const grids = Array.from(parent.querySelectorAll<HTMLElement>('[role="grid"]'));
+      expect(grids.map((grid) => grid.getAttribute("aria-label"))).toEqual(["可编辑表格 1", "可编辑表格 2"]);
+      const settings = { ...DEFAULT_SETTINGS, language: "zh-CN" as const, enableLivePreview: true };
+      const secondTable = parseEditableTables(source).tables[1]!;
+      const host = parent.querySelector<HTMLElement>(".structural-tables-live-preview")!;
+      expect(new StructuralTableWidget(app, secondTable, "Test.md", settings, () => settings).updateDOM(host)).toBe(true);
+      expect(grids[0]!.getAttribute("aria-label")).toBe("可编辑表格 2");
+      expect(view.state.doc.toString()).toBe(source);
+    } finally { view.destroy(); }
+  });
+
   it.each([false, true])("preserves raw source selection across external focus (range=%s)", async (range) => {
     const source = "Before\n\n| Region | Sales | < |\n| --- | --- | --- |\n| North | 10 | < |\n| ^ | 8 | 11 |\n\nEnd";
     const anchor = source.indexOf("North");

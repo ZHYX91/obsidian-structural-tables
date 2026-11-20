@@ -14,8 +14,9 @@ export async function ensureVisiblePage({ readVisibility, bringToFront }) {
 }
 
 /** Chromium creates this file before both its port and browser endpoint are written. */
-export async function waitForDevToolsPort({ readPortFile, assertRunning, wait = pause }) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+export async function waitForDevToolsPort({ readPortFile, assertRunning, wait = pause, firstLaunch = false }) {
+  const attempts = firstLaunch ? 450 : 120;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     assertRunning();
     let contents = "";
     try { contents = await readPortFile(); } catch { /* The file may not exist yet. */ }
@@ -47,7 +48,8 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
   let sequence = 0;
   let lastCommand = null;
   let lastEvaluation = null;
-  let metadata = { suite: name, browser, node: process.version, platform: process.platform, extraArgs };
+  const firstLaunch = process.env.STRUCTURAL_BROWSER_FIRST_LAUNCH === "1";
+  let metadata = { suite: name, browser, node: process.version, platform: process.platform, extraArgs, firstLaunch };
   const pending = new Map();
   const events = [];
   const recordEvent = (event) => { events.push(event); if (events.length > 100) events.shift(); };
@@ -118,16 +120,20 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
       "--no-first-run", "--no-default-browser-check", "--disable-background-networking", "--disable-component-update",
       "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--user-data-dir=" + profile,
       `--window-size=${width},${height}`, ...extraArgs, "about:blank"];
+    const launchTime = performance.now();
     child = spawn(browser, args, { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
     child.on("error", (error) => { launchError = error; });
     child.stderr.on("data", (data) => { stderr = (stderr + data.toString()).slice(-65536); });
     const port = await waitForDevToolsPort({
+      firstLaunch,
       readPortFile: () => readFile(path.join(profile, "DevToolsActivePort"), "utf8"),
       assertRunning: () => {
         if (launchError !== undefined) throw launchError;
         if (child.exitCode !== null || child.signalCode !== null) throw new Error("Chromium exited before opening CDP. " + stderr.slice(-2000));
       },
     });
+    const portReadyMs = Math.round(performance.now() - launchTime);
+    metadata = { ...metadata, portReadyMs };
     const tabs = await (await globalThis.fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(5000) })).json();
     const tab = tabs.find((candidate) => candidate.type === "page");
     assert.ok(tab, "Chromium did not create a fixture page.");
@@ -160,7 +166,7 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
     assert.ok(localFont, "No supported local fixture font loaded. Install a known font or set CHROMIUM_LOCAL_FONT to an installed family; a generic fallback cannot test local() source selection. Remove --single-process when using local fonts.");
     metadata = { ...metadata, version, localFont };
     await writeFile(path.join(artifacts, "environment.json"), JSON.stringify(metadata, null, 2) + "\n");
-    process.stdout.write(`Browser fixture environment: ${JSON.stringify({ suite: name, version: version.product, localFont, artifacts })}\n`);
+    process.stdout.write(`Browser fixture environment: ${JSON.stringify({ suite: name, version: version.product, localFont, firstLaunch, portReadyMs, artifacts })}\n`);
     return {
       command, evaluate, ensureVisible, diagnose, close, localFont, artifacts, metadata,
       navigate: async (url, ready = "document.readyState === 'complete'") => {

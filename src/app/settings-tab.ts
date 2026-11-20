@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
 
 import { applyInterfaceLocale, createTranslator, type Translate } from "../config/i18n";
 import { LOCALES, sanitizeInterfaceLanguage } from "../config/locale";
@@ -178,10 +178,21 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     const guide = container.createEl("details", { cls: "structural-tables-settings-export-guide" });
     this.exportGuide = guide;
     guide.open = this.exportGuideExpanded;
-    guide.createEl("summary", { text: t("settings.exportGuide.title") });
+    const summary = guide.createEl("summary");
+    const label = summary.createSpan({ cls: "structural-tables-guide-label" });
+    label.createSpan({ text: t("settings.exportGuide.title") });
+    const icon = label.createSpan({ cls: "structural-tables-guide-icon", attr: { "aria-hidden": "true" } });
+    setIcon(icon, "book-open");
     const body = guide.createDiv({ cls: "structural-tables-settings-export-guide-body" });
-    body.createEl("p", { text: t("settings.exportGuide.requirements") });
-    body.createEl("p", { text: t("settings.exportGuide.setup") });
+    const steps = body.createEl("dl");
+    for (const [heading, instruction] of [
+      ["settings.exportGuide.toWord", "settings.exportGuide.input"],
+      ["settings.exportGuide.fromWord", "settings.exportGuide.output"],
+      ["settings.exportGuide.platforms", "settings.exportGuide.requirements"],
+    ] as const) {
+      steps.createEl("dt", { text: t(heading) });
+      steps.createEl("dd", { text: t(instruction) });
+    }
     const link = body.createEl("a", {
       text: t("settings.exportGuide.link"),
       href: "https://obsidian.md/plugins?id=docwen-assistant",

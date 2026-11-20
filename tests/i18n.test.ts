@@ -15,7 +15,7 @@ describe("i18n", () => {
       ["menu.useMathAbsoluteSuggestion", String.raw`\lvert … \rvert`], ["menu.useMathConditionalSuggestion", String.raw`\mid`],
       ["operation.mathMultilineUnsafe", String.raw`\\`], ["operation.mathSyntaxUnsafe", String.raw`\$`],
       ["modal.migrateBaseProperties.desc", "structural_table_ids"], ["modal.promoteBase.contentVisualBreak", "<br>"],
-      ["menu.copyWholeHtml", "Word / HTML"], ["settings.exportGuide.setup", "Windows/Linux"],
+      ["menu.copyWholeHtml", "Word / HTML"], ["settings.exportGuide.requirements", "Windows/Linux"],
     ] as const) expect(t(key)).toContain(`\u2066${literal}\u2069`);
     expect(t("image.ready").replace("{width}", "640").replace("{height}", "1280")).toContain("\u2066\u2068640\u2069 × \u20681280\u2069\u2069");
     for (const catalog of Object.values(TRANSLATIONS)) for (const text of Object.values(catalog)) expect(text).not.toMatch(/\p{Bidi_Control}/u);
@@ -107,8 +107,9 @@ describe("i18n", () => {
     const en = createTranslator("en");
     const zh = createTranslator("zh-CN");
     expect(en("settings.exportGuide.body")).toContain("extra Markdown syntax");
-    expect(en("settings.exportGuide.setup")).toContain("input extension");
-    expect(zh("settings.exportGuide.setup")).toContain("输入扩展");
+    expect(en("settings.exportGuide.input")).toContain("input extension");
+    expect(zh("settings.exportGuide.input")).toContain("输入扩展");
+    expect(zh("settings.exportGuide.output")).toContain("输出扩展");
     expect(zh("settings.reading.desc")).toContain("合并单元格");
   });
 

@@ -942,6 +942,31 @@
 
 .structural-tables-settings-export-guide > summary::-webkit-details-marker { display: none; }
 
+.structural-tables-guide-label {
+  display: inline-flex;
+  justify-self: start;
+  align-items: start;
+  gap: 0.35em;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.structural-tables-guide-icon {
+  flex: none;
+  margin-block-start: 0.25em;
+}
+
+.structural-tables-guide-icon svg {
+  display: block;
+  inline-size: 1em;
+  block-size: 1em;
+}
+
+.structural-tables-settings-export-guide-body dl { margin-block: 0 0.6em; }
+.structural-tables-settings-export-guide-body dt { font-weight: var(--font-semibold); }
+.structural-tables-settings-export-guide-body dt:not(:first-child) { margin-block-start: 0.6em; }
+.structural-tables-settings-export-guide-body dd { margin: 0; }
+
 .structural-tables-settings-export-guide > summary::before {
   content: "";
   display: block;

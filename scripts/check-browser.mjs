@@ -13,7 +13,7 @@ const outputRoot = path.resolve(process.env.STRUCTURAL_BROWSER_ARTIFACTS || "dis
 await mkdir(outputRoot, { recursive: true });
 const artifacts = await mkdtemp(path.join(outputRoot, "run-"));
 const results = [];
-for (const name of selected) {
+for (const [index, name] of selected.entries()) {
   const script = transpose.includes(name) ? "check-table-transpose-browser.mjs"
     : name === "image" ? "check-table-image-browser.mjs" : "check-plain-gfm-browser.mjs";
   const args = [path.join("scripts", script), browser, ...(transpose.includes(name) ? [name] : [])];
@@ -21,7 +21,8 @@ for (const name of selected) {
   process.stdout.write(`\nBrowser suite: ${name}\n`);
   const result = await new Promise((resolve) => {
     const child = spawn(process.execPath, args, { stdio: "inherit", windowsHide: true,
-      env: { ...process.env, STRUCTURAL_BROWSER_ARTIFACTS: artifacts } });
+      env: { ...process.env, STRUCTURAL_BROWSER_ARTIFACTS: artifacts,
+        STRUCTURAL_BROWSER_FIRST_LAUNCH: index === 0 ? "1" : "0" } });
     child.once("error", (error) => resolve({ code: null, error: String(error) }));
     child.once("exit", (code, signal) => resolve({ code, signal }));
   });

@@ -67,13 +67,13 @@ describe("Chromium debugging endpoint readiness", () => {
     expect(wait).toHaveBeenCalledTimes(3);
   });
 
-  it("keeps the original 120 attempts and 100ms wait when no endpoint becomes ready", async () => {
+  it.each([[false, 120], [true, 450]] as const)("bounds endpoint polling when firstLaunch is %s", async (firstLaunch, attempts) => {
     const readPortFile = vi.fn<() => Promise<string>>().mockResolvedValue("");
     const wait = vi.fn<(milliseconds: number) => Promise<void>>().mockResolvedValue(undefined);
-    await expect(waitForDevToolsPort({ readPortFile, assertRunning: vi.fn(), wait }))
+    await expect(waitForDevToolsPort({ readPortFile, assertRunning: vi.fn(), wait, firstLaunch }))
       .rejects.toThrow("Chromium did not start its isolated debugging endpoint");
-    expect(readPortFile).toHaveBeenCalledTimes(120);
-    expect(wait.mock.calls).toEqual(Array.from({ length: 120 }, () => [100]));
+    expect(readPortFile).toHaveBeenCalledTimes(attempts);
+    expect(wait.mock.calls).toEqual(Array.from({ length: attempts }, () => [100]));
   });
 
   it("preserves launch errors without reading or waiting", async () => {
@@ -84,6 +84,15 @@ describe("Chromium debugging endpoint readiness", () => {
       .rejects.toBe(error);
     expect(readPortFile).not.toHaveBeenCalled();
     expect(wait).not.toHaveBeenCalled();
+  });
+
+  it("accepts a cold launch past the regular window only after its complete endpoint appears", async () => {
+    let reads = 0;
+    const readPortFile = async () => ++reads > 125 ? `35865\n${endpoint}` : "35865\n";
+    const wait = vi.fn<(milliseconds: number) => Promise<void>>().mockResolvedValue(undefined);
+    await expect(waitForDevToolsPort({ readPortFile, assertRunning: vi.fn(), wait, firstLaunch: true }))
+      .resolves.toBe("35865");
+    expect(wait).toHaveBeenCalledTimes(125);
   });
 
   it("stops polling when the browser exits while its endpoint is incomplete", async () => {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.4 - 2026-11-20
+
+- Preserve text boundaries in HTML copies and prevent an older copy operation from overwriting a newer one. Paste recognizes Structural Tables ranges from their actual clipboard markers.
+- Protect literal table examples inside multiline reference definitions, lists, and quotes. Live Preview skips unused table scans while editing in Source mode.
+- Give editable tables distinct localized names and expose the logical row, column, header, and selection information for merged cells.
+- Keep extended-syntax warnings visible and place optional Word export instructions in a keyboard-accessible disclosure.
+
 ## 0.11.3 - 2026-11-14
 
 - Keep owned table menus and submenus in the renderer so repeated merge actions remain usable with the system-native menu preference enabled, while preserving stale-target and unload checks.

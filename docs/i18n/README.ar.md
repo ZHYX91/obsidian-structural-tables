@@ -6,6 +6,8 @@
 
 تضيف Structural Tables دمج الخلايا ورؤوس الأعمدة متعددة الصفوف ورؤوس الصفوف والجداول بلا رأس أعمدة إلى جداول Markdown. عرض الجدول وحده لا يغيّر نص الملاحظة.
 
+[التثبيت](#st-installation) · [طريقة الاستخدام](#st-usage)
+
 ## لقطات الشاشة
 
 ### جدول بثلاثة خطوط في وضع القراءة
@@ -57,6 +59,8 @@
 
 لمعالجة ذلك، أصبح بإمكان الإضافة تحويل الجداول بين Markdown وHTML في الاتجاهين. يمكن حفظ الرؤوس المعقدة والخلايا المدمجة عند التحويل إلى HTML، وتحويل جداول HTML المدعومة إلى Markdown. تُستخدم صياغة GFM العادية متى كانت كافية، ولا تُستخدم الرموز الموسعة القديمة إلا عند الحاجة. يمكن معاينة المصدر وأي تغير محتمل في المحتوى أو التنسيق قبل الاستبدال.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## التثبيت
 
@@ -67,6 +71,8 @@
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **التحديث اليدوي:** داخل مجلد الإضافة الحالي، استبدل فقط `main.js` و`manifest.json` و`styles.css` بملفات من الإصدار نفسه. احتفظ بملف `data.json` للحفاظ على إعداداتك.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## طريقة الاستخدام
@@ -93,7 +99,7 @@
 
 على الحاسوب يمكنك معاينة PNG للجدول ونسخه أو حفظه. لا تتضمن الصورة تعديلات الخلايا غير المحفوظة. تصدير الصور غير متاح على الهاتف.
 
-احفظ الملاحظة وانقل الجداول المتداخلة خارج الاقتباسات والقوائم قبل تحويلها إلى Base. تُسطح بنية الدمج، واستعادة الجدول الأصلي لا تحذف ملاحظات السجلات المنشأة.
+احفظ الملاحظة وانقل الجدول خارج الاقتباسات والقوائم. تتحول العناوين إلى خصائص. افصل الخلايا المدمجة في منطقة البيانات قبل التحويل إلى Base. تبقى ملاحظات السجلات التي أنشئت عند استعادة الجدول.
 
 يجب فصل الخلايا المدمجة في منطقة البيانات قبل التحويل إلى Base. بعد التحويل، ضع المؤشر داخل كتلة Base وشغّل **إنشاء سجل في Base الحالي** لإضافة سجل فارغ.
 
@@ -129,6 +135,8 @@
 
 يُستخدم GFM العادي ما أمكن، وتُستخدم `<` و`^` و`||` للبنى المعقدة فقط. تُرفض الروابط والصيغ والتنسيقات الغنية غير المدعومة. إذا كانت ألوان HTML أو العروض أو السمات الأخرى ستُحذف، فلا بد من الموافقة الصريحة. لا يتيح محرر الخلايا المرئي تعديل HTML الناتج؛ حوّله إلى Markdown مجددًا لتعديل البنية.
 
+إذا انقطع التحرير، استخدم **استرجاع مسودات الخلايا المنقطعة** لنسخ النص. تُحذف المسودات عند إعادة تشغيل Obsidian أو الإضافة.
+
 <!-- section: settings -->
 ## الإعدادات
 
@@ -137,6 +145,8 @@
 اختر اتباع السمة أو الشبكة أو الجدول ذي الخطوط الثلاثة. لا تغير إعدادات المظهر أو لغة الواجهة نص Markdown أو اتجاه الملاحظة.
 
 يعرض الجدول النموذجي أسفل «الخطوط والتظليل» و«التخطيط والتباعد» التغييرات فورًا. يستخدم نصًا ثابتًا ولا يقرأ الملاحظات أو يحررها. تُطبق الإعدادات على الجداول في الخزنة كلها وتُحفظ تلقائيًا.
+
+تستخدم الخلايا المدمجة ورؤوس الأعمدة متعددة الصفوف صيغة Markdown إضافية قد لا تفهمها أدوات التحويل العادية. يمكن لـ [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) وتطبيق DocWen المحلي المنفصل تحويل الجداول المدعومة إلى Word. في DocWen، فعّل امتداد إدخال Structural Tables ضمن صيغة Markdown. يتطلب التحويل من Word إلى Markdown امتداد الإخراج أيضًا. متاح لسطح المكتب على Windows/Linux فقط.
 
 <!-- section: limitations -->
 ## القيود
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[البنية](../architecture.md) · [دليل المساهمة](../../CONTRIBUTING.md) · [سجل التغييرات](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## الدعم
 
 للأسئلة استخدم Q&A، وللاقتراحات Ideas، وللأخطاء القابلة للتكرار GitHub Issues. أرفق إصدار Obsidian والسمة ومصدر الجدول والنتيجة المتوقعة والفعلية.
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [الإبلاغ عن مشكلة أمنية بسرية](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 أبلغ عن الثغرات الأمنية بصورة خاصة عبر قناة الإبلاغ الأمني.
 
 <!-- section: license -->
 ## الترخيص
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

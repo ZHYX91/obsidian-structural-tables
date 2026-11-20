@@ -6,6 +6,8 @@ Hier finden Sie die wichtigsten Handgriffe und Einschränkungen. Details stehen 
 
 Erweitert Markdown-Tabellen um verbundene Zellen, mehrere Kopfzeilen, Zeilenüberschriften und Tabellen ohne Spaltenüberschriften. Das Anzeigen einer Tabelle verändert den Markdown-Text nicht.
 
+[Installation](#st-installation) · [Verwendung](#st-usage)
+
 ## Screenshots
 
 ### Dreilinientabelle in der Leseansicht
@@ -57,6 +59,8 @@ Die ursprünglichen Erweiterungen für Tabellen ohne Spaltenüberschriften und f
 
 Um das zu verbessern, können Tabellen nun zwischen Markdown und HTML umgewandelt werden. Erweiterte Markdown-Tabellen lassen sich mit komplexen Überschriften und verbundenen Zellen nach HTML übertragen; unterstützte HTML-Tabellen können wieder Markdown werden. Wo gewöhnliches GFM ausreicht, wird es verwendet, sonst die bestehenden Erweiterungen. Vor dem Ersetzen können Quelltext und mögliche inhaltliche oder optische Unterschiede geprüft werden.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## Installation
 
@@ -67,6 +71,8 @@ Zur manuellen Installation `structural-tables-<version>.zip` nach `Vault/.obsidi
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **Manuelles Update:** Ersetzen Sie im vorhandenen Plugin-Ordner nur `main.js`, `manifest.json` und `styles.css` durch Dateien derselben Version. Behalten Sie `data.json`, damit Ihre Einstellungen erhalten bleiben.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## Verwendung
@@ -93,7 +99,7 @@ Bereiche lassen sich kopieren und ausschneiden. Zum Einfügen wählen Sie entwed
 
 Auf dem Desktop können Sie die komplette Tabelle als PNG prüfen, kopieren und speichern. Ungespeicherte Zellbearbeitungen fehlen im Bild. Auf Mobilgeräten steht der PNG-Export nicht zur Verfügung.
 
-Vor der Base-Umwandlung die Notiz speichern und Tabellen aus Zitaten oder Listen auf die oberste Ebene verschieben. Verbindungen werden aufgelöst. Das Wiederherstellen der Ursprungstabelle löscht erzeugte Datensatznotizen nicht.
+Speichern Sie die Notiz und verschieben Sie die Tabelle aus Listen oder Zitaten. Überschriften werden zu Eigenschaften. Teilen Sie verbundene Datenzellen vor der Umwandlung. Beim Wiederherstellen bleiben die erzeugten Datensatznotizen erhalten.
 
 Enthält der Datenbereich verbundene Zellen, müssen Sie diese vor der Base-Umwandlung trennen. Danach können Sie den Cursor in den Base-Block setzen und mit **Datensatz für die aktuelle Base erstellen** einen leeren Datensatz anlegen.
 
@@ -129,6 +135,8 @@ Setzen Sie den Cursor in eine Markdown-Tabelle und starten Sie **Aktuelle Markdo
 
 Wenn normales GFM genügt, wird es verwendet; andernfalls kommen `<`, `^` und `||` zum Einsatz. Nicht unterstützte Links, Formeln oder komplexe Formatierungen werden abgelehnt. Der Verlust von HTML-Farben, Breiten und anderen Attributen erfordert ausdrückliche Zustimmung. HTML-Tabellen können nicht mit dem visuellen Zelleditor des Plugins bearbeitet werden; wandeln Sie sie dafür zurück in Markdown.
 
+Nach einer unterbrochenen Bearbeitung können Sie mit **Unterbrochene Zellentwürfe wiederherstellen** den Text sichern. Nach einem Neustart von Obsidian oder dem Plugin gehen die Entwürfe verloren.
+
 <!-- section: settings -->
 ## Einstellungen
 
@@ -137,6 +145,8 @@ Wenn normales GFM genügt, wird es verwendet; andernfalls kommen `<`, `^` und `|
 Wählen Sie „Dem Theme folgen“, Raster oder Dreilinientabelle. Darstellung und Oberflächensprache verändern weder Markdown noch die Schreibrichtung der Notiz.
 
 Unter „Linien und Schattierung“ und „Layout und Abstände“ zeigt eine Beispieltabelle Änderungen sofort an. Sie verwendet festen Text und liest oder bearbeitet keine Notiz. Die Einstellungen gelten für Tabellen im gesamten Vault und werden automatisch gespeichert.
+
+Verbundene Zellen und mehrzeilige Spaltenüberschriften verwenden zusätzliche Markdown-Syntax, die gewöhnliche Konverter möglicherweise nicht verstehen. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) und die separate lokale DocWen-App können unterstützte Tabellen in Word umwandeln. Aktivieren Sie in DocWen unter Markdown-Syntax die Eingabeerweiterung für Structural Tables. Für die Umwandlung von Word nach Markdown wird auch die Ausgabeerweiterung benötigt. Nur für Windows/Linux auf Desktop-Geräten.
 
 <!-- section: limitations -->
 ## Einschränkungen
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[Architektur](../architecture.md) · [Mitwirken](../../CONTRIBUTING.md) · [Änderungen](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## Hilfe
 
 Fragen unter Q&A, Ideen unter Ideas und reproduzierbare Fehler unter GitHub Issues melden. Bitte Obsidian-Version, Theme, Tabellen-Markdown sowie Soll- und Ist-Ergebnis angeben.
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Sicherheitsproblem vertraulich melden](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 Sicherheitslücken ausschließlich vertraulich über die private Meldestelle melden.
 
 <!-- section: license -->
 ## Lizenz
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

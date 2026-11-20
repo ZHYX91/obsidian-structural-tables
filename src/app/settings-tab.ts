@@ -14,6 +14,8 @@ type TabId = "general" | "views" | "appearance";
 // bypass display() and remove the established three-tab settings surface.
 export class StructuralTablesSettingTab extends PluginSettingTab {
   private activeTab: TabId = "general";
+  private exportGuide: HTMLDetailsElement | null = null;
+  private exportGuideExpanded = false;
   private statusCleanup: (() => void) | null = null;
   private appearancePreview: TableAppearancePreview | null = null;
 
@@ -22,6 +24,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
   }
 
   override display(): void {
+    if (this.exportGuide !== null) this.exportGuideExpanded = this.exportGuide.open;
+    this.exportGuide = null;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
     this.statusCleanup?.();
@@ -150,6 +154,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
   }
 
   override hide(): void {
+    this.exportGuide = null;
+    this.exportGuideExpanded = false;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
     this.statusCleanup?.();
@@ -164,14 +170,19 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
   }
 
   private renderExportGuide(container: HTMLElement, t: Translate): void {
-    const guide = container.createDiv({ cls: "structural-tables-settings-export-guide" });
-    guide.setAttribute("role", "note");
-    guide.setAttribute("aria-labelledby", "structural-tables-settings-export-guide-title");
-    const title = guide.createEl("strong", { text: t("settings.exportGuide.title") });
-    title.id = "structural-tables-settings-export-guide-title";
-    guide.createEl("p", { text: t("settings.exportGuide.body") });
-    guide.createEl("p", { text: t("settings.exportGuide.setup") });
-    const link = guide.createEl("a", {
+    // Compatibility caveat is essential context, not hidden tutorial copy.
+    container.createEl("p", {
+      cls: "structural-tables-settings-export-brief",
+      text: t("settings.exportGuide.body"),
+    });
+    const guide = container.createEl("details", { cls: "structural-tables-settings-export-guide" });
+    this.exportGuide = guide;
+    guide.open = this.exportGuideExpanded;
+    guide.createEl("summary", { text: t("settings.exportGuide.title") });
+    const body = guide.createDiv({ cls: "structural-tables-settings-export-guide-body" });
+    body.createEl("p", { text: t("settings.exportGuide.requirements") });
+    body.createEl("p", { text: t("settings.exportGuide.setup") });
+    const link = body.createEl("a", {
       text: t("settings.exportGuide.link"),
       href: "https://obsidian.md/plugins?id=docwen-assistant",
     });

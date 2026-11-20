@@ -8,6 +8,7 @@ class MockElement {
   readonly listeners = new Map<string, (() => void)[]>();
   textContent = "";
   hidden = false;
+  open = false;
   disabled = false;
   type = "";
   tabIndex = 0;
@@ -130,15 +131,35 @@ describe("Structural Tables settings export guide", () => {
     expect(link?.attributes.get("href")).toBe("https://obsidian.md/plugins?id=docwen-assistant");
     expect(link?.attributes.get("target")).toBe("_blank");
     expect(link?.attributes.get("rel")).toBe("noopener noreferrer");
-    const note = elements.find(element => element.attributes.get("role") === "note");
-    expect(note?.attributes.get("aria-labelledby")).toBe("structural-tables-settings-export-guide-title");
-    expect(elements.filter(element => element.tag === "p").map(element => element.textContent).join(" "))
-      .toContain("输入扩展");
+    const details = elements.find(element => element.tag === "details"
+      && element.attributes.get("class") === "structural-tables-settings-export-guide");
+    expect(details).toBeDefined();
+    expect(details?.children.find((element) => element.tag === "summary")?.textContent)
+      .toBe("如何将复杂表格导出为 Word");
+    // The compatibility explanation is deliberately visible outside details.
+    const brief = elements.find(element =>
+      element.attributes.get("class") === "structural-tables-settings-export-brief");
+    expect(brief?.textContent).toContain("普通转换工具可能无法正确识别");
+    expect(brief?.textContent).not.toContain("DocWen");
+    expect(details?.descendants()).not.toContain(brief);
+    const body = details?.children.find(element => element.attributes.get("class") === "structural-tables-settings-export-guide-body");
+    expect(body?.children).toContain(link);
+    const [requirements, setup] = body?.children.filter(element => element.tag === "p") ?? [];
+    expect(requirements?.textContent).toContain("另行安装的本机 DocWen");
+    expect(setup?.textContent).toContain("输入扩展");
+    expect(setup?.textContent).toContain("输出扩展");
+    expect(details?.open).toBe(false);
+    details!.open = true;
 
     const views = elements.find(element => element.attributes.get("role") === "tab"
       && element.textContent === "视图");
     expect(views).toBeDefined();
     views?.trigger("click");
     expect(container.descendants().some(element => element.tag === "a")).toBe(false);
+    container.querySelector("#structural-tables-settings-tab-general")!.trigger("click");
+    expect(container.descendants().find(el => el.tag === "details")?.open).toBe(true);
+    tab.hide();
+    tab.display();
+    expect(container.descendants().find(el => el.tag === "details")?.open).toBe(false);
   });
 });

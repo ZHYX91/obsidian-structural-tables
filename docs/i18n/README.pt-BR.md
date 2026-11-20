@@ -6,6 +6,8 @@ Veja aqui como realizar as tarefas mais comuns e quais cuidados tomar. Os guias 
 
 Adicione células mescladas, várias linhas de cabeçalho, cabeçalhos de linha e tabelas sem cabeçalho às tabelas Markdown. Apenas visualizar uma tabela não reescreve a nota.
 
+[Instalação](#st-installation) · [Como usar](#st-usage)
+
 ## Capturas de tela
 
 ### Tabela de três linhas no modo de leitura
@@ -57,6 +59,8 @@ A sintaxe original para tabelas sem cabeçalhos de coluna e com cabeçalhos de l
 
 Para melhorar isso, o plugin agora converte tabelas entre Markdown e HTML. É possível preservar cabeçalhos complexos e células mescladas ao converter para HTML, ou voltar de uma tabela HTML compatível para Markdown. O GFM comum é usado quando suficiente; as extensões antigas só aparecem quando necessárias. Antes de substituir, há uma prévia do código e das possíveis diferenças de conteúdo ou aparência.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## Instalação
 
@@ -67,6 +71,8 @@ Para instalar manualmente, extraia `structural-tables-<version>.zip` em `Vault/.
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **Atualização manual:** Na pasta existente do plugin, substitua apenas `main.js`, `manifest.json` e `styles.css` por arquivos da mesma versão. Preserve `data.json` para manter suas configurações.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## Como usar
@@ -93,7 +99,7 @@ Copie ou recorte intervalos e cole apenas onde a estrutura de células mescladas
 
 No desktop, visualize, copie ou salve o PNG da tabela inteira. Edições de células ainda não salvas não aparecem na imagem. A exportação para PNG não está disponível no celular.
 
-Salve a nota e mova as tabelas para fora de listas ou citações antes de convertê-las em Base. As mesclagens são achatadas, e restaurar a tabela não exclui as notas de registro criadas.
+Salve a nota e mova a tabela para fora de citações ou listas. Os cabeçalhos viram propriedades. Separe as células de dados mescladas antes de converter em Base. Restaurar a tabela mantém as notas de registro criadas.
 
 Separe as células mescladas na área de dados antes de converter a tabela em Base. Depois, coloque o cursor no bloco Base e execute **Criar registro na Base atual** para adicionar um registro vazio.
 
@@ -129,6 +135,8 @@ Posicione o cursor numa tabela Markdown e execute **Converter tabela Markdown at
 
 É usado GFM comum sempre que suficiente; estruturas mais complexas usam `<`, `^` e `||`. Links, fórmulas e formatação avançada incompatíveis são recusados. Se cores, larguras ou outros atributos HTML forem perdidos, será necessário confirmar explicitamente. O editor visual de células não edita o HTML gerado: converta de volta para Markdown para alterar sua estrutura.
 
+Se a edição for interrompida, use **Recuperar edições de células interrompidas** para copiar seu texto. Os rascunhos são apagados quando o Obsidian ou o plugin reinicia.
+
 <!-- section: settings -->
 ## Configurações
 
@@ -137,6 +145,8 @@ Posicione o cursor numa tabela Markdown e execute **Converter tabela Markdown at
 Escolha Seguir tema, Grade ou Tabela de três linhas. Mudar a aparência ou o idioma do plug-in não altera o Markdown nem a direção do texto da nota.
 
 Abaixo de “Linhas e fundo” e “Layout e espaçamento”, uma tabela de exemplo mostra as alterações imediatamente. Ela usa texto fixo e não lê nem edita notas. As configurações se aplicam às tabelas de todo o cofre e são salvas automaticamente.
+
+Células mescladas e cabeçalhos de várias linhas usam sintaxe Markdown extra que conversores comuns podem não entender. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) e o aplicativo local DocWen convertem tabelas compatíveis para Word. No DocWen, ative a extensão de entrada Structural Tables nas configurações de sintaxe Markdown. A conversão de Word para Markdown também exige a extensão de saída. Disponível apenas no desktop Windows/Linux.
 
 <!-- section: limitations -->
 ## Limitações
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[Arquitetura](../architecture.md) · [Como contribuir](../../CONTRIBUTING.md) · [Histórico de alterações](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## Suporte
 
 Use Q&A para dúvidas, Ideas para sugestões e GitHub Issues para problemas reproduzíveis. Informe a versão do Obsidian, o tema, o Markdown da tabela e os resultados esperado e observado.
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Relatar um problema de segurança em particular](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 Relate vulnerabilidades pelo canal privado de segurança, nunca em um issue público.
 
 <!-- section: license -->
 ## Licença
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

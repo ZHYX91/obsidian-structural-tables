@@ -6,6 +6,8 @@ Structural Tables 让 Obsidian 中的 Markdown 表格支持合并单元格、多
 
 在实时预览中可以直接修改单元格、调整行列；阅读视图只显示表格。表格可以留在引用、Callout 和列表中；转换为 Obsidian Base 前，需先移出这些容器。
 
+[安装](#st-installation) · [用法](#st-usage)
+
 ## 界面截图
 
 ### 阅读视图中的三线表
@@ -62,6 +64,8 @@ Structural Tables 要求 Obsidian 1.12.7 或更高版本，支持桌面版 Obsid
 
 为改善这一问题，插件新增了 Markdown 与 HTML 表格之间的双向转换功能。你可以将使用扩展语法的 Markdown 表格转换为 HTML，保留复杂表头和合并单元格；也可以将受支持的 HTML 表格转换回 Markdown。能够使用标准 GFM 表达的结构会尽量使用标准语法，只有必要时才使用 Structural Tables 原有的扩展写法。转换前可以预览结果，检查可能发生的内容或格式变化。
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## 安装
 
@@ -70,6 +74,8 @@ Structural Tables 要求 Obsidian 1.12.7 或更高版本，支持桌面版 Obsid
 如需手动安装，请从[最新版本](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest)下载 `structural-tables-<version>.zip`，解压到 `Vault/.obsidian/plugins/`。压缩包包含 `structural-tables/` 目录及其中的 `main.js`、`manifest.json` 和 `styles.css`。重新加载 Obsidian，再在第三方插件中启用 Structural Tables。
 
 **手动升级：** 在现有插件文件夹中，仅用同一版本的 `main.js`、`manifest.json` 和 `styles.css` 替换对应文件。保留 `data.json`，以保留设置。
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## 用法
@@ -238,7 +244,7 @@ Shift+Enter、单元格右键菜单和多行粘贴都可以插入视觉换行。
 
 ### 恢复被中断的编辑
 
-单元格修改被拒绝时，编辑框会尽量保持打开。如果外部修改或视图重建打断了尚未保存的草稿，Structural Tables 会在当前会话中保留一份恢复副本。使用**恢复被中断的单元格草稿**可以重新打开恢复窗口。Obsidian 或插件重启后这些副本会消失，因此重要内容应先复制出来。
+单元格修改被拒绝时，编辑框会尽量保持打开。如果外部修改或视图重建打断了尚未保存的草稿，Structural Tables 会在当前会话中保留一份恢复副本。使用**恢复中断的单元格草稿**可以重新打开恢复窗口。Obsidian 或插件重启后这些副本会消失，因此重要内容应先复制出来。
 
 <!-- section: settings -->
 ## 设置

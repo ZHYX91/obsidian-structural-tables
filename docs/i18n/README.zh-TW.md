@@ -6,6 +6,8 @@
 
 讓 Markdown 表格支援合併儲存格、多層欄標題、列標題，以及沒有欄標題的表格。開啟或閱讀表格不會改寫筆記的 Markdown。
 
+[安裝](#st-installation) · [使用方式](#st-usage)
+
 ## 畫面預覽
 
 ### 閱讀模式：三線表
@@ -57,6 +59,8 @@
 
 為改善這個問題，外掛新增 Markdown 與 HTML 表格的雙向轉換。擴充 Markdown 表格可以轉成 HTML，保留複雜表頭與合併儲存格；支援的 HTML 表格也能轉回 Markdown。能使用標準 GFM 表達時就不使用額外語法，必要時才使用原有的擴充標記。取代前可以檢查預覽與可能的內容或格式差異。
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## 安裝
 
@@ -67,6 +71,8 @@
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **手動升級：** 在現有外掛資料夾中，僅以同一版本的 `main.js`、`manifest.json` 和 `styles.css` 替換對應檔案。保留 `data.json`，以保留設定。
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## 使用方式
@@ -93,7 +99,7 @@
 
 桌面版可以預覽、複製或儲存完整表格 PNG。未儲存的儲存格文字不會包含在圖片內；手機不支援圖片匯出。
 
-將表格轉換為 Base 之前，請先儲存筆記，並把引用或清單中的巢狀表格移到頂層。轉換會展開合併結構；還原原始表格不會刪除已建立的記錄筆記。
+轉換前先儲存筆記，把表格移出引用或清單。標題會轉為屬性；若資料區有合併儲存格，請先拆分。還原表格會保留已建立的記錄筆記。
 
 資料區若有合併儲存格，必須先拆開才能轉成 Base。轉換後，把游標放在 Base 區塊內，執行**為目前的 Base 建立記錄**，即可新增空白記錄。
 
@@ -129,6 +135,8 @@ PNG 匯出上限為單邊 8192 像素或 1600 萬像素；如果完整內容無�
 
 能以普通 GFM 表達的結構就使用 GFM，否則沿用 `<`、`^`、`||`。不支援的連結、公式、複雜富文字會被拒絕；HTML 顏色、寬度等屬性會遺失時必須明確確認。轉換後的 HTML 不會變成外掛的可視化編輯表格；要編輯結構可先轉回 Markdown。
 
+重新啟動外掛或 Obsidian 會清除草稿。編輯被中斷時，可先執行 **復原中斷的儲存格草稿** 複製要保留的內容。
+
 <!-- section: settings -->
 ## 設定
 
@@ -138,12 +146,14 @@ PNG 匯出上限為單邊 8192 像素或 1600 萬像素；如果完整內容無�
 
 「線條與底色」和「配置與間距」分組下方有即時更新的外觀範例。範例使用固定文字，不讀取或編輯筆記；設定會套用到全庫的表格顯示並自動儲存。
 
+合併儲存格與多列欄標題使用額外的 Markdown 語法，一般轉換工具可能無法辨識。[DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) 與另行安裝的本機 DocWen 應用程式可將支援的表格轉換至 Word。 請在 DocWen 的 Markdown 語法設定中啟用 Structural Tables 輸入擴充功能。從 Word 轉換為 Markdown 時也需啟用輸出擴充功能。僅支援 Windows/Linux 電腦版。
+
 <!-- section: limitations -->
 ## 限制
 
 本外掛不是試算表，不會計算公式；也不支援單格獨立樣式、表格標題與編號、儲存格內的區塊級 Markdown，或單一儲存格跨多行的 Markdown 原始碼。
 
-HTML 匯入會轉成純文字與受支援的 `<br>` 換行。一般 GFM 無法表達所有合併結構；轉為 Base 會展平表頭與合併儲存格。
+HTML 匯入會轉成純文字與受支援的 `<br>` 換行。一般 GFM 無法表達所有合併結構；轉為 Base 會展平表頭，資料區的合併儲存格須先拆分。
 
 <!-- section: privacy-and-security -->
 ## 隱私與安全
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[架構說明](../architecture.zh-CN.md) · [貢獻指南](../../CONTRIBUTING.md) · [更新紀錄](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## 支援
 
 使用方式請到 Q&A，改進建議請到 Ideas。回報問題時請提供 Obsidian 版本、主題、表格 Markdown、預期與實際結果。
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [私下回報安全問題](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 安全漏洞請透過私人安全回報管道提交，避免公開敏感資訊。
 
 <!-- section: license -->
 ## 授權
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

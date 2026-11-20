@@ -6,6 +6,8 @@ Voici les opérations courantes et les précautions à connaître. Les guides [a
 
 Ajoutez des cellules fusionnées, plusieurs lignes d’en-têtes, des en-têtes de lignes et des tableaux sans en-tête à vos tableaux Markdown. Afficher une table ne réécrit jamais le Markdown de la note.
 
+[Installation](#st-installation) · [Utilisation](#st-usage)
+
 ## Captures d’écran
 
 ### Tableau à trois lignes en mode lecture
@@ -57,6 +59,8 @@ L’ancienne syntaxe des tableaux sans en-têtes de colonne et des en-têtes de 
 
 Pour améliorer cela, le plugin permet maintenant de convertir les tableaux entre Markdown et HTML. Il peut conserver les en-têtes complexes et les cellules fusionnées lors du passage vers HTML, ou convertir un tableau HTML pris en charge vers Markdown. Il utilise le GFM ordinaire quand c’est possible et les extensions existantes seulement si nécessaire. Un aperçu permet de vérifier les éventuelles différences de contenu ou de présentation avant remplacement.
 
+<a id="st-installation"></a>
+
 <!-- section: installation -->
 ## Installation
 
@@ -67,6 +71,8 @@ Pour l’installation manuelle, extrayez `structural-tables-<version>.zip` dans 
 [GitHub Releases](https://github.com/ZHYX91/obsidian-structural-tables/releases/latest).
 
 **Mise à jour manuelle :** Dans le dossier existant du module, remplacez uniquement `main.js`, `manifest.json` et `styles.css` par les fichiers d’une même version. Conservez `data.json` pour garder vos réglages.
+
+<a id="st-usage"></a>
 
 <!-- section: usage -->
 ## Utilisation
@@ -93,7 +99,7 @@ La copie, la coupe et le collage de plages conservent la structure fusionnée lo
 
 Sur ordinateur, prévisualisez, copiez ou enregistrez une image PNG du tableau entier. Les modifications de cellule non enregistrées sont exclues. L’export PNG n’est pas disponible sur mobile.
 
-Enregistrez la note et sortez les tableaux des listes ou citations avant une conversion en Base. Les fusions sont aplaties ; la restauration de la table initiale conserve les notes créées.
+Enregistrez la note et sortez le tableau des listes ou citations. Les en-têtes deviennent des propriétés. Séparez les cellules de données fusionnées avant la conversion en Base. Restaurer le tableau conserve les notes créées.
 
 Les cellules fusionnées dans les lignes de données doivent être séparées avant la conversion en Base. Après conversion, placez le curseur dans le bloc Base et lancez **Créer un enregistrement dans la Base actuelle** pour ajouter un enregistrement vide.
 
@@ -129,6 +135,8 @@ Placez le curseur dans un tableau Markdown et lancez **Convertir le tableau Mark
 
 Le GFM ordinaire est privilégié ; `<`, `^` et `||` ne sont employés que pour les structures complexes. Les liens, formules et mises en forme riches non pris en charge sont refusés. Si les couleurs, largeurs ou autres attributs HTML doivent disparaître, une confirmation expresse est demandée. Le résultat HTML n’est pas éditable avec la grille visuelle du plugin : reconvertissez-le en Markdown pour modifier sa structure.
 
+Si la modification est interrompue, utilisez **Récupérer les modifications de cellules interrompues** pour copier votre texte. Les brouillons disparaissent au redémarrage du module ou d’Obsidian.
+
 <!-- section: settings -->
 ## Paramètres
 
@@ -137,6 +145,8 @@ Le GFM ordinaire est privilégié ; `<`, `^` et `||` ne sont employés que pour 
 Choisissez Suivre le thème, Grille ou Tableau à trois lignes. Modifier l’apparence ou la langue de l’interface ne change ni le Markdown ni le sens du texte de la note.
 
 Sous « Traits et fond » et « Disposition et espacement », un tableau d’exemple reflète immédiatement les changements. Il utilise du texte fixe et ne lit ni ne modifie aucune note. Les réglages s’appliquent aux tableaux du coffre et sont enregistrés automatiquement.
+
+Les fusions et les en-têtes sur plusieurs lignes utilisent une syntaxe Markdown que les convertisseurs habituels ne comprennent pas toujours. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) et l’application locale DocWen peuvent convertir les tableaux pris en charge vers Word. Dans DocWen, activez l’extension d’entrée Structural Tables sous Syntaxe Markdown. Pour convertir Word vers Markdown, activez également l’extension de sortie. Disponible sur ordinateur Windows/Linux seulement.
 
 <!-- section: limitations -->
 ## Limites
@@ -162,18 +172,18 @@ npm ci
 npm run check
 ```
 
-[Architecture](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/docs/architecture.md) · [Contributing](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/CHANGELOG.md)
+[Architecture](../architecture.md) · [Contribuer](../../CONTRIBUTING.md) · [Historique des versions](../../CHANGELOG.md)
 
 <!-- section: support -->
 ## Assistance
 
 Questions dans Q&A, idées dans Ideas, erreurs reproductibles dans GitHub Issues. Indiquez la version d’Obsidian, le thème, le Markdown du tableau, le résultat attendu et observé.
 
-[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Private security reporting](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
+[Q&A](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/q-a) · [Ideas](https://github.com/ZHYX91/obsidian-structural-tables/discussions/categories/ideas) · [GitHub Issues](https://github.com/ZHYX91/obsidian-structural-tables/issues/new/choose) · [Signaler un problème de sécurité en privé](https://github.com/ZHYX91/obsidian-structural-tables/security/advisories/new)
 
 Signalez les failles de sécurité uniquement par le formulaire confidentiel prévu à cet effet.
 
 <!-- section: license -->
 ## Licence
 
-[MIT](https://github.com/ZHYX91/obsidian-structural-tables/blob/main/LICENSE) © ZhengYX
+[MIT](../../LICENSE) © ZhengYX

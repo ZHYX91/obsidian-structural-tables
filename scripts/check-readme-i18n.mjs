@@ -90,7 +90,7 @@ for (const localeId of declaredLocaleIds) {
   const source = path === englishPath ? english : path === chinesePath
     ? chinese : await readFile(path, "utf8");
   const catalog = await readFile(`src/config/locales/${localeId}.ts`, "utf8");
-  for (const key of ["command.createBaseRecord", "command.validate", "command.convertHtmlTable", "command.convertMarkdownTable"]) {
+  for (const key of ["command.createBaseRecord", "command.validate", "command.recoverDrafts", "command.convertHtmlTable", "command.convertMarkdownTable"]) {
     const match = catalog.match(new RegExp(`"${key.replaceAll(".", "\\.")}"\\s*:\\s*"([^"]+)"`, "u"));
     assert.ok(match?.[1], `Missing ${key} from ${localeId} catalog`);
     assert.ok(source.includes(`**${match[1]}**`),
@@ -127,7 +127,7 @@ for (const [, filename] of locales) {
   assert.equal(navigation, expectedNavigation.join(" · "), `${path} must preserve the shared language order and exact destinations`);
   assert.ok(source.includes("||") && source.includes("^") && source.includes("<"),
     path + " must explain the same table syntax");
-  const requiredTopics = ["<br>", "_promotion.json", "8192", "16", "Base", "Markdown"];
+  const requiredTopics = ["<br>", "_promotion.json", "8192", "16", "Base", "Markdown", "DocWen Assistant", "Windows", "Linux"];
   for (const topic of requiredTopics) {
     assert.ok(source.includes(topic), `${path} is missing the required user guidance: ${topic}`);
   }

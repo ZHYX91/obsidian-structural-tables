@@ -64,7 +64,6 @@ class MockInput {
 
 vi.mock("obsidian", () => ({
   getLanguage: () => "en",
-  setIcon: (target: MockElement, name: string) => target.createEl("svg", { attr: { "data-icon": name } }),
   App: class {},
   PluginSettingTab: class {
     containerEl = new MockElement();
@@ -137,12 +136,8 @@ describe("Structural Tables settings export guide", () => {
     expect(details).toBeDefined();
     const summaries = details?.children.filter(element => element.tag === "summary") ?? [];
     expect(summaries).toHaveLength(1);
-    const [title, icon] = summaries[0]!.children[0]!.children;
-    expect(title?.textContent).toBe("复杂表格与 Word 互转");
-    expect(icon?.tag).toBe("span");
-    expect(icon?.attributes.get("aria-hidden")).toBe("true");
-    expect(icon?.children[0]?.attributes.get("data-icon")).toBe("book-open");
-    expect(summaries[0]!.descendants().some(element => element.tag === "button" || element.tag === "a")).toBe(false);
+    expect(summaries[0]!.textContent).toBe("复杂表格与 Word 互转");
+    expect(summaries[0]!.children).toHaveLength(0);
     // The compatibility explanation is deliberately visible outside details.
     const brief = elements.find(element =>
       element.attributes.get("class") === "structural-tables-settings-export-brief");

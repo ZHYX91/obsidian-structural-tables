@@ -67,6 +67,10 @@ export function literalTableCellText(text: string): string | null {
     const code = character.codePointAt(0)!;
     return code === 127 || (code < 32 && code !== 9 && code !== 10 && code !== 13);
   })) return null;
+  return encodeTableCellText(text);
+}
+
+export function encodeTableCellText(text: string): string {
   let result = "";
   const source = text.replace(/\r\n|\r/gu, "\n");
   const leading = /^ */u.exec(source)![0].length;
@@ -75,7 +79,8 @@ export function literalTableCellText(text: string): string | null {
   for (const character of source) {
     const code = character.codePointAt(0)!;
     if (character === "\n") result += "<br>";
-    else if ((/\s/u.test(character) && (character !== " " || index < leading || index >= trailing)) || (code >= 33 && code <= 47)
+    // Markdown readers can decode &#11; as U+FFFD. An existing code span may contain the raw vertical tab.
+    else if ((code !== 11 && /\s/u.test(character) && (character !== " " || index < leading || index >= trailing)) || (code >= 33 && code <= 47)
       || (code >= 58 && code <= 64) || (code >= 91 && code <= 96) || (code >= 123 && code <= 126)) result += `&#${code};`;
     else result += character;
     index += character.length;

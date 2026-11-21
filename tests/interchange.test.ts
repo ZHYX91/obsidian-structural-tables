@@ -117,6 +117,18 @@ describe("table interchange", () => {
     }
   });
 
+  it.each([
+    "**literal**|end", "[name](example.md)|x", "~~old~~|new", "www.example.org|tail",
+    "a`b`|c", "[[note|alias]]", "&#42;|&amp;", "<em>x</em>|done",
+  ])("renders a pipe-containing code span as literal text in both GFM and inline Markdown: %s", (value) => {
+    const source = ["| H | V |", "| --- || --- |", "| ``" + value + "`` | **keep** |"].join("\n");
+    const gfm = structuralTableToPlainGfm(table(source));
+    const markdown = new MarkdownIt({ html: true, linkify: true });
+    const expected = "<code>" + markdown.utils.escapeHtml(value) + "</code>";
+    expect(markdown.render(gfm)).toContain("<td>" + expected + "</td>\n<td><strong>keep</strong></td>");
+    expect(markdown.renderInline(gfm.split("\n")[2]!.split("|")[1]!.trim())).toBe(expected);
+  });
+
   it("retains padded code spans and HTML-sensitive literals without losing columns", () => {
     const tick = String.fromCharCode(96);
     for (const value of ["a\\|b & <c> 😊", " a\\|b & <c> 😊 "]) {

@@ -10,6 +10,16 @@ const table = (source: string) => parseEditableTables(source).tables[0]!;
 const rendered = (source: string) => new JSDOM(new MarkdownIt({ html: true }).render(source)).window.document;
 
 describe("plain GFM conversion plans", () => {
+  it("preserves a literal vertical tab inside piped code when replacing a table with GFM", () => {
+    const value = "A\vB|C";
+    const source = "| Code | Next |\n| --- || --- |\n| `" + value + "` | **keep** |";
+    const result = plainGfmConversionInDocument(source, table(source), "keep");
+    expect(result.changed).toBe(true);
+    const doc = rendered(result.source);
+    expect(doc.querySelector("td code")?.textContent).toBe(value);
+    expect(doc.querySelector("td strong")?.textContent).toBe("keep");
+  });
+
   it("recommends transposing only row headers, with real GFM header semantics and an explicit keep option", () => {
     const conversion = planPlainGfmConversion(table(ROW_HEADERS))!;
     expect(conversion.recommended).toBe("transpose");

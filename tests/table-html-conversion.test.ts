@@ -45,6 +45,22 @@ describe("Markdown to HTML source", () => {
     expect(markdownTableToHtmlSource(quoted, "htmlconversiontest")).toBeNull();
   });
 
+  it.each(["https://example.org/docs", "www.example.org", "dev@example.org"])(
+    "refuses to replace an automatic Markdown link with plain HTML text: %s", (value) => {
+      const source = `| Name | Value |\n| --- | --- |\n| Link | ${value} |`;
+      expect(new MarkdownIt({ html: true, linkify: true }).render(source)).toContain("<a href=");
+      expect(markdownTableToHtmlSource(parseEditableTables(source).tables[0]!, "linktest")).toBeNull();
+    },
+  );
+
+  it.each(["3.14", "see note: finish", "www&#46;example&#46;org", "https&#58;//example&#46;org"])(
+    "still converts punctuation and encoded literal text without an automatic link: %s", (value) => {
+      const source = `| Name | Value |\n| --- | --- |\n| Text | ${value} |`;
+      expect(new MarkdownIt({ html: true, linkify: true }).render(source)).not.toContain("<a href=");
+      expect(markdownTableToHtmlSource(parseEditableTables(source).tables[0]!, "linktest")).toContain("<table");
+    },
+  );
+
   it.each(["&#0;", "&#128;", "&#xD800;", "&#1114112;", "&#99999999;", "&constructor;", "&unknown;"])(
     "refuses uncertain entity semantics: %s", (entity) => {
       const table = parseEditableTables(`| H | V |\n| --- | --- |\n| A | ${entity} |`).tables[0]!;

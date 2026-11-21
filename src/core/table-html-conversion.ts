@@ -1,7 +1,10 @@
+import MarkdownIt from "markdown-it";
 import type { StructuralTable } from "./model";
 import { structuralTableToHtml } from "./interchange";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
 import { decodeLiteralTableEntity, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
+
+let linkReader: MarkdownIt | undefined;
 
 // The current HTML writer preserves plain cell text, <br> and structural spans,
 // not arbitrary Markdown inline semantics. Reject rather than silently turn
@@ -10,7 +13,13 @@ import { decodeLiteralTableEntity, TABLE_TEXT_ENTITY_PATTERN } from "./literal-c
 function hasUnrepresentableMarkdown(raw: string): boolean {
   const syntax = raw.replace(/<br\s*\/?>/giu, "")
     .replace(TABLE_TEXT_ENTITY_PATTERN, (entity) => decodeLiteralTableEntity(entity) === null ? entity : "");
-  return /[\\\x60*_[\]~]|%%|==|\$[^$]+\$|&(?:#[xX]?[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);|<(?:\/?[A-Za-z]|!|\?)/u.test(syntax);
+  if (/[\\\x60*_[\]~]|%%|==|\$[^$]+\$|&(?:#[xX]?[0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);|<(?:\/?[A-Za-z]|!|\?)/u.test(syntax)) return true;
+  if (!/[.:@]/u.test(raw)) return false;
+  // A bare URL or email may be a link even without brackets. Let the reader
+  // distinguish real links from punctuation and entity-encoded literal text.
+  linkReader ??= new MarkdownIt({ html: true, linkify: true });
+  return linkReader.linkify.pretest(raw)
+    && linkReader.parseInline(raw, {}).some(block => block.children?.some(token => token.type === "link_open"));
 }
 
 export function markdownTableToHtmlSource(table: StructuralTable, idPrefix: string): string | null {

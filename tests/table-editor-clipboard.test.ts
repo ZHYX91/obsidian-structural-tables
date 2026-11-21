@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS } from "../src/config/settings";
 import { createTranslator } from "../src/config/i18n";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
-import { TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_HTML_ATTRIBUTE } from "../src/core/table-range-clipboard";
+import { TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_CLIPBOARD_WEB_MIME, TABLE_RANGE_HTML_ATTRIBUTE } from "../src/core/table-range-clipboard";
 import { StructuralTableWidget } from "../src/editor/table-widget";
 import { lastMenu, notices } from "./mocks/obsidian";
 import {
@@ -141,6 +141,35 @@ describe("Cell and range clipboard", () => {
       expect(event.defaultPrevented).toBe(true);
       expect(view.state.doc.toString()).toBe(source);
       expect(notices[notices.length - 1]).toContain("Could not copy");
+    } finally { view.destroy(); }
+  });
+
+  it("preserves the grid, undo history and selection until a conflicting range paste is corrected", () => {
+    const source = "| H1 | H2 |\n| --- || --- |\n| A | B |\n| C | D |";
+    const { parent, view } = mountEditor(source, { anchor: source.length }, [history()]);
+    const cell = (row: number, col: number) => parent.querySelector<HTMLElement>(`[data-structural-row='${row}'][data-structural-column='${col}']`)!;
+    const select = (row: number) => {
+      dispatchPointerDown(cell(row, 0), "mouse");
+      cell(row, 1).dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true }));
+    };
+    try {
+      select(1);
+      const transfer = new DataTransfer();
+      cell(1, 0).dispatchEvent(gridClipboardEvent("copy", transfer));
+      const raw = transfer.getData(TABLE_RANGE_CLIPBOARD_MIME);
+      transfer.setData(TABLE_RANGE_CLIPBOARD_WEB_MIME, raw.replace('"A"', '"X"'));
+      select(2);
+      cell(2, 0).dispatchEvent(gridClipboardEvent("paste", transfer));
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undo(view)).toBe(false);
+      transfer.setData(TABLE_RANGE_CLIPBOARD_WEB_MIME, raw);
+      cell(2, 0).dispatchEvent(gridClipboardEvent("paste", transfer));
+      const pasted = view.state.doc.toString();
+      expect(pasted).not.toBe(source);
+      expect(undo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(redo(view)).toBe(true);
+      expect(view.state.doc.toString()).toBe(pasted);
     } finally { view.destroy(); }
   });
 

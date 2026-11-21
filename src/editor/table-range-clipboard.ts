@@ -1,5 +1,6 @@
 import {
   parseTableRangePayload,
+  sameTableRangeTopology,
   tableRangeHtml,
   tableRangePlainText,
   TABLE_RANGE_CLIPBOARD_MIME,
@@ -44,19 +45,33 @@ export type TableRangeClipboardRead =
   | { kind: "none" }
   | { kind: "invalid" };
 
+const CUSTOM_RANGE_TYPES = [TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_CLIPBOARD_WEB_MIME] as const;
+
+function readCustomRange(sources: readonly string[]): TableRangeClipboardRead {
+  let found: TableRangeClipboardPayloadV1 | undefined;
+  for (const source of sources) {
+    const payload = parseTableRangePayload(source);
+    if (payload === null) return { kind: "invalid" };
+    if (found !== undefined && (!sameTableRangeTopology(found, payload)
+      || Object.entries(found.rawByOwner).some(([id, raw]) => payload.rawByOwner[id] !== raw))) {
+      return { kind: "invalid" };
+    }
+    found = payload;
+  }
+  return found === undefined ? { kind: "none" } : { kind: "payload", payload: found };
+}
+
 export function readTableRangeFromDataTransfer(
   transfer: DataTransfer,
   ownerDocument: Document = document,
 ): TableRangeClipboardRead {
   try {
-    for (const type of [TABLE_RANGE_CLIPBOARD_MIME, TABLE_RANGE_CLIPBOARD_WEB_MIME]) {
+    const sources: string[] = [];
+    for (const type of CUSTOM_RANGE_TYPES) {
       const source = transfer.getData(type);
-      if (source !== "") {
-        const payload = parseTableRangePayload(source);
-        return payload === null ? { kind: "invalid" } : { kind: "payload", payload };
-      }
-      if (transfer.types?.includes(type)) return { kind: "invalid" };
+      if (source !== "" || transfer.types?.includes(type)) sources.push(source);
     }
+    if (sources.length > 0) return readCustomRange(sources);
     return readOwnedTableRangeHtml(transfer.getData("text/html"), ownerDocument);
   } catch {
     return { kind: "invalid" };
@@ -199,10 +214,20 @@ export async function readTableRangeFromNavigator(
     if (structuredItems.length > 1) return { kind: "failed" };
     const item = structuredItems[0];
     if (item !== undefined) {
-      const structuredType = item.types.includes(TABLE_RANGE_CLIPBOARD_WEB_MIME) ? TABLE_RANGE_CLIPBOARD_WEB_MIME : TABLE_RANGE_CLIPBOARD_MIME;
-      const blob = await item.getType(structuredType);
-      const payload = parseTableRangePayload(await blob.text());
-      return payload === null ? { kind: "failed" } : { kind: "payload", payload };
+      const sources: string[] = [];
+      for (const type of CUSTOM_RANGE_TYPES) {
+        if (item.types.includes(type)) sources.push(await (await item.getType(type)).text());
+      }
+      const custom = readCustomRange(sources);
+      if (custom.kind !== "payload") return { kind: "failed" };
+      // HTML on the same item is its portable representation. Another item
+      // claiming a range makes the clipboard selection ambiguous.
+      for (const alternate of items) {
+        if (alternate === item || !alternate.types.includes("text/html")) continue;
+        const source = await (await alternate.getType("text/html")).text();
+        if (readOwnedTableRangeHtml(source, ownerDocument).kind !== "none") return { kind: "failed" };
+      }
+      return custom;
     }
     const htmlItems = items.filter((item) => item.types.includes("text/html"));
     if (htmlItems.length !== 1) return { kind: "failed" };

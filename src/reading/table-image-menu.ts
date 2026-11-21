@@ -32,18 +32,19 @@ export function installReadingOutputMenu(app: App, wrapper: HTMLElement, table: 
     const ownsTarget = (): boolean => active && wrapper.isConnected && wrapper.ownerDocument === document
       && file instanceof TFile && file.path === sourcePath && app.vault.getAbstractFileByPath(sourcePath) === file
       && (sourceView === undefined || sourceView.file === file && sourceView.containerEl.contains(wrapper));
-    const isCurrent = async (): Promise<boolean> => {
-      if (!(file instanceof TFile) || !ownsTarget()) return false;
+    const readCurrentNote = async (): Promise<string | null> => {
+      if (!(file instanceof TFile) || !ownsTarget()) return null;
       const source = await app.vault.cachedRead(file);
-      return ownsTarget() && reparseUnchangedTable(source, table) !== null;
+      return ownsTarget() && reparseUnchangedTable(source, table) !== null ? source : null;
     };
+    const isCurrent = async (): Promise<boolean> => (await readCurrentNote()) !== null;
     const direction = document.defaultView?.getComputedStyle(readingImageStyleElement(wrapper) ?? wrapper).direction === "rtl" ? "rtl" : "ltr";
     if (previewGfm !== undefined) addPlainGfmMenuItem(menu, t(), () => {
       // No replacement callback exists in a reading target. Re-read before
       // opening and copying; a saved source change invalidates this snapshot.
       previewGfm(table, {
         sourcePath, ownerDocument: document, draftRoot: wrapper,
-        direction, isCurrent,
+        direction, isCurrent, readCurrentNote,
       });
     });
     addTableHtmlCopyMenuItem(menu, t(), () => {

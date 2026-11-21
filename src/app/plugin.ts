@@ -502,10 +502,10 @@ export class StructuralTablesPlugin extends Plugin {
     new Notice(message, 8000);
   }
 
-  private currentTable(editor: Editor, sourceOffset?: number): { table: StructuralTable; row: number; column: number } | null {
+  private currentTable(editor: Editor, sourceOffset?: number, source = editor.getValue()): { table: StructuralTable; row: number; column: number } | null {
     const cursor = sourceOffset === undefined ? editor.getCursor() : editor.offsetToPos(sourceOffset);
     const offset = sourceOffset ?? editor.posToOffset(cursor);
-    const table = parseEditableTables(editor.getValue()).tables.find((candidate) => offset >= candidate.range.from && offset <= candidate.range.to);
+    const table = parseEditableTables(source).tables.find((candidate) => offset >= candidate.range.from && offset <= candidate.range.to);
     if (table === undefined) return null;
     const row = table.rows.findIndex((candidate) => candidate.sourceLine === cursor.line);
     if (row < 0) return { table, row: -1, column: -1 };
@@ -704,7 +704,8 @@ export class StructuralTablesPlugin extends Plugin {
   private copyCurrentTable(editor: Editor, format: "HTML" | "GFM" | "TSV" | "CSV", sourcePath = "", viewHint?: MarkdownView): void {
     this.clipboardCopySession ??= tableCopySession(this.app);
     const t = createTranslator(this.settings.language);
-    const current = this.currentTable(editor);
+    const source = editor.getValue();
+    const current = this.currentTable(editor, undefined, source);
     if (current === null) return this.noTable();
     if (!current.table.valid) {
       new Notice(current.table.diagnostics[0] === undefined ? t("operation.tableInvalid") : diagnosticNotice(t, current.table.diagnostics[0]));
@@ -723,7 +724,7 @@ export class StructuralTablesPlugin extends Plugin {
     const write = Promise.resolve().then(async () => {
       if (!isCurrent()) return;
       const text = format === "GFM"
-        ? (() => { const conversion = planPlainGfmConversion(current.table)!; return conversion[conversion.recommended]!.source; })()
+        ? (() => { const conversion = planPlainGfmConversion(current.table, source)!; return conversion[conversion.recommended]!.source; })()
         : structuralTableToDelimited(current.table, format === "CSV" ? "," : "\t");
       await copyText(text);
     });

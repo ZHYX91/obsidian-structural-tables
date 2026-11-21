@@ -232,6 +232,45 @@ describe("GFM preview and editor entry points", () => {
     await vi.waitFor(() => expect(window.navigator.clipboard.writeText).toHaveBeenCalledWith(modal.contentEl.querySelector("pre")!.textContent));
   });
 
+  it.each(["editor", "reading"])("resolves references in the %s preview and rechecks changes outside the table", async (entry) => {
+    const source = "| H | K |\n| --- || --- |\n| [Guide][`a|b`] | keep |\n\n[`a|b`]: guide";
+    const f = editor(source);
+    const table = sourceTable(source);
+    const service = new PlainGfmConversionService(f.app, () => t); cleanup.push(() => service.close());
+    const target = captureEditorPlainGfmTarget(f.app, f.editor, table, f.view)!;
+    if (entry === "editor") service.open(table, target);
+    else {
+      const wrapper = document.body.createEl("div");
+      const owner = new Component(); cleanup.push(() => owner.unload());
+      installReadingOutputMenu(f.app, wrapper, table, f.file.path, owner, () => t, undefined, service.open);
+      wrapper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+      lastMenu!.items.find(item => item.title === t("menu.previewGfm"))!.callback!();
+    }
+    await vi.waitFor(() => expect(document.querySelector(".structural-tables-gfm-preview a")?.getAttribute("href")).toBe("guide"));
+    const root = document.querySelector(".structural-tables-gfm-preview")!;
+    const candidate = root.querySelector("pre")!.textContent!;
+    const copy = button(root, "Copy preview Markdown");
+    f.cm.dispatch({ changes: { from: source.length, insert: "\n\nUnrelated edit." } });
+    copy.click();
+    await vi.waitFor(() => expect(window.navigator.clipboard.writeText).toHaveBeenCalledWith(candidate));
+    const from = source.lastIndexOf("guide");
+    f.cm.dispatch({ changes: { from, to: from + 5, insert: "changed" } });
+    copy.click();
+    await vi.waitFor(() => expect(notices).toContain(t("notice.staleTable")));
+    expect(window.navigator.clipboard.writeText).toHaveBeenCalledOnce();
+    if (entry === "editor") {
+      expect(target.replace!("keep", candidate)).toBeNull();
+      f.cm.dispatch({ changes: { from, to: from + 7, insert: "guide" } });
+      const before = f.source();
+      button(root, "Replace table").click();
+      await vi.waitFor(() => expect(f.source().startsWith(candidate)).toBe(true));
+      expect(f.source()).toContain("Unrelated edit.");
+      expect(undo(f.cm)).toBe(true);
+      expect(f.source()).toBe(before);
+    }
+    if (entry === "reading") expect([...root.querySelectorAll("button")].some(item => item.textContent === "Replace table")).toBe(false);
+  });
+
   it("opens the complete product preview through the registered conversion command", async () => {
     const f = editor();
     const commands: { id: string; editorCallback?: (editor: unknown, view: unknown) => void }[] = [];

@@ -1,4 +1,5 @@
 import { structuralTableToPlainGfm } from "./interchange";
+import { documentCodeReferences, mayUseCodeReferences, type MarkdownReferences } from "./portable-markdown-cell";
 import type { StructuralTable } from "./model";
 import { planTransposeTable, type OperationResult } from "./operations";
 import { parseEditableTables } from "./parser";
@@ -24,7 +25,7 @@ export interface PlainGfmConversion {
 }
 
 function projectionPlan(original: StructuralTable, projected: StructuralTable,
-  orientation: PlainGfmOrientation, resetsAlignment = false): PlainGfmPlan {
+  orientation: PlainGfmOrientation, references?: MarkdownReferences, resetsAlignment = false): PlainGfmPlan {
   const warnings: PlainGfmWarning[] = [];
   if (projected.rows.some((row) => row.cells.some((cell) => cell.rowSpan > 1 || cell.columnSpan > 1))) warnings.push("merged-cells");
   if (projected.headerRowCount > 1) warnings.push("multiple-headers");
@@ -33,13 +34,14 @@ function projectionPlan(original: StructuralTable, projected: StructuralTable,
   if (resetsAlignment) warnings.push("alignment");
   const canReplace = !hasHiddenGfmOverflow(original);
   if (!canReplace) warnings.push("hidden-cells");
-  return { orientation, source: structuralTableToPlainGfm(projected, "aligned"), warnings, canReplace };
+  return { orientation, source: structuralTableToPlainGfm(projected, "aligned", references), warnings, canReplace };
 }
 
 /** Reuse the table's transpose and portable projection; no intermediate source write. */
-export function planPlainGfmConversion(table: StructuralTable): PlainGfmConversion | null {
+export function planPlainGfmConversion(table: StructuralTable, note?: string): PlainGfmConversion | null {
   if (!table.valid) return null;
-  const keep = projectionPlan(table, table, "keep");
+  const references = note !== undefined && mayUseCodeReferences(table) ? documentCodeReferences(note) : undefined;
+  const keep = projectionPlan(table, table, "keep", references);
   // The preview is portable Markdown. Serialize the logical transpose without
   // a quote/list prefix, which can look like indented code without its note.
   // Retain the original source so the existing core preserves its line endings.
@@ -47,7 +49,7 @@ export function planPlainGfmConversion(table: StructuralTable): PlainGfmConversi
   const transposed = transposePlan.result.changed
     ? parseEditableTables(transposePlan.result.source).tables[0] : undefined;
   const transpose = transposed?.valid === true
-    ? projectionPlan(table, transposed, "transpose", transposePlan.resetsColumnAlignment) : null;
+    ? projectionPlan(table, transposed, "transpose", references, transposePlan.resetsColumnAlignment) : null;
   return {
     // GFM has one top header row. With only row headers, rotating first retains
     // those labels as headers instead of replacing their role with empty titles.
@@ -60,7 +62,7 @@ export function planPlainGfmConversion(table: StructuralTable): PlainGfmConversi
 /** The exact preview candidate must also be a safe replacement in the complete note. */
 export function plainGfmConversionInDocument(source: string, table: StructuralTable,
   orientation: PlainGfmOrientation): OperationResult {
-  const conversion = planPlainGfmConversion(table);
+  const conversion = planPlainGfmConversion(table, source);
   const plan = conversion?.[orientation];
   if (plan == null || !plan.canReplace) return {
     changed: false, source: table.source,

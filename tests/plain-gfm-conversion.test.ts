@@ -3,6 +3,7 @@ import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { parseEditableTables } from "../src/core/parser";
 import { planPlainGfmConversion, plainGfmConversionInDocument } from "../src/core/plain-gfm-conversion";
+import { mayUseCodeReferences } from "../src/core/portable-markdown-cell";
 import { withSourcePrefix } from "../src/core/source-lines";
 
 const ROW_HEADERS = "| --- || --- | --- |\n| 姓名 | 张三 | 李四 |\n| 年龄 | 28 | 31 |\n| 城市 | 杭州 | 上海 |";
@@ -30,6 +31,58 @@ describe("plain GFM conversion plans", () => {
     expected.innerHTML = markdown.renderInline(cell);
     expect(cells[0]!.innerHTML).toBe(expected.innerHTML);
     expect(cells[1]!.innerHTML).toBe("<strong>keep</strong>");
+  });
+
+  it.each(["", "\\", "\\\\", "\\\\\\"])("preserves document reference links and images with %j before the pipe", (slashes) => {
+    const label = "`a" + slashes + "|b`";
+    const definition = "[" + label + "]: <folder/guide (1)?a=1&amp;amp;b=2> 'It said &quot;yes&quot; | &amp;amp; ok'";
+    const md = new MarkdownIt({ html: true });
+    const env = {};
+    md.parse(definition, env);
+    for (const cell of ["[Guide][" + label + "]", "[" + label + "][]", "[" + label + "]",
+      "![Photo][" + label + "]", "![" + label + "][]", "![" + label + "]"]) {
+      const source = "| H | K |\n| --- || --- |\n| " + cell + " | keep |\n\n" + definition;
+      const result = plainGfmConversionInDocument(source, table(source), "keep");
+      expect(result.changed).toBe(true);
+      const reference = new JSDOM(md.renderInline(cell, env)).window.document.body;
+      const expected = reference.querySelector("a, img")!;
+      expect(expected).not.toBeNull();
+      const cells = rendered(result.source).querySelectorAll("td");
+      expect(cells).toHaveLength(2);
+      expect(cells[0]!.innerHTML).toBe(reference.innerHTML);
+      expect(cells[1]!.textContent).toBe("keep");
+      const nativeCell = table(result.source).rows[1]!.cells[0]!.content;
+      expect(new JSDOM(md.renderInline(nativeCell)).window.document.body.innerHTML).toBe(reference.innerHTML);
+    }
+  });
+
+  it("keeps ordinary reference spelling and treats a literal or undefined definition as prose", () => {
+    const cell = "[Guide][`a|b`] [ordinary][note] [`x|y`](guide)";
+    const source = "| H | K |\n| --- || --- |\n| " + cell + " | keep |\n\n```\n[`a|b`]: hidden\n```\n\n[note]: elsewhere";
+    const plan = planPlainGfmConversion(table(source), source)!.keep.source;
+    expect(plan).toContain("[ordinary][note]");
+    expect(plan).toContain("[Guide][<code>");
+    const td = rendered(plan).querySelector("td")!;
+    expect(td.querySelectorAll("a")).toHaveLength(1);
+    expect(td.querySelector("a code")?.textContent).toBe("x|y");
+    expect(td.querySelector("a")?.getAttribute("href")).toBe("guide");
+  });
+
+  it("resolves the first owned multiline container definition and skips literal examples", () => {
+    const cell = "[Guide][`a|b`]";
+    const source = "---\nexample: 1\n[`a|b`]: frontmatter\n---\n\n| H | K |\n| --- || --- |\n| " + cell + " | keep |"
+      + "\n\n%%\n[`a|b`]: comment\n%%\n\n> - [`a|b`]:\n>   <folder/my guide>\n>   'from the list'\n\n[`a|b`]: later";
+    const projected = planPlainGfmConversion(table(source), source)!.keep.source;
+    const link = rendered(projected).querySelector("a")!;
+    expect(link.getAttribute("href")).toBe("folder/my%20guide");
+    expect(link.getAttribute("title")).toBe("from the list");
+    expect(planPlainGfmConversion(table(source))!.keep.source).toContain("[Guide][<code>");
+  });
+
+  it("skips the note reference scan when piped code follows a link", () => {
+    const source = "| H | K |\n| --- || --- |\n| [Guide](location) and `a|b` | keep |\n\n[unused]: elsewhere";
+    expect(mayUseCodeReferences(table(source))).toBe(false);
+    expect(planPlainGfmConversion(table(source), source)!.keep.source).toContain("<code>");
   });
 
   it("keeps native inline code after an unmatched backtick run", () => {

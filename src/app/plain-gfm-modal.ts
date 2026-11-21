@@ -1,6 +1,7 @@
 import { App, ButtonComponent, Component, MarkdownRenderer, Modal, Notice } from "obsidian";
 
 import { applyInterfaceLocale, operationNotice, type Translate } from "../config/i18n";
+import { mayUseCodeReferences } from "../core/portable-markdown-cell";
 import type { StructuralTable } from "../core/model";
 import type { OperationResult } from "../core/operations";
 import { planPlainGfmConversion, type PlainGfmConversion, type PlainGfmOrientation, type PlainGfmPlan, type PlainGfmWarning } from "../core/plain-gfm-conversion";
@@ -14,8 +15,10 @@ export interface PlainGfmTarget {
   direction: "ltr" | "rtl";
   /** Reading targets also re-read the original file before each action. */
   isCurrent: () => boolean | Promise<boolean>;
+  /** A checked note snapshot for resolving reference definitions outside the table. */
+  readCurrentNote?: () => string | null | Promise<string | null>;
   /** Absent in Reading View. Must revalidate and commit the chosen plan once. */
-  replace?: (orientation: PlainGfmOrientation) => OperationResult | null;
+  replace?: (orientation: PlainGfmOrientation, expectedPreview?: string) => OperationResult | null;
 }
 
 export type PreviewPlainGfm = (table: StructuralTable, target: PlainGfmTarget) => void;
@@ -183,7 +186,7 @@ export class PlainGfmModal extends Modal {
         const replace = this.target.replace;
         // Closing first lets the verified editor regain focus for Undo.
         this.close();
-        const result = replace(plan.orientation);
+        const result = replace(plan.orientation, plan.source);
         new Notice(result === null ? this.t("notice.staleTable") : operationNotice(this.t, result.code));
       }
     } catch {
@@ -216,12 +219,25 @@ export class PlainGfmConversionService {
     const t = this.translator();
     void (async () => {
       if (!this.active) return;
-      if (!await target.isCurrent()) { if (this.active) new Notice(t("notice.staleTable")); return; }
+      const readNote = mayUseCodeReferences(table) ? target.readCurrentNote : undefined;
+      const note = readNote === undefined ? undefined : await readNote();
+      if (note === null || (readNote === undefined && !await target.isCurrent())) { if (this.active) new Notice(t("notice.staleTable")); return; }
       if (!this.active) return;
       if (target.draftRoot.querySelector("textarea.structural-tables-cell-editor") !== null) { new Notice(t("gfm.unsavedDraft")); return; }
-      const conversion = planPlainGfmConversion(table);
+      const conversion = planPlainGfmConversion(table, note);
       if (conversion === null) { new Notice(t("operation.tableInvalid")); return; }
-      const modal = new PlainGfmModal(this.app, t, conversion, target, () => this.modals.delete(modal), this.copySession);
+      // A definition may change while the table itself stays byte-identical.
+      // Keep copy and replacement tied to the same evidence as the preview.
+      const guarded = note !== undefined && readNote !== undefined ? {
+        ...target, isCurrent: async () => {
+          const current = await readNote();
+          if (current === null) return false;
+          if (current === note) return true;
+          const next = planPlainGfmConversion(table, current);
+          return next?.keep.source === conversion.keep.source && next.transpose?.source === conversion.transpose?.source;
+        },
+      } : target;
+      const modal = new PlainGfmModal(this.app, t, conversion, guarded, () => this.modals.delete(modal), this.copySession);
       this.modals.add(modal);
       modal.open();
     })().catch(() => { if (this.active) new Notice(t("notice.staleTable")); });

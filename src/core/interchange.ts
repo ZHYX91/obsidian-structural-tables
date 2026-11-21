@@ -1,11 +1,9 @@
-import MarkdownIt from "markdown-it";
-import parseBackticks from "markdown-it/lib/rules_inline/backticks.mjs";
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { markdownSourceDisplayWidth, serializeStructuralTable } from "./serializer";
-import { existingTableCellText } from "./table-cell-syntax";
+import { portableCell, type MarkdownReferences } from "./portable-markdown-cell";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
-import { decodeLiteralTableEntity, encodeTableCellText, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
+import { decodeLiteralTableEntity, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -55,72 +53,6 @@ function anchorFor(table: StructuralTable, cell: StructuralCell): StructuralCell
   return table.rows[cell.anchorRow]?.cells[cell.anchorColumn] ?? cell;
 }
 
-function codeSpanDisplayText(raw: string): string {
-  const normalized = raw.replace(/\r\n|\r|\n/gu, " ");
-  // CommonMark code spans collapse line endings and trim one surrounding
-  // space when both ends are spaces and the span is not all whitespace.
-  return normalized.startsWith(" ") && normalized.endsWith(" ") && /[^ ]/u.test(normalized)
-    ? normalized.slice(1, -1) : normalized;
-}
-
-function codeSpanAsHtml(raw: string): string {
-  // GFM unescapes code-span pipes in tables, while native Obsidian keeps that
-  // backslash. No backtick spelling preserves the same pipe text in both.
-  // Inline HTML tags do not shield their contents from the Markdown parser.
-  // Encode punctuation so links, emphasis and nested code remain literal text.
-  return "<code>" + encodeTableCellText(codeSpanDisplayText(raw)) + "</code>";
-}
-
-interface CellCodeScan {
-  source: string;
-  spans: { from: number; to: number; raw: string }[];
-}
-
-// Record only positions the parser recognizes as code. Link destinations,
-// titles and HTML attributes never dispatch this rule. Image alt text has
-// its own source offsets and cannot contain a replacement HTML element.
-const recordPipedCode: typeof parseBackticks = (state, silent) => {
-  const from = state.pos;
-  const count = state.tokens.length;
-  const matched = parseBackticks(state, silent);
-  if (!matched || silent || state.tokens.length === count) return matched;
-  const scan = state.env as CellCodeScan;
-  const token = state.tokens[state.tokens.length - 1]!;
-  if (state.src === scan.source && token.type === "code_inline" && token.content.includes("|")) {
-    const raw = state.src.slice(from + token.markup.length, state.pos - token.markup.length);
-    scan.spans.push({ from, to: state.pos, raw });
-  }
-  return matched;
-};
-
-let cellMarkdown: MarkdownIt | undefined;
-
-function pipedCodeSpans(source: string): CellCodeScan["spans"] {
-  if (!source.includes("`") || !source.includes("|")) return [];
-  if (cellMarkdown === undefined) {
-    cellMarkdown = new MarkdownIt({ html: true });
-    cellMarkdown.inline.ruler.at("backticks", recordPipedCode);
-  }
-  const scan: CellCodeScan = { source, spans: [] };
-  cellMarkdown.inline.parse(source, cellMarkdown, scan, []);
-  return scan.spans;
-}
-
-function portableCell(content: string): string {
-  const source = existingTableCellText(content);
-  let cell = "";
-  let from = 0;
-  for (const span of pipedCodeSpans(source)) {
-    cell += source.slice(from, span.from) + codeSpanAsHtml(span.raw);
-    from = span.to;
-  }
-  cell += source.slice(from);
-  // Pipes outside protected code spans still need GFM delimiter escaping.
-  return cell.replace(/(\\*)\|/gu, (_match, slashes: string) =>
-    slashes.length % 2 === 0 ? slashes + "\\|" : slashes + "|");
-}
-
-
 function delimiterFor(alignment: ColumnAlignment): string {
   if (alignment === "left") return ":---";
   if (alignment === "center") return ":---:";
@@ -155,12 +87,13 @@ export function projectStructuralTable(table: StructuralTable): TabularProjectio
   };
 }
 
-export function structuralTableToPlainGfm(table: StructuralTable, layout: "compact" | "aligned" = "compact"): string {
+export function structuralTableToPlainGfm(table: StructuralTable, layout: "compact" | "aligned" = "compact",
+  references?: MarkdownReferences): string {
   const projection = projectStructuralTable(table);
   const header = table.headerRowCount === 0
     ? Array.from({ length: table.columnCount }, () => "")
     : projection.columnNames;
-  const rows = [header, ...projection.rows].map((row) => row.map(portableCell));
+  const rows = [header, ...projection.rows].map((row) => row.map(cell => portableCell(cell, references)));
   const lines = layout === "aligned" ? alignedGfmLines(rows, projection.alignments) : [
     `| ${rows[0]!.join(" | ")} |`,
     `| ${projection.alignments.map(delimiterFor).join(" | ")} |`,

@@ -67,6 +67,10 @@ export function literalTableCellText(text: string): string | null {
     const code = character.codePointAt(0)!;
     return code === 127 || (code < 32 && code !== 9 && code !== 10 && code !== 13);
   })) return null;
+  return encodeTableCellText(text);
+}
+
+export function encodeTableCellText(text: string): string {
   let result = "";
   const source = text.replace(/\r\n|\r/gu, "\n");
   const leading = /^ */u.exec(source)![0].length;

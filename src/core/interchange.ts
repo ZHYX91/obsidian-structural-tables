@@ -3,7 +3,7 @@ import { parseTableWrite } from "./table-write-validation";
 import { markdownSourceDisplayWidth, serializeStructuralTable } from "./serializer";
 import { closedCodeSpanEnd, existingTableCellText } from "./table-cell-syntax";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
-import { decodeLiteralTableEntity, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
+import { decodeLiteralTableEntity, encodeTableCellText, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -64,11 +64,9 @@ function codeSpanDisplayText(raw: string): string {
 function codeSpanAsHtml(raw: string): string {
   // GFM unescapes code-span pipes in tables, while native Obsidian keeps that
   // backslash. No backtick spelling preserves the same pipe text in both.
-  // Encode code pipes as inline HTML, including their literal backslashes.
-  const content = codeSpanDisplayText(raw)
-    .replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;")
-    .replace(/\\/gu, "&#92;").replace(/\|/gu, "&#124;");
-  return "<code>" + content + "</code>";
+  // Inline HTML tags do not shield their contents from the Markdown parser.
+  // Encode punctuation so links, emphasis and nested code remain literal text.
+  return "<code>" + encodeTableCellText(codeSpanDisplayText(raw)) + "</code>";
 }
 
 function portableCell(content: string): string {

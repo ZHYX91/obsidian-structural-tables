@@ -40,7 +40,7 @@ export function tableCellSourceOffset(
     const rowLast = Math.max(rowStart, lineOffset + sourceLine.length - 1);
     return Math.min(tableLast, rowLast);
   }
-  const local = tableCellContentOffset(sourceLine.slice(prefix.length), anchor.column);
+  const local = tableCellContentOffset(sourceLine.slice(prefix.length), anchor.column, table.structural);
   if (local === null) return null;
   return Math.min(tableLast, lineOffset + prefix.length + local);
 }

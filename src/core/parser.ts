@@ -194,7 +194,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
     const headerRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
     const immediateLine = delimiterLine - 1;
     const immediateSource = lines[immediateLine] ?? "";
-    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : splitTablePipeRow(immediateSource);
+    const immediateHeader = ignored.has(immediateLine) || !sameContainer(immediateLine) ? null : splitTablePipeRow(immediateSource) ?? splitTablePipeRow(immediateSource, false);
     if (immediateHeader !== null && (!ROW_BLOCK_START.test(immediateSource)
       || immediateHeader.cells.length === delimiter.columnCount)) {
       headerRows.push({ line: immediateLine, parsed: immediateHeader });
@@ -207,14 +207,18 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
         }
       }
     }
-    const bodyRows: { line: number; parsed: ParsedTablePipeRow }[] = [];
-    for (let line = delimiterLine + 1; line < lines.length; line += 1) {
-      if (ignored.has(line) || !sameContainer(line) || ROW_BLOCK_START.test(lines[line] ?? "")
-        || (lines[line] ?? "").trim() === "") break;
-      const parsed = splitTablePipeRow(lines[line] ?? "");
-      if (parsed === null) break;
-      bodyRows.push({ line, parsed });
-    }
+    const readBody = (start: number, structural: boolean): { line: number; parsed: ParsedTablePipeRow }[] => {
+      const rows: { line: number; parsed: ParsedTablePipeRow }[] = [];
+      for (let line = start; line < lines.length; line += 1) {
+        const text = lines[line]!;
+        if (ignored.has(line) || !sameContainer(line) || ROW_BLOCK_START.test(text)) break;
+        const parsed = splitTablePipeRow(text, structural);
+        if (parsed === null) break;
+        rows.push({ line, parsed });
+      }
+      return rows;
+    };
+    const bodyRows = readBody(delimiterLine + 1, true);
     if (headerRows.length === 0 && bodyRows.length === 0) continue;
     const rowSources = [...headerRows, ...bodyRows];
     const hasMarker = rowSources.some(({ parsed }) => parsed.cells
@@ -227,6 +231,22 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
       || delimiter.rowHeaderColumnCount > 0
       || headerRows.length !== 1
       || delimiter.diagnostics.length > 0;
+    // Use extension syntax to recognize explicit structures first. In an ordinary
+    // table Obsidian splits all unescaped pipes before interpreting inline code.
+    if (!structural) {
+      for (const row of rowSources) {
+        const text = lines[row.line]!;
+        if (text.includes("`")) row.parsed = splitTablePipeRow(text, false)!;
+      }
+      // A row with no outer pipes can have all its separators inside a code span.
+      const next = (bodyRows[bodyRows.length - 1]?.line ?? delimiterLine) + 1;
+      if (lines[next]?.includes("`")) {
+        for (const row of readBody(next, false)) {
+          bodyRows.push(row);
+          rowSources.push(row);
+        }
+      }
+    }
     const startLine = headerRows[0]?.line ?? delimiterLine;
     const endLine = bodyRows[bodyRows.length - 1]?.line ?? delimiterLine;
     for (let line = startLine; line <= endLine; line += 1) consumed.add(line);

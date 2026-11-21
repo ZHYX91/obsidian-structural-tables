@@ -35,6 +35,20 @@ describe("table interchange", () => {
     });
   });
 
+  it("preserves native GFM columns when a code-looking span crosses cell delimiters", () => {
+    const header = "| A | B | C |\n| --- | --- | --- |\n";
+    const row = "| `part|two` | 7 |";
+    const ordinary = table(header + row);
+    expect(ordinary.structural).toBe(false);
+    expect(ordinary.rows[1]!.sourceCellCount).toBe(3);
+    expect(structuralTableToDelimited(ordinary, ",")).toBe("A,B,C\n`part,two`,7");
+    const escaped = table(header + "| `part\\|two` | 7 | ok |");
+    expect(escaped.rows[1]!.cells.map((cell) => cell.raw.trim())).toEqual(["`part\\|two`", "7", "ok"]);
+    const structural = table(header.replace("--- | ---", "--- || ---") + row.replace(" | 7", " | middle | 7"));
+    expect(structural.structural).toBe(true);
+    expect(structural.rows[1]!.cells.map((cell) => cell.raw.trim())).toEqual(["`part|two`", "middle", "7"]);
+  });
+
   it("flattens structural semantics into portable GFM", () => {
     expect(structuralTableToPlainGfm(table(STRUCTURAL))).toBe(`| Region / Quarter | Sales / Q1 | Sales / Q2 |
 | --- | --- | --- |

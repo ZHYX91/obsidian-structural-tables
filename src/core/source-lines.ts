@@ -160,7 +160,7 @@ function quotePrefix(line: string, inheritedIndents: readonly number[], maximumD
 
 function isGfmHeader(line: string, next: string | null): boolean {
   if (next === null || !line.includes("|") || !next.includes("|") || /^ {4}|^ {0,3}[-+*](?:[\t ]|$)/u.test(next)) return false;
-  const header = splitTablePipeRow(line);
+  const header = splitTablePipeRow(line, false);
   const delimiter = splitTablePipeRow(next);
   return header !== null && delimiter !== null && header.cells.length === delimiter.cells.length
     && delimiter.cells.every((cell) => /^:?-+:?$/u.test(cell.trim()));
@@ -305,7 +305,7 @@ export function ignoredMarkdownLines(
           // list marker. Do not create a list scope from that cell's text.
           const next = lines[index + 1] ?? "";
           const prefix = sourcePrefix(lines[index] ?? "");
-          const header = splitTablePipeRow(line);
+          const header = splitTablePipeRow(line, false);
           const nextContent = next.slice(prefix.length);
           const delimiter = sourcePrefix(next) === prefix && !/^[-+*](?:[\t ]|$)/u.test(nextContent)
             ? splitTablePipeRow(nextContent) : null;

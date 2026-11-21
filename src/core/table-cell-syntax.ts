@@ -29,7 +29,7 @@ export function closedCodeSpanEnd(source: string, start: number): number | null 
   return close < 0 ? null : close + length;
 }
 
-function tablePipeSeparators(line: string): number[] {
+function tablePipeSeparators(line: string, structural: boolean): number[] {
   const separators: number[] = [];
   let escaped = false;
   for (let index = 0; index < line.length; index += 1) {
@@ -42,7 +42,7 @@ function tablePipeSeparators(line: string): number[] {
       escaped = true;
       continue;
     }
-    if (character === "`") {
+    if (structural && character === "`") {
       const run = backtickRunLength(line, index);
       const close = matchingBacktickRun(line, index + run, run);
       if (close >= 0) {
@@ -57,9 +57,9 @@ function tablePipeSeparators(line: string): number[] {
   return separators;
 }
 
-/** Split a Markdown pipe row while treating only closed code spans as opaque. */
-export function splitTablePipeRow(line: string): ParsedTablePipeRow | null {
-  const separators = tablePipeSeparators(line);
+/** Structural code spans are opaque. Native GFM splits at pipes before parsing inline code. */
+export function splitTablePipeRow(line: string, structural = true): ParsedTablePipeRow | null {
+  const separators = tablePipeSeparators(line, structural);
   if (separators.length === 0) return null;
   const cells: string[] = [];
   let from = 0;
@@ -75,16 +75,16 @@ export function splitTablePipeRow(line: string): ParsedTablePipeRow | null {
 }
 
 /** Map a source offset to the same pipe cell boundaries used by the row parser. */
-export function tableColumnAt(line: string, character: number): number {
+export function tableColumnAt(line: string, character: number, structural = true): number {
   const leadingPipe = line.trimStart().startsWith("|");
-  const separatorsBefore = tablePipeSeparators(line).filter((offset) => offset < character).length;
+  const separatorsBefore = tablePipeSeparators(line, structural).filter((offset) => offset < character).length;
   return Math.max(0, separatorsBefore - (leadingPipe ? 1 : 0));
 }
 
 /** Return a stable source position inside a visible table cell. */
-export function tableCellContentOffset(line: string, column: number): number | null {
+export function tableCellContentOffset(line: string, column: number, structural = true): number | null {
   if (!Number.isInteger(column) || column < 0) return null;
-  const separators = tablePipeSeparators(line);
+  const separators = tablePipeSeparators(line, structural);
   if (separators.length === 0) return null;
   const leadingPipe = line.trimStart().startsWith("|");
   const left = leadingPipe

@@ -10,6 +10,37 @@ const table = (source: string) => parseEditableTables(source).tables[0]!;
 const rendered = (source: string) => new JSDOM(new MarkdownIt({ html: true }).render(source)).window.document;
 
 describe("plain GFM conversion plans", () => {
+  it.each([
+    ["unmatched backtick run", "``A\\|B `sum`"],
+    ["a real code span after an unmatched run", "``example `a|b`"],
+    ["escaped backtick next to a code opener", "\\``a|b`"],
+    ["link destination", "[Guide](docs/`A\\|B`.md)"],
+    ["angle-bracketed image destination", "![alt](<pic/`A\\|B`.png>)"],
+    ["link title and visible code label", "[`a|b`](file.md 'Run `x\\|y`')"],
+    ["parenthesized title", "[Guide](file.md (Run `x\\|y`))"],
+    ["HTML attribute", "<span title='Run `x|y`'>text</span>"],
+    ["unclosed link remains prose", "[Guide](broken `a|b`"],
+  ] as const)("preserves %s on document replacement", (_name, cell) => {
+    const source = "| First | Next |\n| --- || --- |\n| " + cell + " | **keep** |";
+    const result = plainGfmConversionInDocument(source, table(source), "keep");
+    expect(result.changed).toBe(true);
+    const cells = rendered(result.source).querySelectorAll("td");
+    const markdown = new MarkdownIt({ html: true });
+    const expected = cells[0]!.ownerDocument.createElement("td");
+    expected.innerHTML = markdown.renderInline(cell);
+    expect(cells[0]!.innerHTML).toBe(expected.innerHTML);
+    expect(cells[1]!.innerHTML).toBe("<strong>keep</strong>");
+  });
+
+  it("keeps native inline code after an unmatched backtick run", () => {
+    const cell = "``example `a|b`";
+    const source = "| First | Next |\n| --- || --- |\n| " + cell + " | Keep |";
+    const result = plainGfmConversionInDocument(source, table(source), "keep");
+    const exportedCell = table(result.source).rows[1]!.cells[0]!.content;
+    const markdown = new MarkdownIt({ html: true });
+    expect(markdown.renderInline(exportedCell)).toBe(markdown.renderInline(cell));
+  });
+
   it("preserves a literal vertical tab inside piped code when replacing a table with GFM", () => {
     const value = "A\vB|C";
     const source = "| Code | Next |\n| --- || --- |\n| `" + value + "` | **keep** |";

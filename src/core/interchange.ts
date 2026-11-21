@@ -1,7 +1,9 @@
+import MarkdownIt from "markdown-it";
+import parseBackticks from "markdown-it/lib/rules_inline/backticks.mjs";
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { markdownSourceDisplayWidth, serializeStructuralTable } from "./serializer";
-import { closedCodeSpanEnd, existingTableCellText } from "./table-cell-syntax";
+import { existingTableCellText } from "./table-cell-syntax";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
 import { decodeLiteralTableEntity, encodeTableCellText, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
 
@@ -69,29 +71,50 @@ function codeSpanAsHtml(raw: string): string {
   return "<code>" + encodeTableCellText(codeSpanDisplayText(raw)) + "</code>";
 }
 
+interface CellCodeScan {
+  source: string;
+  spans: { from: number; to: number; raw: string }[];
+}
+
+// Record only positions the parser recognizes as code. Link destinations,
+// titles and HTML attributes never dispatch this rule. Image alt text has
+// its own source offsets and cannot contain a replacement HTML element.
+const recordPipedCode: typeof parseBackticks = (state, silent) => {
+  const from = state.pos;
+  const count = state.tokens.length;
+  const matched = parseBackticks(state, silent);
+  if (!matched || silent || state.tokens.length === count) return matched;
+  const scan = state.env as CellCodeScan;
+  const token = state.tokens[state.tokens.length - 1]!;
+  if (state.src === scan.source && token.type === "code_inline" && token.content.includes("|")) {
+    const raw = state.src.slice(from + token.markup.length, state.pos - token.markup.length);
+    scan.spans.push({ from, to: state.pos, raw });
+  }
+  return matched;
+};
+
+let cellMarkdown: MarkdownIt | undefined;
+
+function pipedCodeSpans(source: string): CellCodeScan["spans"] {
+  if (!source.includes("`") || !source.includes("|")) return [];
+  if (cellMarkdown === undefined) {
+    cellMarkdown = new MarkdownIt({ html: true });
+    cellMarkdown.inline.ruler.at("backticks", recordPipedCode);
+  }
+  const scan: CellCodeScan = { source, spans: [] };
+  cellMarkdown.inline.parse(source, cellMarkdown, scan, []);
+  return scan.spans;
+}
+
 function portableCell(content: string): string {
   const source = existingTableCellText(content);
   let cell = "";
-  for (let index = 0; index < source.length;) {
-    const character = source[index] ?? "";
-    if (character === "\\") {
-      cell += source.slice(index, index + 2);
-      index += 2;
-      continue;
-    }
-    if (character === "`") {
-      const end = closedCodeSpanEnd(source, index);
-      if (end !== null) {
-        const opening = /^`+/u.exec(source.slice(index))![0].length;
-        const raw = source.slice(index + opening, end - opening);
-        cell += raw.includes("|") ? codeSpanAsHtml(raw) : source.slice(index, end);
-        index = end;
-        continue;
-      }
-    }
-    cell += character;
-    index += 1;
+  let from = 0;
+  for (const span of pipedCodeSpans(source)) {
+    cell += source.slice(from, span.from) + codeSpanAsHtml(span.raw);
+    from = span.to;
   }
+  cell += source.slice(from);
   // Pipes outside protected code spans still need GFM delimiter escaping.
   return cell.replace(/(\\*)\|/gu, (_match, slashes: string) =>
     slashes.length % 2 === 0 ? slashes + "\\|" : slashes + "|");

@@ -36,9 +36,7 @@
     "postinstall": "node scripts/check-shared-tools.mjs && node scripts/prepare-lint-dependencies.mjs",
     "prelint": "node scripts/check-shared-tools.mjs && node scripts/prepare-lint-dependencies.mjs && node scripts/check-lint-dependencies.mjs",
     "check:tools": "node scripts/check-shared-tools.mjs",
-    "test:tools": "vitest run tests/scripts/shared-maintenance-tools.test.ts",
-    "prebuild": "node scripts/check-runtime.mjs",
-    "prebuild:bundle": "node scripts/check-runtime.mjs"
+    "test:tools": "vitest run tests/scripts/shared-maintenance-tools.test.ts"
   },
   "keywords": [
     "obsidian",

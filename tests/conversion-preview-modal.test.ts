@@ -60,6 +60,20 @@ describe("table source conversion preview", () => {
     expect(onConfirm).toHaveBeenCalledOnce();
   });
 
+  it("lets keyboard users focus and scroll the exact replacement source in the interface's RTL locale", () => {
+    const modal = new ConversionPreviewModal({} as App, {
+      title: "Convert", description: "Review", language: "ar", source: "| A | B |",
+      confirmLabel: "Replace", cancelLabel: "Cancel", onConfirm: vi.fn(),
+    });
+    modal.open();
+    document.body.append(modal.contentEl);
+    const source = modal.contentEl.querySelector("pre")!;
+    expect(source.dir).toBe("ltr");
+    expect(source.tabIndex).toBe(0);
+    source.focus();
+    expect(document.activeElement).toBe(source);
+  });
+
   it("allows lossless source previews without extra consent", () => {
     const { confirm, onConfirm } = openModal();
     expect(confirm.disabled).toBe(false);

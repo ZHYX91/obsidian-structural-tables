@@ -313,6 +313,8 @@ describe("owned range clipboard bridge", () => {
     ["document body marker", (): string => `<body ${TABLE_RANGE_HTML_ATTRIBUTE}="bad">Fallback</body>`, "invalid"],
     ["document html marker", (): string => `<html ${TABLE_RANGE_HTML_ATTRIBUTE}="bad"><body>Fallback</body></html>`, "invalid"],
     ["marker in a document attribute value", (): string => `<body title="${TABLE_RANGE_HTML_ATTRIBUTE}">Fallback</body>`, "none"],
+    ["a valid table with a second non-table claimant", (): string => tableRangeClipboardRepresentations(payload).html
+      + carrierHtml("unreadable", "div"), "invalid"],
     ["multiple carriers", (): string => tableRangeClipboardRepresentations(payload).html.repeat(2), "invalid"],
     ["empty carrier", (): string => carrierHtml(""), "invalid"],
     ["malformed JSON", (): string => carrierHtml("{bad"), "invalid"],
@@ -377,6 +379,15 @@ describe("owned range clipboard bridge", () => {
     expect(await readTableRangeFromNavigator(clipboard)).toEqual({ kind: "failed" });
     expect(getCustom).toHaveBeenCalledTimes(1);
     expect(getHtml).not.toHaveBeenCalled();
+  });
+
+  it("refuses competing custom clipboard items instead of pasting whichever item was read first", async () => {
+    const custom = (value: string) => ({ types: [TABLE_RANGE_CLIPBOARD_WEB_MIME],
+      getType: vi.fn(async () => new Blob([value])) });
+    const items = [custom(JSON.stringify(payload)), custom("{bad")];
+    const clipboard = { read: vi.fn(async () => items) } as unknown as Clipboard;
+    expect(await readTableRangeFromNavigator(clipboard)).toEqual({ kind: "failed" });
+    expect(items[0]!.getType).not.toHaveBeenCalled();
   });
 
   it("rejects multiple Async HTML representations instead of selecting an arbitrary carrier", async () => {

@@ -105,7 +105,7 @@ A selected owned-grid range has a separate bounded clipboard contract. Copy pres
 
 Menu Copy/Cut and menu Paste check platform clipboard-write and clipboard-read support independently; support for one does not imply support for the other. To paste ordinary text, enter a single cell's editor. To import an HTML table, use the note editor; **Edit table source** provides direct Markdown editing.
 
-Clicking the destination already opens its textarea. A multi-cell plugin payload pasted into that unchanged draft still uses the cell as a grid anchor and commits once; changed drafts and composition refuse range paste until finished or cancelled. Malformed plugin payloads never degrade into draft text. Single-cell copies and ordinary text remain text-local.
+Clicking the destination already opens its textarea. A multi-cell plugin payload pasted into that unchanged draft still uses the cell as a grid anchor and commits once; changed drafts and composition refuse range paste until finished or cancelled. When multiple clipboard items claim a range, or the cell Paste menu finds multiple text items, the plugin keeps the current selection. Malformed plugin payloads never degrade into draft text. Single-cell copies and ordinary text remain text-local.
 
 Mobile range menus use verified text-only transport when the host rich bridge is image-only. Copy/Cut verifies the actual system text before reporting success or clearing source. The session-owned topology remains valid only while that exact clipboard text, copy identity, document/file/editor/source and selection are unchanged through asynchronous reads. It supports the same matching-rectangle or single-anchor paste policy, but never infers topology from portable GFM alone.
 

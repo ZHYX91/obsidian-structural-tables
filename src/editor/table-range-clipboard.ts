@@ -73,7 +73,8 @@ function readOwnedTableRangeHtml(
   const parsed = new Parser().parseFromString(html, "text/html");
   // An attribute claims an owned payload; its name in ordinary text does not.
   // Keep malformed claims distinct so cell paste cannot downgrade them to text.
-  if (parsed.querySelector(`[${TABLE_RANGE_HTML_ATTRIBUTE}]`) === null) {
+  const claimants = parsed.querySelectorAll(`[${TABLE_RANGE_HTML_ATTRIBUTE}]`);
+  if (claimants.length === 0) {
     // This is only a fast prefilter; ownership still requires a DOM attribute.
     if (!html.toLowerCase().includes(TABLE_RANGE_HTML_ATTRIBUTE)) return { kind: "none" };
     // Document parsing drops orphaned table fragments such as td/tr. Parse them
@@ -85,9 +86,9 @@ function readOwnedTableRangeHtml(
     const fragment = range.createContextualFragment(html);
     return { kind: fragment.querySelector(`[${TABLE_RANGE_HTML_ATTRIBUTE}]`) === null ? "none" : "invalid" };
   }
-  const carriers = parsed.querySelectorAll<HTMLTableElement>(`table[${TABLE_RANGE_HTML_ATTRIBUTE}]`);
-  if (carriers.length !== 1) return { kind: "invalid" };
-  const source = carriers[0]!.getAttribute(TABLE_RANGE_HTML_ATTRIBUTE);
+  const carrier = claimants[0]!;
+  if (claimants.length !== 1 || carrier.tagName !== "TABLE") return { kind: "invalid" };
+  const source = carrier.getAttribute(TABLE_RANGE_HTML_ATTRIBUTE);
   const payload = source === null ? null : parseTableRangePayload(source);
   return payload === null ? { kind: "invalid" } : { kind: "payload", payload };
 }
@@ -193,11 +194,12 @@ export async function readTableRangeFromNavigator(
   if (clipboard === undefined || typeof clipboard.read !== "function") return { kind: "unsupported" };
   try {
     const items = await clipboard.read();
-    for (const item of items) {
-      const structuredType = item.types.includes(TABLE_RANGE_CLIPBOARD_WEB_MIME)
-        ? TABLE_RANGE_CLIPBOARD_WEB_MIME
-        : item.types.includes(TABLE_RANGE_CLIPBOARD_MIME) ? TABLE_RANGE_CLIPBOARD_MIME : null;
-      if (structuredType === null) continue;
+    const structuredItems = items.filter((item) => item.types.includes(TABLE_RANGE_CLIPBOARD_WEB_MIME)
+      || item.types.includes(TABLE_RANGE_CLIPBOARD_MIME));
+    if (structuredItems.length > 1) return { kind: "failed" };
+    const item = structuredItems[0];
+    if (item !== undefined) {
+      const structuredType = item.types.includes(TABLE_RANGE_CLIPBOARD_WEB_MIME) ? TABLE_RANGE_CLIPBOARD_WEB_MIME : TABLE_RANGE_CLIPBOARD_MIME;
       const blob = await item.getType(structuredType);
       const payload = parseTableRangePayload(await blob.text());
       return payload === null ? { kind: "failed" } : { kind: "payload", payload };

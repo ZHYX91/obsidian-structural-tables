@@ -43,6 +43,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         "aria-orientation": "horizontal",
       },
     });
+    const panelId = `structural-tables-settings-panel-${this.activeTab}`;
     const definitions: { id: TabId; label: string }[] = [
       { id: "general", label: t("settings.general") },
       { id: "views", label: t("settings.behavior") },
@@ -53,7 +54,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       button.type = "button";
       button.id = `structural-tables-settings-tab-${definition.id}`;
       button.setAttribute("role", "tab");
-      button.setAttribute("aria-controls", `structural-tables-settings-panel-${definition.id}`);
+      button.setAttribute("aria-controls", panelId);
       button.setAttribute("aria-selected", String(this.activeTab === definition.id));
       button.tabIndex = this.activeTab === definition.id ? 0 : -1;
       button.toggleClass("is-active", this.activeTab === definition.id);
@@ -78,7 +79,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     const panels = containerEl.createDiv({
       cls: "structural-tables-settings-panel",
       attr: {
-        id: `structural-tables-settings-panel-${this.activeTab}`,
+        id: panelId,
         role: "tabpanel",
         "aria-labelledby": `structural-tables-settings-tab-${this.activeTab}`,
         tabindex: "0",

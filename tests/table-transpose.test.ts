@@ -84,6 +84,13 @@ describe("whole-table structural transpose", () => {
     expect(result.source).toBe(table.source);
   });
 
+  it("preserves the source when a native GFM transpose would split a structural code cell", () => {
+    const source = "| --- || --- |\n| A | `x|y` |\n| B | 9 |";
+    const result = transposeTable(parse(source));
+    expect(result.changed).toBe(false);
+    expect(result.source).toBe(source);
+  });
+
   it("allows a separated transpose without changing preceding or following tables and prose", () => {
     const source = "| P | Q | R |\n\n| H1 | H2 |\n| --- | --- |\n| A | B |\n| C | D |\n\nAfter.\n\n| Keep | This |\n| --- | --- |\n| x | y |";
     const table = parse(source); const result = validateTableOperationInDocument(source, table, transposeTable(table));

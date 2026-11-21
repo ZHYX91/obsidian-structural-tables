@@ -20,6 +20,13 @@ describe("tableCellSourceOffset", () => {
     expect(source.slice(offset!, offset! + 2)).toBe("10");
   });
 
+  it("maps native GFM source coordinates across an unescaped pipe in backticks", () => {
+    const source = "| A | B | C |\n| --- | --- | --- |\n| `part|two` | 7 |";
+    const table = parseEditableTables(source).tables[0]!;
+    expect(tableCellSourceOffset(source, table, { row: 1, column: 1 })).toBe(source.indexOf("two"));
+    expect(tableCellSourceOffset(source, table, { row: 1, column: 2 })).toBe(source.indexOf("7"));
+  });
+
   it("maps a covered merge slot to the anchor cell", () => {
     const source = [
       "| Region | Sales | < |",

@@ -973,7 +973,7 @@ export function setRowHeaderColumnCount(table: StructuralTable, count: number): 
   };
 }
 
-export function cellColumnAt(line: string, character: number): number | null {
+export function cellColumnAt(line: string, character: number, structural = true): number | null {
   const prefix = sourcePrefix(line);
-  return tableSyntaxColumnAt(line.slice(prefix.length), Math.max(0, character - prefix.length));
+  return tableSyntaxColumnAt(line.slice(prefix.length), Math.max(0, character - prefix.length), structural);
 }

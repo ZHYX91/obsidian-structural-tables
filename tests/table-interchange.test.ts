@@ -195,6 +195,7 @@ describe("HTML table clipboard import", () => {
     ["preformatted whitespace", "<td><pre>A\n  B\tC</pre></td>", "A\n  B\tC"],
     ["inherited whitespace", '<div style="white-space: pre-wrap"><table><tr><td>A\n  B\tC</td></tr></table></div>', "A\n  B\tC"],
     ["preserved newlines", '<td style="white-space: pre-line">A\nB</td>', "A\nB"],
+    ["hidden cell text", "<td>Paid<span hidden>voided</span></td>", "Paid"],
     ["superscript", "<td>x<sup>2</sup></td>", "x²"],
     ["subscript", "<td>H<sub>2</sub>O</td>", "H₂O"],
   ])("falls back to complete plain text for %s", (_name, html, plain) => {
@@ -485,6 +486,8 @@ describe("HTML table clipboard import", () => {
     ["negative exponent", "<table><tr><td>x<sup>-2</sup></td><td>2</td></tr></table>", "x⁻²\t2"],
     ["nested superscript", "<table><tr><td>x<sup><span>2</span></sup></td><td>2</td></tr></table>", "x²\t2"],
     ["preformatted whitespace", "<table><tr><td><pre>A\n  B\tC</pre></td><td>2</td></tr></table>", "A\n  B\tC\t2"],
+    ["hidden cell text", "<table><tr><td>Paid<span hidden>voided</span></td><td>7</td></tr></table>", "Paid\t7"],
+    ["hidden row", '<table><tr style="display:none"><td>old</td></tr><tr><td>new</td></tr></table>', "new"],
   ])("uses the complete plain fallback for a single text-semantic table: %s", (_name, html, plain) => {
     expect(wholeTableClipboardImport(html, plain)).toEqual({ kind: "plain", text: plain });
     const replaceSelection = vi.fn();
@@ -502,6 +505,7 @@ describe("HTML table clipboard import", () => {
     ["superscript", "<table><tr><td>x<sup>2</sup></td><td>2</td></tr></table>"],
     ["subscript", "<table><tr><td>H<sub>2</sub>O</td><td>water</td></tr></table>"],
     ["preformatted text", "<table><tr><td><pre>A\n  B</pre></td><td>2</td></tr></table>"],
+    ["hidden cell text", "<table><tr><td>Paid<span hidden>voided</span></td><td>7</td></tr></table>"],
   ])("blocks a single text-semantic table without a plain fallback: %s", (_name, html) => {
     expect(wholeTableClipboardImport(html, "")).toEqual({ kind: "blocked-unsafe-text" });
     const replaceSelection = vi.fn();

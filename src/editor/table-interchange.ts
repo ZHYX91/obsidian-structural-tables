@@ -89,6 +89,17 @@ export function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolea
   });
 }
 
+// Hidden rows, cells and descendants can contain values that are absent from
+// the visible clipboard selection. Prefer its complete plain-text flavor.
+function hasHiddenTableContent(table: HTMLTableElement): boolean {
+  const hidden = (element: HTMLElement): boolean => element.hasAttribute("hidden")
+    || element.style.display === "none" || ["hidden", "collapse"].includes(element.style.visibility);
+  for (let element: HTMLElement | null = table; element !== null; element = element.parentElement) {
+    if (hidden(element)) return true;
+  }
+  return Array.from(table.querySelectorAll<HTMLElement>("[hidden], [style]")).some(hidden);
+}
+
 function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {
   return table.matches(HARD_UNSUPPORTED_CONTENT)
     || table.querySelector(HARD_UNSUPPORTED_CONTENT) !== null
@@ -98,7 +109,7 @@ function hasHardUnsupportedCellContent(table: HTMLTableElement): boolean {
 function hasUnsupportedCellContent(table: HTMLTableElement): boolean {
   return hasHardUnsupportedCellContent(table)
     || table.querySelector(TEXT_SEMANTIC_CONTENT) !== null
-    || hasPreservedWhitespaceSemantics(table);
+    || hasPreservedWhitespaceSemantics(table) || hasHiddenTableContent(table);
 }
 
 function hasMeaningfulContentOutsideTable(document: Document): boolean {
@@ -174,7 +185,7 @@ function isPlainFallbackTextSemanticTable(html: string): boolean {
   const cells = parsed.table.querySelectorAll<HTMLTableCellElement>("td, th");
   return cells.length > 0 && (
     parsed.table.querySelector(TEXT_SEMANTIC_CONTENT) !== null
-    || hasPreservedWhitespaceSemantics(parsed.table)
+    || hasPreservedWhitespaceSemantics(parsed.table) || hasHiddenTableContent(parsed.table)
   );
 }
 

@@ -15,8 +15,8 @@ describe("table cell syntax", () => {
     expect(escaped?.rows[1]?.cells).toHaveLength(2);
   });
 
-  it("keeps a pipe inside a closed code span even when a backslash precedes its closing run", () => {
-    const table = parseEditableTables("| A | B |\n| --- | --- |\n| `code|x\\` | tail |").tables[0];
+  it("keeps a structural pipe inside a closed code span even when a backslash precedes its closing run", () => {
+    const table = parseEditableTables("| A | B |\n| --- || --- |\n| `code|x\\` | tail |").tables[0];
     expect(table?.valid).toBe(true);
     expect(table?.rows[1]?.cells).toHaveLength(2);
     expect(table?.rows[1]?.cells[0]?.content).toBe("`code|x\\`");

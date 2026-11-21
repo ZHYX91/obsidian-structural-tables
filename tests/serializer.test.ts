@@ -130,6 +130,7 @@ describe("serializeStructuralTable", () => {
       "| --- | --- |",
       "| Alpha | [[Target\\|Alias]] |",
       "| 测试 | `a|b` \\| c |",
+      "| Merged | < |",
     ].join("\n");
     const table = parseEditableTables(source).tables[0]!;
     const serialized = serializeStructuralTable(table);

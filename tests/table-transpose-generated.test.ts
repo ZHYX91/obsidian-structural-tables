@@ -58,7 +58,13 @@ describe("deterministic transpose property regressions", () => {
       const delimiter = Array.from({ length: C }, () => random(4) === 0 ? ":---:" : "---");
       const delim = Q === 0 ? "| " + delimiter.join(" | ") + " |"
         : "| " + delimiter.slice(0, Q).join(" | ") + " || " + delimiter.slice(Q).join(" | ") + " |";
-      const rows = cells.map((row) => "| " + row.join(" | ") + " |");
+      // When either orientation is plain GFM, a code pipe needs its native
+      // escape if the property is to generate a losslessly reversible table.
+      const nativeOrientation = ((H === 1 && Q === 0) || (Q === 1 && H === 0))
+        && !cells.some((row) => row.some((cell) => cell === "<" || cell === "^"));
+      const rows = cells.map((row) => "| " + row.map((value) => (
+        nativeOrientation && value === tick + "a|b" + tick ? tick + "a\\|b" + tick : value
+      )).join(" | ") + " |");
       rows.splice(H, 0, delim);
       const ending = seed % 2 === 0 ? "\r\n" : "\n";
       const prefix = seed % 3 === 0 ? "> " : seed % 3 === 1 ? "    " : "";

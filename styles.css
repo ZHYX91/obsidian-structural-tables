@@ -913,8 +913,10 @@
 /* Export instructions are optional; converter limitations remain visible above. */
 .structural-tables-settings-export-guide {
   container-type: inline-size;
-  background: transparent;
-  border: 0;
+  background: var(--background-primary);
+  background: color-mix(in srgb, var(--interactive-accent) 5%, var(--background-primary));
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
   color: var(--text-muted);
   font-size: var(--font-ui-small);
   line-height: 1.5;
@@ -930,37 +932,17 @@
   box-sizing: border-box;
   min-block-size: 32px;
   align-content: center;
-  padding-block: 4px;
-  color: inherit;
+  padding: 4px 8px;
+  color: var(--text-normal);
   font-weight: var(--font-normal, 400);
   text-align: start;
   overflow-wrap: anywhere;
   list-style: none;
   cursor: pointer;
-  border-radius: var(--radius-s);
+  border-radius: inherit;
 }
 
 .structural-tables-settings-export-guide > summary::-webkit-details-marker { display: none; }
-
-.structural-tables-guide-label {
-  display: inline-flex;
-  justify-self: start;
-  align-items: start;
-  gap: 0.35em;
-  max-inline-size: 100%;
-  min-inline-size: 0;
-}
-
-.structural-tables-guide-icon {
-  flex: none;
-  margin-block-start: 0.25em;
-}
-
-.structural-tables-guide-icon svg {
-  display: block;
-  inline-size: 1em;
-  block-size: 1em;
-}
 
 .structural-tables-settings-export-guide-body dl { margin-block: 0 0.6em; }
 .structural-tables-settings-export-guide-body dt { font-weight: var(--font-semibold); }
@@ -974,11 +956,13 @@
   inline-size: 8px;
   block-size: 8px;
   box-sizing: border-box;
+  color: var(--interactive-accent);
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   align-self: start;
   margin-block-start: calc(0.75em - 4px);
   transform: rotate(-45deg);
+  transition: transform 120ms ease;
 }
 
 .structural-tables-settings-export-guide:dir(rtl) > summary::before { transform: rotate(135deg); }
@@ -1006,22 +990,23 @@
 
 .structural-tables-settings-export-guide[open] > .structural-tables-settings-export-guide-body {
   box-sizing: border-box;
-  border-inline-start: 2px solid var(--background-modifier-border);
-  margin-block: 6px 0;
-  margin-inline-start: 6px;
+  border-inline-start: 2px solid var(--interactive-accent);
+  margin-block: 4px 8px;
+  margin-inline: 8px;
   padding-inline-start: 10px;
   color: var(--text-normal);
   overflow-wrap: anywhere;
 }
 
-@supports (color: color-mix(in srgb, red, blue)) {
-  .structural-tables-settings-export-guide[open] > .structural-tables-settings-export-guide-body {
-    border-inline-start-color: color-mix(in srgb, var(--interactive-accent) 30%, var(--background-modifier-border));
+@media (prefers-reduced-motion: reduce) {
+  .structural-tables-settings-export-guide > summary::before {
+    animation: none;
+    transition: none;
   }
 }
 
 @container (max-width: 24rem) {
-  .structural-tables-settings-export-guide[open] > .structural-tables-settings-export-guide-body { margin-inline-start: 0; }
+  .structural-tables-settings-export-guide[open] > .structural-tables-settings-export-guide-body { padding-inline-start: 6px; }
 }
 
 .structural-tables-settings-export-guide-body > p { margin-block: 0 4px; }

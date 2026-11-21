@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { App, PluginSettingTab, Setting } from "obsidian";
 
 import { applyInterfaceLocale, createTranslator, type Translate } from "../config/i18n";
 import { LOCALES, sanitizeInterfaceLanguage } from "../config/locale";
@@ -178,11 +178,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     const guide = container.createEl("details", { cls: "structural-tables-settings-export-guide" });
     this.exportGuide = guide;
     guide.open = this.exportGuideExpanded;
-    const summary = guide.createEl("summary");
-    const label = summary.createSpan({ cls: "structural-tables-guide-label" });
-    label.createSpan({ text: t("settings.exportGuide.title") });
-    const icon = label.createSpan({ cls: "structural-tables-guide-icon", attr: { "aria-hidden": "true" } });
-    setIcon(icon, "book-open");
+    guide.createEl("summary", { text: t("settings.exportGuide.title") });
     const body = guide.createDiv({ cls: "structural-tables-settings-export-guide-body" });
     const steps = body.createEl("dl");
     for (const [heading, instruction] of [

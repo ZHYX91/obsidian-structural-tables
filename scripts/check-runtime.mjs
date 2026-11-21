@@ -13,8 +13,7 @@ const currentNodeVersion = process.versions.node;
 const [nodeMajor, nodeMinor, nodePatch] = currentNodeVersion.split(".").map(Number);
 const communityBuild = process.argv[2] === "--build"
   && nodeMajor === 22
-  && (nodeMinor > 23 || (nodeMinor === 23 && nodePatch >= 5))
-  && /^(?:10\.9|11\.\d+)\.\d+$/u.test(currentNpmVersion);
+  && (nodeMinor > 23 || (nodeMinor === 23 && nodePatch >= 5));
 
 // The Community build has its own toolchain bounds. Validate the official pin metadata
 // in both modes, and compare it with the actual runtime for the official checks.

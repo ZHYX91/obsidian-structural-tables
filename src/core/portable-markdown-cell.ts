@@ -1,7 +1,4 @@
 import MarkdownIt from "markdown-it";
-import parseBackticks from "markdown-it/lib/rules_inline/backticks.mjs";
-import parseLink from "markdown-it/lib/rules_inline/link.mjs";
-import parseImage from "markdown-it/lib/rules_inline/image.mjs";
 import { ignoredMarkdownLines, sourceLines } from "./source-lines";
 import type { StructuralTable } from "./model";
 import { encodeTableCellText } from "./literal-cell-text";
@@ -31,22 +28,7 @@ interface CellCodeScan {
   spans: { from: number; to: number; replacement: string }[];
 }
 
-// Record only positions the parser recognizes as code. Link destinations,
-// titles and HTML attributes never dispatch this rule. Image alt text has
-// its own source offsets and cannot contain a replacement HTML element.
-const recordPipedCode: typeof parseBackticks = (state, silent) => {
-  const from = state.pos;
-  const count = state.tokens.length;
-  const matched = parseBackticks(state, silent);
-  if (!matched || silent || state.tokens.length === count) return matched;
-  const scan = state.env as CellCodeScan;
-  const token = state.tokens[state.tokens.length - 1]!;
-  if (state.src === scan.source && token.type === "code_inline" && token.content.includes("|")) {
-    const raw = state.src.slice(from + token.markup.length, state.pos - token.markup.length);
-    scan.spans.push({ from, to: state.pos, replacement: codeSpanAsHtml(raw) });
-  }
-  return matched;
-};
+type InlineState = InstanceType<MarkdownIt["inline"]["State"]>;
 
 let cellMarkdown: MarkdownIt | undefined;
 
@@ -56,41 +38,53 @@ function encodeLinkAttribute(value: string): string {
 }
 
 /** Preserve the parsed destination across isolated previews, pastes and GFM's table-level pipe unescaping. */
-function recordCodeReference(rule: typeof parseLink): typeof parseLink {
-  return (state, silent) => {
-    const from = state.pos;
-    const count = state.tokens.length;
-    const matched = rule(state, silent);
-    const scan = state.env as CellCodeScan;
-    if (!matched || silent || !scan.references || state.src !== scan.source) return matched;
-    const image = rule === parseImage;
-    const endLabel = state.md.helpers.parseLinkLabel(state, from + (image ? 1 : 0), !image);
-    const after = endLabel + 1;
-    if (state.src[after] === "(" && state.pos > after) return matched; // inline destination
-    const id = state.pos > after + 2 ? state.src.slice(after + 1, state.pos - 1)
-      : state.src.slice(from + (image ? 2 : 1), endLabel);
-    if (!id.includes("`") || !id.includes("|")) return matched;
-    const idScan: CellCodeScan = { source: id, spans: [] };
-    state.md.inline.parse(id, state.md, idScan, []);
-    if (idScan.spans.length === 0) return matched;
-    // push() may flush preceding plain text before emitting the opening token.
-    const token = state.tokens.slice(count).find((item) => item.type === (image ? "image" : "link_open"));
-    if (!token) return matched;
-    const href = token.attrGet(image ? "src" : "href");
-    if (href == null) return matched;
-    const title = token.attrGet("title");
-    scan.spans.push({ from: after, to: state.pos,
-      replacement: "(<" + encodeLinkAttribute(href) + ">" + (title ? ' "' + encodeLinkAttribute(title) + '"' : "") + ")" });
-    return matched;
-  };
+function recordCodeReference(state: InlineState, scan: CellCodeScan, from: number, firstToken: number, image: boolean): void {
+  const endLabel = state.md.helpers.parseLinkLabel(state, from + (image ? 1 : 0), !image);
+  const after = endLabel + 1;
+  if (state.src[after] === "(" && state.pos > after) return; // inline destination
+  const id = state.pos > after + 2 ? state.src.slice(after + 1, state.pos - 1)
+    : state.src.slice(from + (image ? 2 : 1), endLabel);
+  if (!id.includes("`") || !id.includes("|")) return;
+  const idScan: CellCodeScan = { source: id, spans: [] };
+  state.md.inline.parse(id, state.md, idScan, []);
+  if (idScan.spans.length === 0) return;
+  // A link or image can flush pending text before emitting its opening token.
+  const token = state.tokens.slice(firstToken).find(item => item.type === (image ? "image" : "link_open"));
+  if (!token) return;
+  const href = token.attrGet(image ? "src" : "href");
+  if (href == null) return;
+  const title = token.attrGet("title");
+  scan.spans.push({ from: after, to: state.pos,
+    replacement: "(<" + encodeLinkAttribute(href) + ">" + (title ? ' "' + encodeLinkAttribute(title) + '"' : "") + ")" });
 }
 
 function cellParser(): MarkdownIt {
   if (cellMarkdown === undefined) {
     cellMarkdown = new MarkdownIt({ html: true });
-    cellMarkdown.inline.ruler.at("backticks", recordPipedCode);
-    cellMarkdown.inline.ruler.at("link", recordCodeReference(parseLink));
-    cellMarkdown.inline.ruler.at("image", recordCodeReference(parseImage));
+    const ruler = cellMarkdown.inline.ruler;
+    const standardRules = ruler.getRules("");
+    // Decorate the registered chain as a whole. Each built-in rule runs with
+    // its normal precedence, including silent probes and unmatched delimiters.
+    ruler.push("structural_tables_source_positions", (state, silent) => {
+      const from = state.pos;
+      const firstToken = state.tokens.length;
+      const matched = standardRules.some(rule => rule(state, silent));
+      if (!matched || silent || state.tokens.length === firstToken) return matched;
+      const scan = state.env as CellCodeScan;
+      if (state.src !== scan.source) return true; // Image alt text has its own offsets.
+      const marker = state.src[from];
+      if (marker === "`") {
+        const token = state.tokens[state.tokens.length - 1]!;
+        if (token.type === "code_inline" && token.content.includes("|")) {
+          const raw = state.src.slice(from + token.markup.length, state.pos - token.markup.length);
+          scan.spans.push({ from, to: state.pos, replacement: codeSpanAsHtml(raw) });
+        }
+      } else if (scan.references && (marker === "[" || marker === "!")) {
+        recordCodeReference(state, scan, from, firstToken, marker === "!");
+      }
+      return true;
+    });
+    ruler.enableOnly("structural_tables_source_positions");
   }
   return cellMarkdown;
 }

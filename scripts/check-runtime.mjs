@@ -9,10 +9,19 @@ const root = process.cwd();
 const packageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
 const nodeVersion = (await readFile(path.join(root, ".node-version"), "utf8")).trim();
 const currentNpmVersion = parseNpmVersion(process.env.npm_config_user_agent);
+const currentNodeVersion = process.versions.node;
+const [nodeMajor, nodeMinor, nodePatch] = currentNodeVersion.split(".").map(Number);
+const communityBuild = process.argv[2] === "--build"
+  && nodeMajor === 22
+  && (nodeMinor > 23 || (nodeMinor === 23 && nodePatch >= 5))
+  && /^(?:10\.9|11\.\d+)\.\d+$/u.test(currentNpmVersion);
+
+// The Community build has its own toolchain bounds. Validate the official pin metadata
+// in both modes, and compare it with the actual runtime for the official checks.
 assertRuntimeContract({
   configuredNodeVersion: nodeVersion,
-  currentNodeVersion: process.versions.node,
-  currentNpmVersion,
+  currentNodeVersion: communityBuild ? nodeVersion : currentNodeVersion,
+  currentNpmVersion: communityBuild ? packageJson.packageManager?.slice("npm@".length) : currentNpmVersion,
   packageJson,
 });
 // Browser-only dependencies are pinned and bundled; no host package loader or CDN.
@@ -55,4 +64,4 @@ for (const file of sourceFiles) {
   }
 }
 
-process.stdout.write(`Runtime contract passed for Node ${nodeVersion} and npm ${currentNpmVersion}; ${sourceFiles.length} source files, with reviewed local PNG resource loading.\n`);
+process.stdout.write(`Runtime contract passed for Node ${currentNodeVersion} and npm ${currentNpmVersion}; ${sourceFiles.length} source files, with reviewed local PNG resource loading.\n`);

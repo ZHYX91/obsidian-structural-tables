@@ -53,6 +53,24 @@ describe("shared maintenance tool entry points", () => {
     expect(result.stdout).toContain(npmVersion);
   });
 
+  it("allows the Community runtime for production builds and keeps the default check strict", () => {
+    const directory = fixture();
+    const nodeVersion = "22.23.5";
+    const preload = encodeURIComponent(
+      `Object.defineProperty(process.versions, "node", { value: "${nodeVersion}" });`,
+    );
+    const args = ["--import", `data:text/javascript,${preload}`, "scripts/check-runtime.mjs"];
+    const npm = "10.9.9";
+
+    const build = run(directory, [...args, "--build"], npm);
+    expect(build.status, build.stderr).toBe(0);
+    expect(build.stdout).toContain(`${nodeVersion} and npm ${npm}`);
+
+    const strict = run(directory, args, npm);
+    expect(strict.status).not.toBe(0);
+    expect(strict.stderr).toContain(`Node.js ${packageJson.engines.node} is required; received ${nodeVersion}`);
+  });
+
   it.each(["0.0.0", ""])("rejects an incorrect or unavailable npm version: %j", (version) => {
     const result = run(fixture(), ["scripts/check-runtime.mjs"], version);
     expect(result.status).not.toBe(0);

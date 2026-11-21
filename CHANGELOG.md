@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.5 - 2026-11-21
+
+- Match Obsidian's ordinary table column boundaries when copying to CSV or selecting cells with pipes inside inline code.
+- Use visible plain text when a pasted HTML table contains hidden cells or rows and a safe text alternative is available.
+- Make the Word and Markdown conversion guide easier to recognize as expandable.
+
 ## 0.11.4 - 2026-11-20
 
 - Preserve text boundaries in HTML copies and prevent an older copy operation from overwriting a newer one. Paste recognizes Structural Tables ranges from their actual clipboard markers.

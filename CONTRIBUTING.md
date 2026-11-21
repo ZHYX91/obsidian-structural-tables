@@ -52,9 +52,11 @@ copy or runtime dependency on another plugin. The source is
 `npm run check:tools` compares the checked-in files with this local lock. It runs offline;
 it does not query GitHub or authenticate the recorded commit remotely. Runtime checks,
 installation hooks, lint preparation and build entry points reject drift before loading
-these tools. Runtime checks require the exact Node/npm versions and agreement between
-`.node-version`, `engines.node` and `packageManager`. With dependencies installed, builds
-need no network connection or sibling repository to obtain maintenance code.
+these tools. `npm run check`, CI, and official release checks require the exact Node/npm
+versions recorded in `.node-version`, `engines.node` and `packageManager`. The production
+build also supports Node 22.23.5 or later in the Node 22 series with npm 10.9.x or 11.x
+for Obsidian Community builds. With dependencies installed, builds need no network
+connection or sibling repository to obtain maintenance code.
 
 To update a snapshot:
 

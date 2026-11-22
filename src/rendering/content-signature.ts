@@ -3,8 +3,12 @@ export function contentSignature(root: Node): string {
   const parts: (string | string[])[] = [];
   const visit = (node: Node): void => {
     if (node.nodeType === Node.TEXT_NODE) {
-      const text = (node.textContent ?? "").replace(/\s/gu, "");
-      if (!text) return;
+      // Newlines between table rows are HTML pretty-printing. Text in cells,
+      // inline markup and code (including a space between links) is content.
+      let text = (node.textContent ?? "").replace(/\r\n|\r/gu, "\n");
+      if (node.previousSibling?.nodeName === "BR") text = text.replace(/^\n+/u, "");
+      if (node.nextSibling?.nodeName === "BR") text = text.replace(/\n+$/u, "");
+      if (!text || (/^\s+$/u.test(text) && node.parentElement?.matches("table, thead, tbody, tfoot, tr"))) return;
       const last = parts[parts.length - 1];
       if (typeof last === "string") parts[parts.length - 1] = last + text;
       else parts.push(text);

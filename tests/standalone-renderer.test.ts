@@ -41,6 +41,22 @@ function harness(source = merged, displayed = source) {
 }
 
 describe("standalone Markdown rendering", () => {
+  it("distinguishes saved table values that differ by an internal space", async () => {
+    const first = merged.replace("North", "A B");
+    const second = merged.replace("North", "AB");
+    const h = harness(first + "\n\n" + second);
+    await h.run();
+    const tables = h.container.querySelectorAll(".structural-tables-table");
+    expect(Array.from(tables, table => table.querySelector("tbody td")?.textContent?.trim())).toEqual(["A B", "AB"]);
+  });
+
+  it("refuses a preview fragment whose cell text differs from its saved table", async () => {
+    const h = harness(merged.replace("North", "A B"), merged.replace("North", "AB"));
+    const original = h.container.innerHTML;
+    await h.run();
+    expect(h.container.innerHTML).toBe(original);
+  });
+
   it("finishes merged geometry and rich cell content before an exporter clones the result", async () => {
     const h = harness(merged.replace("North", "**North**"));
     await h.run();

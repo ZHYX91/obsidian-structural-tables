@@ -69,6 +69,50 @@ async function settled(): Promise<void> {
 }
 
 describe("Reading View source/block boundaries", () => {
+  it.each([true, false])("keeps two row-header tables apart with exact child ranges=%s", async precise => {
+    const first = "> | Group | Sales |\n> | --- || --- |\n> | A B | 10 |";
+    const view = readingView(first + "\n>\n" + first.replace("A B", "AB"));
+    const section = view.sections[0]!;
+    const paragraphs = [...section.element.querySelectorAll("blockquote > p")];
+    expect(paragraphs).toHaveLength(2);
+    if (precise) {
+      const whole = section.context.getSectionInfo(section.element)!;
+      section.context.getSectionInfo = element => {
+        const index = paragraphs.indexOf(element);
+        return index < 0 ? whole : { ...whole, lineStart: index * 4, lineEnd: index * 4 + 2 };
+      };
+    }
+    view.process();
+    await settled();
+    const tables = view.root.querySelectorAll("blockquote > .structural-tables-container");
+    expect(Array.from(tables, table => table.querySelector("tbody th")?.textContent?.trim())).toEqual(["A B", "AB"]);
+  });
+
+  it("binds reordered native tables to exact child ranges before section order", async () => {
+    const first = "> | Group | < |\n> | --- | --- |\n> | A | 10 |";
+    const view = readingView(first + "\n>\n" + first.replace("| A |", "| B |"));
+    const section = view.sections[0]!;
+    const [a, b] = section.element.querySelectorAll("blockquote > table");
+    a!.before(b!);
+    const whole = section.context.getSectionInfo(section.element)!;
+    section.context.getSectionInfo = element => element === a ? { ...whole, lineStart: 0, lineEnd: 2 }
+      : element === b ? { ...whole, lineStart: 4, lineEnd: 6 } : whole;
+    view.process();
+    await settled();
+    const cells = view.root.querySelectorAll("blockquote > .structural-tables-container tbody td:first-child");
+    expect(Array.from(cells, cell => cell.textContent?.trim())).toEqual(["B", "A"]);
+  });
+
+  it("leaves a single raw block unclaimed when two identical sources share its section", async () => {
+    const source = "> " + rowHeader.split("\n").join("\n> ");
+    const view = readingView(source + "\n>\n" + source);
+    view.root.querySelectorAll("blockquote > p")[1]!.remove();
+    const before = view.root.innerHTML;
+    view.process();
+    await settled();
+    expect(view.root.innerHTML).toBe(before);
+  });
+
   it.each([[false, false], [true, false], [false, true], [true, true]] as const)(
     "maps exact native raw lines while preserving inline HTML: span=%s, native BR=%s", async (inSpan, nativeBreaks) => {
     const table = "| Editable | < |\n| --- | --- |\n| Alpha | KEEP |";
@@ -288,6 +332,19 @@ describe("Reading View source/block boundaries", () => {
     await settled();
     expect(view.root.querySelectorAll(".structural-tables-table")).toHaveLength(2);
     for (const prose of ["Intro", "Between", "After"]) expect(view.root.textContent).toContain(prose);
+  });
+
+  it("matches meaningful spaces when adjacent raw tables share a paragraph with prose", async () => {
+    const source = ["Intro", rowHeader.replace("North", "A B"), "Between", rowHeader.replace("North", "AB"), "After"].join("\n");
+    const view = readingView(source);
+    expect(view.sections).toHaveLength(1);
+    expect(view.root.querySelectorAll("p")).toHaveLength(1);
+    view.process();
+    await settled();
+    const labels = view.root.querySelectorAll(".structural-tables-table tbody th");
+    expect(Array.from(labels, label => label.textContent?.trim())).toEqual(["A B", "AB"]);
+    expect(Array.from(view.root.querySelectorAll("p")).filter(p => !p.closest("table"))
+      .map(p => p.textContent?.trim())).toEqual(["Intro", "Between", "After"]);
   });
 
   it("does not acquire a split native table before its header section is observed", async () => {

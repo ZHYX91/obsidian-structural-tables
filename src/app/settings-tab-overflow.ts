@@ -22,12 +22,23 @@ export function observeTabOverflow(
   const tabs = Array.from(list.children) as HTMLElement[];
   const isRtl = () => win?.getComputedStyle(list).direction === "rtl";
 
-  function hiddenEdges() {
+  function distanceToEdge(tab: HTMLElement, viewport: DOMRect, towardRight: boolean): number {
+    const rect = tab.getBoundingClientRect();
+    return towardRight ? rect.right - viewport.right : viewport.left - rect.left;
+  }
+
+  function firstClippedTab(towardRight: boolean): HTMLElement | undefined {
     const viewport = list.getBoundingClientRect();
-    const edges = tabs.map(tab => tab.getBoundingClientRect());
-    const left = edges.filter(edge => edge.left < viewport.left - 0.5);
-    const right = edges.filter(edge => edge.right > viewport.right + 0.5);
-    return { viewport, left, right };
+    if (viewport.width <= 0) return;
+    let nearest = Infinity;
+    let target: HTMLElement | undefined;
+    for (const tab of tabs) {
+      const distance = distanceToEdge(tab, viewport, towardRight);
+      if (distance <= 0.5 || distance >= nearest) continue;
+      nearest = distance;
+      target = tab;
+    }
+    return target;
   }
 
   function update(): void {
@@ -38,10 +49,12 @@ export function observeTabOverflow(
     const width = Math.max(first.right, last.right) - Math.min(first.left, last.left);
     const overflows = width > bar.getBoundingClientRect().width + 0.5;
     bar.classList.toggle("has-overflow", overflows);
-    const { left, right } = hiddenEdges();
     const focused = list.ownerDocument.activeElement;
-    previous.hidden = !overflows || (isRtl() ? right : left).length === 0;
-    next.hidden = !overflows || (isRtl() ? left : right).length === 0;
+    const rtl = isRtl();
+    const canScrollPrevious = overflows && firstClippedTab(rtl) !== undefined;
+    const canScrollNext = overflows && firstClippedTab(!rtl) !== undefined;
+    previous.hidden = !canScrollPrevious;
+    next.hidden = !canScrollNext;
     if ((focused === previous && previous.hidden) || (focused === next && next.hidden)) {
       const target = !previous.hidden ? previous : !next.hidden ? next : tabs.find(tab => tab.tabIndex === 0);
       target?.focus({ preventScroll: true });
@@ -49,14 +62,15 @@ export function observeTabOverflow(
   }
 
   function scroll(towardNext: boolean): void {
-    const { viewport, left, right } = hiddenEdges();
     const towardRight = towardNext !== isRtl();
-    const distances = towardRight
-      ? right.map(edge => edge.right - viewport.right)
-      : left.map(edge => viewport.left - edge.left);
-    if (!distances.length || viewport.width <= 0) return;
-    const step = Math.min(viewport.width, ...distances);
-    list.scrollBy({ left: towardRight ? step : -step, behavior: "instant" });
+    const target = firstClippedTab(towardRight);
+    if (target === undefined) return;
+    // Reveal the same tab after reserving space for the reverse control.
+    const other = towardNext ? previous : next;
+    other.hidden = false;
+    const viewport = list.getBoundingClientRect();
+    const distance = Math.max(0, Math.min(distanceToEdge(target, viewport, towardRight), viewport.width));
+    if (distance > 0) list.scrollBy({ left: towardRight ? distance : -distance, behavior: "instant" });
     update();
   }
 

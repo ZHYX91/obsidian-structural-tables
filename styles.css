@@ -623,14 +623,10 @@
 }
 
 .structural-tables-settings-tab-bar {
-  display: grid;
-  grid-template-columns: 0 minmax(0, 1fr) 0;
-  container-type: inline-size;
-}
-
-.structural-tables-settings-tab-bar.has-overflow {
   --structural-tables-tab-scroll-size: 32px;
-  grid-template-columns: var(--structural-tables-tab-scroll-size) minmax(0, 1fr) var(--structural-tables-tab-scroll-size);
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  container-type: inline-size;
 }
 
 .structural-tables-settings-tab-bar > .structural-tables-settings-tabs {
@@ -640,6 +636,8 @@
 
 .structural-tables-settings-tab-bar > button.structural-tables-settings-tab-scroll {
   grid-area: 1 / 1;
+  inline-size: var(--structural-tables-tab-scroll-size);
+  min-inline-size: 0;
   appearance: none;
   display: grid;
   place-items: center;
@@ -690,7 +688,7 @@
 }
 
 @media (pointer: coarse) {
-  .structural-tables-settings-tab-bar.has-overflow {
+  .structural-tables-settings-tab-bar {
     --structural-tables-tab-scroll-size: 44px;
   }
 

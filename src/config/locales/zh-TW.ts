@@ -326,6 +326,8 @@ const catalog = {
   "settings.save.pending": "設定未儲存。",
   "settings.save.retry": "重試",
   "settings.save.saving": "正在儲存…",
+  "settings.previousTabs": "顯示前面的分頁",
+  "settings.nextTabs": "顯示後面的分頁",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "提示表格外掛程式衝突",
   "settings.warnConflicts.desc": "若其他已啟用的表格外掛程式使用相同的結構標記，啟動時提示一次。",

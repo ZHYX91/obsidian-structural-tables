@@ -326,6 +326,8 @@ const ptBR = {
   "settings.save.pending": "Não foi possível salvar as configurações.",
   "settings.save.retry": "Tentar novamente",
   "settings.save.saving": "Salvando…",
+  "settings.previousTabs": "Mostrar abas anteriores",
+  "settings.nextTabs": "Mostrar próximas abas",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "Avisar sobre conflitos com outros plug-ins de tabelas",
   "settings.warnConflicts.desc": "Avisa uma vez na inicialização se outro plug-in ativo usar os mesmos marcadores.",

@@ -326,6 +326,8 @@ const catalog = {
   "settings.save.pending": "لم تُحفظ الإعدادات.",
   "settings.save.retry": "إعادة المحاولة",
   "settings.save.saving": "جارٍ الحفظ…",
+  "settings.previousTabs": "إظهار علامات التبويب السابقة",
+  "settings.nextTabs": "إظهار علامات التبويب التالية",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "التحذير من تعارضات إضافات الجداول",
   "settings.warnConflicts.desc": "التحذير مرة واحدة عند بدء التشغيل إذا استخدمت إضافة جداول مفعّلة أخرى العلامات البنيوية نفسها.",

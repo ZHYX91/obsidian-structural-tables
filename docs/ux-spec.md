@@ -217,6 +217,8 @@ Invalid structures get a red edge and a readable reason. Reading view keeps its 
 
 Use native Obsidian controls with **General**, **Views**, and **Appearance** tabs. A failed save remains visible with a **Retry** action. If a future incompatible schema is detected, keep navigation available but disable controls that could overwrite those settings.
 
+When tabs extend beyond the settings bar, a theme-accent chevron appears at each edge with hidden tabs. Clicking it scrolls the bar without changing the selected page. The controls disappear when all tabs fit and have 44 px targets on touch screens.
+
 ### General
 
 - language: Follow Obsidian, English, 简体中文, 繁體中文, 日本語, 한국어, Deutsch, Français, Español, Português (Brasil), Русский, Tiếng Việt, العربية;

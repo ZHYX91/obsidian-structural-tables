@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 
 import { applyInterfaceLocale, createTranslator, type Translate } from "../config/i18n";
 import { LOCALES, sanitizeInterfaceLanguage } from "../config/locale";
+import { createScrollButton, observeTabOverflow } from "./settings-tab-overflow";
 import { moveSettingsTabIndex } from "./settings-tab-navigation";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import type { StructuralTablesPlugin } from "./plugin";
@@ -16,6 +17,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
   private activeTab: TabId = "general";
   private exportGuide: HTMLDetailsElement | null = null;
   private exportGuideExpanded = false;
+  private overflowCleanup: (() => void) | null = null;
   private statusCleanup: (() => void) | null = null;
   private appearancePreview: TableAppearancePreview | null = null;
 
@@ -28,6 +30,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.exportGuide = null;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
+    this.overflowCleanup?.();
+    this.overflowCleanup = null;
     this.statusCleanup?.();
     this.statusCleanup = null;
     const { containerEl } = this;
@@ -35,7 +39,9 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     applyInterfaceLocale(containerEl, t);
     containerEl.empty();
     containerEl.addClass("structural-tables-settings");
-    const tabs = containerEl.createDiv({
+    const bar = containerEl.createDiv({ cls: "structural-tables-settings-tab-bar" });
+    const previous = createScrollButton(bar, "previous", t("settings.previousTabs"));
+    const tabs = bar.createDiv({
       cls: "structural-tables-settings-tabs",
       attr: {
         role: "tablist",
@@ -76,6 +82,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         this.focusAndRevealTab(target.id);
       });
     }
+    const next = createScrollButton(bar, "next", t("settings.nextTabs"));
+    this.overflowCleanup = observeTabOverflow(bar, tabs, previous, next);
     const panels = containerEl.createDiv({
       cls: "structural-tables-settings-panel",
       attr: {
@@ -159,6 +167,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.exportGuideExpanded = false;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
+    this.overflowCleanup?.();
+    this.overflowCleanup = null;
     this.statusCleanup?.();
     this.statusCleanup = null;
     super.hide();

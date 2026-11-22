@@ -10,6 +10,7 @@ class MockElement {
   hidden = false;
   open = false;
   disabled = false;
+  readonly ownerDocument = { defaultView: null };
   type = "";
   tabIndex = 0;
   id = "";
@@ -38,6 +39,9 @@ class MockElement {
     const items = this.listeners.get(event) ?? [];
     items.push(callback);
     this.listeners.set(event, items);
+  }
+  removeEventListener(type: string, listener: () => void): void {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter(item => item !== listener));
   }
   trigger(event: string): void { for (const callback of this.listeners.get(event) ?? []) callback(); }
   descendants(): MockElement[] { return this.children.flatMap(child => [child, ...child.descendants()]); }

@@ -326,6 +326,8 @@ const ko = {
   "settings.save.pending": "설정을 저장하지 못했습니다.",
   "settings.save.retry": "다시 시도",
   "settings.save.saving": "저장 중…",
+  "settings.previousTabs": "이전 탭 표시",
+  "settings.nextTabs": "다음 탭 표시",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "다른 표 플러그인과의 충돌 알림",
   "settings.warnConflicts.desc": "다른 플러그인이 같은 표 구조 표시를 사용할 때 시작 시 한 번 경고합니다.",

@@ -324,6 +324,8 @@ const en = {
   "settings.save.pending": "Settings were not saved.",
   "settings.save.retry": "Retry",
   "settings.save.saving": "Saving…",
+  "settings.previousTabs": "Show previous tabs",
+  "settings.nextTabs": "Show next tabs",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "Warn about table plugin conflicts",
   "settings.warnConflicts.desc": "Warn once at startup if another enabled table plugin uses the same structural markers.",

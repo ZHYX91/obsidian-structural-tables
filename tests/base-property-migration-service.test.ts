@@ -577,6 +577,29 @@ describe("legacy Base property migration", () => {
     else expect(migrated.split("\r\n").join("")).not.toContain("\n");
   });
 
+  it("plans records and filters together from saved text while the metadata cache is stale", async () => {
+    const host = migrationHost();
+    const record = legacyRecord(host);
+    host.frontmatters.delete(record.file);
+    const other = legacyRecord(host, "Unrelated.md");
+    const unrelated = "---\ntitle: Elsewhere\n---\nBody";
+    host.sources.set(other.file, unrelated);
+    const base = testFile("People.md");
+    host.files.push(base);
+    host.sources.set(base, promotedBase("stb_people"));
+
+    const service = new BasePropertyMigrationService(host.app);
+    const prepared = await service.prepare();
+    expect(prepared).toMatchObject({ membershipNoteCount: 1, legacyBaseCount: 1 });
+    const result = await service.execute(prepared, false);
+
+    expect(result.fileCount).toBe(2);
+    expect(host.processCalls).toEqual([record.file, base]);
+    expect(host.frontmatters.get(record.file)?.[TABLE_MEMBERSHIP_PROPERTY]).toEqual(["stb_people"]);
+    expect(host.sources.get(base)).toContain('list(note["structural-tables"])');
+    expect(host.sources.get(other.file)).toBe(unrelated);
+  });
+
   it("fails closed for conflicting, malformed, or stale metadata", async () => {
     const host = migrationHost();
     const conflicting = testFile("Conflict.md");

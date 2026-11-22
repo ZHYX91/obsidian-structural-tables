@@ -118,7 +118,7 @@ function randomId(prefix: "stb"): string {
 }
 
 export function recordFileNameIdentity(fileName: string): string {
-  return fileName.toLowerCase();
+  return fileName.normalize("NFC").toLowerCase();
 }
 
 function uniqueRecordPaths(directory: string, plan: BasePromotionPlan): PreparedRecord[] {

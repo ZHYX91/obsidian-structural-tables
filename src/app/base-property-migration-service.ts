@@ -56,17 +56,36 @@ interface PropertyChange {
   deletedFrontmatter?: { before: string; after: string };
 }
 
-function migrationFrontmatter(source: string) {
+function parseSourceFrontmatter(source: string) {
   const opening = /^\uFEFF?---[\t ]*(?:\r\n|\r|\n)/u.exec(source);
-  if (opening === null) throw new Error("Migration frontmatter is missing.");
+  if (opening === null) return null;
   const remaining = source.slice(opening[0].length);
   const closing = /^(?:---|\.\.\.)[\t ]*(?=\r\n|\r|\n|$)/mu.exec(remaining);
-  if (closing === null) throw new Error("Migration frontmatter is not closed.");
+  if (closing === null) return null;
   const from = opening[0].length;
   const to = from + closing.index;
   const text = source.slice(from, to);
   // Lone CR normalization has the same UTF-16 offsets as the original text.
   const document = parseDocument(text.replace(/\r(?!\n)/gu, "\n"), { keepSourceTokens: true });
+  return { from, to, text, document };
+}
+
+function membershipFrontmatter(source: string, path: string): Record<string, unknown> | undefined {
+  const parsed = parseSourceFrontmatter(source);
+  if (parsed === null) return undefined;
+  const { document } = parsed;
+  if (!isMap(document.contents)
+    || (!document.contents.has(LEGACY_TABLE_MEMBERSHIP_PROPERTY) && !document.contents.has(TABLE_MEMBERSHIP_PROPERTY))) {
+    return undefined;
+  }
+  if (document.errors.length > 0) throw new Error(`Ambiguous membership frontmatter in ${path}.`);
+  return document.toJS() as Record<string, unknown>;
+}
+
+function migrationFrontmatter(source: string) {
+  const parsed = parseSourceFrontmatter(source);
+  if (parsed === null) throw new Error("Migration frontmatter is missing or not closed.");
+  const { from, to, text, document } = parsed;
   if (document.errors.length > 0 || !isMap(document.contents)) {
     throw new Error("Migration frontmatter is not an unambiguous mapping.");
   }
@@ -312,9 +331,9 @@ export class BasePropertyMigrationService {
     for (const file of this.app.vault.getMarkdownFiles()) {
       const path = file.path;
       this.assertFile(file, path);
-      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter as
-        | Record<string, unknown>
-        | undefined;
+      const originalSource = await this.app.vault.read(file);
+      this.assertFile(file, path);
+      const frontmatter = membershipFrontmatter(originalSource, path);
       const migrateMembership = frontmatter !== undefined
         && owns(frontmatter, LEGACY_TABLE_MEMBERSHIP_PROPERTY);
       const membership = tableMembershipState(frontmatter);
@@ -329,8 +348,6 @@ export class BasePropertyMigrationService {
         && membership.status === "valid"
         && membership.ids.length > 0;
       if (hasLegacyRecordId) legacyRecordIdCount += 1;
-      const originalSource = await this.app.vault.read(file);
-      this.assertFile(file, path);
       const legacyBases = promotionBlocksNeedingMigration(originalSource, path);
       for (const block of legacyBases) {
         await assertRecoveredPromotionOwnership(this.app, block);

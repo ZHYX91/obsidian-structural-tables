@@ -19,7 +19,7 @@ function parentHtmlLines(lines: readonly string[]): Set<number> {
   const nested = new Set<number>();
   let comment = false;
   let uncertain = false;
-  ignoredMarkdownLines(lines, new Set(), (line, index) => {
+  ignoredMarkdownLines(lines, {}, (line, index) => {
     if (parents.length > 0 || uncertain) nested.add(index);
     // Inspect only actual HTML block lines reported by the existing Markdown
     // scanner. Fenced/code/comment examples never become parent authority.

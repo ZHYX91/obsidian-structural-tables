@@ -141,9 +141,10 @@ describe("reference definitions and following block ownership", () => {
     const explicit = '> [a]: /url "title\n' + withSourcePrefix(title, "> ")
       + '\n> end"\n>\n> <span>\n' + withSourcePrefix(fake, "> ") + "\n> </span>\n\n" + real;
     const source = explicit.replace(/\n/gu, ending);
-    expect(markdown.parse(source, {}).filter((token) => token.type === "table_open")).toHaveLength(2);
-    expect(parseEditableTables(source).tables.map((table) => table.source))
-      .toEqual([withSourcePrefix(title, "> ").replace(/\n/gu, ending), real.replace(/\n/gu, ending)]);
+    const expected = markdown.parse(source, {}).filter((token) => token.type === "table_open").map((token) =>
+      source.split(ending).slice(token.map![0], token.map![1]).join(ending));
+    expect(expected).toEqual([withSourcePrefix(title + '\nend"', "> ").replace(/\n/gu, ending), real.replace(/\n/gu, ending)]);
+    expect(parseEditableTables(source).tables.map((table) => table.source)).toEqual(expected);
   });
 
   it.each([false, true])("scans a long reference title once without consuming later blocks (closed=%s)", (closed) => {

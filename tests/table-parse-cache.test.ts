@@ -105,3 +105,14 @@ describe("prose edit cache", () => {
   });
 
 });
+
+it("invalidates an ordinary table when an adjacent Obsidian block ID becomes a body row", () => {
+  const source = "| Name | Qty |\n| --- | --- |\nBob\n^table-id\n| Carol | 3 |";
+  const state = EditorState.create({ doc: source });
+  const old = parseEditableTables(source).tables;
+  const pos = source.indexOf("^table-id");
+  const change = state.update({ changes: { from: pos, to: pos + 1 } });
+  expect(old[0]!.endLine).toBe(2);
+  expect(mapTablesThroughProseEdit(old, change)).toBeNull();
+  expect(parseEditableTables(change.state.doc.toString()).tables[0]!.endLine).toBe(4);
+});

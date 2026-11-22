@@ -66,3 +66,10 @@ describe("tableCellSourceOffset", () => {
     expect(source.slice(offset!, offset! + 5)).toBe("North");
   });
 });
+
+it("maps a separator-free GFM body row and its padded cell across quote spacing", () => {
+  const source = "> | Name | Qty |\n> | --- | --- |\n>Bob\n> | Carol | 3 |";
+  const table = parseEditableTables(source).tables[0]!;
+  expect(tableCellSourceOffset(source, table, { row: 1, column: 0 })).toBe(source.indexOf("Bob"));
+  expect(tableCellSourceOffset(source, table, { row: 1, column: 1 })).toBe(source.indexOf("Bob") + 2);
+});

@@ -447,7 +447,7 @@ function closesFence(line: string, opening: FenceOpening): boolean {
 export function promotionBlocks(source: string, sourceFilePath?: string): PromotionBlockMetadata[] {
   const blocks: PromotionBlockMetadata[] = [];
   const lines = sourceLines(source);
-  const ignored = ignoredMarkdownLines(lines.map((line) => line.text), new Set(["base"]));
+  const ignored = ignoredMarkdownLines(lines.map((line) => line.text), { visibleFenceInfo: new Set(["base"]) });
   for (let index = 0; index < lines.length; index += 1) {
     if (ignored.has(index)) continue;
     const openingLine = lines[index];

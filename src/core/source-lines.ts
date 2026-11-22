@@ -53,6 +53,10 @@ const HTML_BLOCK_START = /^ {0,3}<\/?(?:address|article|aside|base|basefont|bloc
 // Conservative CommonMark type-7 standalone tags: never interrupt ordinary prose.
 const HTML_STANDALONE_TAG = /^ {0,3}(?:<[A-Za-z][A-Za-z0-9-]*(?:[\t ]+[A-Za-z_:][A-Za-z0-9:._-]*(?:[\t ]*=[\t ]*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*[\t ]*\/?>|<\/[A-Za-z][A-Za-z0-9-]*[\t ]*>)[\t ]*$/u;
 
+export function isThematicBreak(line: string): boolean {
+  return /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(line);
+}
+
 export function startsRawLiteralHtmlBlock(line: string): boolean {
   return RAW_LITERAL_HTML_START.test(line);
 }
@@ -188,7 +192,7 @@ function referenceContinuation(lines: readonly string[], index: number, quoteInd
   const fence = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
   const next = contentAt(index + 1);
   if (/^ {0,3}(?:>|#{1,6}(?:[\t ]|$)|<!--|<\?|<![A-Za-z]|<!\[CDATA\[)/u.test(line)
-    || /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(line)
+    || isThematicBreak(line)
     || listPrefix(line) !== null || startsRawLiteralHtmlBlock(line) || HTML_BLOCK_START.test(line)
     || (fence !== null && (fence[1]![0] === "~" || !fence[2]!.includes("`")))
     // GFM tables cannot interrupt a quote's lazy reference continuation.
@@ -197,9 +201,15 @@ function referenceContinuation(lines: readonly string[], index: number, quoteInd
   return content.source;
 }
 
+interface MarkdownLineOptions {
+  visibleFenceInfo?: ReadonlySet<string>;
+  /** Capture list item identity when native GFM must distinguish row padding from an outdent. */
+  listOwners?: object[];
+}
+
 export function ignoredMarkdownLines(
   lines: readonly string[],
-  visibleFenceInfo: ReadonlySet<string> = new Set<string>(),
+  options: MarkdownLineOptions = {},
   onHtmlLine?: (line: string, index: number) => void,
   onReference?: (definition: string) => void,
 ): Set<number> {
@@ -296,8 +306,7 @@ export function ignoredMarkdownLines(
       for (;;) {
         let list = listPrefix(line);
         // Thematic breaks take precedence over list markers at every container depth.
-        const thematicBreak = (value: string): boolean => /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(value);
-        while (list !== null && !thematicBreak(line)) {
+        while (list !== null && !isThematicBreak(line)) {
           const marker = list.marker;
           const markerIndent = listIndent + list.padding;
           const sibling = exitedList !== undefined && exitedList.marker === marker[marker.length - 1]
@@ -416,7 +425,7 @@ export function ignoredMarkdownLines(
     if (protectedBlock === null && run !== undefined && (run[0] === "~" || !info.includes("`"))) {
       paragraph = null;
       fence = { character: run[0] as "`" | "~", length: run.length, listIndent };
-      if (!visibleFenceInfo.has(info)) ignored.add(index);
+      if (!options.visibleFenceInfo?.has(info)) ignored.add(index);
       continue;
     }
 
@@ -447,8 +456,15 @@ export function ignoredMarkdownLines(
       if (protection.ignored) { paragraph = null; ignored.add(index); continue; }
     }
     if (indentedCode) ignored.add(index);
+    if (options.listOwners !== undefined) {
+      for (let level = quoteDepth; level >= 0; level -= 1) {
+        const scope = listsByQuote[level]!;
+        const owner = scope[scope.length - 1];
+        if (owner !== undefined) { options.listOwners[index] = owner; break; }
+      }
+    }
     const atxHeading = /^ {0,3}#{1,6}(?:[\t ]|$)/u.test(line);
-    const thematicBreak = /^ {0,3}(?:(?:\*[\t ]*){3,}|(?:-[\t ]*){3,}|(?:_[\t ]*){3,})$/u.test(line);
+    const thematicBreak = isThematicBreak(line);
     const setextUnderline: boolean = continuesParagraph && /^ {0,3}(?:=+|-+)[\t ]*$/u.test(line);
     // Missing container markers can continue a paragraph lazily, but cannot
     // open a table outside that paragraph. Indents belong to their quote

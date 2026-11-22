@@ -5,6 +5,7 @@ import { MarkdownRenderer, Platform } from "obsidian";
 import MarkdownIt from "markdown-it";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BasePromotionService } from "../src/app/base-promotion-service";
 import { StructuralTablesPlugin } from "../src/app/plugin";
 import { ConversionPreviewModal } from "../src/app/conversion-preview-modal";
 import { createTranslator } from "../src/config/i18n";
@@ -655,6 +656,67 @@ describe("source conversion menu target", () => {
       previews().onConfirm();
       expect(f.source()).toContain(table.replace("FIRST", "SECOND"));
       expect(f.writes()).toBe(1);
+    } finally { f.destroy(); }
+  });
+});
+
+describe("promoted Base menu target", () => {
+  it.each(["create", "restore"] as const)("keeps %s bound to the Base where the menu opened", async (action) => {
+    const base = (id: string) => [
+      "```base",
+      `# structural-tables-promotion: stb_${id}`,
+      `# structural-tables-manifest: "Records/${id}/_promotion.json"`,
+      `filters: 'list(note.structural_table_ids).contains("stb_${id}")'`,
+      "```",
+    ].join("\n");
+    const table = (id: string) => `| Name |\n| --- |\n| ${id} |`;
+    const source = base("first") + "\n\n" + base("second");
+    const f = tableCommandEditor(source);
+    const contents = new Map<string, string>();
+    for (const id of ["first", "second"]) {
+      const path = `Records/${id}/_promotion.json`;
+      f.files.set(path, new MockTFile(path));
+      contents.set(path, JSON.stringify({
+        version: 2, pluginVersion: "0.11.5", tableId: `stb_${id}`, sourceFilePath: f.file.path,
+        originalTableSource: table(id), replacementSource: base(id), records: [],
+      }));
+    }
+    Object.assign(f.app.vault, {
+      read: async (file: MockTFile) => contents.get(file.path),
+      createFolder: async (path: string) => ({ path }),
+      create: async (path: string, content: string) => {
+        contents.set(path, content);
+        return new MockTFile(path);
+      },
+    });
+    Object.assign(f.app.workspace, { getLeaf: () => ({ openFile: async () => {} }) });
+    let callback!: (menu: Menu, editor: Editor, view: MarkdownView) => void;
+    vi.spyOn(f.app.workspace, "on").mockImplementation(((_event: string, handler: typeof callback) => {
+      callback = handler;
+      return {};
+    }) as typeof f.app.workspace.on);
+    const plugin = Object.assign(Object.create(StructuralTablesPlugin.prototype) as StructuralTablesPlugin, {
+      app: f.app, settings: { ...DEFAULT_SETTINGS, language: "en" }, basePromotionService: new BasePromotionService(f.app),
+    }) as unknown as { registerEditorMenu: () => void };
+    const preview = capturePreview();
+    try {
+      f.editor.setCursor(f.editor.offsetToPos(source.indexOf("first")));
+      plugin.registerEditorMenu();
+      const menu = new Menu();
+      callback(menu, f.editor, f.view);
+      f.editor.setCursor(f.editor.offsetToPos(source.indexOf("second")));
+      const title = createTranslator("en")(action === "create" ? "menu.createBaseRecord" : "menu.restorePromotedTable");
+      menu.items.find((item) => item.title === title)!.callback!();
+      if (action === "restore") {
+        await vi.waitFor(() => expect(preview().source).toBe(table("first")));
+        preview().onConfirm();
+        await vi.waitFor(() => expect(f.source()).toBe(table("first") + "\n\n" + base("second")));
+        expect(f.writes()).toBe(1);
+      } else {
+        await vi.waitFor(() => expect(contents.get("Notes/_structural-table-records/stb_first/Record.md")).toContain("stb_first"));
+        expect(contents.has("Notes/_structural-table-records/stb_second/Record.md")).toBe(false);
+        expect(f.writes()).toBe(0);
+      }
     } finally { f.destroy(); }
   });
 });

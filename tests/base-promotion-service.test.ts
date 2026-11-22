@@ -329,6 +329,26 @@ describe("Base operation lifetime", () => {
 });
 
 describe("record filename identity", () => {
+  it("allocates portable names before writing and preserves each original cell value", async () => {
+    const host = memoryHost();
+    const file = memoryFile("Folder/People.md");
+    const names = ["Caf\u00e9", "Cafe\u0301", "CAF\u00c9"];
+    const source = ["| Name |", "| --- |", ...names.map((name) => `| ${name} |`)].join("\n");
+    const table = parseEditableTables(source).tables[0]!;
+    const editor = new MemoryEditor(source);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(table, file);
+
+    expect(prepared.records.map(({ path }) => path.split("/").pop()))
+      .toEqual([`${names[0]}.md`, `${names[1]} 2.md`, `${names[2]} 3.md`]);
+    await service.execute(editor as unknown as Editor, table, prepared, sourceTarget(editor, file));
+    for (const [index, record] of prepared.records.entries()) {
+      const content = host.contents.get(record.path)!;
+      expect(parse(content.split("---")[1]!) as Record<string, unknown>).toMatchObject({ Name: names[index] });
+    }
+    expect(editor.getValue()).toBe(prepared.replacementSource);
+  });
+
   it("uses locale-independent case folding for collision checks", () => {
     expect(recordFileNameIdentity("Alice.md")).toBe("alice.md");
     expect(recordFileNameIdentity("ALICE.MD")).toBe("alice.md");

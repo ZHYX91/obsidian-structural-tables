@@ -93,6 +93,8 @@ export class StructuralTableEditorController {
       const sourcePath = state.field(editorInfoField, false)?.file?.path ?? "";
       const selections = state.selection.ranges;
       const entries: DecorationEntry[] = [];
+      const referenceDefinitions = fallbackCallouts.length > 0
+        ? tables?.find(table => table.referenceDefinitions !== undefined)?.referenceDefinitions?.markdown : undefined;
       for (const range of fallbackCallouts) {
         if (!callouts.some((callout) => callout.from === range.from && callout.to === range.to)
           || sourceFocused && selections.some((selection) => selection.empty
@@ -102,7 +104,7 @@ export class StructuralTableEditorController {
             && table.valid && (table.structural || settings.takeOverOrdinaryTables))) continue;
         entries.push({ from: range.from, to: range.to, decoration: Decoration.replace({
           block: true, widget: new CalloutFallbackWidget(app, range.from,
-            state.doc.sliceString(range.from, range.to), sourcePath),
+            state.doc.sliceString(range.from, range.to), sourcePath, referenceDefinitions),
         }) });
       }
       for (const table of tables ?? []) {

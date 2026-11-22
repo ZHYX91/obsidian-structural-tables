@@ -1,5 +1,6 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 import type { StructuralTable } from "../core/model";
+import { withNoteReferences } from "../core/portable-markdown-cell";
 import { withoutSourcePrefixes } from "../core/source-lines";
 
 export interface RenderedBlock {
@@ -35,7 +36,8 @@ export async function renderTableSignatures(app: App, table: StructuralTable, so
   // Keep our own postprocessor out of this detached native-render comparison.
   component.load();
   try {
-    await MarkdownRenderer.render(app, withoutSourcePrefixes(table.source), container, sourcePath, component);
+    await MarkdownRenderer.render(app, withNoteReferences(withoutSourcePrefixes(table.source), table.referenceDefinitions?.markdown),
+      container, sourcePath, component);
     return Array.from(container.children, (child) => blockSignature(child as HTMLElement));
   } finally {
     component.unload();

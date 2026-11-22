@@ -4,7 +4,7 @@
 
 - Preserve literal code, link destinations, image attributes, and empty headers when converting tables to plain GFM. Keep visible text when copying imported content as CSV or TSV.
 - Keep short ordinary GFM rows in whole-table copy, transpose, and deletion. Preserve adjoining source and standalone block IDs.
-- Keep similar tables attached to their own source in Reading View and standalone rendering.
+- Keep similar tables attached to their own source and retain links defined elsewhere in the note when rendering or copying their cells.
 - Keep Base menu actions bound to the original Base, read saved record properties during legacy migration, and avoid Unicode-equivalent record filenames.
 - Improve keyboard navigation in conversion previews and restore the selection when recovering an interrupted cell draft.
 

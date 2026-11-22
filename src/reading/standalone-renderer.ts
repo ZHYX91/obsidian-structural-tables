@@ -6,6 +6,7 @@ import { tableCopySession } from "../app/table-html-copy";
 import { createTranslator } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import { parseEditableTables } from "../core/parser";
+import { withNoteReferences } from "../core/portable-markdown-cell";
 import { withoutSourcePrefixes } from "../core/source-lines";
 import { contentSignature } from "../rendering/content-signature";
 import { renderStructuralTable, tableRenderingComplete } from "../rendering/table-renderer";
@@ -93,7 +94,7 @@ export class StandaloneTableRenderer {
       Promise.all(tables.map(async (table) => {
         const staging = await nativeSnapshot(
           this.app,
-          withoutSourcePrefixes(table.source),
+          withNoteReferences(withoutSourcePrefixes(table.source), table.referenceDefinitions?.markdown),
           context.sourcePath,
           container.ownerDocument,
         );

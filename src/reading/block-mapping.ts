@@ -5,6 +5,7 @@ import { App, Component, MarkdownRenderChild, MarkdownRenderer, type MarkdownPos
 
 import type { StructuralTablesSettings } from "../config/settings";
 import type { StructuralTable } from "../core/model";
+import { withNoteReferences } from "../core/portable-markdown-cell";
 import { withoutSourcePrefixes } from "../core/source-lines";
 import { renderStructuralTable } from "../rendering/table-renderer";
 import type { ExportTableImage } from "../app/table-image-modal";
@@ -247,7 +248,8 @@ export class ReadingBlockMapper {
     comparison.load();
     let templates: HTMLElement[];
     try {
-      await MarkdownRenderer.render(this.app, withoutSourcePrefixes(table.source), staging, owner.context.sourcePath, comparison);
+      await MarkdownRenderer.render(this.app, withNoteReferences(withoutSourcePrefixes(table.source), table.referenceDefinitions?.markdown),
+        staging, owner.context.sourcePath, comparison);
       templates = Array.from(staging.children, (element) => element.cloneNode(true) as HTMLElement);
     } catch { return; }
     finally { comparison.unload(); }

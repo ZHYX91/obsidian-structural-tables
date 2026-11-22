@@ -142,7 +142,7 @@ export class CalloutTables {
       }
       const blocks = root === undefined ? [] : calloutBlocks(root, originals);
       const plans = tables.map((table) => {
-        const key = JSON.stringify([state.sourcePath, table.source]);
+        const key = JSON.stringify([state.sourcePath, table.source, table.referenceDefinitions?.markdown]);
         activeKeys.add(key);
         if (root === undefined) return { table, status: "waiting-for-dom" as const, matches: [], signatureKey: "" };
         let entry = this.signatures.get(key);

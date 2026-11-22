@@ -3,6 +3,7 @@ import { App, Component, MarkdownRenderer } from "obsidian";
 import type { TableAppearance } from "../config/settings";
 import { structuralTableToDelimited, structuralTableToHtml } from "../core/interchange";
 import type { StructuralTable } from "../core/model";
+import { withCellReferences } from "../core/portable-markdown-cell";
 
 const INLINE_TAGS = new Set(["A", "B", "BR", "CODE", "DEL", "EM", "I", "MARK", "S", "STRONG", "SUB", "SUP", "U"]);
 const OMIT_TAGS = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT"]);
@@ -78,7 +79,7 @@ export async function renderTableClipboard(
         if (!isCurrent()) throw new Error("The table copy was cancelled.");
         const element = elements[index++]!;
         const rendered = window.document.createElement("div");
-        await MarkdownRenderer.render(app, cell.content, rendered, sourcePath, component);
+        await MarkdownRenderer.render(app, withCellReferences(cell.content, table.referenceDefinitions), rendered, sourcePath, component);
         if (!isCurrent()) throw new Error("The table copy was cancelled.");
         element.replaceChildren();
         if (hasBlockContent(rendered)

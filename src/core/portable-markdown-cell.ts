@@ -22,11 +22,18 @@ function codeSpanAsHtml(raw: string): string {
 
 export type MarkdownReferences = Record<string, { href: string; title: string }>;
 
+export interface MarkdownReferenceDefinitions {
+  markdown: string;
+  sources: ReadonlyMap<string, string>;
+  references: MarkdownReferences;
+}
+
 interface CellScan {
   references?: MarkdownReferences | undefined;
   source: string;
   hasPipedCode?: boolean;
   spans: { from: number; to: number; replacement: string }[];
+  usedReferences?: Set<string>;
 }
 
 type InlineState = InstanceType<MarkdownIt["inline"]["State"]>;
@@ -39,13 +46,20 @@ function encodeLinkAttribute(value: string): string {
 }
 
 /** Preserve the parsed destination across isolated previews, pastes and GFM's table-level pipe unescaping. */
-function recordPipeReference(state: InlineState, scan: CellScan, from: number, firstToken: number, image: boolean): void {
+function recordReference(state: InlineState, scan: CellScan, from: number, firstToken: number, image: boolean): void {
   const endLabel = state.md.helpers.parseLinkLabel(state, from + (image ? 1 : 0), !image);
   const after = endLabel + 1;
   if (state.src[after] === "(" && state.pos > after) return; // inline destination
   const fullReference = state.pos > after + 2;
   const id = fullReference ? state.src.slice(after + 1, state.pos - 1)
     : state.src.slice(from + (image ? 2 : 1), endLabel);
+  // A link or image can flush pending text before emitting its opening token.
+  const token = state.tokens.slice(firstToken).find(item => item.type === (image ? "image" : "link_open"));
+  if (!token) return;
+  if (scan.usedReferences !== undefined) {
+    scan.usedReferences.add(state.md.utils.normalizeReference(id));
+    return;
+  }
   if (!id.includes("|")) return;
   // Full references have a separate, opaque identifier. A shortcut or collapsed
   // reference also needs its target when exporting its visible label rewrites that identifier.
@@ -56,9 +70,6 @@ function recordPipeReference(state: InlineState, scan: CellScan, from: number, f
     state.md.inline.parse(id, state.md, idScan, []);
     if (!idScan.hasPipedCode) return;
   }
-  // A link or image can flush pending text before emitting its opening token.
-  const token = state.tokens.slice(firstToken).find(item => item.type === (image ? "image" : "link_open"));
-  if (!token) return;
   const href = token.attrGet(image ? "src" : "href");
   if (href == null) return;
   const title = token.attrGet("title");
@@ -120,6 +131,10 @@ function cellParser(): MarkdownIt {
       const scan = state.env as CellScan;
       if (state.src !== scan.source) return true; // Image alt text has its own offsets.
       const marker = state.src[from];
+      if (scan.usedReferences !== undefined) {
+        if (marker === "[" || marker === "!") recordReference(state, scan, from, firstToken, marker === "!");
+        return true;
+      }
       if (marker === "`") {
         const token = state.tokens[state.tokens.length - 1]!;
         if (token.type === "code_inline" && token.content.includes("|")) {
@@ -131,7 +146,7 @@ function cellParser(): MarkdownIt {
         recordAngleSyntax(state, scan, from);
       } else if (marker === "[" || marker === "!") {
         if (marker === "!" && recordImageAngles(state, scan, from)) return true;
-        if (scan.references) recordPipeReference(state, scan, from, firstToken, marker === "!");
+        if (scan.references) recordReference(state, scan, from, firstToken, marker === "!");
       }
       return true;
     });
@@ -160,6 +175,43 @@ export function documentPipeReferences(source: string): MarkdownReferences | und
     md.block.parse(definition.replace(/\0/gu, "\uFFFD"), md, env, []);
   });
   return env.references;
+}
+
+/** A detached render has the note path but does not have its link definitions. */
+export function renderReferenceDefinitions(definitions: readonly string[]): MarkdownReferenceDefinitions | undefined {
+  if (definitions.length === 0) return undefined;
+  const md = cellParser();
+  const sources = new Map<string, string>();
+  const references = Object.create(null) as MarkdownReferences;
+  for (const definition of definitions) {
+    const env = { references: Object.create(null) as MarkdownReferences };
+    const tokens: Parameters<MarkdownIt["block"]["parse"]>[3] = [];
+    md.block.parse(definition.replace(/\0/gu, "\uFFFD"), md, env, tokens);
+    if (tokens.length !== 0) continue;
+    for (const [label, reference] of Object.entries(env.references)) {
+      if (sources.has(label)) continue; // Markdown uses the first definition.
+      sources.set(label, definition);
+      references[label] = reference;
+    }
+  }
+  return sources.size === 0 ? undefined : { markdown: Array.from(sources.values()).join("\n\n"), sources, references };
+}
+
+export function withNoteReferences(source: string, definitions: string | undefined): string {
+  // Put complete definitions first so an open fence or block in the isolated
+  // excerpt cannot absorb them as visible content.
+  return definitions !== undefined && source.includes("[") ? definitions + "\n\n" + source : source;
+}
+
+/** Replay only the definitions used by a cell, leaving its original Markdown intact. */
+export function withCellReferences(source: string, definitions: MarkdownReferenceDefinitions | undefined): string {
+  if (definitions === undefined || !source.includes("[")) return source;
+  const usedReferences = new Set<string>();
+  const scan: CellScan = { source, references: definitions.references, spans: [], usedReferences };
+  const md = cellParser();
+  md.inline.parse(source, md, scan, []);
+  const matching = Array.from(usedReferences, label => definitions.sources.get(label)).filter(value => value !== undefined);
+  return withNoteReferences(source, matching.length > 0 ? matching.join("\n\n") : undefined);
 }
 
 export function portableCell(content: string, references?: MarkdownReferences): string {

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { readFileSync } from "node:fs";
+import MarkdownIt from "markdown-it";
 import { type App, Component, MarkdownRenderer } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -28,6 +29,41 @@ beforeAll(() => {
 });
 
 describe("logical grid coordinates", () => {
+  it("gives cells only the definitions their Markdown uses", async () => {
+    const source = [
+      "| --- || --- | --- |",
+      "| [*Shown*][guide] [Guide][] [Guide] | ![Icon][icon] | `[Guide]` [Direct](https://example.org/direct) |",
+      "",
+      "[Guide]: https://example.org/guide \"Guide title\"",
+      "[ GUIDE ]: https://example.org/duplicate",
+      "[Icon]: ./icon.svg",
+      "[Unrelated]: https://example.org/unrelated",
+    ].join("\n");
+    const model = parseStructuralTables(source).tables[0]!;
+    const markdown = new MarkdownIt();
+    const host = document.createElement("div");
+    const component = new Component();
+    const render = vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, input, element) => {
+      element.innerHTML = markdown.render(input);
+    });
+    try {
+      const table = renderStructuralTable({} as App, model, host, "Guide.md", component);
+      await tableRenderingComplete(table);
+      expect(Array.from(table.querySelectorAll("th a"), link => link.getAttribute("href")))
+        .toEqual(Array(3).fill("https://example.org/guide"));
+      expect(table.querySelector("th a em")?.textContent).toBe("Shown");
+      expect(table.querySelector("th a")?.getAttribute("title")).toBe("Guide title");
+      expect(table.querySelector("td img")?.getAttribute("src")).toBe("./icon.svg");
+      expect(table.querySelector("td code")?.textContent).toBe("[Guide]");
+      const inputs = render.mock.calls.map(call => call[1]);
+      expect(inputs[1]).not.toMatch(/\[Guide\]:|Unrelated|duplicate/u);
+      expect(inputs[2]).toBe("`[Guide]` [Direct](https://example.org/direct)");
+    } finally {
+      component.unload();
+      render.mockRestore();
+    }
+  });
+
   it("keeps header roles and logical columns across horizontal and vertical merges", async () => {
     const source = "| Region | Quarter | < | Total |\n| --- || --- | --- | --- |\n| North | Jan | < | 40 |\n| ^ | Feb | < | 50 |";
     const model = parseStructuralTables(source).tables[0]!;

@@ -1,6 +1,7 @@
 import { App, Component, MarkdownRenderer } from "obsidian";
 
 import type { StructuralTable } from "../core/model";
+import { withCellReferences, type MarkdownReferenceDefinitions } from "../core/portable-markdown-cell";
 import { installThemeCornerRemap } from "./theme-corners";
 
 interface PendingCellRender {
@@ -23,6 +24,7 @@ export function tableRenderingComplete(table: HTMLTableElement): Promise<void> {
 function scheduleCellRendering(
   app: App,
   cells: readonly { source: string; target: HTMLElement }[],
+  referenceDefinitions: MarkdownReferenceDefinitions | undefined,
   sourcePath: string,
   component: Component,
   onFailure: () => void,
@@ -45,7 +47,7 @@ function scheduleCellRendering(
     const renders = cells.map(async ({ source, target }) => {
       if (task.cancelled) return;
       try {
-        await MarkdownRenderer.render(app, source, target, sourcePath, component);
+        await MarkdownRenderer.render(app, withCellReferences(source, referenceDefinitions), target, sourcePath, component);
       } catch {
         onFailure();
         if (!task.cancelled) target.textContent = source;
@@ -127,7 +129,8 @@ export function renderStructuralTable(
   // Never re-enter Obsidian's Markdown post-processor pipeline while CodeMirror
   // is still constructing the widget DOM. The owning component cancels stale
   // work if the view is destroyed before this microtask runs.
-  completionByTable.set(rendered, scheduleCellRendering(app, pendingCells, sourcePath, component, () => failures.add(rendered)));
+  completionByTable.set(rendered, scheduleCellRendering(app, pendingCells, table.referenceDefinitions,
+    sourcePath, component, () => failures.add(rendered)));
   installThemeCornerRemap(rendered, component);
   return rendered;
 }

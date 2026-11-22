@@ -41,6 +41,24 @@ function harness(source = merged, displayed = source) {
 }
 
 describe("standalone Markdown rendering", () => {
+  it.each(["first", "second"])("uses the note's current reference in an isolated table: %s", async (target) => {
+    const table = [
+      "| Label | Reference | Direct |",
+      "| --- || --- | --- |",
+      "| A B | [Guide][id] | [Guide](https://example.org/first) |",
+    ].join("\n");
+    const note = table + "\n\n```md\n[id]: https://example.org/ignored\n```\n\n"
+      + `[id]: https://example.org/${target} "Current guide"\n`;
+    const h = harness(note);
+    await h.run();
+    const links = Array.from(h.container.querySelectorAll<HTMLAnchorElement>(".structural-tables-table a"));
+    expect(links.map(link => [link.textContent, link.getAttribute("href"), link.title])).toEqual([
+      ["Guide", `https://example.org/${target}`, "Current guide"],
+      ["Guide", "https://example.org/first", ""],
+    ]);
+    expect(h.container.textContent?.match(/https:\/\/example.org\/ignored/gu)).toHaveLength(1);
+  });
+
   it("distinguishes saved table values that differ by an internal space", async () => {
     const first = merged.replace("North", "A B");
     const second = merged.replace("North", "AB");

@@ -1,5 +1,6 @@
 import { EditorView, WidgetType } from "@codemirror/view";
 import { App, Component, MarkdownRenderer } from "obsidian";
+import { withNoteReferences } from "../core/portable-markdown-cell";
 import { structuralTableSourceFocus } from "./table-source-focus";
 
 /** A source-owned shell only when the host left an eligible Callout as raw lines. */
@@ -7,10 +8,11 @@ export class CalloutFallbackWidget extends WidgetType {
   private readonly mounts = new WeakMap<HTMLElement, { active: boolean; component: Component }>();
 
   constructor(private readonly app: App, readonly from: number, readonly source: string,
-    readonly sourcePath: string) { super(); }
+    readonly sourcePath: string, private readonly referenceDefinitions?: string) { super(); }
 
   override eq(other: CalloutFallbackWidget): boolean {
-    return this.from === other.from && this.source === other.source && this.sourcePath === other.sourcePath;
+    return this.from === other.from && this.source === other.source && this.sourcePath === other.sourcePath
+      && this.referenceDefinitions === other.referenceDefinitions;
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -35,7 +37,8 @@ export class CalloutFallbackWidget extends WidgetType {
     component.registerDomEvent(raw, "dblclick", revealSource);
     const staging = host.ownerDocument.createElement("div");
     staging.className = "structural-tables-container";
-    void MarkdownRenderer.render(this.app, this.source, staging, this.sourcePath, component).then(() => {
+    void MarkdownRenderer.render(this.app, withNoteReferences(this.source, this.referenceDefinitions),
+      staging, this.sourcePath, component).then(() => {
       if (!mount.active || staging.querySelector(".callout") === null) return;
       host.replaceChildren(...Array.from(staging.childNodes));
       const title = host.querySelector<HTMLElement>(".callout-title");

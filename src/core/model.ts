@@ -1,3 +1,5 @@
+import type { MarkdownReferenceDefinitions } from "./portable-markdown-cell";
+
 export type CellRole = "corner_header" | "column_header" | "row_header" | "data";
 export type MergeMarker = "left" | "up";
 export type ColumnAlignment = "default" | "left" | "center" | "right";
@@ -61,6 +63,7 @@ export interface StructuralTable {
   structural: boolean;
   valid: boolean;
   source: string;
+  referenceDefinitions?: MarkdownReferenceDefinitions;
 }
 
 export interface ParseResult {

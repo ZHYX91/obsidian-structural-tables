@@ -124,6 +124,7 @@ export class StructuralTableWidget extends WidgetType {
 
   override eq(other: StructuralTableWidget): boolean {
     return this.table.source === other.table.source
+      && this.table.referenceDefinitions?.markdown === other.table.referenceDefinitions?.markdown
       && this.table.range.from === other.table.range.from && this.table.range.to === other.table.range.to
       && this.table.sourceTableIndex === other.table.sourceTableIndex
       && this.sourcePath === other.sourcePath && samePresentation(this.settings, other.settings)
@@ -239,6 +240,7 @@ class StructuralTableInteraction {
 
   rebind(table: StructuralTable, sourcePath: string, settings: StructuralTablesSettings, copySession: TableCopySession): boolean {
     if (this.copySession !== copySession || this.table.source !== table.source || this.sourcePath !== sourcePath
+      || this.table.referenceDefinitions?.markdown !== table.referenceDefinitions?.markdown
       || !samePresentation(this.settings, settings)) return false;
     const sameSourceIdentity = this.table.range.from === table.range.from
       && this.table.range.to === table.range.to

@@ -8,6 +8,7 @@ import type {
   StructuralTable,
   TableDiagnostic,
 } from "./model";
+import { renderReferenceDefinitions } from "./portable-markdown-cell";
 import { ignoredMarkdownLines, isThematicBreak, sourceLines, sourcePrefix } from "./source-lines";
 import { splitTablePipeRow, type ParsedTablePipeRow } from "./table-cell-syntax";
 
@@ -183,7 +184,9 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
 function parseTables(source: string, includeOrdinary: boolean): ParseResult {
   const { lines: originalLines, offsets } = sourceLines(source);
   const listOwners: object[] = [];
-  const ignored = ignoredMarkdownLines(originalLines, { listOwners });
+  const definitions: string[] = [];
+  const ignored = ignoredMarkdownLines(originalLines, { listOwners }, undefined,
+    source.includes("]:") ? definition => definitions.push(definition) : undefined);
   const prefixes = originalLines.map(sourcePrefix);
   const lines = originalLines.map((line, index) => line.slice(prefixes[index]?.length ?? 0));
   const tables: StructuralTable[] = [];
@@ -309,6 +312,11 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
       valid: diagnostics.length === 0,
       source: source.slice(from, to),
     });
+  }
+  const referenceTables = definitions.length === 0 ? [] : tables.filter(table => table.source.includes("["));
+  if (referenceTables.length > 0) {
+    const references = renderReferenceDefinitions(definitions);
+    if (references !== undefined) for (const table of referenceTables) table.referenceDefinitions = references;
   }
   return { tables };
 }

@@ -22,6 +22,8 @@ undo/redo. Keep rich HTML import and mobile plain-text paste claims separate.
 
 When one note contains multiple tables, verify in Reading View that every native and owned table is rendered from its own reported source-line range rather than from an earlier table in the note.
 
+Use **Release table regression.md** for the short row without a pipe, the similar callout tables, the note-level link definition, and the headerless interchange. Use **Base release regression.md** to promote two distinct tables in the same note and verify that a menu opened for one Base still targets it after the editor caret moves to the other. The first table uses composed and decomposed spellings of the same record name.
+
 For a full optional regression, test the packaged candidate in an explicitly named disposable Vault on the minimum supported Obsidian version and the current stable version. Select the modules affected by the change; a full regression covers the complete checklist.
 
 For parser and code-text interchange changes, select `html-boundary-code-interchange` and use `HTML boundaries and code interchange.md`. Compare native HTML attributes and table ownership in both views, exact full-note edit/undo/redo, plain GFM copy and conversion, and actual browser HTML clipboard import. Keep minimum-version and current-version observations separate. The acceptance provider's **Record HTML boundary observation** command only records the active fixture source, visible DOM, host identity and clipboard; it never edits the note or issues a verdict.

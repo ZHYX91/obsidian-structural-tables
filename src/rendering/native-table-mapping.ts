@@ -2,29 +2,20 @@ import { App, Component, MarkdownRenderer } from "obsidian";
 import type { StructuralTable } from "../core/model";
 import { withNoteReferences } from "../core/portable-markdown-cell";
 import { withoutSourcePrefixes } from "../core/source-lines";
+import { contentSignature } from "./content-signature";
 
 export interface RenderedBlock {
   element: HTMLElement;
   signature: string;
 }
 
-function visibleText(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
-  if (node.nodeName === "BR") return "\n";
-  return Array.from(node.childNodes, visibleText).join("");
-}
-
-function text(node: Node): string {
-  return visibleText(node).replace(/\s+/gu, " ").trim();
-}
-
 export function blockSignature(element: HTMLElement): string {
   const table = element.matches("table") ? element : element.querySelector("table");
   if (table !== null) {
-    return JSON.stringify(["table", Array.from(table.rows, (row) => Array.from(row.cells,
-      (cell) => [text(cell), cell.rowSpan, cell.colSpan]))]);
+    return JSON.stringify(["table", Array.from(table.rows, row => Array.from(row.cells,
+      cell => [cell.tagName, contentSignature(cell, "text"), cell.rowSpan, cell.colSpan]))]);
   }
-  return JSON.stringify(["raw", text(element)]);
+  return JSON.stringify(["raw", contentSignature(element, "text")]);
 }
 
 /** Inline formatting is interpreted by the same renderer as the native callout. */

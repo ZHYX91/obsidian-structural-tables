@@ -1,7 +1,7 @@
 import { App, ButtonComponent, Component, MarkdownRenderer, Modal, Notice } from "obsidian";
 
 import { applyInterfaceLocale, operationNotice, type Translate } from "../config/i18n";
-import { mayUseCodeReferences } from "../core/portable-markdown-cell";
+import { mayUsePipeReferences } from "../core/portable-markdown-cell";
 import type { StructuralTable } from "../core/model";
 import type { OperationResult } from "../core/operations";
 import { planPlainGfmConversion, type PlainGfmConversion, type PlainGfmOrientation, type PlainGfmPlan, type PlainGfmWarning } from "../core/plain-gfm-conversion";
@@ -219,7 +219,7 @@ export class PlainGfmConversionService {
     const t = this.translator();
     void (async () => {
       if (!this.active) return;
-      const readNote = mayUseCodeReferences(table) ? target.readCurrentNote : undefined;
+      const readNote = mayUsePipeReferences(table) ? target.readCurrentNote : undefined;
       const note = readNote === undefined ? undefined : await readNote();
       if (note === null || (readNote === undefined && !await target.isCurrent())) { if (this.active) new Notice(t("notice.staleTable")); return; }
       if (!this.active) return;

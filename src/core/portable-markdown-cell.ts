@@ -22,9 +22,10 @@ function codeSpanAsHtml(raw: string): string {
 
 export type MarkdownReferences = Record<string, { href: string; title: string }>;
 
-interface CellCodeScan {
+interface CellScan {
   references?: MarkdownReferences | undefined;
   source: string;
+  hasPipedCode?: boolean;
   spans: { from: number; to: number; replacement: string }[];
 }
 
@@ -38,16 +39,23 @@ function encodeLinkAttribute(value: string): string {
 }
 
 /** Preserve the parsed destination across isolated previews, pastes and GFM's table-level pipe unescaping. */
-function recordCodeReference(state: InlineState, scan: CellCodeScan, from: number, firstToken: number, image: boolean): void {
+function recordPipeReference(state: InlineState, scan: CellScan, from: number, firstToken: number, image: boolean): void {
   const endLabel = state.md.helpers.parseLinkLabel(state, from + (image ? 1 : 0), !image);
   const after = endLabel + 1;
   if (state.src[after] === "(" && state.pos > after) return; // inline destination
-  const id = state.pos > after + 2 ? state.src.slice(after + 1, state.pos - 1)
+  const fullReference = state.pos > after + 2;
+  const id = fullReference ? state.src.slice(after + 1, state.pos - 1)
     : state.src.slice(from + (image ? 2 : 1), endLabel);
-  if (!id.includes("`") || !id.includes("|")) return;
-  const idScan: CellCodeScan = { source: id, spans: [] };
-  state.md.inline.parse(id, state.md, idScan, []);
-  if (idScan.spans.length === 0) return;
+  if (!id.includes("|")) return;
+  // Full references have a separate, opaque identifier. A shortcut or collapsed
+  // reference also needs its target when exporting its visible label rewrites that identifier.
+  const changedLabel = !fullReference && scan.spans.some(span => span.from > from && span.to <= endLabel);
+  if (!changedLabel) {
+    if (!id.includes("`")) return;
+    const idScan: CellScan = { source: id, spans: [] };
+    state.md.inline.parse(id, state.md, idScan, []);
+    if (!idScan.hasPipedCode) return;
+  }
   // A link or image can flush pending text before emitting its opening token.
   const token = state.tokens.slice(firstToken).find(item => item.type === (image ? "image" : "link_open"));
   if (!token) return;
@@ -56,6 +64,45 @@ function recordCodeReference(state: InlineState, scan: CellCodeScan, from: numbe
   const title = token.attrGet("title");
   scan.spans.push({ from: after, to: state.pos,
     replacement: "(<" + encodeLinkAttribute(href) + ">" + (title ? ' "' + encodeLinkAttribute(title) + '"' : "") + ")" });
+}
+
+function recordAngleSyntax(state: InlineState, scan: CellScan, from: number): void {
+  const last = state.tokens.length - 1;
+  const token = state.tokens[last]!;
+  let replacement: string;
+  if (token.type === "html_inline" && /^<[A-Za-z]/u.test(token.content)) {
+    // In a parsed opening tag, pipes can only occur in attribute values.
+    // HTML preserves a Markdown backslash here, but decodes a character reference.
+    replacement = token.content.replace(/\|/gu, "&#124;");
+  } else if (token.type === "link_close" && token.markup === "autolink") {
+    // The autolink rule emits an opening link, its visible text, and a closing link.
+    const href = state.tokens[last - 2]!.attrGet("href")!;
+    const label = state.tokens[last - 1]!.content;
+    const text = encodeTableCellText(label);
+    // A second Markdown link would end the enclosing Markdown label.
+    if (state.level > 0) replacement = '<a href="' + encodeLinkAttribute(href) + '">' + text + "</a>";
+    else replacement = "[" + text + "](<" + encodeLinkAttribute(href) + ">)";
+  } else return;
+  scan.spans.push({ from, to: state.pos, replacement });
+}
+
+function recordImageAngles(state: InlineState, scan: CellScan, from: number): boolean {
+  const image = state.tokens[state.tokens.length - 1]!;
+  if (image.type !== "image" || !image.content.includes("<") || !image.content.includes("|")) return false;
+  // An image description is parsed as plain alt text. In an autolink, the
+  // percent-encoded pipe often yields exactly the same alt in both readers.
+  // Compare actual images before choosing a spelling, including nested markup.
+  const candidate = image.content.replace(/\|/gu, "%7C");
+  const altImage = (label: string) => state.md.renderInline("![" + label + "](image)", { references: scan.references });
+  if (altImage(candidate) === altImage(image.content)) {
+    scan.spans.push({ from: from + 2, to: from + 2 + image.content.length, replacement: candidate });
+    return false;
+  }
+  // An HTML tag in a description can itself contribute its literal source.
+  // In that case neither a Markdown escape nor an entity is transparent.
+  const rendered = state.md.renderer.renderInline([image], state.md.options, state.env);
+  scan.spans.push({ from, to: state.pos, replacement: rendered.replace(/\|/gu, "&#124;") });
+  return true;
 }
 
 function cellParser(): MarkdownIt {
@@ -70,17 +117,21 @@ function cellParser(): MarkdownIt {
       const firstToken = state.tokens.length;
       const matched = standardRules.some(rule => rule(state, silent));
       if (!matched || silent || state.tokens.length === firstToken) return matched;
-      const scan = state.env as CellCodeScan;
+      const scan = state.env as CellScan;
       if (state.src !== scan.source) return true; // Image alt text has its own offsets.
       const marker = state.src[from];
       if (marker === "`") {
         const token = state.tokens[state.tokens.length - 1]!;
         if (token.type === "code_inline" && token.content.includes("|")) {
+          scan.hasPipedCode = true;
           const raw = state.src.slice(from + token.markup.length, state.pos - token.markup.length);
           scan.spans.push({ from, to: state.pos, replacement: codeSpanAsHtml(raw) });
         }
-      } else if (scan.references && (marker === "[" || marker === "!")) {
-        recordCodeReference(state, scan, from, firstToken, marker === "!");
+      } else if (marker === "<" && state.src.slice(from, state.pos).includes("|")) {
+        recordAngleSyntax(state, scan, from);
+      } else if (marker === "[" || marker === "!") {
+        if (marker === "!" && recordImageAngles(state, scan, from)) return true;
+        if (scan.references) recordPipeReference(state, scan, from, firstToken, marker === "!");
       }
       return true;
     });
@@ -89,19 +140,19 @@ function cellParser(): MarkdownIt {
   return cellMarkdown;
 }
 
-export function mayUseCodeReferences(table: StructuralTable): boolean {
+export function mayUsePipeReferences(table: StructuralTable): boolean {
   return table.rows.some(row => row.cells.some(({ content }) => {
     const open = content.indexOf("[");
     if (open < 0) return false;
     const close = content.lastIndexOf("]");
-    const tick = content.indexOf("`", open + 1);
+    const inlineMarkup = /[`<]/u.test(content.slice(open + 1, close));
     const pipe = content.indexOf("|", open + 1);
-    return tick >= 0 && tick < close && pipe >= 0 && pipe < close;
+    return inlineMarkup && pipe >= 0 && pipe < close;
   }));
 }
 
 /** Let the existing note scanner establish block ownership and markdown-it resolve actual definitions. */
-export function documentCodeReferences(source: string): MarkdownReferences | undefined {
+export function documentPipeReferences(source: string): MarkdownReferences | undefined {
   if (!source.includes("]:")) return undefined;
   const env: { references: MarkdownReferences } = { references: Object.create(null) as MarkdownReferences };
   const md = cellParser();
@@ -113,8 +164,8 @@ export function documentCodeReferences(source: string): MarkdownReferences | und
 
 export function portableCell(content: string, references?: MarkdownReferences): string {
   const source = existingTableCellText(content);
-  const scan: CellCodeScan = { source, spans: [], references };
-  if (source.includes("`") && source.includes("|")) {
+  const scan: CellScan = { source, spans: [], references };
+  if (source.includes("|") && (source.includes("`") || source.includes("<"))) {
     const md = cellParser();
     md.inline.parse(source, md, scan, []);
   }

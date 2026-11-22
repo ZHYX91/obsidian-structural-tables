@@ -1,5 +1,5 @@
 import { structuralTableToPlainGfm } from "./interchange";
-import { documentCodeReferences, mayUseCodeReferences, type MarkdownReferences } from "./portable-markdown-cell";
+import { documentPipeReferences, mayUsePipeReferences, type MarkdownReferences } from "./portable-markdown-cell";
 import type { StructuralTable } from "./model";
 import { planTransposeTable, type OperationResult } from "./operations";
 import { parseEditableTables } from "./parser";
@@ -40,7 +40,7 @@ function projectionPlan(original: StructuralTable, projected: StructuralTable,
 /** Reuse the table's transpose and portable projection; no intermediate source write. */
 export function planPlainGfmConversion(table: StructuralTable, note?: string): PlainGfmConversion | null {
   if (!table.valid) return null;
-  const references = note !== undefined && mayUseCodeReferences(table) ? documentCodeReferences(note) : undefined;
+  const references = note !== undefined && mayUsePipeReferences(table) ? documentPipeReferences(note) : undefined;
   const keep = projectionPlan(table, table, "keep", references);
   // The preview is portable Markdown. Serialize the logical transpose without
   // a quote/list prefix, which can look like indented code without its note.

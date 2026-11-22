@@ -3,7 +3,7 @@ import { parseTableWrite } from "./table-write-validation";
 import { markdownSourceDisplayWidth, serializeStructuralTable } from "./serializer";
 import { portableCell, type MarkdownReferences } from "./portable-markdown-cell";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
-import { decodeLiteralTableEntity, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
+import { decodeLiteralTableEntity, delimitedTableCellText, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -60,7 +60,7 @@ function delimiterFor(alignment: ColumnAlignment): string {
   return "---";
 }
 
-function columnName(table: StructuralTable, column: number): string {
+function columnName(table: StructuralTable, column: number, cellText: (source: string) => string): string {
   const parts: string[] = [];
   let previousAnchor = "";
   for (let row = 0; row < table.headerRowCount; row += 1) {
@@ -69,19 +69,22 @@ function columnName(table: StructuralTable, column: number): string {
     const anchor = anchorFor(table, cell);
     const anchorKey = `${anchor.row}:${anchor.column}`;
     const content = anchor.content.trim();
-    if (anchorKey !== previousAnchor && content !== "") parts.push(content);
+    if (anchorKey !== previousAnchor && content !== "") parts.push(cellText(content));
     previousAnchor = anchorKey;
   }
-  return parts.join(" / ") || `Column ${column + 1}`;
+  return parts.join(" / ");
 }
 
-export function projectStructuralTable(table: StructuralTable): TabularProjection {
+export function projectStructuralTable(table: StructuralTable, {
+  generateColumnNames = true, cellText = (source: string) => source,
+} = {}): TabularProjection {
   if (!table.valid) throw new Error("Cannot project an invalid structural table.");
   const rows = table.rows.slice(table.headerRowCount).map((row) => row.cells.map((cell) => {
-    return anchorFor(table, cell).content;
+    return cellText(anchorFor(table, cell).content);
   }));
   return {
-    columnNames: Array.from({ length: table.columnCount }, (_value, column) => columnName(table, column)),
+    columnNames: Array.from({ length: table.columnCount }, (_value, column) =>
+      columnName(table, column, cellText) || (generateColumnNames ? `Column ${column + 1}` : "")),
     rows,
     alignments: [...table.alignments],
   };
@@ -89,11 +92,8 @@ export function projectStructuralTable(table: StructuralTable): TabularProjectio
 
 export function structuralTableToPlainGfm(table: StructuralTable, layout: "compact" | "aligned" = "compact",
   references?: MarkdownReferences): string {
-  const projection = projectStructuralTable(table);
-  const header = table.headerRowCount === 0
-    ? Array.from({ length: table.columnCount }, () => "")
-    : projection.columnNames;
-  const rows = [header, ...projection.rows].map((row) => row.map(cell => portableCell(cell, references)));
+  const projection = projectStructuralTable(table, { generateColumnNames: false });
+  const rows = [projection.columnNames, ...projection.rows].map((row) => row.map(cell => portableCell(cell, references)));
   const lines = layout === "aligned" ? alignedGfmLines(rows, projection.alignments) : [
     `| ${rows[0]!.join(" | ")} |`,
     `| ${projection.alignments.map(delimiterFor).join(" | ")} |`,
@@ -128,7 +128,7 @@ function delimitedCell(value: string, delimiter: "," | "\t"): string {
 }
 
 export function structuralTableToDelimited(table: StructuralTable, delimiter: "," | "\t"): string {
-  const projection = projectStructuralTable(table);
+  const projection = projectStructuralTable(table, { generateColumnNames: false, cellText: delimitedTableCellText });
   const rows = table.headerRowCount === 0 ? projection.rows : [projection.columnNames, ...projection.rows];
   return rows
     .map((row) => row.map((value) => delimitedCell(value, delimiter)).join(delimiter))

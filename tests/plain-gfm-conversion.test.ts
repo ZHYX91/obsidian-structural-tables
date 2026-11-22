@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { parseEditableTables } from "../src/core/parser";
 import { planPlainGfmConversion, plainGfmConversionInDocument } from "../src/core/plain-gfm-conversion";
-import { mayUseCodeReferences } from "../src/core/portable-markdown-cell";
+import { mayUsePipeReferences } from "../src/core/portable-markdown-cell";
 import { withSourcePrefix } from "../src/core/source-lines";
 
 const ROW_HEADERS = "| --- || --- | --- |\n| 姓名 | 张三 | 李四 |\n| 年龄 | 28 | 31 |\n| 城市 | 杭州 | 上海 |";
@@ -19,6 +19,15 @@ describe("plain GFM conversion plans", () => {
     ["angle-bracketed image destination", "![alt](<pic/`A\\|B`.png>)"],
     ["link title and visible code label", "[`a|b`](file.md 'Run `x\\|y`')"],
     ["parenthesized title", "[Guide](file.md (Run `x\\|y`))"],
+    ["relative HTML link destination", "<a href='docs/`a|b`.md'>Guide</a>"],
+    ["HTML image attributes", "<img src='pics/`A|B`.png' alt='one &amp; `two|three`' title='x > y'>"],
+    ["autolink inside a link label", "[<https://example.org/`a|b`>](guide)"],
+    ["autolink inside an image label", "![Guide <https://example.org/`a|b`>](pic.png)"],
+    ["HTML source inside an image label", "![<span title='`a|b`'>x</span>](pic.png)"],
+    ["URI autolink", "<https://example.org/`a|b`?a=1&b=2>"],
+    ["email autolink", "<`a|b`@example.org>"],
+    ["unquoted HTML attribute", "<span data-label=A\\|B>text</span>"],
+    ["attribute with authored backslash and adjacent code", "<a href='docs/`a\\|b`.md'>`a|b`</a>"],
     ["HTML attribute", "<span title='Run `x|y`'>text</span>"],
     ["unclosed link remains prose", "[Guide](broken `a|b`"],
   ] as const)("preserves %s on document replacement", (_name, cell) => {
@@ -30,7 +39,36 @@ describe("plain GFM conversion plans", () => {
     const expected = cells[0]!.ownerDocument.createElement("td");
     expected.innerHTML = markdown.renderInline(cell);
     expect(cells[0]!.innerHTML).toBe(expected.innerHTML);
+    const native = expected.ownerDocument.createElement("td");
+    native.innerHTML = markdown.renderInline(table(result.source).rows[1]!.cells[0]!.content);
+    expect(native.innerHTML).toBe(expected.innerHTML);
     expect(cells[1]!.innerHTML).toBe("<strong>keep</strong>");
+  });
+
+  it("keeps an independent reference label when exporting HTML attributes or autolinks", () => {
+    const cell = "[<span title='`a|b`'>link</span>][stable] and ![<https://site.org/`a|b`>][image]";
+    const note = "| Header | Next |\n| --- || --- |\n| " + cell + " | keep |\n\n[stable]: note\n[image]: img.png";
+    const result = plainGfmConversionInDocument(note, table(note), "keep");
+    expect(result.source).toContain("][stable]");
+    expect(result.source).toContain("][image]");
+    const markdown = new MarkdownIt({ html: true });
+    const env = {};
+    const definitions = note.slice(note.indexOf("\n\n"));
+    markdown.parse(definitions, env);
+    const expected = new JSDOM(markdown.renderInline(cell, env)).window.document.body.innerHTML;
+    expect(rendered(result.source + definitions).querySelector("td")?.innerHTML).toBe(expected);
+    const native = table(result.source).rows[1]!.cells[0]!.content;
+    expect(new JSDOM(markdown.renderInline(native, env)).window.document.body.innerHTML).toBe(expected);
+  });
+
+  it("preserves an opaque full reference identifier whose HTML attribute contains code-looking text", () => {
+    const id = "<span title='`a\\|b`'>";
+    const definitions = "\n\n[" + id + "]: note\n[" + id.replace("\\|", "|") + "]: note";
+    const cell = "[Guide][" + id + "]";
+    const note = "| H | K |\n| --- || --- |\n| " + cell + " | keep |" + definitions;
+    const result = plainGfmConversionInDocument(note, table(note), "keep");
+    expect(result.source).toContain(cell);
+    expect(rendered(result.source + definitions).querySelector("td a")?.getAttribute("href")).toBe("note");
   });
 
   it.each(["", "\\", "\\\\", "\\\\\\"])("preserves document reference links and images with %j before the pipe", (slashes) => {
@@ -81,7 +119,7 @@ describe("plain GFM conversion plans", () => {
 
   it("skips the note reference scan when piped code follows a link", () => {
     const source = "| H | K |\n| --- || --- |\n| [Guide](location) and `a|b` | keep |\n\n[unused]: elsewhere";
-    expect(mayUseCodeReferences(table(source))).toBe(false);
+    expect(mayUsePipeReferences(table(source))).toBe(false);
     expect(planPlainGfmConversion(table(source), source)!.keep.source).toContain("<code>");
   });
 
@@ -139,6 +177,8 @@ describe("plain GFM conversion plans", () => {
     const conversion = planPlainGfmConversion(table("| --- | --- |\n| Alice | 10 |\n| Bob | 20 |"))!;
     expect(conversion.recommended).toBe("keep");
     expect(conversion.keep.warnings).toEqual(["empty-header"]);
+    const again = plainGfmConversionInDocument(conversion.keep.source, table(conversion.keep.source), "keep");
+    expect(again).toMatchObject({ changed: false, source: conversion.keep.source });
     expect(rendered(conversion.keep.source).querySelectorAll("tbody tr")).toHaveLength(2);
     expect(conversion.transpose!.warnings).toEqual(["empty-header"]);
   });

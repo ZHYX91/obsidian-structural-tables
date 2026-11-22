@@ -88,6 +88,14 @@ export function encodeTableCellText(text: string): string {
   return result;
 }
 
+/** Recover the plain-text storage form without decoding Markdown code, links, or math. */
+export function delimitedTableCellText(source: string): string {
+  if (!source.includes("&#") && !source.includes("<br>")) return source;
+  const text = source.replace(/<br>/gu, "\n")
+    .replace(TABLE_TEXT_ENTITY_PATTERN, entity => decodeLiteralTableEntity(entity) ?? entity);
+  return encodeTableCellText(text) === source ? text : source;
+}
+
 /** Entity text is not literal inside code, math, HTML or link source. Refuse uncertainty. */
 export function pasteLiteralCellText(raw: string, from: number, to: number, text: string): string | null {
   if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < from || to > raw.length) return null;

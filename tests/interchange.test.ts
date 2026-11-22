@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   enabledConflictingPlugins,
   migrateSheetsExtendedTable,
+  importedHtmlTableToStructuralSource,
   projectStructuralTable,
   structuralTableToDelimited,
   structuralTableToHtml,
@@ -181,6 +182,29 @@ describe("table interchange", () => {
     const source = `| Name | Note |\n| --- || --- |\n| Alice | First${tag}Second |`;
 
     expect(structuralTableToHtml(table(source), "test")).toContain("First<br>Second");
+  });
+
+  it("exports HTML-imported literal data and headers to delimited text exactly once", () => {
+    const data = [
+      ["A&B", "Total (USD)"],
+      ["AT&T", "USD 1.50"],
+      ['"Hello, world"', "literal &#38;"],
+      ["<br>", "first\nsecond"],
+    ];
+    const imported = importedHtmlTableToStructuralSource(data.map((row, i) => ({
+      section: i === 0 ? "head" : "body",
+      cells: row.map(text => ({ text, header: i === 0, rowSpan: 1, columnSpan: 1 })),
+    })));
+    if (imported.kind !== "table") throw new Error("Expected imported table");
+    const parsed = table(imported.source);
+    expect(structuralTableToDelimited(parsed, ",")).toBe('A&B,Total (USD)\nAT&T,USD 1.50\n"""Hello, world""",literal &#38;\n<br>,first second');
+    expect(structuralTableToDelimited(parsed, "\t")).toBe('A&B\tTotal (USD)\nAT&T\tUSD 1.50\n"Hello, world"\tliteral &#38;\n<br>\tfirst second');
+  });
+
+  it("preserves authored code, links and complex Markdown in direct delimited copies", () => {
+    const cells = ["`&#38;`", "[A&#38;B](ref)", "$a&#38;b$", "**A&#38;B**", "&#38;nbsp;"];
+    const input = "| H1 | H2 | H3 | H4 | H5 |\n| --- | --- | --- | --- | --- |\n| " + cells.join(" | ") + " |";
+    expect(structuralTableToDelimited(table(input), "\t").split("\n")[1]).toBe(cells.join("\t"));
   });
 
   it("exports quoted CSV and sanitized TSV", () => {

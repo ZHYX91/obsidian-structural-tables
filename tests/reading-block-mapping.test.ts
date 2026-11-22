@@ -69,6 +69,17 @@ async function settled(): Promise<void> {
 }
 
 describe("Reading View source/block boundaries", () => {
+  it("limits native Reading View comparison to the table's own references", async () => {
+    const table = "> | Group | Sales |\n> | --- || --- |\n> | A | [sales][used] |";
+    const view = readingView(table + "\n\n[used]: /report\n[unused]: /other");
+    view.process();
+    await settled();
+    expect(view.root.querySelector(".structural-tables-container a")?.getAttribute("href")).toBe("/report");
+    const inputs = vi.mocked(MarkdownRenderer.render).mock.calls.map(call => call[1]);
+    expect(inputs.some(input => input.includes("[used]: /report"))).toBe(true);
+    expect(inputs.some(input => input.includes("[unused]:"))).toBe(false);
+  });
+
   it.each([true, false])("keeps two row-header tables apart with exact child ranges=%s", async precise => {
     const first = "> | Group | Sales |\n> | --- || --- |\n> | A B | 10 |";
     const view = readingView(first + "\n>\n" + first.replace("A B", "AB"));

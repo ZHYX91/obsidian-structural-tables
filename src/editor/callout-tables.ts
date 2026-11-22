@@ -154,7 +154,7 @@ export class CalloutTables {
           // excerpt. Its reference labels can still be literal before takeover.
           const full = state.render(table);
           const signatures: Promise<NonNullable<SignatureEntry["signatures"]>> =
-            table.referenceDefinitions === undefined ? full.then(value => [value])
+            table.referenceDefinitions?.markdown === undefined ? full.then(value => [value])
             : Promise.all([full, state.render(table, false)]);
           void signatures.then((value) => { pending.signatures = value; this.schedule(); },
             () => { pending.failed = true; this.schedule(); });

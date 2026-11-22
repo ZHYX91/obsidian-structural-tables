@@ -15,6 +15,7 @@ import { tableHistory, tableHistoryTarget } from "./table-history";
 import { mapTablesThroughProseEdit } from "./table-parse-cache";
 import { calloutRanges } from "../core/source-lines";
 import { CalloutTables } from "./callout-tables";
+import { blockReferenceMarkdown } from "../core/portable-markdown-cell";
 import { CalloutFallbackWidget } from "./callout-fallback-widget";
 import { renderTableSignatures } from "../rendering/native-table-mapping";
 import { structuralTableViewMode } from "./table-view-state";
@@ -94,7 +95,7 @@ export class StructuralTableEditorController {
       const selections = state.selection.ranges;
       const entries: DecorationEntry[] = [];
       const referenceDefinitions = fallbackCallouts.length > 0
-        ? tables?.find(table => table.referenceDefinitions !== undefined)?.referenceDefinitions?.markdown : undefined;
+        ? tables?.find(table => table.referenceDefinitions !== undefined)?.referenceDefinitions : undefined;
       for (const range of fallbackCallouts) {
         if (!callouts.some((callout) => callout.from === range.from && callout.to === range.to)
           || sourceFocused && selections.some((selection) => selection.empty
@@ -102,9 +103,10 @@ export class StructuralTableEditorController {
             : selection.from < range.to && selection.to > range.from)
           || !tables?.some((table) => table.range.from >= range.from && table.range.to <= range.to
             && table.valid && (table.structural || settings.takeOverOrdinaryTables))) continue;
+        const source = state.doc.sliceString(range.from, range.to);
         entries.push({ from: range.from, to: range.to, decoration: Decoration.replace({
-          block: true, widget: new CalloutFallbackWidget(app, range.from,
-            state.doc.sliceString(range.from, range.to), sourcePath, referenceDefinitions),
+          block: true, widget: new CalloutFallbackWidget(app, range.from, source, sourcePath,
+            blockReferenceMarkdown(source, referenceDefinitions)),
         }) });
       }
       for (const table of tables ?? []) {

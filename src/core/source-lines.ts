@@ -201,6 +201,7 @@ export function ignoredMarkdownLines(
   lines: readonly string[],
   visibleFenceInfo: ReadonlySet<string> = new Set<string>(),
   onHtmlLine?: (line: string, index: number) => void,
+  onReference?: (definition: string) => void,
 ): Set<number> {
   const ignored = new Set<number>();
   let fence: { character: "`" | "~"; length: number; listIndent: number } | null = null;
@@ -426,6 +427,13 @@ export function ignoredMarkdownLines(
       ? referenceDefinitionEnd(referenceContent(lines[index] ?? "", original.length - line.length),
         (offset) => referenceContinuation(lines, index + offset, quoteIndents, listIndent)) : null;
     if (reference !== null) {
+      if (onReference !== undefined) {
+        const definition = [referenceContent(lines[index]!, original.length - line.length)];
+        for (let offset = 1; offset <= reference; offset += 1) {
+          definition.push(referenceContinuation(lines, index + offset, quoteIndents, listIndent)!);
+        }
+        onReference(definition.join("\n"));
+      }
       referenceEnd = index + reference;
       ignored.add(index);
       paragraph = null;

@@ -32,6 +32,7 @@ const context = await esbuild.context({
   ],
   format: "cjs",
   target: "es2020",
+  charset: "utf8",
   platform: "browser",
   outfile: path.join(outputDirectory, "main.js"),
   sourcemap: production ? false : "inline",

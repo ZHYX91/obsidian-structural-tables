@@ -122,6 +122,10 @@ describe("Structural Tables settings export guide", () => {
     tab.display();
     const container = tab.containerEl as unknown as MockElement;
     const elements = container.descendants();
+    const activePanel = elements.find((element) => element.attributes.get("role") === "tabpanel")!;
+    for (const tabButton of elements.filter((element) => element.attributes.get("role") === "tab")) {
+      expect(container.querySelector("#" + tabButton.attributes.get("aria-controls"))).toBe(activePanel);
+    }
     const links = elements.filter(element => element.tag === "a");
     const guide = links.find(element => element.textContent === "使用指南");
     const report = links.find(element => element.textContent === "报告问题");

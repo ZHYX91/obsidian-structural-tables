@@ -1,9 +1,9 @@
 import type { ColumnAlignment, StructuralCell, StructuralTable } from "./model";
 import { parseTableWrite } from "./table-write-validation";
 import { markdownSourceDisplayWidth, serializeStructuralTable } from "./serializer";
-import { closedCodeSpanEnd, existingTableCellText } from "./table-cell-syntax";
+import { portableCell, type MarkdownReferences } from "./portable-markdown-cell";
 import { hasHiddenGfmOverflow } from "./table-write-safety";
-import { decodeLiteralTableEntity, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
+import { decodeLiteralTableEntity, delimitedTableCellText, literalTableCellText, TABLE_TEXT_ENTITY_PATTERN } from "./literal-cell-text";
 
 export interface TabularProjection {
   columnNames: string[];
@@ -53,53 +53,6 @@ function anchorFor(table: StructuralTable, cell: StructuralCell): StructuralCell
   return table.rows[cell.anchorRow]?.cells[cell.anchorColumn] ?? cell;
 }
 
-function codeSpanDisplayText(raw: string): string {
-  const normalized = raw.replace(/\r\n|\r|\n/gu, " ");
-  // CommonMark code spans collapse line endings and trim one surrounding
-  // space when both ends are spaces and the span is not all whitespace.
-  return normalized.startsWith(" ") && normalized.endsWith(" ") && /[^ ]/u.test(normalized)
-    ? normalized.slice(1, -1) : normalized;
-}
-
-function codeSpanAsHtml(raw: string): string {
-  // GFM unescapes code-span pipes in tables, while native Obsidian keeps that
-  // backslash. No backtick spelling preserves the same pipe text in both.
-  // Encode code pipes as inline HTML, including their literal backslashes.
-  const content = codeSpanDisplayText(raw)
-    .replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;")
-    .replace(/\\/gu, "&#92;").replace(/\|/gu, "&#124;");
-  return "<code>" + content + "</code>";
-}
-
-function portableCell(content: string): string {
-  const source = existingTableCellText(content);
-  let cell = "";
-  for (let index = 0; index < source.length;) {
-    const character = source[index] ?? "";
-    if (character === "\\") {
-      cell += source.slice(index, index + 2);
-      index += 2;
-      continue;
-    }
-    if (character === "`") {
-      const end = closedCodeSpanEnd(source, index);
-      if (end !== null) {
-        const opening = /^`+/u.exec(source.slice(index))![0].length;
-        const raw = source.slice(index + opening, end - opening);
-        cell += raw.includes("|") ? codeSpanAsHtml(raw) : source.slice(index, end);
-        index = end;
-        continue;
-      }
-    }
-    cell += character;
-    index += 1;
-  }
-  // Pipes outside protected code spans still need GFM delimiter escaping.
-  return cell.replace(/(\\*)\|/gu, (_match, slashes: string) =>
-    slashes.length % 2 === 0 ? slashes + "\\|" : slashes + "|");
-}
-
-
 function delimiterFor(alignment: ColumnAlignment): string {
   if (alignment === "left") return ":---";
   if (alignment === "center") return ":---:";
@@ -107,7 +60,7 @@ function delimiterFor(alignment: ColumnAlignment): string {
   return "---";
 }
 
-function columnName(table: StructuralTable, column: number): string {
+function columnName(table: StructuralTable, column: number, cellText: (source: string) => string): string {
   const parts: string[] = [];
   let previousAnchor = "";
   for (let row = 0; row < table.headerRowCount; row += 1) {
@@ -116,30 +69,31 @@ function columnName(table: StructuralTable, column: number): string {
     const anchor = anchorFor(table, cell);
     const anchorKey = `${anchor.row}:${anchor.column}`;
     const content = anchor.content.trim();
-    if (anchorKey !== previousAnchor && content !== "") parts.push(content);
+    if (anchorKey !== previousAnchor && content !== "") parts.push(cellText(content));
     previousAnchor = anchorKey;
   }
-  return parts.join(" / ") || `Column ${column + 1}`;
+  return parts.join(" / ");
 }
 
-export function projectStructuralTable(table: StructuralTable): TabularProjection {
+export function projectStructuralTable(table: StructuralTable, {
+  generateColumnNames = true, cellText = (source: string) => source,
+} = {}): TabularProjection {
   if (!table.valid) throw new Error("Cannot project an invalid structural table.");
   const rows = table.rows.slice(table.headerRowCount).map((row) => row.cells.map((cell) => {
-    return anchorFor(table, cell).content;
+    return cellText(anchorFor(table, cell).content);
   }));
   return {
-    columnNames: Array.from({ length: table.columnCount }, (_value, column) => columnName(table, column)),
+    columnNames: Array.from({ length: table.columnCount }, (_value, column) =>
+      columnName(table, column, cellText) || (generateColumnNames ? `Column ${column + 1}` : "")),
     rows,
     alignments: [...table.alignments],
   };
 }
 
-export function structuralTableToPlainGfm(table: StructuralTable, layout: "compact" | "aligned" = "compact"): string {
-  const projection = projectStructuralTable(table);
-  const header = table.headerRowCount === 0
-    ? Array.from({ length: table.columnCount }, () => "")
-    : projection.columnNames;
-  const rows = [header, ...projection.rows].map((row) => row.map(portableCell));
+export function structuralTableToPlainGfm(table: StructuralTable, layout: "compact" | "aligned" = "compact",
+  references?: MarkdownReferences): string {
+  const projection = projectStructuralTable(table, { generateColumnNames: false });
+  const rows = [projection.columnNames, ...projection.rows].map((row) => row.map(cell => portableCell(cell, references)));
   const lines = layout === "aligned" ? alignedGfmLines(rows, projection.alignments) : [
     `| ${rows[0]!.join(" | ")} |`,
     `| ${projection.alignments.map(delimiterFor).join(" | ")} |`,
@@ -174,7 +128,7 @@ function delimitedCell(value: string, delimiter: "," | "\t"): string {
 }
 
 export function structuralTableToDelimited(table: StructuralTable, delimiter: "," | "\t"): string {
-  const projection = projectStructuralTable(table);
+  const projection = projectStructuralTable(table, { generateColumnNames: false, cellText: delimitedTableCellText });
   const rows = table.headerRowCount === 0 ? projection.rows : [projection.columnNames, ...projection.rows];
   return rows
     .map((row) => row.map((value) => delimitedCell(value, delimiter)).join(delimiter))

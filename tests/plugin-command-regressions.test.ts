@@ -468,6 +468,18 @@ describe.each([
 });
 
 describe("GFM command boundaries", () => {
+  it("copies a resolved reference from the invocation's note snapshot", async () => {
+    const source = "| H | K |\n| --- || --- |\n| [Guide][`a|b`] | keep |\n\n[`a|b`]: old";
+    const editor = editorHarness(source);
+    const harness = pluginHarness(editor.editor, new MockTFile("A.md"));
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    harness.plugin.copyCurrentTable(editor.editor, "GFM");
+    editor.setSource(source.replace(": old", ": new"));
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(writeText.mock.calls[0]![0]).toContain("[Guide](<old>)");
+    expect(editor.replaceRange).not.toHaveBeenCalled();
+  });
+
   it.each([
     "$5",
     String.raw`$\lvert x\rvert$`,

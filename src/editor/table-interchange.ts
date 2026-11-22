@@ -146,16 +146,12 @@ export function cellClipboardText(html: string, plain: string): CellClipboardTex
   return { kind: "unsupported" };
 }
 
-function rowSpanForClipboardCell(cell: HTMLTableCellElement, row: HTMLTableRowElement): number {
+function rowSpanForClipboardCell(cell: HTMLTableCellElement, remaining: number): number {
   const raw = cell.getAttribute("rowspan");
   const token = raw?.trim() ?? "";
   const parsed = /^[0-9]+$/u.test(token) ? Number(token) : null;
-  const siblings = Array.from(row.parentElement?.children ?? [])
-    .filter((candidate): candidate is HTMLTableRowElement => candidate.tagName === "TR");
-  const index = siblings.indexOf(row);
   // HTML cells cannot span two row groups. The DOM rowSpan getter preserves
   // the requested positive value even when the browser layout clips the span.
-  const remaining = index < 0 ? 1 : Math.max(1, siblings.length - index);
   return parsed === 0 ? remaining : Math.min(positiveSpan(cell.rowSpan), remaining);
 }
 
@@ -197,13 +193,20 @@ function importedClipboardTable(html: string): ImportedHtmlTableResult | null {
     || hasUnsupportedCellContent(parsed.table)
   ) return null;
   const { table } = parsed;
-  const rows: ImportedHtmlRow[] = Array.from(table.rows).map((row) => {
+  // DOM table.rows keeps each row group contiguous. Locate its end once,
+  // including for the zero span that extends to the end of this group.
+  const sourceRows = Array.from(table.rows);
+  let groupEnd = 0;
+  const rows: ImportedHtmlRow[] = sourceRows.map((row, index) => {
+    if (index === groupEnd) {
+      do { groupEnd += 1; } while (groupEnd < sourceRows.length && sourceRows[groupEnd]!.parentElement === row.parentElement);
+    }
     const section = row.parentElement?.tagName.toLowerCase() === "thead" ? "head" : "body";
     return {
       section,
       cells: Array.from(row.cells).map((cell) => ({
         text: htmlCellText(cell),
-        rowSpan: rowSpanForClipboardCell(cell, row),
+        rowSpan: rowSpanForClipboardCell(cell, groupEnd - index),
         columnSpan: positiveSpan(cell.colSpan),
         header: cell.tagName.toLowerCase() === "th",
       })),

@@ -24,7 +24,7 @@ assertRuntimeContract({
   packageJson,
 });
 // Browser-only dependencies are pinned and bundled; no host package loader or CDN.
-const bundledDependencies = { "html-to-image": "1.11.13", yaml: "2.9.1" };
+const bundledDependencies = { "html-to-image": "1.11.13", "markdown-it": "14.3.3", yaml: "2.9.1" };
 if (JSON.stringify(packageJson.dependencies ?? {}) !== JSON.stringify(bundledDependencies)) {
   throw new Error("Runtime dependencies must be reviewed and bundled intentionally.");
 }

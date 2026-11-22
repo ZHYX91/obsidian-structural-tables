@@ -12,7 +12,7 @@ export interface EditorTableCommandTarget {
   draftRoot: ParentNode;
   sourcePath: string;
   isCurrent: () => boolean;
-  apply: (operation: (source: string, table: StructuralTable) => OperationResult) => OperationResult | null;
+  apply: (operation: (source: string, table: StructuralTable) => OperationResult | null) => OperationResult | null;
 }
 
 /** Capture the attached editor/file/model, never a cursor or a table's DOM ordinal. */
@@ -46,7 +46,9 @@ export function captureEditorTableCommandTarget(app: App, editor: Editor, table:
       const snapshot = new TableDocumentSnapshot(source);
       const current = reparseUnchangedTable(snapshot, table);
       if (current === null) return null;
-      const result = validateTableOperationInDocument(snapshot, current, operation(source, current));
+      const candidate = operation(source, current);
+      if (candidate === null) return null;
+      const result = validateTableOperationInDocument(snapshot, current, candidate);
       if (!bindingIsCurrent() || editor.getValue() !== source) return null;
       if (result.changed) {
         codeMirror.dispatch({

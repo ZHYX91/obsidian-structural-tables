@@ -30,10 +30,12 @@ export class ConversionPreviewModal extends Modal {
     if (this.options.warning !== undefined) {
       this.contentEl.createEl("p", { cls: "structural-tables-conversion-warning", text: this.options.warning });
     }
-    this.contentEl.createEl("pre", {
+    const preview = this.contentEl.createEl("pre", {
       cls: "structural-tables-conversion-preview",
       text: this.options.source,
     });
+    preview.dir = "ltr";
+    preview.tabIndex = 0;
     let accepted = this.options.warning === undefined;
     let setConfirmEnabled: ((value: boolean) => void) | null = null;
     if (!accepted) {

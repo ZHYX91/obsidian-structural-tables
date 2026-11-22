@@ -22,6 +22,10 @@ Other Markdown editors may recognize the exported HTML table without interpretin
 
 Source conversion requires an unindented table opener and blank-line separation. Preserved-whitespace HTML and hidden content are refused rather than flattened. Literal HTML cell punctuation is encoded safely in Markdown and can be converted back to HTML. The reverse converter decodes supported numeric and basic named text entities once, then escapes the result as HTML text; it never interprets encoded markup as active syntax. Unknown named entities and invalid/control-code numeric entities remain unsupported. Explicit leading, trailing and repeated `<br>` elements are preserved; collapsible HTML formatting whitespace is still trimmed. Each confirmed replacement has its own Undo step and is bound to the original attached editor.
 
+When a plain GFM table contains an image description with a pipe inside angle-bracket markup, the export preserves its displayed alternative text. If Markdown escaping would change that description, the export writes an HTML image with the current destination and title.
+
+Direct CSV and TSV copies recover plain text encoded during HTML import. A value such as `AT&T` keeps its ampersand, and a literal `&#38;` keeps that spelling. Cells containing authored Markdown code, links or math retain their source spelling.
+
 ## FakeLink and separate windows
 
 On Obsidian 1.13.7, some desktop plugin combinations with FakeLink can leave a newly opened separate window blank in Reading view. Switch to the main Obsidian window once, then return. If the note still does not render, use Reading view in the main window or Live Preview.

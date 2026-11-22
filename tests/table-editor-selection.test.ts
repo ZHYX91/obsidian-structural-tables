@@ -2591,6 +2591,28 @@ describe("grid gestures and editing events", () => {
     } finally { view.destroy(); Object.defineProperty(window.navigator, "clipboard", { configurable: true, value: undefined }); }
   });
 
+  it("leaves the selected draft intact when the Paste menu reads two different text items", async () => {
+    const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
+    const read = vi.fn(async () => ["first", "second"].map((text) => ({
+      types: ["text/plain"], getType: async () => new Blob([text]),
+    })));
+    vi.stubGlobal("navigator", { clipboard: { read } });
+    const { parent, view } = mountEditor(source, { anchor: 0 }, [history()]);
+    const start = notices.length;
+    try {
+      mouseGesture(parent.querySelector<HTMLElement>("[data-structural-row='1'][data-structural-column='0']")!);
+      const editor = parent.querySelector<HTMLTextAreaElement>("textarea")!;
+      editor.select();
+      editor.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+      lastMenu!.items.find((entry) => entry.title === "Paste")!.callback!();
+      await vi.waitFor(() => expect(notices.slice(start)).toContain(createTranslator("en")("notice.rangeClipboardReadFailed")));
+      expect(editor.value).toBe("A");
+      expect([editor.selectionStart, editor.selectionEnd]).toEqual([0, 1]);
+      expect(view.state.doc.toString()).toBe(source);
+      expect(undoDepth(view.state)).toBe(0);
+    } finally { lastMenu?.hide(); view.destroy(); parent.remove(); vi.unstubAllGlobals(); }
+  });
+
   it("uses the same literal HTML classifier for native and menu paste", async () => {
     const source = "Before\n\n| H | V |\n| --- || --- |\n| A | B |\n\nEnd";
     const rich = "<table><tr><td>[[Plan]] &lt;!--VISIBLE--&gt; &amp;copy;</td></tr></table>";

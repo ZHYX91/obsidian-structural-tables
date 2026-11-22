@@ -6,6 +6,7 @@ import { createTranslator } from "../src/config/i18n";
 import { recoveredCellDrafts, retainCellDraft, showRecoveredCellDrafts } from "../src/editor/cell-draft-recovery";
 
 beforeAll(() => {
+  HTMLElement.prototype.createDiv = function createDiv() { return this.createEl("div"); };
   HTMLElement.prototype.createEl = function createEl<K extends keyof HTMLElementTagNameMap>(tag: K): HTMLElementTagNameMap[K] {
     return this.appendChild(this.ownerDocument.createElement(tag));
   };
@@ -41,6 +42,33 @@ describe("cell draft recovery", () => {
     await Promise.resolve();
     [...document.querySelectorAll("button")].find((button) => button.textContent === "Discard draft")!.click();
     expect(recoveredCellDrafts(app).map((draft) => draft.text)).toEqual(["Second"]);
+  });
+
+  it("keeps the original textarea and manual selection when another draft arrives", async () => {
+    const app = new App();
+    const t = createTranslator("en");
+    const draft = { sourcePath: "A.md", row: 0, column: 0, text: "Original" };
+    retainCellDraft(app, draft, t); await Promise.resolve();
+    const text = document.querySelector("textarea")!;
+    text.focus(); text.setSelectionRange(1, 6);
+    retainCellDraft(app, { ...draft, sourcePath: "B.md" }, t); await Promise.resolve();
+    expect(document.activeElement).toBe(text);
+    expect(text.isConnected).toBe(true);
+    expect(text.value.slice(text.selectionStart, text.selectionEnd)).toBe("rigin");
+    expect(document.querySelectorAll("textarea")).toHaveLength(2);
+  });
+
+  it("offers manual copying even when the host omits the Clipboard API", async () => {
+    const app = new App();
+    const t = createTranslator("en");
+    vi.spyOn(navigator, "clipboard", "get").mockReturnValue(undefined as unknown as Clipboard);
+    retainCellDraft(app, { sourcePath: "A.md", row: 0, column: 0, text: "Original" }, t);
+    await Promise.resolve();
+    [...document.querySelectorAll("button")].find((button) => button.textContent === t("draft.copy"))!.click();
+    const text = document.querySelector("textarea")!;
+    await vi.waitFor(() => expect(document.activeElement).toBe(text));
+    expect(text.value.slice(text.selectionStart, text.selectionEnd)).toBe("Original");
+    expect(recoveredCellDrafts(app)).toHaveLength(1);
   });
 
   it("retains the draft and selects it for manual copying when clipboard access fails", async () => {

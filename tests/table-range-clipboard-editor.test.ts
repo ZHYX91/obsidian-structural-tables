@@ -313,6 +313,8 @@ describe("owned range clipboard bridge", () => {
     ["document body marker", (): string => `<body ${TABLE_RANGE_HTML_ATTRIBUTE}="bad">Fallback</body>`, "invalid"],
     ["document html marker", (): string => `<html ${TABLE_RANGE_HTML_ATTRIBUTE}="bad"><body>Fallback</body></html>`, "invalid"],
     ["marker in a document attribute value", (): string => `<body title="${TABLE_RANGE_HTML_ATTRIBUTE}">Fallback</body>`, "none"],
+    ["a valid table with a second non-table claimant", (): string => tableRangeClipboardRepresentations(payload).html
+      + carrierHtml("unreadable", "div"), "invalid"],
     ["multiple carriers", (): string => tableRangeClipboardRepresentations(payload).html.repeat(2), "invalid"],
     ["empty carrier", (): string => carrierHtml(""), "invalid"],
     ["malformed JSON", (): string => carrierHtml("{bad"), "invalid"],
@@ -377,6 +379,37 @@ describe("owned range clipboard bridge", () => {
     expect(await readTableRangeFromNavigator(clipboard)).toEqual({ kind: "failed" });
     expect(getCustom).toHaveBeenCalledTimes(1);
     expect(getHtml).not.toHaveBeenCalled();
+  });
+
+  it.each(["agree", "conflict", "malformed"] as const)("keeps native paste and menu paste consistent when custom aliases %s", async (kind) => {
+    const raw = JSON.stringify(payload);
+    const other = kind === "agree" ? JSON.stringify({ ...payload, rawByOwner: Object.fromEntries(Object.entries(payload.rawByOwner).reverse()) })
+      : kind === "malformed" ? "{}" : JSON.stringify({ ...payload, rawByOwner: { ...payload.rawByOwner, o0: "other" } });
+    const transfer = new DataTransfer();
+    transfer.setData(TABLE_RANGE_CLIPBOARD_MIME, raw);
+    transfer.setData(TABLE_RANGE_CLIPBOARD_WEB_MIME, other);
+    const clipboard = { read: async () => [{ types: [...transfer.types], getType: async (type: string) => new Blob([transfer.getData(type)]) }] } as unknown as Clipboard;
+    expect(readTableRangeFromDataTransfer(transfer)).toEqual(kind === "agree" ? { kind: "payload", payload } : { kind: "invalid" });
+    expect(await readTableRangeFromNavigator(clipboard)).toEqual(kind === "agree" ? { kind: "payload", payload } : { kind: "failed" });
+  });
+
+  it("refuses a separate owned HTML range alongside an otherwise valid custom item", async () => {
+    const custom = { types: [TABLE_RANGE_CLIPBOARD_WEB_MIME], getType: async () => new Blob([JSON.stringify(payload)]) };
+    const makeClipboard = (source: string) => ({ read: async () => [
+      { types: ["text/html"], getType: async () => new Blob([source]) }, custom,
+    ] }) as unknown as Clipboard;
+    const alternate = { ...payload, rawByOwner: { ...payload.rawByOwner, o0: "other" } };
+    expect(await readTableRangeFromNavigator(makeClipboard(tableRangeClipboardRepresentations(alternate).html))).toEqual({ kind: "failed" });
+    expect(await readTableRangeFromNavigator(makeClipboard("<p>Unrelated format</p>"))).toEqual({ kind: "payload", payload });
+  });
+
+  it("refuses competing custom clipboard items instead of pasting whichever item was read first", async () => {
+    const custom = (value: string) => ({ types: [TABLE_RANGE_CLIPBOARD_WEB_MIME],
+      getType: vi.fn(async () => new Blob([value])) });
+    const items = [custom(JSON.stringify(payload)), custom("{bad")];
+    const clipboard = { read: vi.fn(async () => items) } as unknown as Clipboard;
+    expect(await readTableRangeFromNavigator(clipboard)).toEqual({ kind: "failed" });
+    expect(items[0]!.getType).not.toHaveBeenCalled();
   });
 
   it("rejects multiple Async HTML representations instead of selecting an arbitrary carrier", async () => {

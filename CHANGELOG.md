@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.6 - 2026-11-22
+
+- Preserve literal code, link destinations, image attributes, and empty headers when converting tables to plain GFM. Keep visible text when copying imported content as CSV or TSV.
+- Keep short ordinary GFM rows in whole-table copy, transpose, and deletion. Preserve adjoining source and standalone block IDs.
+- Keep similar tables attached to their own source in Reading View and standalone rendering.
+- Keep Base menu actions bound to the original Base, read saved record properties during legacy migration, and avoid Unicode-equivalent record filenames.
+- Improve keyboard navigation in conversion previews and restore the selection when recovering an interrupted cell draft.
+
 ## 0.11.5 - 2026-11-21
 
 - Match Obsidian's ordinary table column boundaries when copying to CSV or selecting cells with pipes inside inline code.

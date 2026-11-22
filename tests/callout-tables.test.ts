@@ -3,10 +3,11 @@ import { EditorState } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseEditableTables } from "../src/core/parser";
-import { calloutRanges } from "../src/core/source-lines";
+import { calloutRanges, withoutSourcePrefixes } from "../src/core/source-lines";
 import { blockSignature, calloutBlocks, matchingBlocks } from "../src/rendering/native-table-mapping";
 import { CalloutTables } from "../src/editor/callout-tables";
 import type { StructuralTableWidget } from "../src/editor/table-widget";
+import MarkdownIt from "markdown-it";
 
 const tableSource = "> | A | < |\n> | --- | --- |\n> | x | y |";
 const tableHtml = "<table><thead><tr><th>A</th><th>&lt;</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table>";
@@ -20,11 +21,12 @@ function element(html: string): HTMLElement {
   return container.firstElementChild as HTMLElement;
 }
 
-function mount(source: string, html: string, pending?: Promise<string[]>, detached = false): { view: EditorView; manager: CalloutTables; root: HTMLElement; render: ReturnType<typeof vi.fn> } {
+function mount(source: string, html: string, pending?: Promise<string[]>, detached = false,
+  outside = "End"): { view: EditorView; manager: CalloutTables; root: HTMLElement; render: ReturnType<typeof vi.fn> } {
   class Native extends WidgetType {
     toDOM(): HTMLElement { return element(`<div class="callout"><div class="callout-content">${html}</div></div>`); }
   }
-  const doc = `> [!custom]+ Test\n${source}\n\nEnd`;
+  const doc = `> [!custom]+ Test\n${source}\n\n${outside}`;
   const native = EditorView.decorations.of(Decoration.set([
     Decoration.replace({ widget: new Native(), block: true }).range(0, doc.indexOf("\n\n")),
   ]));
@@ -47,6 +49,26 @@ function mount(source: string, html: string, pending?: Promise<string[]>, detach
 afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup(); vi.restoreAllMocks(); });
 
 describe("source-owned callout mounting", () => {
+  it.each([false, true])("matches two exact tables when native Callout resolves note references: %s", async (nativeHasReferences) => {
+    const markdown = new MarkdownIt();
+    const definition = "[id]: https://example.org/second";
+    const source = ["> | Label | Reference | Direct |", "> | --- || --- | --- |",
+      "> | A B | [Guide][id] | [Guide](https://example.org/first) |", ">",
+      "> | Label | Reference | Direct |", "> | --- || --- | --- |",
+      "> | AB | [Guide][id] | [Guide](https://example.org/first) |"].join("\n");
+    const html = markdown.render((nativeHasReferences ? definition + "\n\n" : "") + withoutSourcePrefixes(source));
+    const { manager, root, render } = mount(source, html, undefined, false, definition);
+    render.mockImplementation(async (table, includeNoteReferences = true) => {
+      const parent = document.createElement("div");
+      parent.innerHTML = markdown.render((includeNoteReferences ? definition + "\n\n" : "")
+        + withoutSourcePrefixes(table.source));
+      return Array.from(parent.children, child => blockSignature(child as HTMLElement));
+    });
+    await vi.waitFor(() => expect(manager.diagnostics.map(item => item.state)).toEqual(["mounted", "mounted"]));
+    expect(root.querySelectorAll(".structural-tables-live-preview")).toHaveLength(2);
+    expect(render.mock.calls.filter(call => call[1] === false)).toHaveLength(2);
+  });
+
   it("classifies many offscreen tables in source order with a linear number of range reads", async () => {
     const count = 40;
     const source = "Introduction\n\n" + Array.from({ length: count }, (_, index) =>

@@ -14,7 +14,7 @@ interface MountedTable {
 }
 
 interface SignatureEntry {
-  signatures?: string[];
+  signatures?: [withReferences: string[], withoutReferences?: string[]];
   failed?: boolean;
 }
 
@@ -39,7 +39,7 @@ export class CalloutTables {
       sourcePath: string;
       owns: (table: StructuralTable) => boolean;
       widget: (table: StructuralTable) => StructuralTableWidget;
-      render: (table: StructuralTable) => Promise<string[]>;
+      render: (table: StructuralTable, includeNoteReferences?: boolean) => Promise<string[]>;
       fallback?: (ranges: readonly SourceRange[]) => void;
     },
   ) {
@@ -150,10 +150,16 @@ export class CalloutTables {
           entry = {};
           this.signatures.set(key, entry);
           const pending = entry;
-          void state.render(table).then((signatures) => { pending.signatures = signatures; this.schedule(); },
+          // Native Live Preview sometimes parses the callout as its own
+          // excerpt. Its reference labels can still be literal before takeover.
+          const full = state.render(table);
+          const signatures: Promise<NonNullable<SignatureEntry["signatures"]>> =
+            table.referenceDefinitions === undefined ? full.then(value => [value])
+            : Promise.all([full, state.render(table, false)]);
+          void signatures.then((value) => { pending.signatures = value; this.schedule(); },
             () => { pending.failed = true; this.schedule(); });
         }
-        const matches = matchingBlocks(blocks, entry.signatures ?? []);
+        const matches = matchingBlocks(blocks, entry.signatures?.[0] ?? [], entry.signatures?.[1]);
         const status: CalloutDiagnostic["state"] = entry.failed ? "render-failed" : entry.signatures === undefined ? "rendering"
           : matches.length === 0 ? "unmatched" : "ambiguous";
         return { table, status, matches, signatureKey: JSON.stringify(entry.signatures ?? []) };

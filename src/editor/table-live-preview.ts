@@ -394,7 +394,8 @@ export class StructuralTableEditorController {
                 if (views.has(view) && view.state === state) view.dispatch({ effects: structuralCalloutFallback.of(eligible) });
               });
             },
-            render: (table) => renderTableSignatures(app, table, sourcePath, this.view.dom.ownerDocument),
+            render: (table, includeNoteReferences) =>
+              renderTableSignatures(app, table, sourcePath, this.view.dom.ownerDocument, includeNoteReferences),
             owns: (table) => !value.composing && settings.enableLivePreview
               && Boolean(view.state.field(editorLivePreviewField, false))
               && table.valid && (table.structural || settings.takeOverOrdinaryTables),

@@ -29,14 +29,15 @@ export function blockSignature(element: HTMLElement): string {
 
 /** Inline formatting is interpreted by the same renderer as the native callout. */
 export async function renderTableSignatures(app: App, table: StructuralTable, sourcePath: string,
-  document: Document): Promise<string[]> {
+  document: Document, includeNoteReferences = true): Promise<string[]> {
   const component = new Component();
   const container = document.createElement("div");
   container.className = "structural-tables-container";
   // Keep our own postprocessor out of this detached native-render comparison.
   component.load();
   try {
-    await MarkdownRenderer.render(app, withNoteReferences(withoutSourcePrefixes(table.source), table.referenceDefinitions?.markdown),
+    const references = includeNoteReferences ? table.referenceDefinitions?.markdown : undefined;
+    await MarkdownRenderer.render(app, withNoteReferences(withoutSourcePrefixes(table.source), references),
       container, sourcePath, component);
     return Array.from(container.children, (child) => blockSignature(child as HTMLElement));
   } finally {
@@ -104,13 +105,23 @@ export function calloutBlocks(root: HTMLElement, originals: ReadonlyMap<HTMLElem
   return groups;
 }
 
-export function matchingBlocks(groups: readonly RenderedBlock[][], signatures: readonly string[]): HTMLElement[][] {
-  if (signatures.length === 0) return [];
+export function matchingBlocks(groups: readonly RenderedBlock[][], signatures: readonly string[],
+  alternateSignatures?: readonly string[]): HTMLElement[][] {
+  const variants = alternateSignatures === undefined ? [signatures] : [signatures, alternateSignatures];
   const matches: HTMLElement[][] = [];
   for (const group of groups) {
-    for (let index = 0; index <= group.length - signatures.length; index += 1) {
-      if (!signatures.every((signature, offset) => signature === group[index + offset]!.signature)) continue;
-      matches.push([...new Set(group.slice(index, index + signatures.length).map((block) => block.element))]);
+    for (let index = 0; index < group.length; index += 1) {
+      let previousTargets: HTMLElement[] | undefined;
+      for (const variant of variants) {
+        if (variant.length === 0 || index + variant.length > group.length
+          || !variant.every((signature, offset) => signature === group[index + offset]!.signature)) continue;
+        const targets = [...new Set(group.slice(index, index + variant.length).map((block) => block.element))];
+        if (previousTargets === undefined || previousTargets.length !== targets.length
+          || !previousTargets.every((element, offset) => element === targets[offset])) {
+          matches.push(targets);
+        }
+        previousTargets = targets;
+      }
     }
   }
   return matches.sort((left, right) => {

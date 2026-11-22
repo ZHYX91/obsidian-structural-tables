@@ -129,12 +129,13 @@ function cellParser(): MarkdownIt {
       const matched = standardRules.some(rule => rule(state, silent));
       if (!matched || silent || state.tokens.length === firstToken) return matched;
       const scan = state.env as CellScan;
-      if (state.src !== scan.source) return true; // Image alt text has its own offsets.
       const marker = state.src[from];
       if (scan.usedReferences !== undefined) {
         if (marker === "[" || marker === "!") recordReference(state, scan, from, firstToken, marker === "!");
         return true;
       }
+      // Nested image descriptions use local offsets but share the cell's reference definitions.
+      if (state.src !== scan.source) return true;
       if (marker === "`") {
         const token = state.tokens[state.tokens.length - 1]!;
         if (token.type === "code_inline" && token.content.includes("|")) {

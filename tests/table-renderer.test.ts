@@ -32,11 +32,12 @@ describe("logical grid coordinates", () => {
   it("gives cells only the definitions their Markdown uses", async () => {
     const source = [
       "| --- || --- | --- |",
-      "| [*Shown*][guide] [Guide][] [Guide] | ![Icon][icon] | `[Guide]` [Direct](https://example.org/direct) |",
+      "| [*Shown*][guide] [Guide][] [Guide] | ![Read [caption][alt] and `[Unrelated]`][icon] ![See [caption][alt]](./inline.svg) | `[Guide]` [Direct](https://example.org/direct) |",
       "",
       "[Guide]: https://example.org/guide \"Guide title\"",
       "[ GUIDE ]: https://example.org/duplicate",
       "[Icon]: ./icon.svg",
+      "[alt]: ./caption",
       "[Unrelated]: https://example.org/unrelated",
     ].join("\n");
     const model = parseStructuralTables(source).tables[0]!;
@@ -53,10 +54,13 @@ describe("logical grid coordinates", () => {
         .toEqual(Array(3).fill("https://example.org/guide"));
       expect(table.querySelector("th a em")?.textContent).toBe("Shown");
       expect(table.querySelector("th a")?.getAttribute("title")).toBe("Guide title");
-      expect(table.querySelector("td img")?.getAttribute("src")).toBe("./icon.svg");
+      expect(Array.from(table.querySelectorAll("td img"), image =>
+        [image.getAttribute("src"), image.getAttribute("alt")])).toEqual([
+        ["./icon.svg", "Read caption and "], ["./inline.svg", "See caption"],
+      ]);
       expect(table.querySelector("td code")?.textContent).toBe("[Guide]");
       const inputs = render.mock.calls.map(call => call[1]);
-      expect(inputs[1]).not.toMatch(/\[Guide\]:|Unrelated|duplicate/u);
+      expect(inputs[1]).not.toMatch(/\[Guide\]:|\[Unrelated\]:|duplicate/u);
       expect(inputs[2]).toBe("`[Guide]` [Direct](https://example.org/direct)");
     } finally {
       component.unload();

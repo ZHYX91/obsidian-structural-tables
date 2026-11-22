@@ -8,7 +8,7 @@ import type {
   StructuralTable,
   TableDiagnostic,
 } from "./model";
-import { ignoredMarkdownLines, sourceLines, sourcePrefix } from "./source-lines";
+import { ignoredMarkdownLines, isThematicBreak, sourceLines, sourcePrefix } from "./source-lines";
 import { splitTablePipeRow, type ParsedTablePipeRow } from "./table-cell-syntax";
 
 interface ParsedDelimiter {
@@ -18,6 +18,9 @@ interface ParsedDelimiter {
   rowHeaderColumnCount: number;
 }
 
+// markdown-it ends an ordinary table before its next row would exceed this
+// running balance of padded cells. Excess source cells reduce the balance.
+const MAX_GFM_PADDED_CELLS = 65_536;
 const DELIMITER_CELL = /^:?-+:?$/u;
 // Rows without an outer pipe can begin a distinct heading or list block. The
 // immediate, equal-width GFM header still takes precedence over those markers.
@@ -78,10 +81,10 @@ function roleFor(row: number, column: number, headerRows: number, rowHeaders: nu
   return column < rowHeaders ? "row_header" : "data";
 }
 
-function markerFor(raw: string): { content: string; marker?: MergeMarker } {
+function markerFor(raw: string, structural: boolean): { content: string; marker?: MergeMarker } {
   const trimmed = raw.trim();
-  if (trimmed === "<") return { content: "", marker: "left" };
-  if (trimmed === "^") return { content: "", marker: "up" };
+  if (structural && trimmed === "<") return { content: "", marker: "left" };
+  if (structural && trimmed === "^") return { content: "", marker: "up" };
   if (trimmed === "\\<") return { content: "<" };
   if (trimmed === "\\^") return { content: "^" };
   return { content: trimmed };
@@ -179,7 +182,8 @@ function resolveMerges(rows: StructuralRow[], diagnostics: TableDiagnostic[]): v
 
 function parseTables(source: string, includeOrdinary: boolean): ParseResult {
   const { lines: originalLines, offsets } = sourceLines(source);
-  const ignored = ignoredMarkdownLines(originalLines);
+  const listOwners: object[] = [];
+  const ignored = ignoredMarkdownLines(originalLines, { listOwners });
   const prefixes = originalLines.map(sourcePrefix);
   const lines = originalLines.map((line, index) => line.slice(prefixes[index]?.length ?? 0));
   const tables: StructuralTable[] = [];
@@ -207,46 +211,45 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
         }
       }
     }
-    const readBody = (start: number, structural: boolean): { line: number; parsed: ParsedTablePipeRow }[] => {
-      const rows: { line: number; parsed: ParsedTablePipeRow }[] = [];
-      for (let line = start; line < lines.length; line += 1) {
-        const text = lines[line]!;
-        if (ignored.has(line) || !sameContainer(line) || ROW_BLOCK_START.test(text)) break;
-        const parsed = splitTablePipeRow(text, structural);
-        if (parsed === null) break;
-        rows.push({ line, parsed });
+    const hasMarker = (row: ParsedTablePipeRow): boolean => row.cells.slice(0, delimiter.columnCount)
+      .some((raw) => raw.trim() === "<" || raw.trim() === "^");
+    let structural = headerRows.length !== 1 || delimiter.rowHeaderColumnCount > 0
+      || delimiter.diagnostics.length > 0 || headerRows.some(({ parsed }) => hasMarker(parsed));
+    const bodyRows: { line: number; parsed: ParsedTablePipeRow; native: ParsedTablePipeRow }[] = [];
+    let paddedCells = 0;
+    const quoteDepth = prefix.split(">").length - 1;
+    for (let line = delimiterLine + 1; line < lines.length; line += 1) {
+      const text = lines[line]!;
+      if (ignored.has(line) || text.trim() === "" || ROW_BLOCK_START.test(text)
+        || isThematicBreak(text) || text.startsWith("<!--")) break;
+      // The separate Obsidian block ID stays outside the editable source range.
+      if (/^\^[A-Za-z0-9-]+[\t ]*$/u.test(text)) break;
+      if (listOwners[line] !== listOwners[delimiterLine]) break;
+      if (!sameContainer(line) && (structural || prefixes[line]!.split(">").length - 1 !== quoteDepth)) break;
+
+      const pipeRow = splitTablePipeRow(text);
+      if (structural && pipeRow === null) break;
+      if (!structural && pipeRow !== null && hasMarker(pipeRow)) structural = true;
+      // An ordinary GFM body line can have just one cell with no outer pipes.
+      // A lone outer pipe has no source cells and renders a fully padded row.
+      const parsed = pipeRow ?? { cells: text.trim() === "|" ? [] : [text] };
+      const native = !structural && text.includes("`") ? splitTablePipeRow(text, false) ?? parsed : parsed;
+      if (!structural) {
+        paddedCells += delimiter.columnCount - native.cells.length;
+        if (paddedCells > MAX_GFM_PADDED_CELLS) break;
       }
-      return rows;
-    };
-    const bodyRows = readBody(delimiterLine + 1, true);
-    if (headerRows.length === 0 && bodyRows.length === 0) continue;
-    const rowSources = [...headerRows, ...bodyRows];
-    const hasMarker = rowSources.some(({ parsed }) => parsed.cells
-      .slice(0, delimiter.columnCount)
-      .some((raw) => {
-        const trimmed = raw.trim();
-        return trimmed === "<" || trimmed === "^";
-      }));
-    const structural = hasMarker
-      || delimiter.rowHeaderColumnCount > 0
-      || headerRows.length !== 1
-      || delimiter.diagnostics.length > 0;
-    // Use extension syntax to recognize explicit structures first. In an ordinary
-    // table Obsidian splits all unescaped pipes before interpreting inline code.
-    if (!structural) {
-      for (const row of rowSources) {
-        const text = lines[row.line]!;
-        if (text.includes("`")) row.parsed = splitTablePipeRow(text, false)!;
-      }
-      // A row with no outer pipes can have all its separators inside a code span.
-      const next = (bodyRows[bodyRows.length - 1]?.line ?? delimiterLine) + 1;
-      if (lines[next]?.includes("`")) {
-        for (const row of readBody(next, false)) {
-          bodyRows.push(row);
-          rowSources.push(row);
-        }
-      }
+      bodyRows.push({ line, parsed, native });
     }
+    if (headerRows.length === 0 && bodyRows.length === 0) continue;
+    if (!structural) {
+      // Native GFM splits pipes before interpreting inline code. Extension
+      // syntax above keeps code spans opaque when looking for explicit merges.
+      const header = headerRows[0]!;
+      const text = lines[header.line]!;
+      if (text.includes("`")) header.parsed = splitTablePipeRow(text, false) ?? header.parsed;
+      for (const row of bodyRows) row.parsed = row.native;
+    }
+    const rowSources = [...headerRows, ...bodyRows];
     const startLine = headerRows[0]?.line ?? delimiterLine;
     const endLine = bodyRows[bodyRows.length - 1]?.line ?? delimiterLine;
     for (let line = startLine; line <= endLine; line += 1) consumed.add(line);
@@ -268,7 +271,7 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
       const cells = Array.from({ length: delimiter.columnCount }, (_unused, column) => (
         parsed.cells[column] ?? ""
       )).map((raw, column): StructuralCell => {
-        const marker = markerFor(raw);
+        const marker = markerFor(raw, structural);
         return {
           row,
           column,

@@ -152,3 +152,65 @@ describe("table Markdown block boundaries", () => {
     }
   });
 });
+
+describe("ordinary GFM short body rows", () => {
+  const header = "| Name | Qty |\n| --- | --- |";
+  it.each(["Bob", "  Bob", "`Bob`", "Bob\\|Jones", "#tag", "^", "|", "===", "2.items"])(
+    "matches the native table range and padded row at %j", (body) => {
+      const source = header + "\n| Alice | 1 |\n" + body + "\n| Carol | 3 |\n\nOutside";
+      const native = markdown.parse(source, {});
+      const table = parseEditableTables(source).tables[0]!;
+      expect(native.find(token => token.type === "table_open")?.map).toEqual([0, 5]);
+      expect(table).toMatchObject({ startLine: 0, endLine: 4, structural: false, valid: true });
+      const short = table.rows[2]!;
+      expect(short.sourceCellCount).toBe(body === "|" ? 0 : 1);
+      expect(short.cells.map(cell => cell.content)).toEqual([body === "|" ? "" : body.trim(), ""]);
+      expect(short.cells[0]!.covered).toBe(false);
+      expect(table.rows[3]!.cells[0]!.content).toBe("Carol");
+    },
+  );
+
+  it.each(["", "# Next", "- Next", "2. Next", "> next", "***", "---", "_ _ _", "```md",
+    "<div>", "<!-- comment --> after", "    code"])("stops short rows before %j", (boundary) => {
+    const source = header + "\nBob\n" + boundary + "\n| next | section |";
+    const table = parseEditableTables(source).tables[0]!;
+    expect(new MarkdownIt({ html: true }).parse(source, {}).find(token => token.type === "table_open")?.map).toEqual([0, 3]);
+    expect(table.source).toBe(header + "\nBob");
+  });
+
+  it("matches the native end of a wide table at the padded-cell boundary", () => {
+    const columns = 257;
+    const head = Array<string>(columns).fill("name").join(" | ");
+    const delimiter = Array<string>(columns).fill("---").join(" | ");
+    const body = Array<string>(257).fill("single");
+    const source = [head, delimiter, ...body, "outside"].join("\n");
+    const table = parseEditableTables(source).tables[0]!;
+    const native = markdown.parse(source, {}).find(token => token.type === "table_open")!;
+    expect(native.map).toEqual([0, 258]);
+    expect([table.startLine, table.endLine + 1]).toEqual(native.map);
+    expect(source.slice(table.range.to)).toBe("\nsingle\noutside");
+  });
+
+  it("honors the Obsidian block ID and structural row boundary", () => {
+    expect(parseEditableTables(header + "\nBob\n^table-1").tables[0]!.source).toBe(header + "\nBob");
+    expect(parseEditableTables(TABLE + "\nBob").tables[0]!.source).toBe(TABLE);
+    const lateMerge = parseEditableTables(header + "\nBob\n| Carol | < |\noutside").tables[0]!;
+    expect(lateMerge).toMatchObject({ structural: true, valid: false, endLine: 3 });
+    expect(lateMerge.diagnostics).toContainEqual(expect.objectContaining({ code: "row-width", row: 2 }));
+  });
+
+  it.each([
+    { before: "", prefix: "> ", short: ">Bob", next: "outside" },
+    { before: "- Item\n\n", prefix: "  ", short: "   Bob", next: "outside" },
+    { before: "- Item\n\n", prefix: "  > ", short: "  >Bob", next: "> next quote" },
+    { before: "- Outer\n  - Inner\n\n", prefix: "    ", short: "     Bob", next: "  back in outer" },
+    { before: "", prefix: "  ", short: "Bob", next: "# heading" },
+  ])("keeps the complete ordinary table in its source container at $short", ({ before, prefix, short, next }) => {
+    const content = withSourcePrefix(header, prefix) + "\n" + short + "\n" + prefix + "| Carol | 3 |";
+    const source = before + content + "\n" + next;
+    const token = markdown.parse(source, {}).find(item => item.type === "table_open")!;
+    const table = parseEditableTables(source).tables[0]!;
+    expect(token.map).toEqual([table.startLine, table.endLine + 1]);
+    expect(table).toMatchObject({ source: content, valid: true });
+  });
+});

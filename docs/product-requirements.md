@@ -24,6 +24,8 @@ An exact `<` merges with the previous source column (visually right in RTL table
 
 Independent ATX headings and list items remain outside a table even when they contain pipes. A leading `|` keeps such markers inside a cell; an equal-width header immediately followed by its delimiter also retains GFM table precedence. An ambiguous delimiter such as `- | ---` starts a list instead; use enclosing pipes or an unambiguous delimiter.
 
+An ordinary GFM body row such as `Bob` occupies the first cell even without a pipe. The remaining cells are empty. A blank line, a new block, or leaving the owning list or quote ends the table. A separate Obsidian block ID stays outside the editable range.
+
 <!-- section: validity -->
 ## Validity
 

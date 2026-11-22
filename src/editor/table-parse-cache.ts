@@ -43,7 +43,10 @@ export function mapTablesThroughProseEdit(
     if (toA > before.to || toB > after.to || inserted.lines !== 1
       || !prose(before.text) || !prose(after.text)
       || mayContinueReference(before.number)
-      || tables.some((table) => fromA <= table.range.to && toA >= table.range.from)) safe = false;
+      // The first line outside an ordinary table can become a short body row
+      // when a block ID is edited or a list continuation gains indentation.
+      || tables.some((table) => (fromA <= table.range.to && toA >= table.range.from)
+        || (!table.structural && before.number === table.endLine + 2))) safe = false;
   });
   if (!safe) return null;
   return tables.map((table) => ({

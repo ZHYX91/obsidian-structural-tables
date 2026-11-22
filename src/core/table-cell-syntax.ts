@@ -85,7 +85,7 @@ export function tableColumnAt(line: string, character: number, structural = true
 export function tableCellContentOffset(line: string, column: number, structural = true): number | null {
   if (!Number.isInteger(column) || column < 0) return null;
   const separators = tablePipeSeparators(line, structural);
-  if (separators.length === 0) return null;
+  if (separators.length === 0 && (structural || column !== 0)) return null;
   const leadingPipe = line.trimStart().startsWith("|");
   const left = leadingPipe
     ? separators[column]

@@ -1,5 +1,5 @@
 import type { StructuralTable } from "../core/model";
-import { sourceLines } from "../core/source-lines";
+import { sourceLines, sourcePrefix } from "../core/source-lines";
 import { tableCellContentOffset } from "../core/table-cell-syntax";
 import type { TableCellCoordinate } from "./table-selection";
 
@@ -28,8 +28,7 @@ export function tableCellSourceOffset(
   const sourceLine = lines[row.sourceLine];
   const lineOffset = offsets[row.sourceLine];
   if (sourceLine === undefined || lineOffset === undefined) return null;
-  const prefix = table.sourcePrefix;
-  if (!sourceLine.startsWith(prefix)) return null;
+  const prefix = sourcePrefix(sourceLine);
   const tableLast = Math.max(table.range.from, table.range.to - 1);
   const sourceCellCount = row.sourceCellCount ?? row.cells.length;
   if (anchor.column >= sourceCellCount) {

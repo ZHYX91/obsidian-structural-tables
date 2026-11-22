@@ -662,6 +662,7 @@
 
 .structural-tables-settings-tab-scroll::before {
   content: "";
+  box-sizing: border-box;
   inline-size: 8px;
   block-size: 8px;
   border: solid currentColor;
@@ -755,7 +756,7 @@
 
 @container (max-width: 600px) {
   .structural-tables-settings-tabs > button.structural-tables-settings-tab {
-    padding-inline: var(--size-4-2) !important;
+    padding-inline: 8px !important;
   }
 }
 

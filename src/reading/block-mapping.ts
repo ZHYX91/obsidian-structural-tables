@@ -72,31 +72,35 @@ function rawTarget(element: HTMLElement, expected: HTMLElement, allowPrefix: boo
   preserveInline = false): Target | undefined {
   // Whole-block identity includes image destinations and other non-text nodes.
   // Partial paragraph mapping still needs the stricter text-range checks below.
-  if (contentSignature(element) === contentSignature(expected)) return { element };
+  const expectedSignature = contentSignature(expected);
+  if (contentSignature(element) === expectedSignature) return { element };
   const actual = textIndex(element);
   const wanted = textIndex(expected).compact;
-  const start = actual.compact.indexOf(wanted);
-  if (wanted.length === 0 || start < 0 || actual.compact.indexOf(wanted, start + 1) >= 0) return undefined;
-  if ((!allowPrefix && start !== 0) || (!allowSuffix && start + wanted.length !== actual.compact.length)) return undefined;
-  const first = actual.positions[start]!;
-  const last = actual.positions[start + wanted.length - 1]!;
-  // A substring of prose is not a source block. Only acquire complete rendered lines.
-  const before = actual.text.slice(0, first.visibleOffset);
-  const after = actual.text.slice(last.visibleOffset + 1);
-  if ((before.trim().length > 0 && !/\n[^\S\n]*$/u.test(before))
-    || (after.trim().length > 0 && !/^[^\S\n]*\n/u.test(after))) return undefined;
-  const range = element.ownerDocument.createRange();
-  range.setStart(first.node, first.offset);
-  range.setEnd(last.node, last.offset + 1);
-  // Embedded/media/widget content is not represented by the text index.
-  if (Array.from(element.querySelectorAll("img, svg, iframe, input, audio, video, .math, .internal-embed, .markdown-embed"))
-    .some((child) => range.intersectsNode(child))) return undefined;
-  if (contentSignature(range.cloneContents()) !== contentSignature(expected)) return undefined;
-  // A native inline HTML span may contain the literal table lines. Keep its
-  // identity and attributes rather than splitting/cloning the foreign wrapper.
-  const inline = first.node.parentElement?.closest("span");
-  return { element, range, preserveInline: preserveInline && inline !== undefined && inline !== null
-    && inline.contains(last.node) && element.contains(inline) };
+  if (wanted.length === 0) return;
+  const media = Array.from(element.querySelectorAll("img, svg, iframe, input, audio, video, .math, .internal-embed, .markdown-embed"));
+  let match: Target | undefined;
+  // The compact index locates candidate DOM endpoints. Only the complete
+  // inline signature can distinguish text, spacing and link destinations.
+  for (let start = actual.compact.indexOf(wanted); start >= 0; start = actual.compact.indexOf(wanted, start + 1)) {
+    if ((!allowPrefix && start !== 0) || (!allowSuffix && start + wanted.length !== actual.compact.length)) continue;
+    const first = actual.positions[start]!;
+    const last = actual.positions[start + wanted.length - 1]!;
+    // A substring of prose is not a source block. Only acquire complete rendered lines.
+    const previous = actual.positions[start - 1];
+    const next = actual.positions[start + wanted.length];
+    if ((previous && !actual.text.slice(previous.visibleOffset + 1, first.visibleOffset).includes("\n"))
+      || (next && !actual.text.slice(last.visibleOffset + 1, next.visibleOffset).includes("\n"))) continue;
+    const range = element.ownerDocument.createRange();
+    range.setStart(first.node, first.offset);
+    range.setEnd(last.node, last.offset + 1);
+    if (media.some(child => range.intersectsNode(child))
+      || contentSignature(range.cloneContents()) !== expectedSignature) continue;
+    if (match !== undefined) return;
+    const inline = first.node.parentElement?.closest("span");
+    match = { element, range, preserveInline: preserveInline && inline != null
+      && inline.contains(last.node) && element.contains(inline) };
+  }
+  return match;
 }
 
 /** Only transparent section wrappers may be traversed; foreign blocks split groups. */

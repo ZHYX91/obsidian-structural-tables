@@ -5,7 +5,7 @@ import { createTranslator, diagnosticNotice } from "../config/i18n";
 import type { StructuralTablesSettings } from "../config/settings";
 import { parseEditableTables } from "../core/parser";
 import { renderStructuralTable } from "../rendering/table-renderer";
-import { rawStructuralTableElement } from "./table-mapping";
+import { rawStructuralTableTargets } from "./table-mapping";
 import { ReadingBlockMapper } from "./block-mapping";
 import { StandaloneTableRenderer } from "./standalone-renderer";
 import type { StructuralTable } from "../core/model";
@@ -76,17 +76,8 @@ export class StructuralTableReadingProcessor {
       || section.lineStart < 0 || section.lineEnd < section.lineStart) return;
     const snapshot = this.sourceSnapshot(context, section.text, section.lineStart);
     if (snapshot === undefined) return;
-    // Parse with the note's container and protected-region context intact, then
-    // translate source lines into this renderer section's coordinate system.
     const allTables = snapshot.tables;
-    const parsed = allTables
-      .filter((table) => table.startLine >= section.lineStart && table.endLine <= section.lineEnd)
-      .map((table) => ({
-        ...table,
-        startLine: table.startLine - section.lineStart,
-        endLine: table.endLine - section.lineStart,
-        delimiterLine: table.delimiterLine - section.lineStart,
-      }));
+    const parsed = allTables.filter(table => table.startLine >= section.lineStart && table.endLine <= section.lineEnd);
     if (container.matches(".callout") || container.querySelector(".callout") !== null) {
       // Native comparison rendering shares Obsidian's render queue. Returning
       // its promise would hold the current section open while waiting on itself.
@@ -94,15 +85,18 @@ export class StructuralTableReadingProcessor {
       void this.processCallout(container, context, parsed, section.text);
       return;
     }
-    const deferred = allTables.filter((table) => table.valid && table.structural
-      && table.startLine <= section.lineEnd && table.endLine >= section.lineStart);
-    const candidates = renderedTables(container);
+    const rawTargets = rawStructuralTableTargets(container, parsed, element => context.getSectionInfo(element));
+    const deferred = new Set(allTables.filter((table) => table.valid && table.structural && rawTargets.get(table) !== null
+      && table.startLine <= section.lineEnd && table.endLine >= section.lineStart));
+    const candidates = renderedTables(container).map(element => ({ element, range: context.getSectionInfo(element) }));
+    const exactNative = new Map<string, HTMLTableElement | null>();
+    for (const { element, range } of candidates) {
+      if (!range) continue;
+      const key = `${range.lineStart}:${range.lineEnd}`;
+      exactNative.set(key, exactNative.has(key) ? null : element);
+    }
     const mappings = parsed.map((table) => {
-      const rawSource = rawStructuralTableElement(container, table, (element) => {
-        const info = context.getSectionInfo(element);
-        return info?.lineStart === section.lineStart + table.startLine
-          && info.lineEnd === section.lineStart + table.endLine;
-      });
+      const rawSource = rawTargets.get(table);
       // An adjacent || delimiter cannot produce a native GFM table. If its raw
       // block cannot be identified, it must never consume a later native table.
       const native = rawSource === undefined && table.headerRowCount > 0 && table.rowHeaderColumnCount === 0;
@@ -116,15 +110,12 @@ export class StructuralTableReadingProcessor {
     mappings.forEach(({ table, rawSource, native }) => {
       let nativeCandidate: HTMLTableElement | undefined;
       if (native) {
-        if (positionalNativeSafe) {
-          nativeCandidate = candidates[candidateIndex];
-        } else {
-          const exact = candidates.filter((candidate) => {
-            const info = context.getSectionInfo(candidate);
-            return info?.lineStart === section.lineStart + table.startLine
-              && info.lineEnd === section.lineStart + table.endLine;
-          });
-          if (exact.length === 1) nativeCandidate = exact[0];
+        const exact = exactNative.get(`${table.startLine}:${table.endLine}`);
+        const byPosition = candidates[candidateIndex];
+        if (exact) nativeCandidate = exact;
+        else if (exact === undefined && positionalNativeSafe && byPosition
+          && (!byPosition.range || (byPosition.range.lineStart <= table.startLine && byPosition.range.lineEnd >= table.endLine))) {
+          nativeCandidate = byPosition.element;
         }
         candidateIndex += 1;
       }
@@ -133,8 +124,7 @@ export class StructuralTableReadingProcessor {
       // Their complete source must be mapped atomically, never by native position.
       if (native && table.headerRowCount > 1) return;
       if ((!table.structural && !settings.takeOverOrdinaryTables) || existing === undefined) return;
-      const deferredIndex = deferred.findIndex((candidate) => candidate.range.from === table.range.from);
-      if (deferredIndex >= 0) deferred.splice(deferredIndex, 1);
+      deferred.delete(table);
       existing.dataset.structuralTablesProcessed = "true";
       if (!table.valid) {
         if (settings.showDiagnostics) {
@@ -166,7 +156,7 @@ export class StructuralTableReadingProcessor {
       ownReadingLayout(wrapper, component);
       context.addChild(component);
     });
-    if (deferred.length > 0) this.blockMapper.process(container, context, section, deferred);
+    if (deferred.size > 0) this.blockMapper.process(container, context, section, [...deferred]);
   }
 
   private sourceSnapshot(context: MarkdownPostProcessorContext, text: string,

@@ -3,9 +3,9 @@
 import { describe, expect, it } from "vitest";
 
 import { parseStructuralTables } from "../src/core/parser";
-import { rawStructuralTableElement } from "../src/reading/table-mapping";
+import { rawStructuralTableTargets } from "../src/reading/table-mapping";
 
-describe("rawStructuralTableElement", () => {
+describe("rawStructuralTableTargets", () => {
   it("finds an unparsed row-header table without replacing its surrounding section", () => {
     const source = "| Region | Sales |\n| --- || --- |\n| North | 10 |";
     const table = parseStructuralTables(source).tables[0]!;
@@ -18,7 +18,7 @@ describe("rawStructuralTableElement", () => {
       paragraph.append(line);
     });
 
-    expect(rawStructuralTableElement(section, table)).toBe(paragraph);
+    expect(rawStructuralTableTargets(section, [table]).get(table)).toBe(paragraph);
   });
 
   it("fails closed for table-looking source inside code", () => {
@@ -28,7 +28,7 @@ describe("rawStructuralTableElement", () => {
     const code = section.appendChild(document.createElement("pre")).appendChild(document.createElement("code"));
     code.textContent = source;
 
-    expect(rawStructuralTableElement(section, table)).toBeUndefined();
+    expect(rawStructuralTableTargets(section, [table]).get(table)).toBeUndefined();
   });
 
   it("does not acquire table text from a nested embedded render sharing coarse metadata", () => {
@@ -39,9 +39,9 @@ describe("rawStructuralTableElement", () => {
     embed.className = "internal-embed";
     const paragraph = embed.appendChild(document.createElement("p"));
     paragraph.textContent = source;
-    expect(rawStructuralTableElement(section, table, () => true)).toBeUndefined();
+    expect(rawStructuralTableTargets(section, [table], () => ({ lineStart: 0, lineEnd: 2 })).get(table)).toBeUndefined();
     // An embed's own callback remains a valid, separate render context.
-    expect(rawStructuralTableElement(embed, table, () => true)).toBe(paragraph);
+    expect(rawStructuralTableTargets(embed, [table], () => ({ lineStart: 0, lineEnd: 2 })).get(table)).toBe(paragraph);
   });
 
   it.each(["<br>", "<br/>", "<br />"])(
@@ -59,7 +59,7 @@ describe("rawStructuralTableElement", () => {
       paragraph.appendChild(document.createElement("br"));
       paragraph.append("Second |");
 
-      expect(rawStructuralTableElement(section, table)).toBe(paragraph);
+      expect(rawStructuralTableTargets(section, [table]).get(table)).toBe(paragraph);
     },
   );
 
@@ -90,6 +90,6 @@ describe("rawStructuralTableElement", () => {
     paragraph.appendChild(document.createElement("br"));
     paragraph.append("| ^ | 8 | 11 |");
 
-    expect(rawStructuralTableElement(section, table)).toBe(paragraph);
+    expect(rawStructuralTableTargets(section, [table]).get(table)).toBe(paragraph);
   });
 });

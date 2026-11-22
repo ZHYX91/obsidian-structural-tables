@@ -53,8 +53,14 @@ export function observeTabOverflow(
     const rtl = isRtl();
     const canScrollPrevious = overflows && firstClippedTab(rtl) !== undefined;
     const canScrollNext = overflows && firstClippedTab(!rtl) !== undefined;
+    const viewport = canScrollPrevious && previous.hidden ? list.getBoundingClientRect() : undefined;
     previous.hidden = !canScrollPrevious;
     next.hidden = !canScrollNext;
+    // Keep the same content in view when a scroll reveals the start control.
+    if (viewport !== undefined) {
+      const resized = list.getBoundingClientRect();
+      list.scrollLeft += rtl ? resized.right - viewport.right : resized.left - viewport.left;
+    }
     if ((focused === previous && previous.hidden) || (focused === next && next.hidden)) {
       const target = !previous.hidden ? previous : !next.hidden ? next : tabs.find(tab => tab.tabIndex === 0);
       target?.focus({ preventScroll: true });

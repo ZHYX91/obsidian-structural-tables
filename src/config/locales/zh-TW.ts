@@ -179,6 +179,8 @@ const catalog = {
   "notice.basePropertyMigrationFailed": "無法移轉 Structural Tables Base 屬性：{message}",
   "notice.promoteFailed": "無法升級表格：{message}",
   "notice.promoted": "已將表格升級為 Base。復原清單：{path}",
+  "notice.recordCreateFailed": "無法新增 Base 記錄：{message}",
+  "notice.recordOpenFailed": "記錄已儲存。請從檔案列表開啟：{path}",
   "notice.recordCreated": "已建立新的 Base 記錄：{path}",
   "notice.restoreFailed": "無法復原表格：{message}",
   "notice.restored": "已復原原始表格，並保留產生的記錄筆記。",

@@ -769,7 +769,6 @@ describe("Base promotion file transaction", () => {
     expect(created.path).toBe(`Moved/_structural-table-records/${metadata.tableId}/Record.md`);
     expect(host.contents.get(created.path)).toContain(`- "${metadata.tableId}"`);
     expect(host.contents.get(created.path)).not.toContain("structural_record_id:");
-    expect(host.opened).toEqual([created.path]);
   });
 
   it("keeps plugin-created records visible in an unmigrated legacy Base", async () => {

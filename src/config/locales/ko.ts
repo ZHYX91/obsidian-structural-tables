@@ -179,6 +179,8 @@ const ko = {
   "notice.basePropertyMigrationFailed": "Structural Tables Base 속성을 이전하지 못했습니다: {message}",
   "notice.promoteFailed": "표를 Base로 변환하지 못했습니다: {message}",
   "notice.promoted": "표를 Base로 변환했습니다. 복구 파일: {path}",
+  "notice.recordCreateFailed": "베이스 레코드를 만들 수 없습니다: {message}",
+  "notice.recordOpenFailed": "레코드를 저장했습니다. 파일 탐색기에서 여세요: {path}",
   "notice.recordCreated": "Base 레코드를 만들었습니다: {path}",
   "notice.restoreFailed": "표를 복원하지 못했습니다: {message}",
   "notice.restored": "원본 표를 복원했습니다. 생성된 레코드 노트는 유지됩니다.",

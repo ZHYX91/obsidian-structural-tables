@@ -177,6 +177,8 @@ const en = {
   "notice.basePropertyMigrationFailed": "Could not migrate Structural Tables Base properties: {message}",
   "notice.promoteFailed": "Could not upgrade the table: {message}",
   "notice.promoted": "Table upgraded to Base. Recovery manifest: {path}",
+  "notice.recordCreateFailed": "Could not create the Base record: {message}",
+  "notice.recordOpenFailed": "Base record saved. Open it from the file explorer: {path}",
   "notice.recordCreated": "New Base record created: {path}",
   "notice.restoreFailed": "Could not restore the table: {message}",
   "notice.restored": "Original table restored. Generated record notes were kept.",

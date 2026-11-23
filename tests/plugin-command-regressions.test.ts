@@ -673,7 +673,7 @@ describe("source conversion menu target", () => {
 });
 
 describe("promoted Base menu target", () => {
-  it.each(["create", "restore"] as const)("keeps %s bound to the Base where the menu opened", async (action) => {
+  it.each(["create", "restore", "create-error", "open-error"] as const)("keeps %s bound to the Base where the menu opened", async (action) => {
     const base = (id: string) => [
       "```base",
       `# structural-tables-promotion: stb_${id}`,
@@ -697,11 +697,15 @@ describe("promoted Base menu target", () => {
       read: async (file: MockTFile) => contents.get(file.path),
       createFolder: async (path: string) => ({ path }),
       create: async (path: string, content: string) => {
+        if (action === "create-error") throw new Error("Storage unavailable");
         contents.set(path, content);
         return new MockTFile(path);
       },
     });
-    Object.assign(f.app.workspace, { getLeaf: () => ({ openFile: async () => {} }) });
+    const openFile = vi.fn(async () => {
+      if (action === "open-error") throw new Error("Pane unavailable");
+    });
+    Object.assign(f.app.workspace, { getLeaf: () => ({ openFile }) });
     let callback!: (menu: Menu, editor: Editor, view: MarkdownView) => void;
     vi.spyOn(f.app.workspace, "on").mockImplementation(((_event: string, handler: typeof callback) => {
       callback = handler;
@@ -717,16 +721,25 @@ describe("promoted Base menu target", () => {
       const menu = new Menu();
       callback(menu, f.editor, f.view);
       f.editor.setCursor(f.editor.offsetToPos(source.indexOf("second")));
-      const title = createTranslator("en")(action === "create" ? "menu.createBaseRecord" : "menu.restorePromotedTable");
+      const title = createTranslator("en")(action === "restore" ? "menu.restorePromotedTable" : "menu.createBaseRecord");
       menu.items.find((item) => item.title === title)!.callback!();
       if (action === "restore") {
         await vi.waitFor(() => expect(preview().source).toBe(table("first")));
         preview().onConfirm();
         await vi.waitFor(() => expect(f.source()).toBe(table("first") + "\n\n" + base("second")));
         expect(f.writes()).toBe(1);
+      } else if (action === "create-error") {
+        await vi.waitFor(() => expect(notices).toContain("Could not create the Base record: Storage unavailable"));
+        expect([...contents.keys()].filter(path => path.endsWith(".md"))).toEqual([]);
+        expect(openFile).not.toHaveBeenCalled();
       } else {
+        const path = "Notes/_structural-table-records/stb_first/Record.md";
+        if (action === "open-error") {
+          await vi.waitFor(() => expect(notices).toContain("Base record saved. Open it from the file explorer: " + path));
+        }
         await vi.waitFor(() => expect(contents.get("Notes/_structural-table-records/stb_first/Record.md")).toContain("stb_first"));
-        expect(contents.has("Notes/_structural-table-records/stb_second/Record.md")).toBe(false);
+        expect([...contents.keys()].filter(key => key.endsWith(".md"))).toEqual([path]);
+        expect(openFile).toHaveBeenCalledOnce();
         expect(f.writes()).toBe(0);
       }
     } finally { f.destroy(); }

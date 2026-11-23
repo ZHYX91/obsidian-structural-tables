@@ -179,6 +179,8 @@ const catalog = {
   "notice.basePropertyMigrationFailed": "Structural Tables の Base プロパティを移行できませんでした：{message}",
   "notice.promoteFailed": "テーブルをアップグレードできませんでした：{message}",
   "notice.promoted": "テーブルを Base にアップグレードしました。復元用マニフェスト：{path}",
+  "notice.recordCreateFailed": "ベースのレコードを作成できませんでした：{message}",
+  "notice.recordOpenFailed": "レコードを保存しました。ファイル一覧から開いてください：{path}",
   "notice.recordCreated": "新しい Base レコードを作成しました：{path}",
   "notice.restoreFailed": "テーブルを復元できませんでした：{message}",
   "notice.restored": "元のテーブルを復元しました。生成済みのレコードノートは保持されています。",

@@ -179,6 +179,8 @@ const vi = {
   "notice.basePropertyMigrationFailed": "Không thể chuyển các thuộc tính Base: {message}",
   "notice.promoteFailed": "Không thể chuyển bảng thành Base: {message}",
   "notice.promoted": "Đã chuyển bảng thành Base. Tệp khôi phục: {path}",
+  "notice.recordCreateFailed": "Không thể tạo bản ghi trong Base: {message}",
+  "notice.recordOpenFailed": "Đã lưu bản ghi. Hãy mở bản ghi từ trình duyệt tệp: {path}",
   "notice.recordCreated": "Đã tạo bản ghi Base mới: {path}",
   "notice.restoreFailed": "Không thể khôi phục bảng: {message}",
   "notice.restored": "Đã khôi phục bảng ban đầu. Các ghi chú bản ghi đã tạo được giữ nguyên.",

@@ -964,12 +964,22 @@ export class StructuralTablesPlugin extends Plugin {
       new Notice(t("notice.noPromotedBase"));
       return;
     }
+    const isActive = this.captureRuntime();
+    let created: TFile;
     try {
-      const created = await service.createRecord(sourceFile, metadata);
-      new Notice(t("notice.recordCreated").replace("{path}", displayPathText(created.path, t.locale)));
+      created = await service.createRecord(sourceFile, metadata);
     } catch (error) {
-      new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000);
+      if (isActive()) new Notice(t("notice.recordCreateFailed").replace("{message}", errorMessage(error)), 8000);
+      return;
     }
+    if (!isActive()) return;
+    try {
+      await this.app.workspace.getLeaf(false).openFile(created);
+    } catch {
+      if (isActive()) new Notice(t("notice.recordOpenFailed").replace("{path}", displayPathText(created.path, t.locale)), 8000);
+      return;
+    }
+    if (isActive()) new Notice(t("notice.recordCreated").replace("{path}", displayPathText(created.path, t.locale)));
   }
 
   private editMerge(editor: Editor, direction: MergeDirection): void {

@@ -179,6 +179,8 @@ const catalog = {
   "notice.basePropertyMigrationFailed": "Die Base-Eigenschaften von Structural Tables konnten nicht migriert werden: {message}",
   "notice.promoteFailed": "Die Tabelle konnte nicht in Base umgewandelt werden: {message}",
   "notice.promoted": "Tabelle in Base umgewandelt. Wiederherstellungsmanifest: {path}",
+  "notice.recordCreateFailed": "Der Base-Eintrag konnte nicht erstellt werden: {message}",
+  "notice.recordOpenFailed": "Der Eintrag wurde gespeichert. Öffne ihn im Datei-Explorer: {path}",
   "notice.recordCreated": "Neuer Base-Datensatz erstellt: {path}",
   "notice.restoreFailed": "Die Tabelle konnte nicht wiederhergestellt werden: {message}",
   "notice.restored": "Ursprüngliche Tabelle wiederhergestellt. Die erzeugten Datensatznotizen wurden beibehalten.",

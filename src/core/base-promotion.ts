@@ -129,7 +129,7 @@ function fileStem(value: string, row: number): string {
   const fallback = sanitized || `Record ${row + 1}`;
   // Dot-prefixed notes are hidden from Obsidian; Windows also reserves
   // the superscript digits 1–3 in COM and LPT device names.
-  return fallback.startsWith(".") || /^(?:con|prn|aux|nul|(?:com|lpt)[1-9¹²³])(?:\.|$)/iu.test(fallback)
+  return fallback.startsWith(".") || /^(?:con|conin\$|conout\$|prn|aux|nul|(?:com|lpt)[1-9¹²³]) *(?:\.|$)/iu.test(fallback)
     ? `_${fallback}` : fallback;
 }
 

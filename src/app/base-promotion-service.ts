@@ -123,15 +123,20 @@ export function recordFileNameIdentity(fileName: string): string {
 
 function uniqueRecordPaths(directory: string, plan: BasePromotionPlan): PreparedRecord[] {
   const used = new Set<string>();
+  const nextSuffix = new Map<string, number>();
   return plan.records.map((record) => {
     const base = record.fileStem;
     let fileName = `${base}.md`;
-    let suffix = 2;
-    while (used.has(recordFileNameIdentity(fileName))) {
+    const family = recordFileNameIdentity(fileName);
+    let suffix = nextSuffix.get(family) ?? 2;
+    let identity = family;
+    while (used.has(identity)) {
       fileName = `${base} ${suffix}.md`;
+      identity = recordFileNameIdentity(fileName);
       suffix += 1;
     }
-    used.add(recordFileNameIdentity(fileName));
+    nextSuffix.set(family, suffix);
+    used.add(identity);
     return { path: joinedPath(directory, fileName), record, content: recordContent(plan.tableId, record) };
   });
 }

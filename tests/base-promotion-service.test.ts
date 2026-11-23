@@ -349,6 +349,38 @@ describe("record filename identity", () => {
     expect(editor.getValue()).toBe(prepared.replacementSource);
   });
 
+  it("keeps non-BMP characters intact at the filename limit", () => {
+    const names = ["A".repeat(78) + "😀X", "A".repeat(79) + "🚀", "A".repeat(79) + "🌿"];
+    const source = ["| Name |", "| --- |", ...names.map(name => `| ${name} |`)].join("\n");
+    const table = parseEditableTables(source).tables[0]!;
+    const plan = new BasePromotionService(memoryHost().app).prepare(table, memoryFile("Source.md"));
+    expect(plan.records.map(record => record.path.split("/").pop())).toEqual([
+      "A".repeat(78) + "😀.md", "A".repeat(79) + ".md", "A".repeat(79) + " 2.md",
+    ]);
+    expect(plan.records.map(record => record.record.values.Name)).toEqual(names);
+  });
+
+  it("allocates repeated names without restarting suffix searches", () => {
+    const names = ["group 2", "Group", ...Array<string>(400).fill("GROUP"), "group 2"];
+    const source = ["| Name |", "| --- |", ...names.map(name => `| ${name} |`)].join("\n");
+    const table = parseEditableTables(source).tables[0]!;
+    const normalize = String.prototype.normalize;
+    let filenameChecks = 0;
+    const spy = vi.spyOn(String.prototype, "normalize").mockImplementation(function (this: string, form?: string) {
+      if (this.endsWith(".md")) filenameChecks++;
+      return normalize.call(this, form);
+    });
+    try {
+      const plan = new BasePromotionService(memoryHost().app).prepare(table, memoryFile("Source.md"));
+      const paths = plan.records.map(record => record.path.split("/").pop());
+      expect(paths.slice(0, 4)).toEqual(["group 2.md", "Group.md", "GROUP 3.md", "GROUP 4.md"]);
+      expect(paths.slice(-2)).toEqual(["GROUP 402.md", "group 2 2.md"]);
+      expect(filenameChecks).toBeLessThan(names.length * 5);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("uses locale-independent case folding for collision checks", () => {
     expect(recordFileNameIdentity("Alice.md")).toBe("alice.md");
     expect(recordFileNameIdentity("ALICE.MD")).toBe("alice.md");

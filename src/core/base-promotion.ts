@@ -127,7 +127,10 @@ function fileStem(value: string, row: number): string {
     // A portable path cannot end with half of a supplementary character.
     .replace(/[\uD800-\uDBFF]$/u, "");
   const fallback = sanitized || `Record ${row + 1}`;
-  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(fallback) ? `_${fallback}` : fallback;
+  // Dot-prefixed notes are hidden from Obsidian; Windows also reserves
+  // the superscript digits 1–3 in COM and LPT device names.
+  return fallback.startsWith(".") || /^(?:con|prn|aux|nul|(?:com|lpt)[1-9¹²³])(?:\.|$)/iu.test(fallback)
+    ? `_${fallback}` : fallback;
 }
 
 function mergedDataCellBlockers(table: StructuralTable): BasePromotionBlocker[] {

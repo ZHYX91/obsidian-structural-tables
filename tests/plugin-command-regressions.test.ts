@@ -695,7 +695,6 @@ describe("promoted Base menu target", () => {
     }
     Object.assign(f.app.vault, {
       read: async (file: MockTFile) => contents.get(file.path),
-      createFolder: async (path: string) => ({ path }),
       create: async (path: string, content: string) => {
         contents.set(path, content);
         return new MockTFile(path);

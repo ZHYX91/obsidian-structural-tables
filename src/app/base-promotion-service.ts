@@ -3,6 +3,7 @@ import {
   normalizePath,
   stringifyYaml,
   TFile,
+  TFolder,
   type Editor,
   type MarkdownFileInfo,
 } from "obsidian";
@@ -121,24 +122,30 @@ export function recordFileNameIdentity(fileName: string): string {
   return fileName.normalize("NFC").toLowerCase();
 }
 
-function uniqueRecordPaths(directory: string, plan: BasePromotionPlan): PreparedRecord[] {
-  const used = new Set<string>();
+function recordNameAllocator(existing: readonly string[] = []): (stem: string) => string {
+  const used = new Set(existing.map(recordFileNameIdentity));
   const nextSuffix = new Map<string, number>();
-  return plan.records.map((record) => {
-    const base = record.fileStem;
-    let fileName = `${base}.md`;
+  return (stem) => {
+    let fileName = `${stem}.md`;
     const family = recordFileNameIdentity(fileName);
     let suffix = nextSuffix.get(family) ?? 2;
     let identity = family;
     while (used.has(identity)) {
-      fileName = `${base} ${suffix}.md`;
+      fileName = `${stem} ${suffix}.md`;
       identity = recordFileNameIdentity(fileName);
       suffix += 1;
     }
     nextSuffix.set(family, suffix);
     used.add(identity);
-    return { path: joinedPath(directory, fileName), record, content: recordContent(plan.tableId, record) };
-  });
+    return fileName;
+  };
+}
+
+function uniqueRecordPaths(directory: string, plan: BasePromotionPlan): PreparedRecord[] {
+  const allocate = recordNameAllocator();
+  return plan.records.map(record => ({
+    path: joinedPath(directory, allocate(record.fileStem)), record, content: recordContent(plan.tableId, record),
+  }));
 }
 
 function matchingPromotionBlock(editor: Editor, expected: PromotionBlockMetadata): PromotionBlockMetadata | null {
@@ -334,12 +341,10 @@ export class BasePromotionService {
     const directory = joinedPath(parentPath(sourceFile.path), RECORDS_FOLDER, metadata.tableId);
     await this.ensureFolder(directory);
     this.assertActive();
-    let path = joinedPath(directory, "Record.md");
-    let suffix = 2;
-    while (this.app.vault.getAbstractFileByPath(path) !== null) {
-      path = joinedPath(directory, `Record ${suffix}.md`);
-      suffix += 1;
-    }
+    const folder = this.app.vault.getAbstractFileByPath(directory);
+    if (!(folder instanceof TFolder)) throw new Error(`The record folder is no longer available: ${directory}`);
+    const allocate = recordNameAllocator(folder.children.map(child => child.name));
+    const path = joinedPath(directory, allocate("Record"));
     const values = Object.fromEntries(metadata.propertyKeys.map((key) => [key, ""]));
     const created = await this.app.vault.create(path, recordContent(metadata.tableId, {
       fileStem: "Record",

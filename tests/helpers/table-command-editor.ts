@@ -2,11 +2,11 @@ import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { history, redo, undo } from "@codemirror/commands";
 import { App, MarkdownView, editorInfoField, editorLivePreviewField, type Editor, type TFile as HostFile } from "obsidian";
-import { TFile } from "../mocks/obsidian";
+import { TFile, TFolder, type TAbstractFile } from "../mocks/obsidian";
 
 /** A real note editor, attached Markdown view and file map for command/menu tests. */
 export function tableCommandEditor(source: string, extension: Extension = [], owner = document) {
-  const files = new Map<string, TFile>();
+  const files = new Map<string, TAbstractFile>();
   const leaves: { view: MarkdownView }[] = [];
   const file = new TFile("Notes/table.md");
   files.set(file.path, file);
@@ -26,7 +26,12 @@ export function tableCommandEditor(source: string, extension: Extension = [], ow
   } as unknown as Editor;
   const app = Object.assign(new App(), {
     vault: {
-      getFileByPath: (path: string) => files.get(path) ?? null,
+      getFileByPath: (path: string) => { const entry = files.get(path); return entry instanceof TFile ? entry : null; },
+      createFolder: async (path: string) => {
+        const folder = new TFolder(path);
+        files.set(path, folder);
+        return folder;
+      },
       getAbstractFileByPath: (path: string) => files.get(path) ?? null,
       cachedRead: async () => cm.state.doc.toString(),
     },

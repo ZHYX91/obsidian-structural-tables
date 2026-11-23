@@ -349,6 +349,28 @@ describe("record filename identity", () => {
     expect(editor.getValue()).toBe(prepared.replacementSource);
   });
 
+  it("keeps promoted records visible and skips occupied portable names when adding a record", async () => {
+    const host = memoryHost();
+    const file = memoryFile("Folder/People.md");
+    const names = [".draft", "com¹.log", "LPT³", "com⁴", "record", "RECORD 2"];
+    const source = ["| Name |", "| --- |", ...names.map(name => `| ${name} |`)].join("\n");
+    const table = parseEditableTables(source).tables[0]!;
+    const editor = new MemoryEditor(source);
+    const service = new BasePromotionService(host.app);
+    const prepared = service.prepare(table, file);
+    expect(prepared.records.map(record => record.path.split("/").pop())).toEqual([
+      "_.draft.md", "_com¹.log.md", "_LPT³.md", "com⁴.md", "record.md", "RECORD 2.md",
+    ]);
+    await service.execute(editor as unknown as Editor, table, prepared, sourceTarget(editor, file));
+    const metadata = promotionBlockAt(editor.getValue(), 1)!;
+    const created = await service.createRecord(file, metadata);
+    expect(created.name).toBe("Record 3.md");
+    for (const [index, record] of prepared.records.entries()) {
+      expect(parse(host.contents.get(record.path)!.split("---")[1]!) as Record<string, unknown>)
+        .toMatchObject({ Name: names[index] });
+    }
+  });
+
   it("keeps non-BMP characters intact at the filename limit", () => {
     const names = ["A".repeat(78) + "😀X", "A".repeat(79) + "🚀", "A".repeat(79) + "🌿"];
     const source = ["| Name |", "| --- |", ...names.map(name => `| ${name} |`)].join("\n");

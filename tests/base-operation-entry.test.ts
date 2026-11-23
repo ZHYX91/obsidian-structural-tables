@@ -48,7 +48,7 @@ function fixture() {
       }),
     },
     metadataCache: { getFileCache: () => null },
-    workspace: { iterateAllLeaves: () => {} },
+    workspace: { iterateAllLeaves: () => {}, getMostRecentLeaf: () => null, getActiveFile: () => file },
   } as unknown as App;
   const promotion = new BasePromotionService(app);
   const migration = new BasePropertyMigrationService(app);

@@ -156,7 +156,7 @@ If a display difference requires user judgment, confirmation remains disabled un
 
 Use non-empty headers as Property keys when possible; blank headers become `column_n`. Duplicate or reserved names receive numeric suffixes. Records use the `structural-tables` list Property for membership, independent of their folder, and require no plugin-specific record ID.
 
-Creating a Base record saves the note before opening it. If Obsidian cannot open the saved note, the notice gives its path for opening it from the file explorer.
+Creating a Base record saves the note before opening it. If you switch panes or notes while it saves, your current note stays open. In that case, or if Obsidian cannot open the saved note, the notice gives its path for opening it from the file explorer.
 
 The generated directory is only the initial creation location. Moving or renaming a record later must not break its Base membership.
 

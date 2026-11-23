@@ -965,6 +965,10 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     const isActive = this.captureRuntime();
+    const workspace = this.app.workspace;
+    const origin = workspace.getMostRecentLeaf();
+    const originView = origin?.view;
+    const originFile = workspace.getActiveFile();
     let created: TFile;
     try {
       created = await service.createRecord(sourceFile, metadata);
@@ -973,8 +977,13 @@ export class StructuralTablesPlugin extends Plugin {
       return;
     }
     if (!isActive()) return;
+    if (origin === null || workspace.getMostRecentLeaf() !== origin
+      || origin.view !== originView || workspace.getActiveFile() !== originFile) {
+      new Notice(t("notice.recordOpenFailed").replace("{path}", displayPathText(created.path, t.locale)), 8000);
+      return;
+    }
     try {
-      await this.app.workspace.getLeaf(false).openFile(created);
+      await workspace.getLeaf(false).openFile(created);
     } catch {
       if (isActive()) new Notice(t("notice.recordOpenFailed").replace("{path}", displayPathText(created.path, t.locale)), 8000);
       return;

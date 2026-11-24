@@ -1,3 +1,4 @@
+import { connectNativeSettingFields } from "./native-setting-fields";
 import { App, Modal, Setting } from "obsidian";
 import { applyInterfaceLocale } from "../config/i18n";
 import type { LocaleId } from "../config/locale";
@@ -45,6 +46,7 @@ export function basePropertyMigrationPreviewText(
 }
 
 export class BasePropertyMigrationModal extends Modal {
+  private disconnectFields: (() => void) | null = null;
   private closed = false;
 
   constructor(
@@ -93,9 +95,12 @@ export class BasePropertyMigrationModal extends Modal {
               this.onFailure(error);
             });
         }));
+    this.disconnectFields = connectNativeSettingFields(this.contentEl);
   }
 
   override onClose(): void {
+    this.disconnectFields?.();
+    this.disconnectFields = null;
     this.closed = true;
     this.contentEl.empty();
     this.onClosed();

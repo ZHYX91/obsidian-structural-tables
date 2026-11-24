@@ -163,6 +163,9 @@ describe("Structural Tables settings export guide", () => {
     expect(instructions[5]?.textContent).toContain("另行安装的本机 DocWen");
     expect(details?.open).toBe(false);
     details!.open = true;
+    container.querySelector("#structural-tables-settings-tab-general")!.trigger("click");
+    expect(container.descendants().find(element => element.tag === "details")).toBe(details);
+    expect(container.descendants()).toContain(activePanel);
 
     const views = elements.find(element => element.attributes.get("role") === "tab"
       && element.textContent === "视图");

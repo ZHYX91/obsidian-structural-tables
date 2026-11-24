@@ -1111,3 +1111,18 @@
   color: var(--text-muted); font-size: var(--font-ui-small);
   margin-block: var(--size-4-2) 4px; line-height: 1.45;
 }
+
+[data-structural-tables-native-fields] .checkbox-container:has(> input:focus-visible) {
+  outline: var(--toggle-s-border-width, 2px) solid var(--background-modifier-border-focus);
+}
+
+/* Keep the host's intrinsic dropdown measurement out of the settings scroll area. */
+.structural-tables-settings select.dropdown.is-measuring {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+}
+
+.structural-tables-appearance-preview :is(h4, p, caption) {
+  overflow-wrap: anywhere;
+}

@@ -1,3 +1,4 @@
+import { connectNativeSettingFields } from "./native-setting-fields";
 import { App, PluginSettingTab, Setting } from "obsidian";
 
 import { applyInterfaceLocale, createTranslator, type Translate } from "../config/i18n";
@@ -14,6 +15,7 @@ type TabId = "general" | "views" | "appearance";
 // Declarative settings are intentionally absent: non-empty definitions would
 // bypass display() and remove the established three-tab settings surface.
 export class StructuralTablesSettingTab extends PluginSettingTab {
+  private disconnectFields: (() => void) | null = null;
   private activeTab: TabId = "general";
   private exportGuide: HTMLDetailsElement | null = null;
   private exportGuideExpanded = false;
@@ -30,6 +32,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.exportGuide = null;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
+    this.disconnectFields?.();
+    this.disconnectFields = null;
     this.overflowCleanup?.();
     this.overflowCleanup = null;
     this.statusCleanup?.();
@@ -65,6 +69,10 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       button.tabIndex = this.activeTab === definition.id ? 0 : -1;
       button.toggleClass("is-active", this.activeTab === definition.id);
       button.addEventListener("click", () => {
+        if (this.activeTab === definition.id) {
+          button.focus({ preventScroll: true });
+          return;
+        }
         this.activeTab = definition.id;
         this.display();
         this.focusTab(definition.id);
@@ -73,10 +81,11 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         const direction = containerEl.ownerDocument.defaultView
           ?.getComputedStyle(containerEl).direction === "rtl" ? "rtl" : "ltr";
         const targetIndex = moveSettingsTabIndex(index, event.key, definitions.length, direction);
-        if (targetIndex === null || targetIndex === index) return;
+        if (targetIndex === null) return;
+        event.preventDefault();
+        if (targetIndex === index) return;
         const target = definitions[targetIndex];
         if (target === undefined) return;
-        event.preventDefault();
         this.activeTab = target.id;
         this.display();
         this.focusTab(target.id);
@@ -160,6 +169,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       this.appearancePreview = new TableAppearancePreview(this.app, panels, this.structuralPlugin.settings, t);
     }
     this.applyReadOnlyState(panels);
+    this.disconnectFields = connectNativeSettingFields(panels, this.structuralPlugin.settingsSaveStatus().state === "incompatible");
   }
 
   override hide(): void {
@@ -167,6 +177,8 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.exportGuideExpanded = false;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
+    this.disconnectFields?.();
+    this.disconnectFields = null;
     this.overflowCleanup?.();
     this.overflowCleanup = null;
     this.statusCleanup?.();

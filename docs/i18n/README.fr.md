@@ -146,7 +146,7 @@ Choisissez Suivre le thème, Grille ou Tableau à trois lignes. Modifier l’app
 
 Sous « Traits et fond » et « Disposition et espacement », un tableau d’exemple reflète immédiatement les changements. Il utilise du texte fixe et ne lit ni ne modifie aucune note. Les réglages s’appliquent aux tableaux du coffre et sont enregistrés automatiquement.
 
-Les fusions et les en-têtes sur plusieurs lignes utilisent une syntaxe Markdown que les convertisseurs habituels ne comprennent pas toujours. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) et l’application locale DocWen peuvent convertir les tableaux pris en charge vers Word. Dans DocWen, activez l’extension d’entrée Structural Tables sous Syntaxe Markdown. Pour convertir Word vers Markdown, activez également l’extension de sortie. Disponible sur ordinateur Windows/Linux seulement.
+Les fusions et les en-têtes sur plusieurs lignes utilisent une syntaxe Markdown que les convertisseurs habituels ne comprennent pas toujours. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) et l’application locale DocWen peuvent convertir les tableaux pris en charge vers Word. Dans les paramètres de DocWen, ouvrez « Analyser Markdown » et activez l’extension d’entrée Structural Tables. Exportez ensuite la note au format DOCX avec DocWen Assistant. Dans les paramètres de DocWen, ouvrez « Générer Markdown » et activez l’extension de sortie Structural Tables. Convertissez ensuite le fichier DOCX en Markdown. Cette conversion avec DocWen Assistant est disponible sur les ordinateurs Windows et Linux.
 
 <!-- section: limitations -->
 ## Limites

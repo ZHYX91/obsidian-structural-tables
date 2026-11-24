@@ -146,7 +146,7 @@ Elige Seguir tema, Cuadrícula o Tabla de tres líneas. Cambiar la apariencia o 
 
 Debajo de «Líneas y fondo» y «Diseño y espaciado», una tabla de ejemplo refleja los cambios al instante. Usa texto fijo y no lee ni edita notas. Los ajustes se aplican a las tablas de toda la bóveda y se guardan automáticamente.
 
-Las celdas combinadas y los encabezados de columna de varias filas usan sintaxis Markdown adicional que los conversores habituales pueden no entender. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) y la aplicación local independiente DocWen pueden convertir las tablas admitidas a Word. En DocWen, activa la extensión de entrada de Structural Tables en la sección de sintaxis Markdown. La conversión de Word a Markdown también necesita la extensión de salida. Solo para equipos de escritorio con Windows/Linux.
+Las celdas combinadas y los encabezados de columna de varias filas usan sintaxis Markdown adicional que los conversores habituales pueden no entender. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) y la aplicación local independiente DocWen pueden convertir las tablas admitidas a Word. En los ajustes de DocWen, abre «Analizar Markdown» y activa la extensión de entrada de Structural Tables. Exporta la nota como DOCX con DocWen Assistant. En los ajustes de DocWen, abre «Generar Markdown» y activa la extensión de salida de Structural Tables. Después, convierte el archivo DOCX a Markdown. Esta conversión con DocWen Assistant está disponible en equipos con Windows o Linux.
 
 <!-- section: limitations -->
 ## Limitaciones

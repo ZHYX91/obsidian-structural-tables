@@ -146,7 +146,7 @@ Markdown の表にカーソルを置いて **現在の Markdown 表を HTML に�
 
 「罫線と背景」と「配置と余白」の下に、変更がすぐ反映されるサンプルを表示します。サンプルは固定の文字だけを使い、ノートを読み込んだり編集したりしません。設定は Vault 全体の表に適用され、自動保存されます。
 
-結合セルや複数行の列見出しには追加の Markdown 構文が使われ、一般的な変換ツールでは解釈できない場合があります。[DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) と別途インストールするローカルの DocWen アプリを使用すると、対応するテーブルを Word に変換できます。 DocWen の Markdown 構文設定で Structural Tables の入力拡張を有効にしてください。Word から Markdown への変換には出力拡張も必要です。Windows/Linux のデスクトップ版のみ対応しています。
+結合セルや複数行の列見出しには追加の Markdown 構文が使われ、一般的な変換ツールでは解釈できない場合があります。[DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) と別途インストールするローカルの DocWen アプリを使用すると、対応するテーブルを Word に変換できます。 DocWen の設定で「Markdown を解析」を開き、Structural Tables の入力拡張を有効にします。次に DocWen Assistant でノートを DOCX として書き出します。 DocWen の設定で「Markdown を生成」を開き、Structural Tables の出力拡張を有効にしてから、DOCX を Markdown に変換します。 この変換には Windows または Linux のデスクトップ版 DocWen Assistant が必要です。
 
 <!-- section: limitations -->
 ## 制限

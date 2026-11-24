@@ -447,8 +447,8 @@ describe("table operations", () => {
 
   it("keeps guarded delete APIs lossy-safe while explicit removal may discard selected visible content", () => {
     const table = parseStructuralTables("| H | V |\n| --- || --- |\n| A | 1 |\n| B | 2 |").tables[0]!;
-    expect(deleteTableRows(table, 2, 2)).toMatchObject({ changed: false, code: "content-would-be-lost" });
-    expect(deleteTableColumns(table, 1, 1)).toMatchObject({ changed: false, code: "content-would-be-lost" });
+    expect(deleteTableRows(table, 2, 2)).toMatchObject({ changed: false, code: "delete-would-lose-content" });
+    expect(deleteTableColumns(table, 1, 1)).toMatchObject({ changed: false, code: "delete-would-lose-content" });
 
     const row = removeTableAxis(table, "row", 2, 2);
     expect(row).toMatchObject({ changed: true, code: "rows-deleted" });
@@ -615,8 +615,8 @@ describe("table operations", () => {
     expect(parseEditableTables(movedAnchor.source).tables[0]?.rows[1]?.cells[0]?.content).toBe("A");
 
     const nonEmpty = parseStructuralTables("| H | V |\n| --- || --- |\n| A | 1 |\n| B | 2 |").tables[0]!;
-    expect(deleteTableRows(nonEmpty, 2, 2)).toMatchObject({ changed: false, code: "content-would-be-lost" });
-    expect(deleteTableColumns(nonEmpty, 1, 1)).toMatchObject({ changed: false, code: "content-would-be-lost" });
+    expect(deleteTableRows(nonEmpty, 2, 2)).toMatchObject({ changed: false, code: "delete-would-lose-content" });
+    expect(deleteTableColumns(nonEmpty, 1, 1)).toMatchObject({ changed: false, code: "delete-would-lose-content" });
 
     const emptyColumn = parseStructuralTables("| H |  |\n| --- || --- |\n| A |  |").tables[0]!;
     expect(deleteTableColumns(emptyColumn, 1, 1)).toMatchObject({ changed: true, code: "columns-deleted" });

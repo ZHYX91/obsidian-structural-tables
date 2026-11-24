@@ -146,7 +146,7 @@ Wählen Sie „Dem Theme folgen“, Raster oder Dreilinientabelle. Darstellung u
 
 Unter „Linien und Schattierung“ und „Layout und Abstände“ zeigt eine Beispieltabelle Änderungen sofort an. Sie verwendet festen Text und liest oder bearbeitet keine Notiz. Die Einstellungen gelten für Tabellen im gesamten Vault und werden automatisch gespeichert.
 
-Verbundene Zellen und mehrzeilige Spaltenüberschriften verwenden zusätzliche Markdown-Syntax, die gewöhnliche Konverter möglicherweise nicht verstehen. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) und die separate lokale DocWen-App können unterstützte Tabellen in Word umwandeln. Aktivieren Sie in DocWen unter Markdown-Syntax die Eingabeerweiterung für Structural Tables. Für die Umwandlung von Word nach Markdown wird auch die Ausgabeerweiterung benötigt. Nur für Windows/Linux auf Desktop-Geräten.
+Verbundene Zellen und mehrzeilige Spaltenüberschriften verwenden zusätzliche Markdown-Syntax, die gewöhnliche Konverter möglicherweise nicht verstehen. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) und die separate lokale DocWen-App können unterstützte Tabellen in Word umwandeln. Öffnen Sie in den DocWen-Einstellungen „Markdown einlesen“ und aktivieren Sie die Eingabeerweiterung für Structural Tables. Exportieren Sie die Notiz mit DocWen Assistant als DOCX. Öffnen Sie in den DocWen-Einstellungen „Markdown erzeugen“ und aktivieren Sie die Ausgabeerweiterung für Structural Tables. Konvertieren Sie anschließend die DOCX-Datei in Markdown. Diese Konvertierung mit DocWen Assistant ist auf Windows- und Linux-Computern verfügbar.
 
 <!-- section: limitations -->
 ## Einschränkungen

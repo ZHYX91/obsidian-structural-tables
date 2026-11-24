@@ -729,9 +729,19 @@
   font-weight: inherit;
   block-size: auto;
   min-block-size: 34px;
-  margin: 0 0 -1px;
+  margin: 0;
   padding: 7px 12px;
   white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  .structural-tables-settings-tabs {
+    --interactive-accent: Highlight;
+  }
+
+  .structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab[aria-selected="false"] {
+    border-block-end-color: Canvas;
+  }
 }
 
 .structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab:hover {

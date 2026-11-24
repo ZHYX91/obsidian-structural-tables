@@ -12,6 +12,8 @@ translation_of: ux-spec.zh-CN.md
 
 # Structural Tables — UX specification
 
+See the [shared plugin interface](https://github.com/ZHYX91/obsidian-property-order/blob/main/docs/shared-ui.md) for cross-plugin interaction and visual conventions.
+
 <!-- section: principles -->
 ## Principles
 

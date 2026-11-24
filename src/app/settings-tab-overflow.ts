@@ -34,7 +34,8 @@ export function observeTabOverflow(
     let target: HTMLElement | undefined;
     for (const tab of tabs) {
       const distance = distanceToEdge(tab, viewport, towardRight);
-      if (distance <= 0.5 || distance >= nearest) continue;
+      // Scroll extents are rounded to CSS pixels; label bounds can be fractional.
+      if (distance <= 1 || distance >= nearest) continue;
       nearest = distance;
       target = tab;
     }
@@ -47,7 +48,7 @@ export function observeTabOverflow(
     const first = tabs[0]!.getBoundingClientRect();
     const last = tabs[tabs.length - 1]!.getBoundingClientRect();
     const width = Math.max(first.right, last.right) - Math.min(first.left, last.left);
-    const overflows = width > bar.getBoundingClientRect().width + 0.5;
+    const overflows = width > bar.getBoundingClientRect().width + 1;
     bar.classList.toggle("has-overflow", overflows);
     const focused = list.ownerDocument.activeElement;
     const rtl = isRtl();
@@ -67,6 +68,35 @@ export function observeTabOverflow(
     }
   }
 
+  let followSelectedTab = true;
+  function onScroll(): void {
+    update();
+    const viewport = list.getBoundingClientRect();
+    const selected = tabs.find(tab => tab.getAttribute("aria-selected") === "true")?.getBoundingClientRect();
+    if (!selected || !viewport.width) return;
+    // Keep following a visible selection on resize. Preserve a different page
+    // when the user has scrolled the selection out of view.
+    const visible = Math.min(selected.right, viewport.right) - Math.max(selected.left, viewport.left);
+    followSelectedTab = visible >= Math.min(selected.width, viewport.width) - 1;
+  }
+
+  function measure(): void {
+    update();
+    if (!list.clientWidth) return;
+    if (!bar.classList.contains("has-overflow")) {
+      followSelectedTab = true;
+      return;
+    }
+    if (!followSelectedTab) return;
+    const active = tabs.find(tab => tab.getAttribute("aria-selected") === "true");
+    if (!active) return;
+    const viewport = list.getBoundingClientRect();
+    const selected = active.getBoundingClientRect();
+    if (selected.left < viewport.left && selected.right < viewport.right) list.scrollLeft += selected.left - viewport.left;
+    else if (selected.right > viewport.right && selected.left > viewport.left) list.scrollLeft += selected.right - viewport.right;
+    update();
+  }
+
   function scroll(towardNext: boolean): void {
     const towardRight = towardNext !== isRtl();
     const target = firstClippedTab(towardRight);
@@ -82,13 +112,13 @@ export function observeTabOverflow(
 
   previous.onclick = () => scroll(false);
   next.onclick = () => scroll(true);
-  list.addEventListener("scroll", update, { passive: true });
-  const observer = win?.ResizeObserver ? new win.ResizeObserver(update) : null;
+  list.addEventListener("scroll", onScroll, { passive: true });
+  const observer = win?.ResizeObserver ? new win.ResizeObserver(measure) : null;
   observer?.observe(bar);
   for (const tab of tabs) observer?.observe(tab);
-  update();
+  measure();
   return () => {
     observer?.disconnect();
-    list.removeEventListener("scroll", update);
+    list.removeEventListener("scroll", onScroll);
   };
 }

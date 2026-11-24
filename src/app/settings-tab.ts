@@ -67,7 +67,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       button.addEventListener("click", () => {
         this.activeTab = definition.id;
         this.display();
-        this.focusAndRevealTab(definition.id);
+        this.focusTab(definition.id);
       });
       button.addEventListener("keydown", (event) => {
         const direction = containerEl.ownerDocument.defaultView
@@ -79,7 +79,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         event.preventDefault();
         this.activeTab = target.id;
         this.display();
-        this.focusAndRevealTab(target.id);
+        this.focusTab(target.id);
       });
     }
     const next = createScrollButton(bar, "next", t("settings.nextTabs"));
@@ -283,10 +283,9 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     }
   }
 
-  private focusAndRevealTab(id: TabId): void {
+  private focusTab(id: TabId): void {
     const button = this.containerEl.querySelector<HTMLElement>(`#structural-tables-settings-tab-${id}`);
-    button?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    button?.focus();
+    button?.focus({ preventScroll: true });
   }
 }
 

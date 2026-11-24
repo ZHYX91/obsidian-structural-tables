@@ -811,6 +811,7 @@
   }
 
   .structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab {
+    min-inline-size: 44px;
     min-block-size: 44px;
   }
 }

@@ -38,7 +38,7 @@ export class PlainGfmModal extends Modal {
   private sourceVisible = false;
   private closed = false;
   private busy = false;
-  private rendering = false;
+  private renderState: "pending" | "ready" | "failed" = "pending";
   private renderEpoch = 0;
   private renderOwner: Component | null = null;
   private orientationEl: HTMLSelectElement | null = null;
@@ -94,6 +94,7 @@ export class PlainGfmModal extends Modal {
     // ordinary Markdown, including its single header row, without re-acquisition.
     this.renderedEl = this.contentEl.createEl("div", { cls: "structural-tables-container structural-tables-gfm-rendered markdown-rendered" });
     this.renderedEl.dir = this.target.direction;
+    this.renderedEl.tabIndex = 0;
     this.sourceEl = this.contentEl.createEl("pre", { cls: "structural-tables-conversion-preview" });
     this.sourceEl.setAttribute("dir", "ltr");
     this.sourceEl.tabIndex = 0;
@@ -117,7 +118,9 @@ export class PlainGfmModal extends Modal {
   }
 
   private updateButtons(): void {
-    const disabled = this.closed || this.busy || this.rendering;
+    const renderedMode = this.modeButtons[0];
+    if (renderedMode !== undefined) renderedMode.disabled = this.renderState !== "ready";
+    const disabled = this.closed || this.busy || this.renderState === "pending";
     this.copyButton?.setDisabled(disabled);
     this.replaceButton?.setDisabled(disabled || !this.plan().canReplace);
     if (this.orientationEl !== null) this.orientationEl.disabled = this.busy;
@@ -132,7 +135,7 @@ export class PlainGfmModal extends Modal {
     this.warningsEl?.replaceChildren();
     for (const warning of plan.warnings) this.warningsEl?.createEl("li", { text: this.t(warningKeys[warning]) });
     this.renderedEl?.replaceChildren();
-    this.rendering = true;
+    this.renderState = "pending";
     this.updateButtons();
     if (this.statusEl !== null) this.statusEl.textContent = this.t("gfm.rendering");
     const owner = new Component();
@@ -144,20 +147,22 @@ export class PlainGfmModal extends Modal {
       await MarkdownRenderer.render(this.app, plan.source, staging, this.target.sourcePath, owner);
       if (this.closed || epoch !== this.renderEpoch) { owner.unload(); return; }
       this.renderedEl?.append(staging);
+      this.renderState = "ready";
       if (this.statusEl !== null) this.statusEl.textContent = "";
     } catch {
       owner.unload();
       if (this.closed || epoch !== this.renderEpoch) return;
       if (this.statusEl !== null) this.statusEl.textContent = this.t("gfm.renderFailed");
+      this.renderState = "failed";
       this.sourceVisible = true;
       this.showMode();
     } finally {
-      if (!this.closed && epoch === this.renderEpoch) { this.rendering = false; this.updateButtons(); }
+      if (!this.closed && epoch === this.renderEpoch) this.updateButtons();
     }
   }
 
   private async perform(action: "copy" | "replace"): Promise<void> {
-    if (this.closed || this.busy || this.rendering) return;
+    if (this.closed || this.busy || this.renderState === "pending") return;
     // Claim the click before asynchronous source validation so a late response
     // cannot supersede a newer copy. Keep this modal bound to its loaded instance.
     const currentCopy = action === "copy" ? this.copySession.begin() : null;

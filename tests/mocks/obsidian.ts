@@ -334,7 +334,13 @@ export class Setting {
     return this;
   }
 
+  setDesc(value: string): this {
+    this.settingEl.appendChild(this.settingEl.ownerDocument.createTextNode(value));
+    return this;
+  }
+
   addToggle(callback: (toggle: {
+    setDisabled: (disabled: boolean) => unknown;
     setValue: (checked: boolean) => unknown;
     onChange: (listener: (checked: boolean) => void) => unknown;
   }) => void): this {
@@ -342,6 +348,7 @@ export class Setting {
     input.type = "checkbox";
     this.settingEl.appendChild(input);
     const toggle = {
+      setDisabled(disabled: boolean) { input.disabled = disabled; return toggle; },
       setValue(checked: boolean) { input.checked = checked; return toggle; },
       onChange(listener: (checked: boolean) => void) {
         input.addEventListener("change", () => listener(input.checked));

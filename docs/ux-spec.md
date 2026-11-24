@@ -152,7 +152,7 @@ Before confirmation, show:
 - content/display differences such as `<br>` handling;
 - prepared record paths and frontmatter.
 
-If a display difference requires user judgment, confirmation remains disabled until the user explicitly accepts it. Cancelling or closing the preview creates no files.
+If a display difference requires user judgment, confirmation remains disabled until the user explicitly accepts it. Closing the preview before confirmation creates no files. While a confirmed upgrade or migration is saving, the dialog shows its progress and locks the decision controls. A failed save restores the choices for retry.
 
 ### Properties and records
 

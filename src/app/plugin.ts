@@ -834,6 +834,7 @@ export class StructuralTablesPlugin extends Plugin {
           acceptContentDifferences: t("modal.promoteBase.acceptContentDifferences"),
           cancel: t("modal.cancel"),
           confirm: t("modal.promoteBase.confirm"),
+          saving: t("settings.save.saving"),
         },
         async (acceptance?: BasePromotionContentAcceptance) => {
           await service.execute(editor, table, prepared, target, acceptance);
@@ -917,6 +918,7 @@ export class StructuralTablesPlugin extends Plugin {
           removeRecordIdsDescription: t("modal.migrateBaseProperties.removeRecordIdsDesc"),
           cancel: t("modal.cancel"),
           confirm: t("modal.migrateBaseProperties.confirm"),
+          saving: t("settings.save.saving"),
         },
         async (removeLegacyRecordIds) => {
           const result = await service.execute(prepared, removeLegacyRecordIds);

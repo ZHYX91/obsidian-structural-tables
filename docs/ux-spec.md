@@ -12,6 +12,8 @@ translation_of: ux-spec.zh-CN.md
 
 # Structural Tables — UX specification
 
+See the [shared plugin interface](https://github.com/ZHYX91/obsidian-property-order/blob/main/docs/shared-ui.md) for cross-plugin interaction and visual conventions.
+
 <!-- section: principles -->
 ## Principles
 
@@ -150,7 +152,7 @@ Before confirmation, show:
 - content/display differences such as `<br>` handling;
 - prepared record paths and frontmatter.
 
-If a display difference requires user judgment, confirmation remains disabled until the user explicitly accepts it. Cancelling or closing the preview creates no files.
+If a display difference requires user judgment, confirmation remains disabled until the user explicitly accepts it. Closing the preview before confirmation creates no files. While a confirmed upgrade or migration is saving, the dialog shows its progress and locks the decision controls. A failed save restores the choices for retry.
 
 ### Properties and records
 
@@ -217,6 +219,8 @@ Invalid structures get a red edge and a readable reason. Reading view keeps its 
 
 Use native Obsidian controls with **General**, **Views**, and **Appearance** tabs. A failed save remains visible with a **Retry** action. If a future incompatible schema is detected, keep navigation available but disable controls that could overwrite those settings.
 
+When tabs extend beyond the settings bar, a theme-accent chevron appears at each edge with hidden tabs. Clicking it scrolls the bar without changing the selected page. The controls disappear when all tabs fit and have 44 px targets on touch screens.
+
 ### General
 
 - language: Follow Obsidian, English, 简体中文, 繁體中文, 日本語, 한국어, Deutsch, Français, Español, Português (Brasil), Русский, Tiếng Việt, العربية;
@@ -253,3 +257,5 @@ Layout changes table position and width only. Appearance settings never rewrite 
 ## Settings tutorial display
 
 The Word export walkthrough is a low-emphasis native disclosure, closed on first opening and remembered only while the settings tab remains open; hiding the settings clears it. The card has a subtle accent tint and a neutral border. Its full-width summary contains the title and an accent-colored chevron. When expanded, a thin line in the same color runs along the reading edge of the instructions and their link. The inset narrows with the settings pane. A short warning about ordinary conversions and extended table syntax stays above the disclosure. Separate entries cover export to Word, conversion back to Markdown and supported platforms, followed by the DocWen Assistant link. Conflict alerts, ordinary-table takeover controls, visual diagnostics and real-time appearance preview remain visible and fully operative. No extra settings key or document write occurs when the tutorial toggles.
+
+Settings fields use the visible row name and help text as their accessible name and description. Each toggle has one keyboard stop and reports its current value, including after a settings refresh.

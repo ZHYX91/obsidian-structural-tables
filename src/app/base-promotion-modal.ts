@@ -1,4 +1,5 @@
-import { App, Modal, Setting } from "obsidian";
+import { App, Modal } from "obsidian";
+import { renderBaseWriteActions } from "./base-write-actions";
 import { applyInterfaceLocale } from "../config/i18n";
 import type { LocaleId } from "../config/locale";
 import { appendDisplayPath, appendDisplayValue, appendInterfaceTemplate } from "../config/interface-bidi";
@@ -34,6 +35,7 @@ export interface BasePromotionLabels {
   acceptContentDifferences: string;
   cancel: string;
   confirm: string;
+  saving: string;
 }
 
 export class BasePromotionModal extends Modal {
@@ -137,7 +139,7 @@ export class BasePromotionModal extends Modal {
     this.contentEl.createEl("pre", {
       cls: "structural-tables-conversion-preview",
       text: this.prepared.replacementSource,
-    });
+    }).tabIndex = 0;
 
     let acceptanceInput: HTMLInputElement | null = null;
     if (report.requiresAcceptance) {
@@ -147,39 +149,17 @@ export class BasePromotionModal extends Modal {
       label.createSpan({ text: this.labels.acceptContentDifferences });
     }
 
-    let submitting = false;
-    new Setting(this.contentEl)
-      .addButton((button) => button
-        .setButtonText(this.labels.cancel)
-        .onClick(() => this.close()))
-      .addButton((button) => {
-        const updateDisabled = (): void => {
-          const acceptanceMissing = report.requiresAcceptance && acceptanceInput?.checked !== true;
-          button.setDisabled(submitting || this.prepared.plan.blockers.length > 0 || acceptanceMissing);
-        };
-        button.setCta().setButtonText(this.labels.confirm);
-        updateDisabled();
-        acceptanceInput?.addEventListener("change", updateDisabled);
-        button.onClick(async () => {
-          if (this.closed || submitting
-            || this.prepared.plan.blockers.length > 0
-            || (report.requiresAcceptance && acceptanceInput?.checked !== true)) return;
-          submitting = true;
-          updateDisabled();
-          let succeeded = false;
-          try {
-            const acceptance = report.requiresAcceptance ? acceptBasePromotionContent(this.prepared) : undefined;
-            await this.onConfirm(acceptance);
-            succeeded = true;
-            this.close();
-          } catch (error) {
-            this.onError(error);
-          } finally {
-            submitting = false;
-            if (!succeeded) updateDisabled();
-          }
-        });
-      });
+    const refresh = renderBaseWriteActions(this.contentEl, {
+      labels: this.labels,
+      canConfirm: () => this.prepared.plan.blockers.length === 0
+        && (!report.requiresAcceptance || acceptanceInput?.checked === true),
+      setOptionsDisabled: (disabled) => { if (acceptanceInput !== null) acceptanceInput.disabled = disabled; },
+      isClosed: () => this.closed,
+      close: () => this.close(),
+      confirm: () => this.onConfirm(report.requiresAcceptance ? acceptBasePromotionContent(this.prepared) : undefined),
+      onError: this.onError,
+    });
+    acceptanceInput?.addEventListener("change", refresh);
   }
 
   override onClose(): void {

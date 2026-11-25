@@ -1,4 +1,6 @@
-import { App, Modal, Setting } from "obsidian";
+import { App, Modal, Setting, type ToggleComponent } from "obsidian";
+import { renderBaseWriteActions } from "./base-write-actions";
+import { connectNativeSettingFields } from "./native-setting-fields";
 import { applyInterfaceLocale } from "../config/i18n";
 import type { LocaleId } from "../config/locale";
 import { displayPathText } from "../config/interface-bidi";
@@ -17,6 +19,7 @@ export interface BasePropertyMigrationLabels {
   removeRecordIdsDescription: string;
   cancel: string;
   confirm: string;
+  saving: string;
 }
 
 export function basePropertyMigrationPreviewText(
@@ -45,6 +48,7 @@ export function basePropertyMigrationPreviewText(
 }
 
 export class BasePropertyMigrationModal extends Modal {
+  private disconnectFields: (() => void) | null = null;
   private closed = false;
 
   constructor(
@@ -67,35 +71,32 @@ export class BasePropertyMigrationModal extends Modal {
       cls: "structural-tables-conversion-preview",
       text: basePropertyMigrationPreviewText(this.prepared, this.labels, removeLegacyRecordIds),
     });
+    preview.tabIndex = 0;
+    let cleanupToggle!: ToggleComponent;
     new Setting(this.contentEl)
       .setName(this.labels.removeRecordIds)
       .setDesc(this.labels.removeRecordIdsDescription)
-      .addToggle((toggle) => toggle
-        .setValue(removeLegacyRecordIds)
-        .onChange((value) => {
+      .addToggle((toggle) => {
+        cleanupToggle = toggle.setValue(removeLegacyRecordIds).onChange((value) => {
           removeLegacyRecordIds = value;
           preview.textContent = basePropertyMigrationPreviewText(this.prepared, this.labels, removeLegacyRecordIds);
-        }));
-    new Setting(this.contentEl)
-      .addButton((button) => button
-        .setButtonText(this.labels.cancel)
-        .onClick(() => this.close()))
-      .addButton((button) => button
-        .setCta()
-        .setButtonText(this.labels.confirm)
-        .onClick(() => {
-          if (this.closed) return;
-          button.setDisabled(true);
-          void this.onConfirm(removeLegacyRecordIds)
-            .then(() => this.close())
-            .catch((error: unknown) => {
-              button.setDisabled(false);
-              this.onFailure(error);
-            });
-        }));
+        });
+      });
+    renderBaseWriteActions(this.contentEl, {
+      labels: this.labels,
+      canConfirm: () => true,
+      setOptionsDisabled: (disabled) => { cleanupToggle.setDisabled(disabled); },
+      isClosed: () => this.closed,
+      close: () => this.close(),
+      confirm: () => this.onConfirm(removeLegacyRecordIds),
+      onError: this.onFailure,
+    });
+    this.disconnectFields = connectNativeSettingFields(this.contentEl);
   }
 
   override onClose(): void {
+    this.disconnectFields?.();
+    this.disconnectFields = null;
     this.closed = true;
     this.contentEl.empty();
     this.onClosed();

@@ -326,6 +326,8 @@ const vi = {
   "settings.save.pending": "Chưa lưu được cài đặt.",
   "settings.save.retry": "Thử lại",
   "settings.save.saving": "Đang lưu…",
+  "settings.previousTabs": "Hiện các thẻ phía trước",
+  "settings.nextTabs": "Hiện các thẻ tiếp theo",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "Cảnh báo xung đột plugin bảng",
   "settings.warnConflicts.desc": "Cảnh báo một lần lúc khởi động nếu plugin khác dùng cùng các ký hiệu cấu trúc bảng.",

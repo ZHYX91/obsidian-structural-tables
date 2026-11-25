@@ -326,6 +326,8 @@ const zhCN = {
   "settings.save.pending": "设置保存失败。",
   "settings.save.retry": "重试",
   "settings.save.saving": "正在保存…",
+  "settings.previousTabs": "显示前面的选项卡",
+  "settings.nextTabs": "显示后面的选项卡",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "提示表格插件冲突",
   "settings.warnConflicts.desc": "检测到其他表格插件也使用相同的合并记号时，在启动后提醒一次。",

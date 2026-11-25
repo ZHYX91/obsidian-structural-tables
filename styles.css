@@ -622,6 +622,81 @@
   box-shadow: inset 3px 0 var(--color-red);
 }
 
+.structural-tables-settings-tab-bar {
+  --structural-tables-tab-scroll-size: 32px;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  container-type: inline-size;
+}
+
+.structural-tables-settings-tab-bar > .structural-tables-settings-tabs {
+  grid-area: 1 / 2;
+  min-inline-size: 0;
+}
+
+.structural-tables-settings-tab-bar > button.structural-tables-settings-tab-scroll {
+  grid-area: 1 / 1;
+  inline-size: var(--structural-tables-tab-scroll-size);
+  min-inline-size: 0;
+  appearance: none;
+  display: grid;
+  place-items: center;
+  color: var(--text-accent);
+  cursor: var(--cursor, default);
+  padding: 0;
+  block-size: auto;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.structural-tables-settings-tab-bar > button.structural-tables-settings-tab-scroll[data-direction="next"] {
+  grid-column: 3;
+}
+
+.structural-tables-settings-tab-bar > button.structural-tables-settings-tab-scroll[hidden] {
+  display: none;
+}
+
+.structural-tables-settings-tab-scroll::before {
+  content: "";
+  box-sizing: border-box;
+  inline-size: 8px;
+  block-size: 8px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  direction: ltr;
+  transform: rotate(135deg);
+}
+
+.structural-tables-settings-tab-scroll[data-direction="next"]::before,
+.structural-tables-settings-tab-scroll:dir(rtl)::before {
+  transform: rotate(-45deg);
+}
+
+.structural-tables-settings-tab-scroll[data-direction="next"]:dir(rtl)::before {
+  transform: rotate(135deg);
+}
+
+.structural-tables-settings-tab-bar > button.structural-tables-settings-tab-scroll:hover {
+  background: var(--background-modifier-hover);
+}
+
+.structural-tables-settings-tab-bar > button.structural-tables-settings-tab-scroll:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+@media (pointer: coarse) {
+  .structural-tables-settings-tab-bar {
+    --structural-tables-tab-scroll-size: 44px;
+  }
+
+  .structural-tables-settings-tab-bar > button.structural-tables-settings-tab-scroll {
+    min-block-size: 44px;
+  }
+}
+
 .structural-tables-settings-tabs {
   display: flex;
   max-inline-size: 100%;
@@ -654,9 +729,19 @@
   font-weight: inherit;
   block-size: auto;
   min-block-size: 34px;
-  margin: 0 0 -1px;
+  margin: 0;
   padding: 7px 12px;
   white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  .structural-tables-settings-tabs {
+    --interactive-accent: Highlight;
+  }
+
+  .structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab[aria-selected="false"] {
+    border-block-end-color: Canvas;
+  }
 }
 
 .structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab:hover {
@@ -677,9 +762,20 @@
   outline-offset: -2px;
 }
 
+@container (max-width: 600px) {
+  .structural-tables-settings-tabs > button.structural-tables-settings-tab {
+    padding-inline: 8px !important;
+  }
+}
+
 .structural-tables-settings-panel {
   margin-block-start: var(--size-4-5);
   min-inline-size: 0;
+}
+
+.structural-tables-settings-panel .setting-item-info {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .structural-tables-settings-save-status {
@@ -689,9 +785,19 @@
   border-radius: var(--radius-s);
   display: flex;
   gap: var(--size-4-2);
+  flex-wrap: wrap;
   justify-content: space-between;
+  overflow-wrap: anywhere;
   margin-block-end: var(--size-4-3);
   padding: var(--size-4-2) var(--size-4-3);
+}
+
+.structural-tables-settings-save-status button {
+  max-inline-size: 100%;
+  block-size: auto;
+  min-block-size: var(--input-height);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .structural-tables-settings-save-status[role="alert"] {
@@ -730,6 +836,7 @@
   }
 
   .structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab {
+    min-inline-size: 44px;
     min-block-size: 44px;
   }
 }
@@ -1018,4 +1125,19 @@
 .structural-tables-settings-export-brief {
   color: var(--text-muted); font-size: var(--font-ui-small);
   margin-block: var(--size-4-2) 4px; line-height: 1.45;
+}
+
+[data-structural-tables-native-fields] .checkbox-container:has(> input:focus-visible) {
+  outline: var(--toggle-s-border-width, 2px) solid var(--background-modifier-border-focus);
+}
+
+/* Keep the host's intrinsic dropdown measurement out of the settings scroll area. */
+.structural-tables-settings select.dropdown.is-measuring {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+}
+
+.structural-tables-appearance-preview :is(h4, p, caption) {
+  overflow-wrap: anywhere;
 }

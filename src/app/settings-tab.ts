@@ -1,7 +1,9 @@
+import { connectNativeSettingFields } from "./native-setting-fields";
 import { App, PluginSettingTab, Setting } from "obsidian";
 
 import { applyInterfaceLocale, createTranslator, type Translate } from "../config/i18n";
 import { LOCALES, sanitizeInterfaceLanguage } from "../config/locale";
+import { createScrollButton, observeTabOverflow } from "./settings-tab-overflow";
 import { moveSettingsTabIndex } from "./settings-tab-navigation";
 import type { SettingsSaveStatus } from "./settings-save-coordinator";
 import type { StructuralTablesPlugin } from "./plugin";
@@ -9,13 +11,16 @@ import type { StructuralTablesSettings } from "../config/settings";
 import { TableAppearancePreview } from "./table-appearance-preview";
 
 type TabId = "general" | "views" | "appearance";
+const languageFieldId = "structural-tables-settings-language";
 
 // Declarative settings are intentionally absent: non-empty definitions would
 // bypass display() and remove the established three-tab settings surface.
 export class StructuralTablesSettingTab extends PluginSettingTab {
+  private disconnectFields: (() => void) | null = null;
   private activeTab: TabId = "general";
   private exportGuide: HTMLDetailsElement | null = null;
   private exportGuideExpanded = false;
+  private overflowCleanup: (() => void) | null = null;
   private statusCleanup: (() => void) | null = null;
   private appearancePreview: TableAppearancePreview | null = null;
 
@@ -28,6 +33,10 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.exportGuide = null;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
+    this.disconnectFields?.();
+    this.disconnectFields = null;
+    this.overflowCleanup?.();
+    this.overflowCleanup = null;
     this.statusCleanup?.();
     this.statusCleanup = null;
     const { containerEl } = this;
@@ -35,7 +44,9 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     applyInterfaceLocale(containerEl, t);
     containerEl.empty();
     containerEl.addClass("structural-tables-settings");
-    const tabs = containerEl.createDiv({
+    const bar = containerEl.createDiv({ cls: "structural-tables-settings-tab-bar" });
+    const previous = createScrollButton(bar, "previous", t("settings.previousTabs"));
+    const tabs = bar.createDiv({
       cls: "structural-tables-settings-tabs",
       attr: {
         role: "tablist",
@@ -59,23 +70,30 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       button.tabIndex = this.activeTab === definition.id ? 0 : -1;
       button.toggleClass("is-active", this.activeTab === definition.id);
       button.addEventListener("click", () => {
+        if (this.activeTab === definition.id) {
+          button.focus({ preventScroll: true });
+          return;
+        }
         this.activeTab = definition.id;
         this.display();
-        this.focusAndRevealTab(definition.id);
+        this.focusTab(definition.id);
       });
       button.addEventListener("keydown", (event) => {
         const direction = containerEl.ownerDocument.defaultView
           ?.getComputedStyle(containerEl).direction === "rtl" ? "rtl" : "ltr";
         const targetIndex = moveSettingsTabIndex(index, event.key, definitions.length, direction);
-        if (targetIndex === null || targetIndex === index) return;
+        if (targetIndex === null) return;
+        event.preventDefault();
+        if (targetIndex === index) return;
         const target = definitions[targetIndex];
         if (target === undefined) return;
-        event.preventDefault();
         this.activeTab = target.id;
         this.display();
-        this.focusAndRevealTab(target.id);
+        this.focusTab(target.id);
       });
     }
+    const next = createScrollButton(bar, "next", t("settings.nextTabs"));
+    this.overflowCleanup = observeTabOverflow(bar, tabs, previous, next);
     const panels = containerEl.createDiv({
       cls: "structural-tables-settings-panel",
       attr: {
@@ -92,12 +110,21 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         .setName(t("settings.language"))
         .setDesc(t("settings.language.desc"))
         .addDropdown((dropdown) => {
+          const field = dropdown.selectEl;
+          field.id = languageFieldId;
           dropdown.addOption("auto", t("settings.language.auto"));
           for (const locale of LOCALES) dropdown.addOption(locale.id, locale.name);
           dropdown.setValue(this.structuralPlugin.settings.language)
             .onChange(async (value) => {
               await this.structuralPlugin.updateSettings({ language: sanitizeInterfaceLanguage(value) });
+              if (!field.isConnected) return;
+              const restoreFocus = field.ownerDocument.activeElement === field;
+              const scrollTop = containerEl.scrollTop;
               this.display();
+              containerEl.scrollTop = scrollTop;
+              if (restoreFocus) {
+                containerEl.querySelector<HTMLSelectElement>(`#${languageFieldId}`)?.focus({ preventScroll: true });
+              }
             });
         });
       new Setting(panels).setName(t("settings.htmlPaste")).setDesc(t("settings.htmlPaste.desc")).addToggle((toggle) => toggle
@@ -152,6 +179,7 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
       this.appearancePreview = new TableAppearancePreview(this.app, panels, this.structuralPlugin.settings, t);
     }
     this.applyReadOnlyState(panels);
+    this.disconnectFields = connectNativeSettingFields(panels, this.structuralPlugin.settingsSaveStatus().state === "incompatible");
   }
 
   override hide(): void {
@@ -159,6 +187,10 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     this.exportGuideExpanded = false;
     this.appearancePreview?.destroy();
     this.appearancePreview = null;
+    this.disconnectFields?.();
+    this.disconnectFields = null;
+    this.overflowCleanup?.();
+    this.overflowCleanup = null;
     this.statusCleanup?.();
     this.statusCleanup = null;
     super.hide();
@@ -273,10 +305,9 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
     }
   }
 
-  private focusAndRevealTab(id: TabId): void {
+  private focusTab(id: TabId): void {
     const button = this.containerEl.querySelector<HTMLElement>(`#structural-tables-settings-tab-${id}`);
-    button?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    button?.focus();
+    button?.focus({ preventScroll: true });
   }
 }
 

@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment happy-dom
+import { App } from "obsidian";
+import { describe, expect, it, vi } from "vitest";
 
 import {
+  BasePropertyMigrationModal,
   basePropertyMigrationPreviewText,
   type BasePropertyMigrationLabels,
 } from "../src/app/base-property-migration-modal";
@@ -17,6 +20,7 @@ const labels: BasePropertyMigrationLabels = {
   removeRecordIdsDescription: "Remove description",
   cancel: "Cancel",
   confirm: "Confirm",
+  saving: "Saving…",
 };
 
 function prepared(): PreparedBasePropertyMigration {
@@ -41,6 +45,42 @@ function prepared(): PreparedBasePropertyMigration {
 }
 
 describe("Base property migration preview", () => {
+  it("keeps the confirmed cleanup choice while saving and restores the options on failure", async () => {
+    const fail = new Error("disk full");
+    let reject!: (error: Error) => void;
+    const pending = new Promise<void>((_resolve, rejectWrite) => { reject = rejectWrite; });
+    const save = vi.fn(() => pending);
+    const report = vi.fn();
+    const modal = new BasePropertyMigrationModal(new App(), prepared(), labels, save, report);
+    modal.contentEl.createEl = (tag, options) => {
+      const el = document.createElement(tag);
+      if (typeof options === "object" && typeof options.text === "string") el.textContent = options.text;
+      modal.contentEl.append(el);
+      return el;
+    };
+    modal.contentEl.empty = () => modal.contentEl.replaceChildren();
+    modal.open();
+    const cleanup = modal.contentEl.querySelector("input")!;
+    const [cancel, confirm] = Array.from(modal.contentEl.querySelectorAll("button"));
+    cleanup.click();
+    const acceptedPreview = modal.contentEl.querySelector("pre")!.textContent;
+    confirm!.click();
+    cleanup.click(); cancel!.click(); confirm!.click();
+    expect(save.mock.calls).toEqual([[true]]);
+    expect(modal.contentEl.isConnected).toBe(true);
+    expect(modal.contentEl.querySelector("pre")!.textContent).toBe(acceptedPreview);
+    expect(cleanup.checked && cleanup.disabled).toBe(true);
+    expect(confirm!.textContent).toBe("Saving…");
+    reject(fail);
+    await pending.catch(() => {});
+    expect(report).toHaveBeenCalledWith(fail);
+    expect(cleanup.checked).toBe(true);
+    expect(cleanup.disabled || cancel!.disabled || confirm!.disabled).toBe(false);
+    expect(confirm!.textContent).toBe("Confirm");
+    cancel!.click();
+    expect(modal.contentEl.isConnected).toBe(false);
+  });
+
   it.each([false, true])("isolates Arabic path components in the real preview without changing migration data (cleanup=%s)", (cleanup) => {
     const value = prepared(); value.files[0]!.path = "ملاحظات/تقارير/ملخص-2026.md";
     const original = JSON.stringify(value);

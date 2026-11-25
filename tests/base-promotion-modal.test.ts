@@ -53,6 +53,7 @@ const labels: BasePromotionLabels = {
   acceptContentDifferences: "Accept differences",
   cancel: "Cancel",
   confirm: "Confirm",
+  saving: "Saving…",
 };
 
 function prepared(blockers = false): PreparedBasePromotion {
@@ -170,6 +171,14 @@ describe("BasePromotionModal content acceptance", () => {
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(received?.prepared).toBeDefined();
     expect(confirm.disabled).toBe(true);
+    expect(confirm.textContent).toBe("Saving…");
+    expect(modal.contentEl.getAttribute("aria-busy")).toBe("true");
+    expect(checkbox.disabled).toBe(true);
+    const cancel = button(modal, "Cancel");
+    expect(cancel.disabled).toBe(true);
+    cancel.click(); checkbox.click();
+    expect(checkbox.checked).toBe(true);
+    expect(modal.contentEl.isConnected).toBe(true);
     finish?.();
     await pending;
     await Promise.resolve();
@@ -200,6 +209,10 @@ describe("BasePromotionModal content acceptance", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(failedConfirm.disabled).toBe(false);
+    expect(failedConfirm.textContent).toBe("Confirm");
+    expect(checkbox.disabled).toBe(false);
+    expect(checkbox.checked).toBe(true);
+    expect(button(failed, "Cancel").disabled).toBe(false);
     failed.close();
 
     const blocked = new BasePromotionModal(new App(), prepared(true), labels, vi.fn(async () => undefined), vi.fn());

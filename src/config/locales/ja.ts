@@ -326,6 +326,8 @@ const catalog = {
   "settings.save.pending": "設定は保存されていません。",
   "settings.save.retry": "再試行",
   "settings.save.saving": "保存中…",
+  "settings.previousTabs": "前のタブを表示",
+  "settings.nextTabs": "次のタブを表示",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "テーブルプラグインの競合を警告",
   "settings.warnConflicts.desc": "有効な他のテーブルプラグインが同じ構造マーカーを使用している場合、起動時に 1 回警告します。",

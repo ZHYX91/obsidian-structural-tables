@@ -326,6 +326,8 @@ const fr = {
   "settings.save.pending": "Les paramètres n’ont pas été enregistrés.",
   "settings.save.retry": "Réessayer",
   "settings.save.saving": "Enregistrement…",
+  "settings.previousTabs": "Afficher les onglets précédents",
+  "settings.nextTabs": "Afficher les onglets suivants",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "Signaler les conflits entre modules de tableaux",
   "settings.warnConflicts.desc": "Affiche un avertissement au démarrage si un autre module utilise les mêmes marqueurs.",

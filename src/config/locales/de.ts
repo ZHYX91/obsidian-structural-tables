@@ -326,6 +326,8 @@ const catalog = {
   "settings.save.pending": "Die Einstellungen wurden nicht gespeichert.",
   "settings.save.retry": "Erneut versuchen",
   "settings.save.saving": "Wird gespeichert…",
+  "settings.previousTabs": "Vorherige Tabs anzeigen",
+  "settings.nextTabs": "Weitere Tabs anzeigen",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "Vor Konflikten mit Tabellenplugins warnen",
   "settings.warnConflicts.desc": "Beim Start einmal warnen, wenn ein anderes aktiviertes Tabellenplugin dieselben Strukturmarkierungen verwendet.",

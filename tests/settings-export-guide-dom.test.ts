@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 type Options = { cls?: string; text?: string; attr?: Record<string, string>; href?: string };
 
 class MockElement {
+  static activeElement: MockElement | null = null;
   readonly children: MockElement[] = [];
   readonly attributes = new Map<string, string>();
   readonly listeners = new Map<string, (() => void)[]>();
@@ -10,13 +11,24 @@ class MockElement {
   hidden = false;
   open = false;
   disabled = false;
+  readonly ownerDocument = {
+    defaultView: null,
+    get activeElement(): MockElement | null { return MockElement.activeElement; },
+  };
   type = "";
   tabIndex = 0;
   id = "";
   isConnected = true;
+  scrollTop = 0;
   constructor(readonly tag = "div") {}
 
-  empty(): void { this.children.length = 0; }
+  empty(): void {
+    const descendants = this.descendants();
+    for (const child of descendants) child.isConnected = false;
+    if (MockElement.activeElement && descendants.includes(MockElement.activeElement)) MockElement.activeElement = null;
+    this.children.length = 0;
+    this.scrollTop = 0;
+  }
   addClass(cls: string): void { this.attributes.set("class", cls); }
   toggleClass(cls: string, enabled: boolean): void { if (enabled) this.addClass(cls); }
   createDiv(options?: Options): MockElement { return this.createEl("div", options); }
@@ -39,13 +51,16 @@ class MockElement {
     items.push(callback);
     this.listeners.set(event, items);
   }
+  removeEventListener(type: string, listener: () => void): void {
+    this.listeners.set(type, (this.listeners.get(type) ?? []).filter(item => item !== listener));
+  }
   trigger(event: string): void { for (const callback of this.listeners.get(event) ?? []) callback(); }
   descendants(): MockElement[] { return this.children.flatMap(child => [child, ...child.descendants()]); }
   querySelector(selector: string): MockElement | null {
     return this.descendants().find(element => selector === `#${element.id}`) ?? null;
   }
   scrollIntoView(): void {}
-  focus(): void {}
+  focus(): void { MockElement.activeElement = this; }
   cloneNode(): MockElement { return new MockElement(this.tag); }
   replaceWith(_replacement: MockElement): void {}
   remove(): void {}
@@ -56,7 +71,7 @@ class MockInput {
   readonly options = new Map<string, string>();
   value = "";
   change: ((value: string) => Promise<void>) | undefined;
-  constructor() { MockInput.created.push(this); }
+  constructor(readonly selectEl: MockElement) { MockInput.created.push(this); }
   addOption(value: string, label: string): this { this.options.set(value, label); return this; }
   setValue(value: string): this { this.value = value; return this; }
   onChange(callback: (value: string) => Promise<void>): this { this.change = callback; return this; }
@@ -70,11 +85,17 @@ vi.mock("obsidian", () => ({
     hide(): void {}
   },
   Setting: class {
-    constructor(_container: MockElement) {}
+    constructor(private readonly container: MockElement) {}
     setName(): this { return this; }
     setDesc(): this { return this; }
-    addDropdown(callback: (input: MockInput) => void): this { callback(new MockInput()); return this; }
-    addToggle(callback: (input: MockInput) => void): this { callback(new MockInput()); return this; }
+    addDropdown(callback: (input: MockInput) => void): this {
+      callback(new MockInput(this.container.createEl("select")));
+      return this;
+    }
+    addToggle(callback: (input: MockInput) => void): this {
+      callback(new MockInput(this.container.createEl("input")));
+      return this;
+    }
   },
 }));
 
@@ -100,10 +121,15 @@ describe("Structural Tables settings export guide", () => {
     expect(dropdown.value).toBe("ar");
     const container = tab.containerEl as unknown as MockElement;
     expect(container.attributes.get("dir")).toBe("rtl");
+    container.scrollTop = 80;
+    dropdown.selectEl.focus();
     await dropdown.change!("ja");
     expect(plugin.updateSettings).toHaveBeenCalledWith({ language: "ja" });
     expect(container.attributes.get("dir")).toBe("ltr");
     expect(container.attributes.get("lang")).toBe("ja");
+    expect(dropdown.selectEl.isConnected).toBe(false);
+    expect(MockElement.activeElement).toBe(container.querySelector("#structural-tables-settings-language"));
+    expect(container.scrollTop).toBe(80);
   });
 
   it("renders a safe community link in General and does not repeat it on Views", async () => {
@@ -159,6 +185,9 @@ describe("Structural Tables settings export guide", () => {
     expect(instructions[5]?.textContent).toContain("另行安装的本机 DocWen");
     expect(details?.open).toBe(false);
     details!.open = true;
+    container.querySelector("#structural-tables-settings-tab-general")!.trigger("click");
+    expect(container.descendants().find(element => element.tag === "details")).toBe(details);
+    expect(container.descendants()).toContain(activePanel);
 
     const views = elements.find(element => element.attributes.get("role") === "tab"
       && element.textContent === "视图");

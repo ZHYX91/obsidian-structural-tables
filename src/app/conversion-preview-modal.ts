@@ -1,3 +1,4 @@
+import { connectNativeSettingFields } from "./native-setting-fields";
 import { App, Modal, Setting } from "obsidian";
 import { applyInterfaceLocale } from "../config/i18n";
 import type { LocaleId } from "../config/locale";
@@ -17,6 +18,7 @@ export interface ConversionPreviewOptions {
 }
 
 export class ConversionPreviewModal extends Modal {
+  private disconnectFields: (() => void) | null = null;
   private closed = false;
 
   constructor(app: App, private readonly options: ConversionPreviewOptions) {
@@ -59,9 +61,12 @@ export class ConversionPreviewModal extends Modal {
           this.options.onConfirm();
         });
       });
+    this.disconnectFields = connectNativeSettingFields(this.contentEl);
   }
 
   override onClose(): void {
+    this.disconnectFields?.();
+    this.disconnectFields = null;
     this.closed = true;
     this.contentEl.empty();
     this.options.onClose?.();

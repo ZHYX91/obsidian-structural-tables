@@ -326,6 +326,8 @@ const catalog = {
   "settings.save.pending": "Los ajustes no se han guardado.",
   "settings.save.retry": "Reintentar",
   "settings.save.saving": "Guardando…",
+  "settings.previousTabs": "Mostrar pestañas anteriores",
+  "settings.nextTabs": "Mostrar pestañas siguientes",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "Avisar de conflictos con complementos de tablas",
   "settings.warnConflicts.desc": "Avisa una vez al iniciar si otro complemento de tablas activo usa los mismos marcadores estructurales.",

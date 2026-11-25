@@ -326,6 +326,8 @@ const ru = {
   "settings.save.pending": "Не удалось сохранить настройки.",
   "settings.save.retry": "Повторить",
   "settings.save.saving": "Сохранение…",
+  "settings.previousTabs": "Показать предыдущие вкладки",
+  "settings.nextTabs": "Показать следующие вкладки",
   "settings.title": "Structural Tables",
   "settings.warnConflicts": "Предупреждать о конфликтах плагинов таблиц",
   "settings.warnConflicts.desc": "Один раз предупреждает при запуске, если другой включённый плагин использует те же маркеры.",

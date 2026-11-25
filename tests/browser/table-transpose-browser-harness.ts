@@ -241,7 +241,7 @@ function interfaceBidi() {
     membershipNotes: t("modal.migrateBaseProperties.membershipNotes"), promotedBases: t("modal.migrateBaseProperties.promotedBases"),
     retiredRecordIdCandidates: t("modal.migrateBaseProperties.retiredRecordIdCandidates"), retiredRecordIds: t("modal.migrateBaseProperties.retiredRecordIds"),
     removeRecordIds: t("modal.migrateBaseProperties.removeRecordIds"), removeRecordIdsDescription: t("modal.migrateBaseProperties.removeRecordIdsDesc"),
-    cancel: t("modal.cancel"), confirm: t("modal.migrateBaseProperties.confirm") };
+    cancel: t("modal.cancel"), confirm: t("modal.migrateBaseProperties.confirm"), saving: t("settings.save.saving") };
   const prepared: PreparedBasePropertyMigration = { membershipNoteCount: 1, legacyBaseCount: 2, legacyRecordIdCount: 1, files: [{
     file: new TFile("ملاحظات/تقارير/ملخص-2026.md") as unknown as HostFile, path: "ملاحظات/تقارير/ملخص-2026.md", originalSource: "Original source",
     migrateMembership: true, legacyBaseCount: 2, hasLegacyRecordId: true, membershipIds: ["stb_people"], currentMembershipPresent: false,

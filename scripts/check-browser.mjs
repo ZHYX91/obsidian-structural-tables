@@ -6,7 +6,7 @@ import path from "node:path";
 const browser = process.argv[2] || process.env.CHROMIUM_PATH;
 assert.ok(browser, "Provide a Chromium executable or set CHROMIUM_PATH. Optional following arguments select one or more suites.");
 const transpose = ["transpose", "focus", "editing", "arrows", "history-bidi", "alignment"];
-const available = [...transpose, "image", "gfm"];
+const available = [...transpose, "image", "gfm", "settings"];
 const selected = process.argv.length > 3 ? process.argv.slice(3) : available;
 assert.ok(selected.every((name) => available.includes(name)), "Available browser suites: " + available.join(", "));
 const outputRoot = path.resolve(process.env.STRUCTURAL_BROWSER_ARTIFACTS || "dist/browser-checks");
@@ -15,7 +15,8 @@ const artifacts = await mkdtemp(path.join(outputRoot, "run-"));
 const results = [];
 for (const [index, name] of selected.entries()) {
   const script = transpose.includes(name) ? "check-table-transpose-browser.mjs"
-    : name === "image" ? "check-table-image-browser.mjs" : "check-plain-gfm-browser.mjs";
+    : name === "image" ? "check-table-image-browser.mjs"
+      : name === "gfm" ? "check-plain-gfm-browser.mjs" : "check-settings-browser.mjs";
   const args = [path.join("scripts", script), browser, ...(transpose.includes(name) ? [name] : [])];
   const start = Date.now();
   process.stdout.write(`\nBrowser suite: ${name}\n`);

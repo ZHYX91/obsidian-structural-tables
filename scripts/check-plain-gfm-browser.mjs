@@ -17,6 +17,8 @@ const server = createServer((request, response) => {
     *{box-sizing:border-box}body{margin:20px;font:16px/1.5 ${JSON.stringify(localFont)}}button,select{font:inherit;padding:8px;margin:4px;min-height:44px}table{border-collapse:collapse}td,th{padding:8px;border:1px solid #777}.cm-editor{max-height:540px;border:1px solid #aaa}.cm-scroller{overflow:auto}#host-menu{position:fixed;inset:12px 12px auto auto;background:#fff;z-index:10}
     ${styles}
     .structural-tables-gfm-preview{position:fixed;inset:24px;z-index:20;margin:auto;max-width:720px;max-height:calc(100vh - 48px);overflow:auto;padding:20px;border:1px solid #aaa;background:#fff;box-shadow:0 8px 32px #0003}.structural-tables-gfm-preview h2{margin-top:0}.structural-tables-gfm-preview>button{max-width:100%}
+    .is-phone .structural-tables-gfm-preview{display:flex;flex-direction:column}
+    .is-phone .setting-item-description{overflow:hidden;text-overflow:ellipsis}
     @media(max-width:480px){.structural-tables-gfm-preview{inset:8px;max-height:calc(100vh - 16px);padding:12px}}
     </style></head><body><script src="/bundle.js"></script></body></html>`);
 });
@@ -120,6 +122,29 @@ try {
   const screenshot = await command("Page.captureScreenshot", { format: "png" });
   await writeFile(path.join(session.artifacts, "gfm-arabic-narrow.png"), Buffer.from(screenshot.data, "base64"));
   results.push({ mode: "arabic-narrow", noteDirectionIndependent: true, controlsFit: true, minimumTarget: 44 });
+
+  // Obsidian's phone modal lays out its scrolling content as a flex column.
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 520, deviceScaleFactor: 1, mobile: false });
+  await evaluate("document.body.classList.add('is-phone'); window.gfmBrowser.reset('source')");
+  await click("document.querySelector('#gfm-source')");
+  await waitFor("window.gfmBrowser.state().copyReady");
+  await orientation("keep");
+  await action("source");
+  const phone = await evaluate(`(() => {
+    const modal = document.querySelector(".structural-tables-gfm-preview");
+    const guidance = modal.querySelector(".setting-item-description");
+    const source = modal.querySelector("pre");
+    const footer = modal.querySelector(".structural-tables-gfm-actions");
+    modal.scrollTop = modal.scrollHeight;
+    return {
+      guidanceFits: guidance.scrollHeight <= guidance.clientHeight + 1,
+      shortSourceFits: source.scrollHeight <= source.clientHeight + 1,
+      footerReachable: footer.getBoundingClientRect().bottom <= modal.getBoundingClientRect().bottom,
+      outerScroll: modal.scrollHeight > modal.clientHeight,
+    };
+  })()`);
+  assert.deepEqual(phone, { guidanceFits: true, shortSourceFits: true, footerReachable: true, outerScroll: true });
+  results.push({ mode: "short-phone-source", ...phone });
   await session.result({ status: "passed", scenarios: results });
 } catch (error) {
   await session?.diagnose(error, "window.gfmBrowser?.state()"); throw error;

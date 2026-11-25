@@ -903,6 +903,8 @@
   .structural-tables-gfm-preview :is(button, select) { min-block-size: 44px; }
 }
 
+/* Phone modals scroll as a whole instead of compressing their content. */
+.structural-tables-gfm-preview > *,
 .structural-tables-promotion-modal > * {
   flex-shrink: 0;
 }

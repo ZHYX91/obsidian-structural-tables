@@ -5,7 +5,7 @@
 - Report a saved Base record separately from a failure to open it, and keep the current note in place if you switch panes during the save.
 - Allocate distinct, portable Base record names for repeated values, case variants, reserved names, and long Unicode text.
 - Keep reference links and image descriptions intact in detached tables and callouts. Render only the reference definitions they use.
-- Keep the GFM source and copy action available if the rendered preview fails.
+- Keep the GFM source and copy action available if the rendered preview fails. Keep guidance and Markdown readable in short mobile dialogs.
 - Keep selected settings tabs visible in narrow panes, expose native controls to screen readers, and keep Base confirmation choices in place if a write fails.
 - Explain separately how to recover from a protected merge or deletion in all twelve languages.
 

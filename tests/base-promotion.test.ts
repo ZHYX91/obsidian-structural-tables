@@ -213,6 +213,16 @@ views:
     ]);
   });
 
+  it("keeps console aliases and space-padded device basenames portable", () => {
+    const names = ["CONIN$", "conout$.log", "NuL .note", "LPT² .log", "conning", "COM10"];
+    const source = ["| Name |", "| --- |", ...names.map(name => `| ${name} |`)].join("\n");
+    const records = buildBasePromotionPlan(table(source), "stb_names").records;
+    expect(records.map(record => record.fileStem)).toEqual([
+      "_CONIN$", "_conout$.log", "_NuL .note", "_LPT² .log", "conning", "COM10",
+    ]);
+    expect(records.map(record => record.values.Name)).toEqual(names);
+  });
+
   it("describes structural flattening and blocks merged data cells", () => {
     const rowHeaders = table(`| Region | Value |
 | --- || --- |

@@ -343,7 +343,6 @@ export class BasePromotionService {
     if (this.disposed) {
       throw new Error(`The Base operation stopped because the plugin was unloaded. The created record was retained: ${created.path}`);
     }
-    await this.app.workspace.getLeaf(false).openFile(created);
     return created;
   }
 

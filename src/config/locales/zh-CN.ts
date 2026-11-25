@@ -179,6 +179,8 @@ const zhCN = {
   "notice.basePropertyMigrationFailed": "无法迁移 Structural Tables Base 属性：{message}",
   "notice.promoteFailed": "无法升级表格：{message}",
   "notice.promoted": "表格已升级为 Base。恢复清单：{path}",
+  "notice.recordCreateFailed": "无法新建 Base 记录：{message}",
+  "notice.recordOpenFailed": "记录已保存。请从文件列表打开：{path}",
   "notice.recordCreated": "已创建新的 Base 记录：{path}",
   "notice.restoreFailed": "无法恢复表格：{message}",
   "notice.restored": "已恢复原表格，并保留生成的记录笔记。",

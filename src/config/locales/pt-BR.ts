@@ -179,6 +179,8 @@ const ptBR = {
   "notice.basePropertyMigrationFailed": "Não foi possível migrar as propriedades da Base: {message}",
   "notice.promoteFailed": "Não foi possível converter a tabela: {message}",
   "notice.promoted": "Tabela convertida em Base. Arquivo de recuperação: {path}",
+  "notice.recordCreateFailed": "Não foi possível criar o registro da base: {message}",
+  "notice.recordOpenFailed": "O registro foi salvo. Abra-o no explorador de arquivos: {path}",
   "notice.recordCreated": "Novo registro da Base criado: {path}",
   "notice.restoreFailed": "Não foi possível restaurar a tabela: {message}",
   "notice.restored": "Tabela original restaurada. As notas de registro foram mantidas.",

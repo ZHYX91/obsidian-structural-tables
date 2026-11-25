@@ -179,6 +179,8 @@ const catalog = {
   "notice.basePropertyMigrationFailed": "No se han podido migrar las propiedades de Base de Structural Tables: {message}",
   "notice.promoteFailed": "No se ha podido convertir la tabla en Base: {message}",
   "notice.promoted": "Tabla convertida en Base. Manifiesto de recuperación: {path}",
+  "notice.recordCreateFailed": "No se pudo crear el registro de la base: {message}",
+  "notice.recordOpenFailed": "Se guardó el registro. Ábrelo desde el explorador de archivos: {path}",
   "notice.recordCreated": "Nuevo registro de Base creado: {path}",
   "notice.restoreFailed": "No se ha podido restaurar la tabla: {message}",
   "notice.restored": "Tabla original restaurada. Se han conservado las notas de registro generadas.",

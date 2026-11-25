@@ -966,12 +966,31 @@ export class StructuralTablesPlugin extends Plugin {
       new Notice(t("notice.noPromotedBase"));
       return;
     }
+    const isActive = this.captureRuntime();
+    const workspace = this.app.workspace;
+    const origin = workspace.getMostRecentLeaf();
+    const originView = origin?.view;
+    const originFile = workspace.getActiveFile();
+    let created: TFile;
     try {
-      const created = await service.createRecord(sourceFile, metadata);
-      new Notice(t("notice.recordCreated").replace("{path}", displayPathText(created.path, t.locale)));
+      created = await service.createRecord(sourceFile, metadata);
     } catch (error) {
-      new Notice(t("notice.promoteFailed").replace("{message}", errorMessage(error)), 8000);
+      if (isActive()) new Notice(t("notice.recordCreateFailed").replace("{message}", errorMessage(error)), 8000);
+      return;
     }
+    if (!isActive()) return;
+    if (origin === null || workspace.getMostRecentLeaf() !== origin
+      || origin.view !== originView || workspace.getActiveFile() !== originFile) {
+      new Notice(t("notice.recordOpenFailed").replace("{path}", displayPathText(created.path, t.locale)), 8000);
+      return;
+    }
+    try {
+      await workspace.getLeaf(false).openFile(created);
+    } catch {
+      if (isActive()) new Notice(t("notice.recordOpenFailed").replace("{path}", displayPathText(created.path, t.locale)), 8000);
+      return;
+    }
+    if (isActive()) new Notice(t("notice.recordCreated").replace("{path}", displayPathText(created.path, t.locale)));
   }
 
   private editMerge(editor: Editor, direction: MergeDirection): void {

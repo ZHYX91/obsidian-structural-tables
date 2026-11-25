@@ -179,6 +179,8 @@ const fr = {
   "notice.basePropertyMigrationFailed": "Migration des propriétés Base impossible : {message}",
   "notice.promoteFailed": "Conversion impossible : {message}",
   "notice.promoted": "Tableau converti en Base. Fichier de récupération : {path}",
+  "notice.recordCreateFailed": "Impossible de créer la fiche de la base : {message}",
+  "notice.recordOpenFailed": "La fiche a été enregistrée. Ouvrez-la depuis l’explorateur de fichiers : {path}",
   "notice.recordCreated": "Nouvel enregistrement créé : {path}",
   "notice.restoreFailed": "Restauration impossible : {message}",
   "notice.restored": "Tableau d’origine restauré. Les notes créées ont été conservées.",

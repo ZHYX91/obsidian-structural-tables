@@ -179,6 +179,8 @@ const catalog = {
   "notice.basePropertyMigrationFailed": "تعذر ترحيل خصائص Base الخاصة بـ Structural Tables: {message}",
   "notice.promoteFailed": "تعذرت ترقية الجدول: {message}",
   "notice.promoted": "رُقّي الجدول إلى Base. بيان الاستعادة: {path}",
+  "notice.recordCreateFailed": "تعذّر إنشاء سجل في القاعدة: {message}",
+  "notice.recordOpenFailed": "تم حفظ السجل. افتحه من مستكشف الملفات: {path}",
   "notice.recordCreated": "أُنشئ سجل Base جديد: {path}",
   "notice.restoreFailed": "تعذرت استعادة الجدول: {message}",
   "notice.restored": "استُعيد الجدول الأصلي. احتُفظ بملاحظات السجلات الناتجة.",

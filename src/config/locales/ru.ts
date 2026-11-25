@@ -179,6 +179,8 @@ const ru = {
   "notice.basePropertyMigrationFailed": "Не удалось перенести свойства Base: {message}",
   "notice.promoteFailed": "Не удалось преобразовать таблицу: {message}",
   "notice.promoted": "Таблица преобразована в базу. Файл восстановления: {path}",
+  "notice.recordCreateFailed": "Не удалось создать запись базы: {message}",
+  "notice.recordOpenFailed": "Запись сохранена. Откройте её из списка файлов: {path}",
   "notice.recordCreated": "Создана новая запись базы: {path}",
   "notice.restoreFailed": "Не удалось восстановить таблицу: {message}",
   "notice.restored": "Исходная таблица восстановлена. Созданные заметки записей сохранены.",

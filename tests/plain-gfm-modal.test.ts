@@ -224,12 +224,23 @@ describe("GFM preview and editor entry points", () => {
   });
 
   it("falls back to the exact source pane after a rendering failure", async () => {
-    vi.mocked(MarkdownRenderer.render).mockRejectedValue(new Error("renderer failed"));
+    vi.mocked(MarkdownRenderer.render).mockRejectedValueOnce(new Error("renderer failed"));
     const { modal } = makeModal(); await previewReady(modal);
     expect(modal.contentEl.textContent).toContain(t("gfm.renderFailed"));
     expect(modal.contentEl.querySelector("pre")!.hidden).toBe(false);
+    const renderedMode = button(modal.contentEl, t("gfm.preview"));
+    expect(renderedMode.disabled).toBe(true);
+    renderedMode.click();
+    expect(modal.contentEl.querySelector("pre")!.hidden).toBe(false);
     button(modal.contentEl, "Copy preview Markdown").click();
     await vi.waitFor(() => expect(window.navigator.clipboard.writeText).toHaveBeenCalledWith(modal.contentEl.querySelector("pre")!.textContent));
+    const orientation = modal.contentEl.querySelector<HTMLSelectElement>("select")!;
+    orientation.value = "keep";
+    orientation.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(renderedMode.disabled).toBe(false));
+    renderedMode.click();
+    expect(modal.contentEl.querySelector("pre")!.hidden).toBe(true);
+    expect(modal.contentEl.querySelector("th")).not.toBeNull();
   });
 
   it.each(["editor", "reading"])("resolves references in the %s preview and rechecks changes outside the table", async (entry) => {

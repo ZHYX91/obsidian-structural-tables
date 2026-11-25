@@ -2,10 +2,12 @@
 import { Prec, StateField, Transaction } from "@codemirror/state";
 import { history, redo, undo } from "@codemirror/commands";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
+import MarkdownIt from "markdown-it";
 import { App, MarkdownRenderer } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import type { StructuralTable } from "../src/core/model";
 import { parseEditableTables } from "../src/core/parser";
+import { blockSignature, renderTableSignatures } from "../src/rendering/native-table-mapping";
 import { CalloutFallbackWidget } from "../src/editor/callout-fallback-widget";
 import { dispatchScopeCaptureThenDom, lastMenu, setMockModKey } from "./mocks/obsidian";
 import {
@@ -21,6 +23,40 @@ import {
 } from "./helpers/live-preview-editor";
 
 describe("Live Preview rendering and source ownership", () => {
+  it("tracks references used only by the native block or only by individual cells", async () => {
+    // Native Markdown sees one reference spanning the first row's pipe. Its
+    // multiline code span hides a second reference that the structural cell renders.
+    const table = ["| --- || --- |", "| [split | name] |", "| ` | A |", "| [Cell][r] | B |", "| ` | C |"].join("\n");
+    const definitions = "[split | name]: /native\n[r]: /first\n[unused]: /other";
+    const note = "Intro\n\n" + table + "\n\n" + definitions;
+    const md = new MarkdownIt();
+    vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, source, element) => {
+      element.innerHTML = md.render(source);
+    });
+    const { app, parent, view } = mountEditor(note, { anchor: 0 });
+    try {
+      const source = parseEditableTables(note).tables[0]!;
+      const native = document.createElement("div");
+      native.innerHTML = md.render(table + "\n\n" + definitions);
+      expect(native.querySelector("a")?.getAttribute("href")).toBe("/native");
+      expect(native.querySelector("code")?.textContent).toContain("[Cell][r]");
+      expect(await renderTableSignatures(app, source, "Note.md", document))
+        .toEqual(Array.from(native.children, child => blockSignature(child as HTMLElement)));
+
+      const link = () => parent.querySelector(".structural-tables-table a");
+      await vi.waitFor(() => expect(link()?.getAttribute("href")).toBe("/first"));
+      const initial = link();
+      const replace = (from: string, to: string): void => {
+        const offset = view.state.doc.toString().indexOf(from);
+        view.dispatch({ changes: { from: offset, to: offset + from.length, insert: to } });
+      };
+      replace("/other", "/unrelated");
+      expect(link()).toBe(initial);
+      replace("/first", "/updated");
+      await vi.waitFor(() => expect(link()?.getAttribute("href")).toBe("/updated"));
+    } finally { view.destroy(); }
+  });
+
   it.each([
     { before: "text", after: "<div>", beforeCount: 1, afterCount: 0 },
     { before: "<div>", after: "text", beforeCount: 0, afterCount: 1 },

@@ -5,6 +5,8 @@ import MarkdownIt from "markdown-it";
 import { type App, Component, MarkdownRenderer } from "obsidian";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import { blockReferenceMarkdown } from "../src/core/portable-markdown-cell";
+import { renderTableSignatures } from "../src/rendering/native-table-mapping";
 import { parseEditableTables, parseStructuralTables } from "../src/core/parser";
 import { applyTableGridAccessibility } from "../src/editor/table-grid-accessibility";
 import { renderStructuralTable, tableRenderingComplete } from "../src/rendering/table-renderer";
@@ -32,11 +34,12 @@ describe("logical grid coordinates", () => {
   it("gives cells only the definitions their Markdown uses", async () => {
     const source = [
       "| --- || --- | --- |",
-      "| [*Shown*][guide] [Guide][] [Guide] | ![Icon][icon] | `[Guide]` [Direct](https://example.org/direct) |",
+      "| [*Shown*][guide] [Guide][] [Guide] | ![Read [caption][alt] and `[Unrelated]`][icon] ![See [caption][alt]](./inline.svg) | `[Guide]` [Direct](https://example.org/direct) |",
       "",
       "[Guide]: https://example.org/guide \"Guide title\"",
       "[ GUIDE ]: https://example.org/duplicate",
       "[Icon]: ./icon.svg",
+      "[alt]: ./caption",
       "[Unrelated]: https://example.org/unrelated",
     ].join("\n");
     const model = parseStructuralTables(source).tables[0]!;
@@ -53,13 +56,42 @@ describe("logical grid coordinates", () => {
         .toEqual(Array(3).fill("https://example.org/guide"));
       expect(table.querySelector("th a em")?.textContent).toBe("Shown");
       expect(table.querySelector("th a")?.getAttribute("title")).toBe("Guide title");
-      expect(table.querySelector("td img")?.getAttribute("src")).toBe("./icon.svg");
+      expect(Array.from(table.querySelectorAll("td img"), image =>
+        [image.getAttribute("src"), image.getAttribute("alt")])).toEqual([
+        ["./icon.svg", "Read caption and "], ["./inline.svg", "See caption"],
+      ]);
       expect(table.querySelector("td code")?.textContent).toBe("[Guide]");
       const inputs = render.mock.calls.map(call => call[1]);
-      expect(inputs[1]).not.toMatch(/\[Guide\]:|Unrelated|duplicate/u);
+      expect(inputs[1]).not.toMatch(/\[Guide\]:|\[Unrelated\]:|duplicate/u);
       expect(inputs[2]).toBe("`[Guide]` [Direct](https://example.org/direct)");
     } finally {
       component.unload();
+      render.mockRestore();
+    }
+  });
+
+  it("bounds detached table signatures by the definitions actually referenced in each table", async () => {
+    const tables = Array.from({ length: 100 }, (_, i) =>
+      `| --- || --- |\n| [[Note]] | ${i === 0 ? "[*Guide*][r] and ![Icon][asset]" : "Cell " + i} |`);
+    const definitions = ['[r]: <./a&amp;b>\n  "A title"', "[R]: ./duplicate", "[asset]: ./icon.svg",
+      ...Array.from({ length: 3000 }, (_, i) => `[citation-${i}]: https://example.org/papers/reference-${i}`)];
+    const model = parseStructuralTables([...tables, ...definitions].join("\n\n")).tables;
+    expect(model).toHaveLength(tables.length);
+    const render = vi.spyOn(MarkdownRenderer, "render").mockResolvedValue(undefined);
+    try {
+      for (const table of model) await renderTableSignatures({} as App, table, "Guide.md", document);
+      const inputs = render.mock.calls.map(call => call[1]);
+      expect(inputs.reduce((sum, input, i) => sum + input.length - tables[i]!.length, 0)).toBeLessThan(64);
+      expect(inputs.slice(1)).toEqual(tables.slice(1));
+      expect(inputs[0]).toBe(definitions[0] + "\n\n" + definitions[2] + "\n\n" + tables[0]);
+      const native = new MarkdownIt();
+      expect(native.render(inputs[0]!)).toBe(native.render(definitions.join("\n") + "\n\n" + tables[0]));
+      const callout = "> [!note]\n> A [split\n> label][citation-37] and `[citation-38]`";
+      const proseOnly = parseStructuralTables(callout + "\n>\n> | --- || --- |\n> | A | B |\n\n" + definitions.join("\n")).tables[0]!;
+      expect(proseOnly.referenceDefinitions?.markdown).toBeUndefined();
+      expect(blockReferenceMarkdown(callout, proseOnly.referenceDefinitions))
+        .toBe("[citation-37]: https://example.org/papers/reference-37");
+    } finally {
       render.mockRestore();
     }
   });

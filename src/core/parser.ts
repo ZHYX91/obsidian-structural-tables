@@ -8,7 +8,7 @@ import type {
   StructuralTable,
   TableDiagnostic,
 } from "./model";
-import { renderReferenceDefinitions } from "./portable-markdown-cell";
+import { referencesForTable, renderReferenceDefinitions } from "./portable-markdown-cell";
 import { ignoredMarkdownLines, isThematicBreak, sourceLines, sourcePrefix } from "./source-lines";
 import { splitTablePipeRow, type ParsedTablePipeRow } from "./table-cell-syntax";
 
@@ -313,10 +313,12 @@ function parseTables(source: string, includeOrdinary: boolean): ParseResult {
       source: source.slice(from, to),
     });
   }
-  const referenceTables = definitions.length === 0 ? [] : tables.filter(table => table.source.includes("["));
+  // Callout prose may need a definition even when its table only has plain cells.
+  const referenceTables = definitions.length === 0 ? [] :
+    tables.filter(table => table.source.includes("[") || table.sourcePrefix.includes(">"));
   if (referenceTables.length > 0) {
     const references = renderReferenceDefinitions(definitions);
-    if (references !== undefined) for (const table of referenceTables) table.referenceDefinitions = references;
+    if (references !== undefined) for (const table of referenceTables) table.referenceDefinitions = referencesForTable(table, references);
   }
   return { tables };
 }

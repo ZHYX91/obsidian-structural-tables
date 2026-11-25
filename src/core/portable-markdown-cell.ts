@@ -1,5 +1,5 @@
 import MarkdownIt from "markdown-it";
-import { ignoredMarkdownLines, sourceLines } from "./source-lines";
+import { ignoredMarkdownLines, sourceLines, withoutSourcePrefixes } from "./source-lines";
 import type { StructuralTable } from "./model";
 import { encodeTableCellText } from "./literal-cell-text";
 import { existingTableCellText } from "./table-cell-syntax";
@@ -23,7 +23,8 @@ function codeSpanAsHtml(raw: string): string {
 export type MarkdownReferences = Record<string, { href: string; title: string }>;
 
 export interface MarkdownReferenceDefinitions {
-  markdown: string;
+  /** Definitions needed when rendering this table as one detached Markdown block. */
+  markdown?: string;
   sources: ReadonlyMap<string, string>;
   references: MarkdownReferences;
 }
@@ -129,12 +130,13 @@ function cellParser(): MarkdownIt {
       const matched = standardRules.some(rule => rule(state, silent));
       if (!matched || silent || state.tokens.length === firstToken) return matched;
       const scan = state.env as CellScan;
-      if (state.src !== scan.source) return true; // Image alt text has its own offsets.
       const marker = state.src[from];
       if (scan.usedReferences !== undefined) {
         if (marker === "[" || marker === "!") recordReference(state, scan, from, firstToken, marker === "!");
         return true;
       }
+      // Nested image descriptions use local offsets but share the cell's reference definitions.
+      if (state.src !== scan.source) return true;
       if (marker === "`") {
         const token = state.tokens[state.tokens.length - 1]!;
         if (token.type === "code_inline" && token.content.includes("|")) {
@@ -194,7 +196,7 @@ export function renderReferenceDefinitions(definitions: readonly string[]): Mark
       references[label] = reference;
     }
   }
-  return sources.size === 0 ? undefined : { markdown: Array.from(sources.values()).join("\n\n"), sources, references };
+  return sources.size === 0 ? undefined : { sources, references };
 }
 
 export function withNoteReferences(source: string, definitions: string | undefined): string {
@@ -203,15 +205,49 @@ export function withNoteReferences(source: string, definitions: string | undefin
   return definitions !== undefined && source.includes("[") ? definitions + "\n\n" + source : source;
 }
 
+function collectReferences(source: string, definitions: MarkdownReferenceDefinitions, labels: Set<string>, block: boolean): void {
+  if (!source.includes("[")) return;
+  const md = cellParser();
+  const scan: CellScan = { source, references: definitions.references, spans: [], usedReferences: labels };
+  if (block) {
+    // A local definition in an excerpt must never mutate the note-wide index.
+    scan.references = Object.create(definitions.references) as MarkdownReferences;
+    md.parse(source, scan);
+  } else md.inline.parse(source, md, scan, []);
+}
+
+function selectedDefinitions(definitions: MarkdownReferenceDefinitions, labels: Set<string>): string | undefined {
+  const matching = Array.from(labels, label => definitions.sources.get(label)).filter(value => value !== undefined);
+  return matching.length > 0 ? matching.join("\n\n") : undefined;
+}
+
+export function blockReferenceMarkdown(source: string, definitions: MarkdownReferenceDefinitions | undefined): string | undefined {
+  if (definitions === undefined) return undefined;
+  const labels = new Set<string>();
+  collectReferences(source, definitions, labels, true);
+  return selectedDefinitions(definitions, labels);
+}
+
+/** Both the native block and separately rendered structural cells can consume definitions. */
+export function referencesForTable(table: StructuralTable, definitions: MarkdownReferenceDefinitions): MarkdownReferenceDefinitions {
+  if (!table.source.includes("[")) return definitions;
+  const labels = new Set<string>();
+  collectReferences(withoutSourcePrefixes(table.source), definitions, labels, true);
+  for (const row of table.rows) {
+    for (const cell of row.cells) {
+      if (!cell.covered) collectReferences(cell.content, definitions, labels, false);
+    }
+  }
+  const markdown = selectedDefinitions(definitions, labels);
+  return markdown === undefined ? definitions : { ...definitions, markdown };
+}
+
 /** Replay only the definitions used by a cell, leaving its original Markdown intact. */
 export function withCellReferences(source: string, definitions: MarkdownReferenceDefinitions | undefined): string {
   if (definitions === undefined || !source.includes("[")) return source;
-  const usedReferences = new Set<string>();
-  const scan: CellScan = { source, references: definitions.references, spans: [], usedReferences };
-  const md = cellParser();
-  md.inline.parse(source, md, scan, []);
-  const matching = Array.from(usedReferences, label => definitions.sources.get(label)).filter(value => value !== undefined);
-  return withNoteReferences(source, matching.length > 0 ? matching.join("\n\n") : undefined);
+  const labels = new Set<string>();
+  collectReferences(source, definitions, labels, false);
+  return withNoteReferences(source, selectedDefinitions(definitions, labels));
 }
 
 export function portableCell(content: string, references?: MarkdownReferences): string {

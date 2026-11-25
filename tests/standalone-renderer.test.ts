@@ -48,9 +48,10 @@ describe("standalone Markdown rendering", () => {
       "| A B | [Guide][id] | [Guide](https://example.org/first) |",
     ].join("\n");
     const note = table + "\n\n```md\n[id]: https://example.org/ignored\n```\n\n"
-      + `[id]: https://example.org/${target} "Current guide"\n`;
+      + `[id]: https://example.org/${target} "Current guide"\n[unused]: /not-in-this-table\n`;
     const h = harness(note);
     await h.run();
+    expect(h.render.mock.calls.some(call => call[1] !== note && call[1].includes("[unused]:"))).toBe(false);
     const links = Array.from(h.container.querySelectorAll<HTMLAnchorElement>(".structural-tables-table a"));
     expect(links.map(link => [link.textContent, link.getAttribute("href"), link.title])).toEqual([
       ["Guide", `https://example.org/${target}`, "Current guide"],

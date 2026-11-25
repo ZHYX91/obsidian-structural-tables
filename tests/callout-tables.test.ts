@@ -4,10 +4,11 @@ import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseEditableTables } from "../src/core/parser";
 import { calloutRanges, withoutSourcePrefixes } from "../src/core/source-lines";
-import { blockSignature, calloutBlocks, matchingBlocks } from "../src/rendering/native-table-mapping";
+import { blockSignature, calloutBlocks, matchingBlocks, renderTableSignatures } from "../src/rendering/native-table-mapping";
 import { CalloutTables } from "../src/editor/callout-tables";
 import type { StructuralTableWidget } from "../src/editor/table-widget";
 import MarkdownIt from "markdown-it";
+import { type App, MarkdownRenderer } from "obsidian";
 
 const tableSource = "> | A | < |\n> | --- | --- |\n> | x | y |";
 const tableHtml = "<table><thead><tr><th>A</th><th>&lt;</th></tr></thead><tbody><tr><td>x</td><td>y</td></tr></tbody></table>";
@@ -46,6 +47,17 @@ function mount(source: string, html: string, pending?: Promise<string[]>, detach
   return { view, manager, root: parent, render };
 }
 
+function mountMarkdownCallout(source: string, html: string, outside?: string) {
+  const renderer = new MarkdownIt();
+  vi.spyOn(MarkdownRenderer, "render").mockImplementation(async (_app, note, target) => {
+    target.innerHTML = renderer.render(note);
+  });
+  const fixture = mount(source, html, undefined, false, outside);
+  fixture.render.mockImplementation((table, includeNoteReferences = true) =>
+    renderTableSignatures({} as App, table, "Test.md", document, includeNoteReferences));
+  return fixture;
+}
+
 afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup(); vi.restoreAllMocks(); });
 
 describe("source-owned callout mounting", () => {
@@ -57,16 +69,29 @@ describe("source-owned callout mounting", () => {
       "> | Label | Reference | Direct |", "> | --- || --- | --- |",
       "> | AB | [Guide][id] | [Guide](https://example.org/first) |"].join("\n");
     const html = markdown.render((nativeHasReferences ? definition + "\n\n" : "") + withoutSourcePrefixes(source));
-    const { manager, root, render } = mount(source, html, undefined, false, definition);
-    render.mockImplementation(async (table, includeNoteReferences = true) => {
-      const parent = document.createElement("div");
-      parent.innerHTML = markdown.render((includeNoteReferences ? definition + "\n\n" : "")
-        + withoutSourcePrefixes(table.source));
-      return Array.from(parent.children, child => blockSignature(child as HTMLElement));
-    });
+    const { manager, root, render } = mountMarkdownCallout(source, html, definition);
     await vi.waitFor(() => expect(manager.diagnostics.map(item => item.state)).toEqual(["mounted", "mounted"]));
     expect(root.querySelectorAll(".structural-tables-live-preview")).toHaveLength(2);
     expect(render.mock.calls.filter(call => call[1] === false)).toHaveLength(2);
+  });
+
+  it.each([["| --- | --- |", "<"], ["| --- || --- |", "Value"]])(
+    "keeps an unrelated native link when a callout table with %s has the same label", async (delimiter, cell) => {
+      const md = new MarkdownIt();
+      const source = ["> | Guide | " + cell + " |", "> " + delimiter, "> | [Open](/wanted) | Y |"].join("\n");
+      const renderBlock = (note: string) => md.render(withoutSourcePrefixes(note));
+      const { manager, root } = mountMarkdownCallout(source, renderBlock(source.replace("/wanted", "/other")));
+      await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("unmatched"));
+      expect(root.querySelector("a")?.getAttribute("href")).toBe("/other");
+      expect(root.querySelector(".structural-tables-live-preview")).toBeNull();
+    },
+  );
+
+  it("accepts host line breaks in a raw callout block while checking its link", async () => {
+    const source = rawSource.replace("Apps", "[Open](/wanted)");
+    const html = new MarkdownIt({ breaks: true }).render(withoutSourcePrefixes(source));
+    const { manager } = mountMarkdownCallout(source, html);
+    await vi.waitFor(() => expect(manager.diagnostics[0]?.state).toBe("mounted"));
   });
 
   it("classifies many offscreen tables in source order with a linear number of range reads", async () => {
@@ -228,6 +253,18 @@ describe("source-owned callout mounting", () => {
 });
 
 describe("native block matching", () => {
+  it.each([
+    ['<a href="/report" title="Annual">Guide</a>', '<a href="/report" title="Monthly">Guide</a>'],
+    ['<img src="first.png" alt="Chart">', '<img src="second.png" alt="Chart">'],
+  ])("preserves distinguishable inline content in native blocks", (source, rendered) => {
+    const target = element("<p>" + rendered + "</p>");
+    const root = element('<div class="callout"><div class="callout-content"></div></div>');
+    root.firstElementChild!.append(target);
+    const blocks = calloutBlocks(root, new Map());
+    expect(matchingBlocks(blocks, [blockSignature(element("<p>" + source + "</p>"))])).toEqual([]);
+    expect(matchingBlocks(blocks, [blockSignature(target)])).toEqual([[target]]);
+  });
+
   it("never treats another manager's mounted host as native table content", () => {
     const root = element(`<div class="callout"><div class="callout-content"><div class="structural-tables-live-preview">${tableHtml}</div></div></div>`);
     const host = root.querySelector<HTMLElement>(".structural-tables-live-preview")!;

@@ -146,7 +146,7 @@
 
 يعرض الجدول النموذجي أسفل «الخطوط والتظليل» و«التخطيط والتباعد» التغييرات فورًا. يستخدم نصًا ثابتًا ولا يقرأ الملاحظات أو يحررها. تُطبق الإعدادات على الجداول في الخزنة كلها وتُحفظ تلقائيًا.
 
-تستخدم الخلايا المدمجة ورؤوس الأعمدة متعددة الصفوف صيغة Markdown إضافية قد لا تفهمها أدوات التحويل العادية. يمكن لـ [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) وتطبيق DocWen المحلي المنفصل تحويل الجداول المدعومة إلى Word. في DocWen، فعّل امتداد إدخال Structural Tables ضمن صيغة Markdown. يتطلب التحويل من Word إلى Markdown امتداد الإخراج أيضًا. متاح لسطح المكتب على Windows/Linux فقط.
+تستخدم الخلايا المدمجة ورؤوس الأعمدة متعددة الصفوف صيغة Markdown إضافية قد لا تفهمها أدوات التحويل العادية. يمكن لـ [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) وتطبيق DocWen المحلي المنفصل تحويل الجداول المدعومة إلى Word. افتح «تحليل Markdown» في إعدادات DocWen وفعّل امتداد إدخال Structural Tables. ثم صدّر الملاحظة بصيغة DOCX باستخدام DocWen Assistant. افتح «إنشاء Markdown» في إعدادات DocWen وفعّل امتداد إخراج Structural Tables. ثم حوّل ملف DOCX إلى Markdown. تتوفر هذه الميزة عبر DocWen Assistant على حواسيب Windows وLinux فقط.
 
 <!-- section: limitations -->
 ## القيود

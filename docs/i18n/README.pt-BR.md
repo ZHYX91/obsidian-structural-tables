@@ -146,7 +146,7 @@ Escolha Seguir tema, Grade ou Tabela de três linhas. Mudar a aparência ou o id
 
 Abaixo de “Linhas e fundo” e “Layout e espaçamento”, uma tabela de exemplo mostra as alterações imediatamente. Ela usa texto fixo e não lê nem edita notas. As configurações se aplicam às tabelas de todo o cofre e são salvas automaticamente.
 
-Células mescladas e cabeçalhos de várias linhas usam sintaxe Markdown extra que conversores comuns podem não entender. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) e o aplicativo local DocWen convertem tabelas compatíveis para Word. No DocWen, ative a extensão de entrada Structural Tables nas configurações de sintaxe Markdown. A conversão de Word para Markdown também exige a extensão de saída. Disponível apenas no desktop Windows/Linux.
+Células mescladas e cabeçalhos de várias linhas usam sintaxe Markdown extra que conversores comuns podem não entender. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) e o aplicativo local DocWen convertem tabelas compatíveis para Word. Nas configurações do DocWen, abra “Interpretar Markdown” e ative a extensão de entrada do Structural Tables. Exporte a nota como DOCX com o DocWen Assistant. Nas configurações do DocWen, abra “Gerar Markdown” e ative a extensão de saída do Structural Tables. Em seguida, converta o arquivo DOCX para Markdown. Essa conversão com o DocWen Assistant está disponível em computadores com Windows ou Linux.
 
 <!-- section: limitations -->
 ## Limitações

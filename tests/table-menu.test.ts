@@ -210,7 +210,7 @@ describe("table menus", () => {
     expect(guardedMenu.items.map((item) => item.title)).not.toContain("menu.clearCells");
     expect(guardedMenu.items.map((item) => item.title)).not.toContain("menu.deleteTable");
     guardedMenu.items.find((item) => item.title === "menu.deleteRows")?.callback?.();
-    expect(guarded[guarded.length - 1]?.(table)).toMatchObject({ changed: false, code: "content-would-be-lost" });
+    expect(guarded[guarded.length - 1]?.(table)).toMatchObject({ changed: false, code: "delete-would-lose-content" });
 
     const explicitMenu = new MockMenu();
     const explicit: Array<{ operation: TableOperation; intent: TableOperationIntent | undefined }> = [];

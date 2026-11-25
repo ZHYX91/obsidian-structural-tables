@@ -146,7 +146,7 @@ Markdown 표에 커서를 놓고 **현재 Markdown 표를 HTML로 변환…** �
 
 “선과 배경”, “배치와 간격” 아래의 예제 표에서 변경 결과를 바로 확인할 수 있습니다. 예제는 고정된 텍스트만 사용하며 노트를 읽거나 수정하지 않습니다. 설정은 보관함 전체의 표에 적용되고 자동으로 저장됩니다.
 
-병합된 셀과 여러 줄의 머리글은 일반 변환기가 이해하지 못할 수 있는 Markdown 확장 문법을 사용합니다. 별도로 설치한 DocWen과 [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant)로 지원되는 표를 Word로 변환할 수 있습니다. DocWen의 Markdown 문법 설정에서 Structural Tables 입력 확장을 켜세요. Word에서 Markdown으로 변환할 때는 출력 확장도 필요합니다. Windows/Linux 데스크톱만 지원합니다.
+병합된 셀과 여러 줄의 머리글은 일반 변환기가 이해하지 못할 수 있는 Markdown 확장 문법을 사용합니다. 별도로 설치한 DocWen과 [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant)로 지원되는 표를 Word로 변환할 수 있습니다. DocWen 설정의 ‘Markdown 해석’에서 Structural Tables 입력 확장을 켠 다음 DocWen Assistant로 노트를 DOCX로 내보내세요. DocWen 설정의 ‘Markdown 생성’에서 Structural Tables 출력 확장을 켠 다음 DOCX를 Markdown으로 변환하세요. 이 변환 기능은 Windows 및 Linux 데스크톱에서 사용할 수 있습니다.
 
 <!-- section: limitations -->
 ## 제한 사항

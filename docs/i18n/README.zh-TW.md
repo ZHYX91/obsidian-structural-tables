@@ -146,7 +146,7 @@ PNG 匯出上限為單邊 8192 像素或 1600 萬像素；如果完整內容無�
 
 「線條與底色」和「配置與間距」分組下方有即時更新的外觀範例。範例使用固定文字，不讀取或編輯筆記；設定會套用到全庫的表格顯示並自動儲存。
 
-合併儲存格與多列欄標題使用額外的 Markdown 語法，一般轉換工具可能無法辨識。[DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) 與另行安裝的本機 DocWen 應用程式可將支援的表格轉換至 Word。 請在 DocWen 的 Markdown 語法設定中啟用 Structural Tables 輸入擴充功能。從 Word 轉換為 Markdown 時也需啟用輸出擴充功能。僅支援 Windows/Linux 電腦版。
+合併儲存格與多列欄標題使用額外的 Markdown 語法，一般轉換工具可能無法辨識。[DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) 與另行安裝的本機 DocWen 應用程式可將支援的表格轉換至 Word。在 DocWen 設定中開啟「解析 Markdown」，啟用 Structural Tables 輸入擴充功能，再用 DocWen Assistant 將筆記匯出為 DOCX。在 DocWen 設定中開啟「產生 Markdown」，啟用 Structural Tables 輸出擴充功能，再將 DOCX 轉為 Markdown。這項搭配 DocWen Assistant 的轉換功能可在 Windows 和 Linux 電腦上使用。
 
 <!-- section: limitations -->
 ## 限制

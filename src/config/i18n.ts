@@ -52,6 +52,7 @@ const operationKeys: Record<OperationCode, TranslationKey> = {
   "column-inserted": "operation.columnInserted",
   "column-moved": "operation.columnMoved",
   "columns-deleted": "operation.columnsDeleted",
+  "delete-would-lose-content": "operation.deleteWouldLoseContent",
   "content-would-be-lost": "operation.contentWouldBeLost",
   "gfm-overflow-readonly": "operation.gfmOverflowReadonly",
   "header-count-invalid": "operation.headerCountInvalid",

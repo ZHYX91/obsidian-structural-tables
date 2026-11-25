@@ -25,6 +25,7 @@ export type OperationCode =
   | "column-moved"
   | "columns-deleted"
   | "content-would-be-lost"
+  | "delete-would-lose-content"
   | "gfm-overflow-readonly"
   | "header-count-invalid"
   | "header-rows-set"
@@ -685,7 +686,7 @@ export function deleteTableRows(table: StructuralTable, startRow: number, endRow
   const grid = ownedGrid(table);
   const owners = grid.owners.filter((_row, index) => index < min || index > max);
   if (removedOwnersHaveContent(grid, owners)) {
-    return { changed: false, code: "content-would-be-lost", message: "Clear the selected rows before deleting them so no content is lost.", source: table.source };
+    return { changed: false, code: "delete-would-lose-content", message: "Deletion stopped. Move any content you want to keep outside the selection, then empty the selected cells and try again.", source: table.source };
   }
   const removedHeaderRows = Math.max(0, Math.min(max, table.headerRowCount - 1) - min + 1);
   const headerRowCount = Math.max(0, table.headerRowCount - removedHeaderRows);
@@ -703,7 +704,7 @@ export function deleteTableColumns(table: StructuralTable, startColumn: number, 
   const grid = ownedGrid(table);
   const owners = grid.owners.map((row) => row.filter((_owner, index) => index < min || index > max));
   if (removedOwnersHaveContent(grid, owners)) {
-    return { changed: false, code: "content-would-be-lost", message: "Clear the selected columns before deleting them so no content is lost.", source: table.source };
+    return { changed: false, code: "delete-would-lose-content", message: "Deletion stopped. Move any content you want to keep outside the selection, then empty the selected cells and try again.", source: table.source };
   }
   const alignments = table.alignments.filter((_alignment, index) => index < min || index > max);
   const removedRowHeaders = Math.max(0, Math.min(max, table.rowHeaderColumnCount - 1) - min + 1);
@@ -807,7 +808,7 @@ export function mergeCell(
     return { changed: false, code: "no-adjacent-cell", message: `There is no cell ${direction === "left" ? "to the left" : "above"}.`, source: table.source };
   }
   if (cell.content.length > 0 && cell.marker === undefined) {
-    return { changed: false, code: "content-would-be-lost", message: "Clear the current cell before merging so no content is lost.", source: table.source };
+    return { changed: false, code: "content-would-be-lost", message: "Merge stopped. Move any content you want to keep into the first cell in Markdown order, then empty the other cells and try again.", source: table.source };
   }
   if (cell.role !== target.role) {
     return { changed: false, code: "merge-crosses-role", message: "A merge cannot cross a header or data-region boundary.", source: table.source };
@@ -873,7 +874,7 @@ export function mergeCellRange(
   }
   const anchors = selected.filter((cell) => !cell.covered);
   if (anchors.some((cell) => cell !== topLeft && cell.content.length > 0)) {
-    return { changed: false, code: "content-would-be-lost", message: "Clear every selected cell except the top-left cell before merging so no content is lost.", source: table.source };
+    return { changed: false, code: "content-would-be-lost", message: "Merge stopped. Move any content you want to keep into the first cell in Markdown order, then empty the other cells and try again.", source: table.source };
   }
   const values = rawValues(table);
   for (let row = minRow; row <= maxRow; row += 1) {

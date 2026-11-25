@@ -146,7 +146,7 @@ Chọn Theo chủ đề, Lưới hoặc Bảng ba đường kẻ. Đổi giao di
 
 Bảng mẫu bên dưới “Đường kẻ và nền” và “Bố cục và khoảng cách” phản ánh thay đổi ngay lập tức. Bảng chỉ dùng văn bản cố định, không đọc hay sửa ghi chú. Cài đặt áp dụng cho các bảng trong toàn bộ kho và được lưu tự động.
 
-Ô gộp và tiêu đề nhiều hàng dùng cú pháp Markdown mở rộng mà trình chuyển đổi thông thường có thể không hiểu. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) kết hợp với ứng dụng DocWen cài riêng có thể chuyển các bảng được hỗ trợ sang Word. Trong DocWen, bật phần mở rộng đầu vào Structural Tables tại mục cú pháp Markdown. Khi chuyển Word sang Markdown cũng phải bật phần mở rộng đầu ra. Chỉ hỗ trợ máy tính Windows/Linux.
+Ô gộp và tiêu đề nhiều hàng dùng cú pháp Markdown mở rộng mà trình chuyển đổi thông thường có thể không hiểu. [DocWen Assistant](https://github.com/ZHYX91/obsidian-docwen-assistant) kết hợp với ứng dụng DocWen cài riêng có thể chuyển các bảng được hỗ trợ sang Word. Trong cài đặt DocWen, mở “Phân tích Markdown” và bật phần mở rộng đầu vào Structural Tables. Sau đó, dùng DocWen Assistant để xuất ghi chú dưới dạng DOCX. Trong cài đặt DocWen, mở “Tạo Markdown” và bật phần mở rộng đầu ra Structural Tables. Sau đó, chuyển tệp DOCX sang Markdown. Cách chuyển đổi này dùng được trên máy tính chạy Windows hoặc Linux.
 
 <!-- section: limitations -->
 ## Giới hạn

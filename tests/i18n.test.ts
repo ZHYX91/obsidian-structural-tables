@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { applyInterfaceLocale, createTranslator, operationNotice, TRANSLATIONS, withCount } from "../src/config/i18n";
 import { LOCALES, resolveLocale, sanitizeInterfaceLanguage } from "../src/config/locale";
 
+import { deleteTableColumns, deleteTableRows, mergeCell, mergeCellRange } from "../src/core/operations";
+import { parseEditableTables } from "../src/core/parser";
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("i18n", () => {
@@ -118,6 +121,25 @@ describe("i18n", () => {
     expect(createTranslator("en")("command.restorePromotedTable")).toBe("Restore table from current Base");
     expect(createTranslator("zh-CN")("command.createBaseRecord")).toBe("为当前 Base 新建记录");
     expect(createTranslator("zh-CN")("command.restorePromotedTable")).toBe("从当前 Base 恢复原表格");
+  });
+
+  it("gives guarded deletions and merges their own recovery instructions and preserves the source", () => {
+    const source = "| A | B |\n| --- | --- |\n| One | Two |";
+    const table = parseEditableTables(source).tables[0]!;
+    const merges = [mergeCell(table, 1, 1, "left"), mergeCellRange(table, 1, 0, 1, 1)];
+    const deletions = [deleteTableRows(table, 1, 1), deleteTableColumns(table, 1, 1)];
+    for (const { id } of LOCALES) {
+      const t = createTranslator(id);
+      expect(t("operation.contentWouldBeLost")).not.toBe(t("operation.deleteWouldLoseContent"));
+      for (const result of merges) {
+        expect(result).toMatchObject({ changed: false, source });
+        expect(operationNotice(t, result.code)).toBe(t("operation.contentWouldBeLost"));
+      }
+      for (const result of deletions) {
+        expect(result).toMatchObject({ changed: false, source });
+        expect(operationNotice(t, result.code)).toBe(t("operation.deleteWouldLoseContent"));
+      }
+    }
   });
 
   it("localizes operation notices and count templates", () => {

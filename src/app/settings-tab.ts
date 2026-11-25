@@ -11,6 +11,7 @@ import type { StructuralTablesSettings } from "../config/settings";
 import { TableAppearancePreview } from "./table-appearance-preview";
 
 type TabId = "general" | "views" | "appearance";
+const languageFieldId = "structural-tables-settings-language";
 
 // Declarative settings are intentionally absent: non-empty definitions would
 // bypass display() and remove the established three-tab settings surface.
@@ -109,12 +110,21 @@ export class StructuralTablesSettingTab extends PluginSettingTab {
         .setName(t("settings.language"))
         .setDesc(t("settings.language.desc"))
         .addDropdown((dropdown) => {
+          const field = dropdown.selectEl;
+          field.id = languageFieldId;
           dropdown.addOption("auto", t("settings.language.auto"));
           for (const locale of LOCALES) dropdown.addOption(locale.id, locale.name);
           dropdown.setValue(this.structuralPlugin.settings.language)
             .onChange(async (value) => {
               await this.structuralPlugin.updateSettings({ language: sanitizeInterfaceLanguage(value) });
+              if (!field.isConnected) return;
+              const restoreFocus = field.ownerDocument.activeElement === field;
+              const scrollTop = containerEl.scrollTop;
               this.display();
+              containerEl.scrollTop = scrollTop;
+              if (restoreFocus) {
+                containerEl.querySelector<HTMLSelectElement>(`#${languageFieldId}`)?.focus({ preventScroll: true });
+              }
             });
         });
       new Setting(panels).setName(t("settings.htmlPaste")).setDesc(t("settings.htmlPaste.desc")).addToggle((toggle) => toggle

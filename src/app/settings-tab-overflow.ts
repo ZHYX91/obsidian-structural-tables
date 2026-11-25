@@ -69,8 +69,13 @@ export function observeTabOverflow(
   }
 
   let followSelectedTab = true;
+  let automaticScrollPosition: number | null = null;
   function onScroll(): void {
+    const automatic = automaticScrollPosition !== null && Math.abs(list.scrollLeft - automaticScrollPosition) <= 1;
+    automaticScrollPosition = null;
     update();
+    // Panel content can narrow the strip before the earlier reveal event arrives.
+    if (automatic) return;
     const viewport = list.getBoundingClientRect();
     const selected = tabs.find(tab => tab.getAttribute("aria-selected") === "true")?.getBoundingClientRect();
     if (!selected || !viewport.width) return;
@@ -81,20 +86,21 @@ export function observeTabOverflow(
   }
 
   function measure(): void {
+    const positionBeforeMeasure = list.scrollLeft;
     update();
     if (!list.clientWidth) return;
     if (!bar.classList.contains("has-overflow")) {
       followSelectedTab = true;
-      return;
+    } else if (followSelectedTab) {
+      const active = tabs.find(tab => tab.getAttribute("aria-selected") === "true");
+      if (!active) return;
+      const viewport = list.getBoundingClientRect();
+      const selected = active.getBoundingClientRect();
+      if (selected.left < viewport.left && selected.right < viewport.right) list.scrollLeft += selected.left - viewport.left;
+      else if (selected.right > viewport.right && selected.left > viewport.left) list.scrollLeft += selected.right - viewport.right;
+      update();
     }
-    if (!followSelectedTab) return;
-    const active = tabs.find(tab => tab.getAttribute("aria-selected") === "true");
-    if (!active) return;
-    const viewport = list.getBoundingClientRect();
-    const selected = active.getBoundingClientRect();
-    if (selected.left < viewport.left && selected.right < viewport.right) list.scrollLeft += selected.left - viewport.left;
-    else if (selected.right > viewport.right && selected.left > viewport.left) list.scrollLeft += selected.right - viewport.right;
-    update();
+    if (list.scrollLeft !== positionBeforeMeasure) automaticScrollPosition = list.scrollLeft;
   }
 
   function scroll(towardNext: boolean): void {

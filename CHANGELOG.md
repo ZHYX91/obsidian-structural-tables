@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.8 - 2026-11-27
+
+- Keep keyboard focus on Copy while copying a plain GFM preview. Pressing Enter again while copying starts no additional clipboard write.
+
 ## 0.11.7 - 2026-11-25
 
 - Report a saved Base record separately from a failure to open it, and keep the current note in place if you switch panes during the save.

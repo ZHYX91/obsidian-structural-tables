@@ -25,6 +25,16 @@ try {
       <div class="structural-tables-settings-save-status" role="alert"><span>Ordner/UnbeschreibbarerDateipfad</span>
         <button type="button">Tentar novamente</button></div>
     </div></main>
+    <section class="structural-tables-settings" style="width:220px">
+      <div class="structural-tables-settings-tab-bar">
+        <button class="structural-tables-settings-tab-scroll" data-direction="previous" aria-label="Previous tabs"></button>
+        <div class="structural-tables-settings-tabs">
+          <button class="structural-tables-settings-tab" aria-selected="true">General</button>
+          <button class="structural-tables-settings-tab">Export</button>
+        </div>
+        <button class="structural-tables-settings-tab-scroll" data-direction="next" aria-label="Next tabs"></button>
+      </div>
+    </section>
     <script>${outputFiles[0].text}</script><script>fields.connectNativeSettingFields(document.querySelector("main"))</script>`;
   await session.navigate("data:text/html;charset=utf-8," + encodeURIComponent(html));
   for (const direction of ["ltr", "rtl"]) {
@@ -46,6 +56,32 @@ try {
     assert.equal(result.wrapped, true);
     assert.equal(result.label, "Sprache");
     assert.ok(result.focused);
+  }
+
+  // Measure the actual paging controls in Chromium with a coarse primary pointer.
+  await session.command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  try {
+    for (const direction of ["ltr", "rtl"]) {
+      const geometry = await session.evaluate(`(() => {
+        const row = document.querySelector(".structural-tables-settings-tab-bar");
+        row.dir = ${JSON.stringify(direction)};
+        return {
+          coarse: matchMedia("(pointer: coarse)").matches,
+          arrows: Array.from(row.querySelectorAll(".structural-tables-settings-tab-scroll"), button => {
+            const rect = button.getBoundingClientRect();
+            return { width: rect.width, height: rect.height };
+          }),
+        };
+      })()`);
+      assert.equal(geometry.coarse, true, direction + ": browser fixture must expose a coarse pointer");
+      assert.equal(geometry.arrows.length, 2, direction + ": both paging arrows must be rendered");
+      for (const [index, rect] of geometry.arrows.entries()) {
+        assert.ok(rect.width >= 44, direction + ": arrow " + index + " is narrower than 44px");
+        assert.ok(rect.height >= 44, direction + ": arrow " + index + " is shorter than 44px");
+      }
+    }
+  } finally {
+    await session.command("Emulation.setTouchEmulationEnabled", { enabled: false });
   }
 } finally {
   await session.close();

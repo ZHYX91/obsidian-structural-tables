@@ -899,6 +899,11 @@
   overflow-wrap: anywhere;
 }
 
+.structural-tables-gfm-actions button[aria-disabled="true"] {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 @media (pointer: coarse) {
   .structural-tables-gfm-preview :is(button, select) { min-block-size: 44px; }
 }

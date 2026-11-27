@@ -145,6 +145,56 @@ try {
   })()`);
   assert.deepEqual(phone, { guidanceFits: true, shortSourceFits: true, footerReachable: true, outerScroll: true });
   results.push({ mode: "short-phone-source", ...phone });
+  // Use the real permissioned clipboard, but hold dispatch until focus has
+  // been inspected. A second trusted Enter cannot launch a second copy.
+  const physicalKey = async (key, code, virtual) => {
+    await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key, code, windowsVirtualKeyCode: virtual, nativeVirtualKeyCode: virtual });
+    if (key === "Enter") await command("Input.dispatchKeyEvent", { type: "char", key, code, windowsVirtualKeyCode: virtual, nativeVirtualKeyCode: virtual, text: "\r", unmodifiedText: "\r" });
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: virtual, nativeVirtualKeyCode: virtual });
+    await settle();
+  };
+  const keptFocus = [];
+  for (const advance of [false, true]) {
+    await evaluate("window.gfmBrowser.reset('source')");
+    await click("document.querySelector('#gfm-source')");
+    await waitFor("window.gfmBrowser.state().copyReady");
+    await evaluate(`(() => {
+      const clipboard = navigator.clipboard;
+      const writeText = clipboard.writeText.bind(clipboard);
+      window.gfmHeldCopy = { starts: 0, release: null };
+      clipboard.writeText = async (text) => {
+        window.gfmHeldCopy.starts++;
+        await new Promise(resolve => { window.gfmHeldCopy.release = resolve; });
+        await writeText(text);
+      };
+      window.gfmBrowser.action("copy").focus();
+    })()`);
+    try {
+      assert.equal(await evaluate("document.activeElement === window.gfmBrowser.action('copy')"), true);
+      await physicalKey("Enter", "Enter", 13);
+      await waitFor("Boolean(window.gfmHeldCopy.release)");
+      const held = await evaluate(`(() => {
+        const copy = window.gfmBrowser.action("copy");
+        return { focused: document.activeElement === copy, busy: copy.getAttribute("aria-disabled") === "true" };
+      })()`);
+      await physicalKey("Enter", "Enter", 13);
+      assert.equal(await evaluate("window.gfmHeldCopy.starts"), 1);
+      if (advance && held.focused) {
+        await physicalKey("Tab", "Tab", 9);
+        assert.equal(await evaluate("document.activeElement === window.gfmBrowser.action('replace')"), true);
+      }
+      await evaluate("window.gfmHeldCopy.release()");
+      await waitFor("window.gfmBrowser.state().copyReady");
+      assert.equal(await clipboardMarkdown(), (await evaluate("window.gfmBrowser.state()")).previewSource);
+      const focus = advance ? "replace" : "copy";
+      keptFocus.push(held.focused && held.busy &&
+        await evaluate(`document.activeElement === window.gfmBrowser.action("${focus}")`));
+    } finally {
+      await evaluate("delete navigator.clipboard.writeText; delete window.gfmHeldCopy");
+    }
+  }
+  assert.deepEqual(keptFocus, [true, true], "Copy must retain keyboard focus while busy without stealing it back from another control");
+  results.push({ mode: "pending-copy-keyboard", focusRetained: true, deliberateTab: true, noDuplicateCopy: true });
   await session.result({ status: "passed", scenarios: results });
 } catch (error) {
   await session?.diagnose(error, "window.gfmBrowser?.state()"); throw error;

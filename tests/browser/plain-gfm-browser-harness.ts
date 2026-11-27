@@ -114,6 +114,7 @@ function state() {
   const modal = document.querySelector<HTMLElement>(".structural-tables-gfm-preview");
   const preview = modal?.querySelector<HTMLElement>(".structural-tables-gfm-rendered");
   const source = modal?.querySelector("pre");
+  const copy = action("copy");
   return {
     mode: currentMode, contextEvents: [...contextEvents], pointerEvents: [...pointerEvents],
     clickTarget: document.body.dataset.clickTarget, menuTitles: lastMenu?.items.map((item) => item.title),
@@ -123,7 +124,7 @@ function state() {
     orientation: modal?.querySelector<HTMLSelectElement>("select")?.value,
     headers: [...(preview?.querySelectorAll("th") ?? [])].map((cell) => cell.textContent),
     previewSource: source?.textContent, sourceVisible: source != null && !source.hidden,
-    previewVisible: preview != null && !preview.hidden, copyReady: action("copy")?.disabled === false,
+    previewVisible: preview != null && !preview.hidden, copyReady: copy?.disabled === false && copy.getAttribute("aria-disabled") !== "true",
     replaceAvailable: action("replace") !== null, interfaceDirection: modal?.dir, previewDirection: preview?.dir,
     sourceDirection: source?.dir, notices: [...notices],
     modalWidth: modal?.getBoundingClientRect().width, viewportWidth: innerWidth,

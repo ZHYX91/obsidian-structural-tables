@@ -120,9 +120,17 @@ export class PlainGfmModal extends Modal {
   private updateButtons(): void {
     const renderedMode = this.modeButtons[0];
     if (renderedMode !== undefined) renderedMode.disabled = this.renderState !== "ready";
-    const disabled = this.closed || this.busy || this.renderState === "pending";
-    this.copyButton?.setDisabled(disabled);
-    this.replaceButton?.setDisabled(disabled || !this.plan().canReplace);
+    const unavailable = this.closed || this.renderState === "pending";
+    const updateAction = (button: ButtonComponent | null, enabled: boolean): void => {
+      if (button === null) return;
+      button.setDisabled(!enabled);
+      // Native disabled drops focus. While confirming an action, perform()
+      // already guards reentry; expose busy controls without moving focus.
+      if (this.busy && enabled) button.buttonEl.setAttribute("aria-disabled", "true");
+      else button.buttonEl.removeAttribute("aria-disabled");
+    };
+    updateAction(this.copyButton, !unavailable);
+    updateAction(this.replaceButton, !unavailable && this.plan().canReplace);
     if (this.orientationEl !== null) this.orientationEl.disabled = this.busy;
   }
 

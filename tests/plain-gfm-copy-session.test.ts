@@ -26,6 +26,10 @@ class ClipboardEntry {
   constructor(readonly data: Record<string, Blob>) {}
 }
 
+function copyReady(button: HTMLButtonElement | null | undefined): boolean {
+  return button?.disabled === false && button.getAttribute("aria-disabled") !== "true";
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -63,7 +67,7 @@ async function preview(app: App, name = "NEW", isCurrent: PlainGfmTarget["isCurr
   });
   modal.open(); cleanup.push(() => modal.close());
   const button = [...modal.contentEl.querySelectorAll("button")].find((node) => node.textContent === t("gfm.copy"))!;
-  await vi.waitFor(() => expect(button.disabled).toBe(false));
+  await vi.waitFor(() => expect(copyReady(button)).toBe(true));
   return { modal, button };
 }
 
@@ -167,7 +171,7 @@ describe("GFM preview copy invocation ownership", () => {
     } else await htmlCopy(f.app, "NEW");
     const newer = { ...clipboard }; const newerNotices = [...notices];
     valid.resolve(true);
-    await vi.waitFor(() => expect(button.disabled).toBe(false));
+    await vi.waitFor(() => expect(copyReady(button)).toBe(true));
     expect(writes).toEqual([newer]);
     expect(clipboard.text).toBe(entry === "direct GFM" ? gfm("NEW") : tsv("NEW"));
     if (entry === "rich HTML") expect(clipboard.html).toContain("NEW");
@@ -196,7 +200,7 @@ describe("GFM preview copy invocation ownership", () => {
     f.directGfmCopy("NEW");
     await vi.waitFor(() => expect(notices).toEqual([copiedGfm]));
     if (reject) valid.reject(new Error("read failed")); else valid.resolve(false);
-    await vi.waitFor(() => expect(button.disabled).toBe(false));
+    await vi.waitFor(() => expect(copyReady(button)).toBe(true));
     expect(writes).toEqual([{ text: gfm("NEW") }]);
     expect(clipboard).toEqual({ text: gfm("NEW") });
     expect(notices).toEqual([copiedGfm]);
@@ -224,7 +228,7 @@ describe("GFM preview copy invocation ownership", () => {
     startTableCopySession(f.app); valid.resolve(true);
     const copyButton = () => [...document.querySelectorAll<HTMLButtonElement>(".structural-tables-gfm-preview button")]
       .find((button) => button.textContent === t("gfm.copy"));
-    await vi.waitFor(() => expect(copyButton()?.disabled).toBe(false));
+    await vi.waitFor(() => expect(copyReady(copyButton())).toBe(true));
     const button = copyButton()!;
     const { gate, entered } = delayOldHtml();
     const current = htmlCopy(f.app, "OLD"); await entered.promise;
@@ -246,7 +250,7 @@ describe("GFM preview copy invocation ownership", () => {
     await htmlCopy(f.app, "NEW");
     expect(clipboard).toEqual({ text: tsv("NEW") });
     gate.resolve();
-    await vi.waitFor(() => expect(button.disabled).toBe(false));
+    await vi.waitFor(() => expect(copyReady(button)).toBe(true));
     expect(writes.map(({ text }) => text)).toEqual(reject ? [tsv("NEW")] : [tsv("NEW"), gfm("OLD")]);
     expect(clipboard.text).toBe(reject ? tsv("NEW") : gfm("OLD"));
     expect(notices).toEqual([t("notice.copiedHtmlPlain")]);

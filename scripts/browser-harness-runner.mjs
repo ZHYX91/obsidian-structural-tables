@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+export const browserArtifactsRoot = path.resolve(process.env.STRUCTURAL_BROWSER_ARTIFACTS || "artifacts/browser-checks");
 
 /** Geometry fixtures require animation frames from a visible browser page. */
 export async function ensureVisiblePage({ readVisibility, bringToFront }) {
@@ -36,9 +37,8 @@ export async function startBrowserHarness({ name, browser = process.argv[2] || p
   assert.ok(Array.isArray(extraArgs) && extraArgs.every((value) => typeof value === "string"), "CHROMIUM_ARGS_JSON must be a JSON array of Chromium arguments.");
   assert.ok(!extraArgs.some((value) => /^--(?:user-data-dir|remote-debugging-port|remote-debugging-address)(?:=|$)/u.test(value)),
     "The harness owns its isolated profile and loopback debugging endpoint.");
-  const outputRoot = path.resolve(process.env.STRUCTURAL_BROWSER_ARTIFACTS || "dist/browser-checks");
-  await mkdir(outputRoot, { recursive: true });
-  const artifacts = await mkdtemp(path.join(outputRoot, name + "-"));
+  await mkdir(browserArtifactsRoot, { recursive: true });
+  const artifacts = await mkdtemp(path.join(browserArtifactsRoot, name + "-"));
   const temporary = await mkdtemp(path.join(os.tmpdir(), "structural-browser-"));
   const profile = path.join(temporary, "profile");
   let child;

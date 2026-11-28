@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { browserArtifactsRoot } from "./browser-harness-runner.mjs";
 
 const browser = process.argv[2] || process.env.CHROMIUM_PATH;
 assert.ok(browser, "Provide a Chromium executable or set CHROMIUM_PATH. Optional following arguments select one or more suites.");
@@ -9,9 +10,8 @@ const transpose = ["transpose", "focus", "editing", "arrows", "history-bidi", "a
 const available = [...transpose, "image", "gfm", "settings"];
 const selected = process.argv.length > 3 ? process.argv.slice(3) : available;
 assert.ok(selected.every((name) => available.includes(name)), "Available browser suites: " + available.join(", "));
-const outputRoot = path.resolve(process.env.STRUCTURAL_BROWSER_ARTIFACTS || "dist/browser-checks");
-await mkdir(outputRoot, { recursive: true });
-const artifacts = await mkdtemp(path.join(outputRoot, "run-"));
+await mkdir(browserArtifactsRoot, { recursive: true });
+const artifacts = await mkdtemp(path.join(browserArtifactsRoot, "run-"));
 const results = [];
 for (const [index, name] of selected.entries()) {
   const script = transpose.includes(name) ? "check-table-transpose-browser.mjs"

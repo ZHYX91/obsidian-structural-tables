@@ -45,6 +45,7 @@ jobs:
           BROWSER="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium)"
           test -n "$BROWSER"
           node scripts/check-browser.mjs "$BROWSER"
+          node scripts/release.mjs validate
 
       - name: Upload browser diagnostics
         if: always()
@@ -52,7 +53,7 @@ jobs:
         with:
           if-no-files-found: ignore
           name: structural-tables-browser-${{ github.sha }}
-          path: dist/browser-checks/
+          path: artifacts/browser-checks/
 
       - name: Upload verified runtime assets
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

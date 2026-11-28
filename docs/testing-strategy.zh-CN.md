@@ -60,7 +60,7 @@ npm run test:browser -- /path/to/chromium image gfm
 
 开始呈现之前，运行器通过 `FontFace` 和 `local()` 实际加载已安装字体。默认依次尝试 Arial、Liberation Sans、DejaVu Sans、Noto Sans、Open Sans、Helvetica 和 Nimbus Sans，也可用 `CHROMIUM_LOCAL_FONT` 指定确切字体名称。预检失败时先安装可加载的字体。Chromium 的单进程模式会阻止本地字体来源加载，因此这些样本不能使用该模式；仅靠通用后备字体会使图像测试中的字体来源断言失去意义。转置页面明确提供基础行高，对齐样本的呈现文字和编辑框使用同一份已验证字体。
 
-每组检查将浏览器版本、所选字体、结果和 Chromium 标准错误保存在 `dist/browser-checks/`，可用 `STRUCTURAL_BROWSER_ARTIFACTS` 改变输出位置。失败时另存 DOM、截图、相关编辑框／对话框状态和近期浏览器错误。完整运行器会继续执行其他独立场景，写出汇总；任一场景失败，最终退出码都非零。CI 在浏览器断言失败后仍上传这些诊断。根据证据修复环境前置条件或产品回归，不通过放宽几何、像素、源码身份或历史断言来取得通过结果。
+每组检查将浏览器版本、所选字体、结果和 Chromium 标准错误保存在 `artifacts/browser-checks/`，可用 `STRUCTURAL_BROWSER_ARTIFACTS` 改变输出位置。失败时另存 DOM、截图、相关编辑框／对话框状态和近期浏览器错误。完整运行器会继续执行其他独立场景，写出汇总；任一场景失败，最终退出码都非零。CI 在浏览器断言失败后仍上传这些诊断。根据证据修复环境前置条件或产品回归，不通过放宽几何、像素、源码身份或历史断言来取得通过结果。
 
 GFM 样本调用产品对话框、捕获的目标和真实 CodeMirror，驱动真实指针、键盘与剪贴板操作。MarkdownIt 在宿主 MarkdownRenderer 的接口处独立解释最终 GFM。覆盖源码／接管／原生入口，两张同文表中的第二张，方向、结果、源码与复制一致，一次写入及键盘撤销／重做，文件过期拒绝，只能复制的阅读视图，以及窄屏阿语界面中独立保持的笔记方向。宿主辅助方法和对话框外框仍是测试适配器；Chromium 样本通过不代表实际 Obsidian 的菜单、主题、公式、弹出窗口焦点或移动端输入已验收。
 

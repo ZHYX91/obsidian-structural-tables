@@ -76,7 +76,7 @@ function parsedClipboardTable(html: string): ClipboardTable | null {
 }
 
 const HARD_UNSUPPORTED_CONTENT = "svg, math, mjx-container, img, embed, .internal-embed, a[href], video, audio, canvas, iframe, object, input, textarea, select, button, script";
-const TEXT_SEMANTIC_CONTENT = "code, pre, sup, sub, h1, h2, h3, h4, h5, h6";
+const TEXT_SEMANTIC_CONTENT = "code, pre, sup, sub, ol, ul, h1, h2, h3, h4, h5, h6";
 
 export function hasPreservedWhitespaceSemantics(table: HTMLTableElement): boolean {
   const ancestors: HTMLElement[] = [];

@@ -133,6 +133,19 @@ describe("HTML table clipboard import", () => {
     expect(cellClipboardText(cell, "original source")).toEqual({ kind: "text", text: "original source", fallback: true });
   });
 
+  it.each([
+    ['<ol start="4"><li>Inspect</li><li value="9">Approve</li></ol>', "4. Inspect\n9. Approve"],
+    ["<ul><li>Inspect</li><li>Approve</li></ul>", "• Inspect\n• Approve"],
+  ])("preserves list markers from the complete clipboard text: %s", (list, text) => {
+    const cell = `<td>${list}</td>`;
+    const html = "<table><tr><th>Steps</th><th>Owner</th></tr><tr>" + cell + "<td>Ada</td></tr></table>";
+    const complete = "Steps\tOwner\n" + text + "\tAda";
+    expect(wholeTableClipboardImport(html, complete)).toEqual({ kind: "plain", text: complete });
+    expect(wholeTableClipboardImport(html, "")).toEqual({ kind: "blocked-unsafe-text" });
+    expect(cellClipboardText(cell, text)).toEqual({ kind: "text", text, fallback: true });
+    expect(cellClipboardText(cell, "")).toEqual({ kind: "unsupported" });
+  });
+
   it("distinguishes intentionally empty cells from missing data and prefers meaningful plain text", () => {
     expect(cellClipboardText("<td></td>", "")).toEqual({ kind: "empty" });
     expect(cellClipboardText("<td></td>", "preserve me")).toEqual({ kind: "text", text: "preserve me", fallback: true });

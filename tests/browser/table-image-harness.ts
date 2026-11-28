@@ -32,6 +32,11 @@ MarkdownRenderer.render = async (_app, source, target) => {
     svg.setAttribute("width", "40"); svg.setAttribute("height", "24");
     const use = document.createElementNS(svg.namespaceURI, "use");
     use.setAttribute("href", "#math-glyph"); svg.append(use); container.append(svg);
+  } else if (source === "constrained-paragraph" || source === "plain-paragraph") {
+    const paragraph = target.createEl("p", { text: "All of this cell content should appear in the image." });
+    if (source === "constrained-paragraph") {
+      Object.assign(paragraph.style, { maxWidth: "24px", maxHeight: "12px", overflow: "hidden", textOverflow: "ellipsis" });
+    }
   } else if (source === "decoration" || source === "regular-decoration" || source === "missing-decoration") {
     target.createDiv({ cls: source, text: "text" });
   } else if (source.startsWith("css-content-")) {
@@ -97,6 +102,13 @@ async function run(): Promise<void> {
       return { ...await pixels(result), sourceColor, sourceBorder, sourceContent };
     } finally { owner.unload(); scope.remove(); }
   };
+  const constrained = await cases("constrained-paragraph");
+  const plain = await cases("plain-paragraph");
+  if (constrained.width !== plain.width || constrained.height !== plain.height || constrained.hash !== plain.hash) {
+    throw new Error("Inline paragraph clipping changed the exported pixels");
+  }
+  regression.inlineParagraph = constrained;
+
   regression.noteScope = await cases("source styled", "theme-note");
   const note = regression.noteScope as Awaited<ReturnType<typeof cases>>;
   if (note.sourceColor !== "rgb(255, 0, 0)" || note.red < 1000) throw new Error(`Lost cssclass: ${JSON.stringify(note)}`);

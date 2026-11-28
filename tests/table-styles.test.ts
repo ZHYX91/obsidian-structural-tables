@@ -15,11 +15,12 @@ describe("table editing styles", () => {
     expect(editorRule).toContain("padding: inherit");
     expect(editorRule).toContain("min-inline-size: 0");
     expect(editorRule).toContain("resize: none");
-    expect(editorRule).toContain("border: 0 !important");
-    expect(editorRule).toContain("outline: 0 !important");
-    expect(editorRule).toContain("box-shadow: none !important");
-    expect(editorRule).toContain("background: transparent !important");
-    expect(editorRule).toContain("background: transparent");
+    const editingRule = /\.is-editing > textarea\.structural-tables-cell-editor\s*\{(?<body>[^}]*)\}/u.exec(styles)?.groups?.body ?? "";
+    expect(editingRule).toContain("border: 0;");
+    expect(editingRule).toContain("border-radius: 0;");
+    expect(editingRule).toContain("outline: 0;");
+    expect(editingRule).toContain("box-shadow: none;");
+    expect(editingRule).toContain("background: transparent;");
   });
 
   it("paints handle keyboard focus on the grip while keeping the larger target transparent", () => {

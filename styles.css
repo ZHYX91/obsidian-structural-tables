@@ -36,6 +36,7 @@ body > .structural-tables-image-stage[inert] {
   pointer-events: none;
 }
 
+/* The cloned ancestors retain note classes and inline styles for theme fidelity. */
 .structural-tables-image-scope {
   display: block !important;
   position: static !important;
@@ -53,23 +54,24 @@ body > .structural-tables-image-stage[inert] {
   margin: 0 !important;
 }
 
-.structural-tables-image-snapshot {
+.structural-tables-image-stage .structural-tables-image-snapshot {
   box-sizing: border-box;
-  width: max-content !important;
-  max-width: none !important;
-  height: auto !important;
-  max-height: none !important;
-  overflow: visible !important;
+  width: max-content;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  overflow: visible;
   padding: 16px;
 }
 
-.structural-tables-image-snapshot .structural-tables-table {
+.structural-tables-image-stage .structural-tables-image-snapshot .structural-tables-table {
   width: max-content !important;
-  max-width: none !important;
-  table-layout: auto !important;
+  max-width: none;
+  table-layout: auto;
   margin: 0 !important;
 }
 
+/* Rendered Markdown can set its own inline clipping on these descendants. */
 .structural-tables-image-snapshot :is(th, td, .structural-tables-cell-content, p, pre) {
   max-width: none !important;
   max-height: none !important;
@@ -531,15 +533,18 @@ body > .structural-tables-image-stage[inert] {
   padding: inherit;
   resize: none;
   overflow-y: var(--structural-table-editor-overflow-y, hidden);
-  border: 0 !important;
-  border-radius: 0 !important;
-  outline: 0 !important;
-  box-shadow: none !important;
-  background: transparent !important;
   color: var(--text-normal);
   font: inherit;
   line-height: inherit;
   text-align: inherit;
+}
+
+.structural-tables-live-preview .structural-tables-table :is(th, td).is-editing > textarea.structural-tables-cell-editor {
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
 .structural-tables-live-preview .structural-tables-table.is-interactive :is(th, td) {

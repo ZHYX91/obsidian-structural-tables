@@ -91,7 +91,7 @@ In the note editor's HTML-import route, a verifiable multi-column table is conve
 
 Whole-table import checks the complete candidate note before replacing the selection. The new table must own exactly its intended source range without absorbing adjacent pipe prose or changing tables and hidden cells outside the selection. An unsafe boundary blocks the paste and preserves the selection and source; leave blank lines around the target before retrying. Complete plain-text fallback retains its exact bytes and must not absorb unselected prose through adjacent syntax either.
 
-A single otherwise-safe table that is either completely empty or contains only text semantics the importer cannot preserve faithfully (`pre`, `sup`, or `sub`) uses the complete non-empty plain-text clipboard alternative verbatim when available; no TSV, Markdown, or TeX equivalence is inferred. If that known-lossy payload has no plain-text alternative, the paste is blocked and the current selection is kept.
+A single otherwise-safe table that is either completely empty or contains only text semantics the importer cannot preserve faithfully (for example, superscripts, preformatted text, or ordered and unordered lists with markers) uses the complete non-empty plain-text clipboard alternative verbatim when available; no TSV, Markdown, or TeX equivalence is inferred. If that known-lossy payload has no plain-text alternative, the paste is blocked and the current selection is kept.
 
 Mixed-content, multi-table, image, HTML `embed`, attachment, link, MathML/SVG, rich semantics on or around the table, clipboard files, and non-text clipboard MIME payloads remain native paste rather than being downgraded to plain text.
 

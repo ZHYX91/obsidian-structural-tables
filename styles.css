@@ -23,12 +23,12 @@
 }
 
 /* Export stages are measured in the host theme, outside the visible viewport. */
-.structural-tables-image-stage {
+body > .structural-tables-image-stage[inert] {
   position: fixed !important;
   inset: 0 auto auto -100000px !important;
-  width: max-content !important;
-  height: auto !important;
-  overflow: visible !important;
+  width: max-content;
+  height: auto;
+  overflow: visible;
   background: var(--background-primary);
   color: var(--text-normal);
   font-family: var(--font-text);
@@ -712,7 +712,7 @@
   scrollbar-width: thin;
 }
 
-.structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab {
+.structural-tables-settings .structural-tables-settings-tab-bar > .structural-tables-settings-tabs > button.structural-tables-settings-tab {
   appearance: none;
   -webkit-appearance: none;
   background: transparent;
@@ -739,32 +739,32 @@
     --interactive-accent: Highlight;
   }
 
-  .structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab[aria-selected="false"] {
+  .structural-tables-settings .structural-tables-settings-tab-bar > .structural-tables-settings-tabs > button.structural-tables-settings-tab[aria-selected="false"] {
     border-block-end-color: Canvas;
   }
 }
 
-.structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab:hover {
+.structural-tables-settings .structural-tables-settings-tab-bar > .structural-tables-settings-tabs > button.structural-tables-settings-tab:hover {
   background: transparent;
   color: var(--text-normal);
 }
 
-.structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab.is-active,
-.structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab.is-active:hover {
+.structural-tables-settings .structural-tables-settings-tab-bar > .structural-tables-settings-tabs > button.structural-tables-settings-tab.is-active,
+.structural-tables-settings .structural-tables-settings-tab-bar > .structural-tables-settings-tabs > button.structural-tables-settings-tab.is-active:hover {
   background: transparent;
   border-block-end-color: var(--interactive-accent);
   color: var(--text-normal);
   font-weight: var(--font-semibold);
 }
 
-.structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab:focus-visible {
+.structural-tables-settings .structural-tables-settings-tab-bar > .structural-tables-settings-tabs > button.structural-tables-settings-tab:focus-visible {
   outline: 2px solid var(--interactive-accent);
   outline-offset: -2px;
 }
 
 @container (max-width: 600px) {
-  .structural-tables-settings-tabs > button.structural-tables-settings-tab {
-    padding-inline: 8px !important;
+  .structural-tables-settings .structural-tables-settings-tab-bar > .structural-tables-settings-tabs > button.structural-tables-settings-tab {
+    padding-inline: 8px;
   }
 }
 
@@ -835,7 +835,7 @@
     font-size: max(1rem, 16px);
   }
 
-  .structural-tables-settings .structural-tables-settings-tabs > button.structural-tables-settings-tab {
+  .structural-tables-settings .structural-tables-settings-tab-bar > .structural-tables-settings-tabs > button.structural-tables-settings-tab {
     min-inline-size: 44px;
     min-block-size: 44px;
   }
